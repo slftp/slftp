@@ -4,7 +4,7 @@
 
 ![Happy mORMot](doc/happymormot.png)
 
-(c) 2008-2025 Synopse Informatique - Arnaud Bouchez
+(c) 2008-2026 Synopse Informatique - Arnaud Bouchez
 
 https://synopse.info  - http://mORMot.net
 
@@ -15,9 +15,9 @@ Thanks to all [Contributors](CONTRIBUTORS.md)!
 ## Resources
 
 You can find more about *mORMot 2* in:
-- its [Official Documentation](https://synopse.info/files/doc/mORMot2.html) (work in progress);
+- its [Official Documentation](https://synopse.info/files/doc/mORMot2.html) (work in progress) and [AI Generated Documentation](docs);
 - the [Samples Folder](ex);
-- the [Thomas Tutorials](https://github.com/synopse/mORMot2/tree/master/ex/ThirdPartyDemos/tbo);
+- the [Thomas Tutorials](ex/ThirdPartyDemos/tbo);
 - the [Synopse Forum](https://synopse.info/forum/viewforum.php?id=24);
 - the [Synopse Blog](https://blog.synopse.info);
 - the [Source Code `src` sub-folder](src);
@@ -35,7 +35,7 @@ If you find it worth using, please consider [sponsoring mORMot 2 dev](https://gi
 
 ### mORMot What?
 
-Synopse *mORMot 2* is the ultimate Open Source ToolBox for modern Object Pascal. It is a fully featured Client-Server ORM SOA MVC framework for Delphi 7 up to Delphi 12.2 Athenes and FPC 3.2/trunk, targeting Windows/Linux/BSD/MacOS for servers, and any platform for clients (including mobile or AJAX).
+Synopse *mORMot 2* is the ultimate Open Source ToolBox for modern Object Pascal. It is a fully featured Client-Server ORM SOA MVC framework for Delphi 7 up to Delphi 12.3 Florence and FPC 3.2/trunk, targeting Windows/Linux/BSD/MacOS for servers, and any platform for clients (including mobile or AJAX).
 
 ![mORMot map](doc/IamLost.png)
 
@@ -52,12 +52,12 @@ The main features of *mORMot* are therefore:
  - Web MVC: publish your ORM/SOA process as responsive Web Applications;
  - A lot of other reusable bricks (e.g. Unicode, network, threads, dictionaries, logging, binary serialization, variants, generics, cross-platform, pdf generation...).
 
-Emphasizing speed and versatility, *mORMot* leverages the advantages of modern object pascal native code and easy-to-deploy solutions, reducing deployment cost and increasing ROI. It can be used:
+Emphasizing speed and versatility, *mORMot* leverages the advantages of modern Object Pascal native code and easy-to-deploy solutions, reducing deployment cost and increasing ROI. It can be used:
 
  - to add basic ORM or Client-Server features to simple applications for hobbyists,
  - or let experienced users develop scalable service-based (DDD) projects for their customers, 
  - or leverage FPC cross-platform abilities with an existing Delphi codebase, to embrace the next decades,
- - have fun and see modern object pascal challenge the latest languages or frameworks.
+ - have fun and see modern Object Pascal challenge the latest languages or frameworks.
 
 ### Sub-Folders
 

@@ -22,7 +22,7 @@ var
 implementation
 
 uses
-  SysUtils;
+  SysUtils, debugunit;
 
 const
   timeout = 'timeout';
@@ -69,7 +69,11 @@ begin
     else
       config := TEncIniFile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.ini', '');
   except
-    Result := False;
+    on E: Exception do
+    begin
+      Debug(dpError, 'config', Format('ConfigInit failed: %s', [E.Message]));
+      Result := False;
+    end;
   end;
 
   cfgloaded := Result;

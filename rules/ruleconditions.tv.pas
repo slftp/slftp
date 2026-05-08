@@ -120,10 +120,16 @@ type
     class function Description: String; override;
   end;
 
+  TConditionTVEpisodeAgeDays = class(TIntCondition)
+    function SupplyValue(r: TPazo): integer; override;
+    class function Name: String; override;
+    class function Description: String; override;
+  end;
+
 implementation
 
 uses
-  SysUtils, Contnrs, kb.releaseinfo, debugunit;
+  SysUtils, Contnrs, DateUtils, kb.releaseinfo, debugunit;
 
 const
   dsection = 'rules.tv';
@@ -552,6 +558,29 @@ end;
 class function TConditionTVRating.Description: String;
 begin
   Result := TVRatingDescription;
+end;
+
+{ TConditionTVEpisodeAgeDays }
+
+function TConditionTVEpisodeAgeDays.SupplyValue(r: TPazo): integer;
+begin
+  Result := 99999;
+
+  if r.rls is TTVRelease then
+  begin
+    if TTVRelease(r.rls).episode_airdate > 0 then
+      Result := DaysBetween(UnixToDateTime(TTVRelease(r.rls).episode_airdate), Now);
+  end;
+end;
+
+class function TConditionTVEpisodeAgeDays.Name: String;
+begin
+  Result := 'tvepisodeagedays';
+end;
+
+class function TConditionTVEpisodeAgeDays.Description: String;
+begin
+  Result := TVEpisodeAgeDaysDescription;
 end;
 
 end.

@@ -25,11 +25,14 @@ uses
   mormot.core.os,
   mormot.core.unicode,
   mormot.core.text,
+  mormot.core.datetime,
+  mormot.core.data,
   mormot.core.rtti,
   mormot.core.json,
-  mormot.core.data,
+  mormot.core.fmt,
   mormot.core.log,
-  mormot.crypt.core;
+  mormot.crypt.core,
+  mormot.crypt.secure;
 
 
 
@@ -49,7 +52,7 @@ type
     {$ifdef OSWINDOWS}
     fServiceDependencies: RawUtf8;
     {$endif OSWINDOWS}
-    fLog: TSynLogLevels;
+    fLog: TSynLogLevels; // 32-bit
     fLogRotateFileCount: integer;
     fLogPath: TFileName;
     fLogClass: TSynLogClass;
@@ -162,6 +165,7 @@ type
     fConsoleMode: boolean;
     fWorkFolderName: TFileName;
     fSettings: TSynDaemonAbstractSettings;
+    fAfterCreateLog: TSynLogClass;
     procedure BeforeCreate(const aWorkFolder: TFileName); virtual;
     /// by default, calls fSettings.SetLog() if not running from tests
     // - could be overriden to change this default behavior
@@ -343,11 +347,18 @@ begin
 end;
 
 procedure TSynDaemon.AfterCreate;
+var
+  logger: TSynLogClass;
 begin
   if RunFromSynTests then
     fSettings.fLogClass := TSynLog // share the same TSynLog for all daemons
   else
-    fSettings.SetLog(TSynLog); // real world logging
+  begin
+    logger := fAfterCreateLog; // may be pre-set in inherited Create()
+    if logger = nil then
+      logger := TSynLog;
+    fSettings.SetLog(logger); // real world logging
+  end;
 end;
 
 destructor TSynDaemon.Destroy;
@@ -427,7 +438,8 @@ end;
 procedure TSynDaemon.Command(cmd: TExecuteCommandLineCmd; aAutoStart: boolean;
   const param: RawUtf8);
 var
-  exe: RawByteString;
+  hashes: TRawUtf8DynArray;
+  siz: Int64;
   log: TSynLog;
   {$ifdef OSWINDOWS}
   service: TServiceSingle;
@@ -482,7 +494,7 @@ var
     else
     begin
       error := GetLastError;
-      FormatUtf8('Error % [%] occurred with', [error, GetErrorText(error)], msg);
+      FormatUtf8('Error % [%] occurred with', [error, GetErrorShort(error)], msg);
       cc := ccLightRed;
       ExitCode := 1; // notify error to caller batch
     end;
@@ -508,12 +520,14 @@ begin
     cVersion:
       begin
         WriteCopyright;
-        exe := StringFromFile(Executable.ProgramFileName);
+        hashes := HashFileRaw(Executable.ProgramFileName,
+                    [hfMD5, hfSHA1, hfSHA256], @siz); // 3 hashes in one pass
         ConsoleWriteRaw([' ', fSettings.ServiceName, CRLF +
-             ' Size:       ', length(exe), ' bytes (', KB(exe), ')' + CRLF +
+             ' Size:       ', siz, ' bytes (', KB(siz), ')' + CRLF +
              ' Build date: ', Executable.Version.BuildDateTimeString, CRLF +
-             ' MD5:        ', Md5(exe), CRLF +
-             ' SHA256:     ', Sha256(exe), CRLF +
+             ' MD5:        ', hashes[0], CRLF +
+             ' SHA1:       ', hashes[1], CRLF +
+             ' SHA256:     ', hashes[2], CRLF +
              ' Running OS: ', OSVersionText]);
         if Executable.Version.Version32 <> 0 then
           ConsoleWriteRaw([
@@ -627,7 +641,7 @@ begin
             Executable.ProgramName, ' killed successfully']);
       end
       else
-        raise EDaemon.Create('No forked process found to be killed');
+        EDaemon.RaiseU('No forked process found to be killed');
     cState:
       ShowState(RunUntilSigTerminatedState);
     else

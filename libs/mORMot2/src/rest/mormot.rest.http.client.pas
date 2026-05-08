@@ -145,6 +145,11 @@ type
       const aProxyByPass: RawUtf8 = ''; aSendTimeout: cardinal = 0;
       aReceiveTimeout: cardinal = 0; aConnectTimeout: cardinal = 0);
        reintroduce; overload; virtual;
+    /// connect to TRestHttpServer on aServer:aPort creating a void own model
+    constructor CreateWithOwnModel(const aServer, aPort, aRoot: RawUtf8;
+      aHttps: boolean = false; const aProxyName: RawUtf8 = '';
+      const aProxyByPass: RawUtf8 = ''; aSendTimeout: cardinal = 0;
+      aReceiveTimeout: cardinal = 0; aConnectTimeout: cardinal = 0);
     /// connect to TRestHttpServer via 'address:port/root' URI format
     // - if port is not specified, aDefaultPort is used
     // - if root is not specified, aModel.Root is used
@@ -323,6 +328,7 @@ type
       BinaryOptions: TWebSocketProtocolBinaryOptions;
       Key: RawUtf8;
     end;
+    fWebSocketsUrl, fWebSocketsBearer: RawUtf8;
     function CallbackRequest(
       Ctxt: THttpServerRequestAbstract): cardinal; virtual;
     procedure InternalOpen; override;
@@ -337,7 +343,7 @@ type
     /// - first check if connected to the server, or try to (re)connect
     function IsOpen: boolean; override;
     /// upgrade the HTTP client connection to a specified WebSockets protocol
-    // - the Model.Root URI will be used for upgrade
+    // - the Model.Root URI will be used for upgrade, or WebSocketsUrl value
     // - if aWebSocketsAjax equals default FALSE, it will use 'synopsebinary'
     // i.e. TWebSocketProtocolBinaryprotocol, with AES-CFB 256 bits encryption
     // if the encryption key text is not '' and optional SynLZ compression
@@ -362,6 +368,20 @@ type
       aWebSocketsAjax: boolean = false;
       aWebSocketsBinaryOptions: TWebSocketProtocolBinaryOptions =
         [pboSynLzCompress]): RawUtf8;
+    /// optional safe URI for WebSockets upgrade
+    // - by default, WebSocketsUpgrade() uses Model.Root as URI
+    // - token could be supplied here as URI parameter - e.g. '/root?token', as
+    // retrieved from TRestHttpServer.WebSocketsUrl(), if rsoWebSocketsUpgradeSigned
+    // option was set on the server
+    property WebSocketsUrl: RawUtf8
+      read fWebSocketsUrl write fWebSocketsUrl;
+    /// optional safe HTTP authorization bearer for WebSockets upgrade for a given TRestServer
+    // - token could be supplied here as hidden HTTP header, retrieved from
+    // TRestHttpServer.WebSocketsBearer(), if rsoWebSocketsUpgradeSigned was
+    // set on the server
+    // - WebSocketsUpgrade() will still use Model.Root as URI
+    property WebSocketsBearer: RawUtf8
+      read fWebSocketsBearer write fWebSocketsBearer;
     /// internal HTTP/1.1 and WebSockets compatible client
     // - will call IsOpen to ensure the connection is actually established
     // - you could use its properties after upgrading the connection to WebSockets
@@ -371,7 +391,8 @@ type
     function WebSocketsConnected: boolean;
     /// will set the HTTP header as expected by THttpClientWebSockets.Request to
     // perform the Callback() query in wscNonBlockWithoutAnswer mode
-    procedure CallbackNonBlockingSetHeader(out Header: RawUtf8); override;
+    procedure CallbackModeSetHeader(Mode: TWebSocketProcessNotifyCallback;
+      var Header: RawUtf8); override;
     /// used to handle an interface parameter as SOA callback
     function FakeCallbackRegister(Sender: TServiceFactory;
       const Method: TInterfaceMethod; const ParamInfo: TInterfaceMethodArgument;
@@ -382,7 +403,8 @@ type
     /// this event will be executed just before the HTTP client will try to
     // upgrade to the expected WebSockets protocol
     // - supplied Sender parameter will be this TRestHttpClientWebsockets instance
-    // - it may be the right time e.g. to set a JWT bearer
+    // - it may be the right time e.g. to set more context in the HTTP headers
+    // if WebSocketsBearer is not enough
     property OnWebSocketsUpgrade: TOnClientNotify
       read fOnWebSocketsUpgrade write fOnWebSocketsUpgrade;
     /// this event will be executed just after the HTTP client has been
@@ -516,16 +538,16 @@ var
 {$ifndef PUREMORMOT2}
 
 type
-  TSqlRestHttpClientWinSock = TRestHttpClientSocket;
+  TSqlRestHttpClientWinSock    = TRestHttpClientSocket;
   {$ifndef NOHTTPCLIENTWEBSOCKETS}
   TSqlRestHttpClientWebsockets = TRestHttpClientWebsockets;
   {$endif NOHTTPCLIENTWEBSOCKETS}
   {$ifdef USEWININET}
-  TSqlRestHttpClientWinINet = TRestHttpClientWinINet;
-  TSqlRestHttpClientWinHttp = TRestHttpClientWinHttp;
+  TSqlRestHttpClientWinINet    = TRestHttpClientWinINet;
+  TSqlRestHttpClientWinHttp    = TRestHttpClientWinHttp;
   {$endif USEWININET}
   {$ifdef USELIBCURL}
-  TSqlRestHttpClientCurl = TRestHttpClientCurl;
+  TSqlRestHttpClientCurl       = TRestHttpClientCurl;
   {$endif USELIBCURL}
 
 {$endif PUREMORMOT2}
@@ -537,73 +559,6 @@ implementation
 { ************ TRestHttpClientGeneric and TRestHttpClientRequest Parent Classes }
 
 { TRestHttpClientGeneric }
-
-procedure TRestHttpClientGeneric.InternalUri(var Call: TRestUriParams);
-var
-  Head, Content, ContentType: RawUtf8;
-  P, PBeg: PUtf8Char;
-  res: Int64Rec;
-  log: ISynLog;
-begin
-  fLogClass.EnterLocal(log, 'InternalUri %', [Call.Method], self);
-  if IsOpen then
-  begin
-    Head := Call.InHead;
-    Content := Call.InBody;
-    ContentType := JSON_CONTENT_TYPE_VAR; // consider JSON by default
-    P := pointer(Head);
-    while P <> nil do
-    begin
-      PBeg := P;
-      if IdemPChar(PBeg, 'CONTENT-TYPE:') then
-      begin
-        ContentType := GetNextLine(PBeg + 14, P); // retrieve customized type
-        if P = nil then
-          // last entry in header
-          SetLength(Head, PBeg - pointer(Head))
-        else
-          system.delete(Head, PBeg - pointer(Head) + 1, P - PBeg);
-        TrimSelf(Head);
-        break;
-      end;
-      P := GotoNextLine(P);
-    end;
-    if Content <> '' then // always favor content type from binary
-      GetMimeContentTypeFromBuffer(Content, ContentType);
-    if fUriPrefix <> '' then
-      Call.Url := fUriPrefix + Call.Url;
-    if fCustomHeader <> '' then
-      AppendLine(Head, [fCustomHeader]);
-    fSafe.Enter;
-    try
-      res := InternalRequest(Call.Url, Call.Method, Head, Content, ContentType);
-    finally
-      fSafe.Leave;
-    end;
-    Call.OutStatus := res.Lo;
-    Call.OutInternalState := res.Hi;
-    Call.OutHead := Head;
-    Call.OutBody := Content;
-  end
-  else
-    Call.OutStatus := HTTP_CLIENTERROR; // indicates no socket
-  if log <> nil then
-    with Call do
-      log.Log(sllClient, '% % status=% len=% state=%',
-        [method, url, OutStatus, length(OutBody), OutInternalState], self);
-end;
-
-procedure TRestHttpClientGeneric.SetCompression(Value: TRestHttpCompressions);
-begin
-  fCompression := Value;
-  InternalClose; // force re-create connection at next request
-end;
-
-procedure TRestHttpClientGeneric.SetKeepAliveMS(Value: cardinal);
-begin
-  fKeepAliveMS := Value;
-  InternalClose; // force re-create connection at next request
-end;
 
 constructor TRestHttpClientGeneric.Create(const aServer, aPort: RawUtf8;
   aModel: TOrmModel; aHttps: boolean; const aProxyName, aProxyByPass: RawUtf8;
@@ -634,6 +589,19 @@ begin
   fProxyByPass := aProxyByPass;
 end;
 
+constructor TRestHttpClientGeneric.CreateWithOwnModel(
+  const aServer, aPort, aRoot: RawUtf8; aHttps: boolean;
+  const aProxyName, aProxyByPass: RawUtf8; aSendTimeout: cardinal;
+  aReceiveTimeout: cardinal; aConnectTimeout: cardinal);
+var
+  model: TOrmModel;
+begin
+  model := TOrmModel.Create([], aRoot);
+  Create(aServer, aPort, model, aHttps, aProxyName, aProxyByPass,
+    aSendTimeout, aReceiveTimeout, aConnectTimeout);
+  model.Owner := self;
+end;
+
 constructor TRestHttpClientGeneric.CreateForRemoteLogging(const aServer: RawUtf8;
   aLogClass: TSynLogClass; aPort: integer; const aRoot: RawUtf8);
 var
@@ -661,11 +629,11 @@ begin
     [Definition.ServerName, fServer, fPort]);
   Definition.DatabaseName := UrlEncode([
     'IgnoreTlsCertificateErrors', ord(fExtendedOptions.TLS.IgnoreCertificateErrors),
-    'ConnectTimeout', fConnectTimeout,
-    'SendTimeout',    fSendTimeout,
-    'ReceiveTimeout', fReceiveTimeout,
-    'ProxyName',   fProxyName,
-    'ProxyByPass', fProxyByPass], [ueTrimLeadingQuestionMark]);
+    'ConnectTimeout',             fConnectTimeout,
+    'SendTimeout',                fSendTimeout,
+    'ReceiveTimeout',             fReceiveTimeout,
+    'ProxyName',                  fProxyName,
+    'ProxyByPass',                fProxyByPass], [ueTrimLeadingQuestionMark]);
 end;
 
 constructor TRestHttpClientGeneric.RegisteredClassCreateFrom(aModel: TOrmModel;
@@ -713,6 +681,79 @@ begin
   Create(uri.Address, uri.Port, aModel, aHttps);
 end;
 
+procedure TRestHttpClientGeneric.InternalUri(var Call: TRestUriParams);
+var
+  Head, Content, ContentType: RawUtf8;
+  P, PBeg, bak: PUtf8Char;
+  res: Int64Rec;
+  log: ISynLog;
+begin
+  fLogClass.EnterLocal(log, 'InternalUri %', [Call.Method], self);
+  if IsOpen then
+  begin
+    Head := Call.InHead;
+    Content := Call.InBody;
+    ContentType := JSON_CONTENT_TYPE_VAR; // consider JSON by default
+    P := pointer(Head);
+    if P <> nil then
+      repeat
+        PBeg := P;
+        if IdemPChar(PBeg, 'CONTENT-TYPE:') then
+        begin
+          ContentType := GetNextLine(PBeg + 14, P); // retrieve customized type
+          if P = nil then
+            // last entry in header
+            SetLength(Head, PBeg - pointer(Head))
+          else
+            system.delete(Head, PBeg - pointer(Head) + 1, P - PBeg);
+          TrimSelf(Head);
+          break;
+        end;
+        P := GotoNextLineSmall(P);
+      until P^ = #0;
+    if Content <> '' then // always favor content type from binary
+      GetMimeContentTypeFromBuffer(Content, ContentType);
+    if fUriPrefix <> '' then
+      Call.Url := fUriPrefix + Call.Url;
+    if fCustomHeader <> '' then
+      AppendLine(Head, [fCustomHeader]);
+    fSafe.Enter;
+    try
+      res := InternalRequest(Call.Url, Call.Method, Head, Content, ContentType);
+    finally
+      fSafe.Leave;
+    end;
+    Call.OutStatus := res.Lo;
+    Call.OutInternalState := res.Hi;
+    Call.OutHead := Head;
+    Call.OutBody := Content;
+  end
+  else
+    Call.OutStatus := HTTP_CLIENTERROR; // indicates no socket
+  if log <> nil  then
+  begin
+    bak := PosCharU(call.Url, '?'); // use fast SSE2 asm on x86_64
+    if bak <> nil then
+      bak^ := #0;  // truncate URI before query parameters
+    log.Log(sllClient, '% % status=% len=% state=%', [call.Method, call.Url,
+      call.OutStatus, length(call.OutBody), call.OutInternalState], self);
+    if bak <> nil then
+      bak^ := '?';
+  end;
+end;
+
+procedure TRestHttpClientGeneric.SetCompression(Value: TRestHttpCompressions);
+begin
+  fCompression := Value;
+  InternalClose; // force re-create connection at next request
+end;
+
+procedure TRestHttpClientGeneric.SetKeepAliveMS(Value: cardinal);
+begin
+  fKeepAliveMS := Value;
+  InternalClose; // force re-create connection at next request
+end;
+
 function TRestHttpClientGeneric.HostName: RawUtf8;
 begin
   if fServer <> '' then
@@ -749,7 +790,7 @@ begin
   if LogClass <> nil then
     fSocket.OnLog := LogClass.DoLog; // verbose log
   {$endif VERBOSECLIENTLOG}
-  // note that first registered algo will be the prefered one
+  // note that first registered algo will be the preferred one
   {$ifndef PUREMORMOT2}
   if hcSynShaAes in Compression then
     // global SHA-256 / AES-256-CFB encryption + SynLZ compression
@@ -777,7 +818,7 @@ begin
   fLogFamily.Add.Log(sllTrace, 'InternalRequest % calling %(%).Request',
     [method, PClass(fSocket)^, pointer(fSocket)], self);
   result.Lo := fSocket.Request(
-    url, method, KeepAliveMS, Header, RawByteString(Data), DataType, false);
+    url, method, KeepAliveMS, Header, RawByteString(Data), DataType);
   result.Hi := fSocket.Http.ServerInternalState;
   Header := fSocket.Http.Headers;
   Data := fSocket.Http.Content;
@@ -807,7 +848,7 @@ begin
   fRequest := fRequestClass.Create(fServer, fPort, fHttps, fProxyName,
     fProxyByPass, fConnectTimeout, fSendTimeout, fReceiveTimeout);
   fRequest.ExtendedOptions := fExtendedOptions;
-  // note that first registered algo will be the prefered one
+  // note that first registered algo will be the preferred one
   {$ifndef PUREMORMOT2}
   if hcSynShaAes in Compression then
     // global SHA-256 / AES-256-CFB encryption + SynLZ compression
@@ -919,7 +960,7 @@ begin
   if WebSockets = nil then
     EServiceException.RaiseUtf8('Missing %.WebSocketsUpgrade() call', [self]);
   FormatUtf8('{"%":%}', [Factory.InterfaceRtti.Name, FakeCallbackID], body);
-  CallbackNonBlockingSetHeader(head); // frames gathering + no wait
+  CallbackModeSetHeader(wscNonBlockWithoutAnswer, head); // frames gathering + no wait
   result := CallBack(
     mPOST, 'CacheFlush/_callback_', body, resp, nil, 0, @head) = HTTP_SUCCESS;
 end;
@@ -968,10 +1009,16 @@ begin
             (THttpClientWebSockets(fSocket).WebSockets.State = wpsRun);
 end;
 
-procedure TRestHttpClientWebsockets.CallbackNonBlockingSetHeader(
-  out Header: RawUtf8);
+procedure TRestHttpClientWebsockets.CallbackModeSetHeader(
+  Mode: TWebSocketProcessNotifyCallback; var Header: RawUtf8);
 begin
-  Header := 'Sec-WebSocket-REST: NonBlocking'; // frames gathering + no wait
+  // see THttpClientWebSockets.Request
+  case Mode of
+    wscNonBlockWithoutAnswer: // frames gathering + no wait
+      AppendLine(Header, ['Sec-WebSocket-REST: NonBlocking']);
+    wscBlockWithoutAnswer:    // no wait
+      AppendLine(Header, ['Sec-WebSocket-REST: WithoutAnswer']);
+  end; // default wscBlockWithAnswer HTTP-like request needs no specific Header
 end;
 
 function TRestHttpClientWebsockets.WebSockets: THttpClientWebSockets;
@@ -997,6 +1044,7 @@ function TRestHttpClientWebsockets.WebSocketsUpgrade(
 var
   sockets: THttpClientWebSockets;
   prevconn: THttpServerConnectionID;
+  uri, bakhdr: RawUtf8;
   log: ISynLog;
 begin
   fLogClass.EnterLocal(log, self, 'WebSocketsUpgrade');
@@ -1013,9 +1061,21 @@ begin
       prevconn := 0;
     if Assigned(fOnWebSocketsUpgrade) then
       fOnWebSocketsUpgrade(self); // e.g. to set a JWT in fCustomHeader
-    result := sockets.WebSocketsUpgrade(
-      Model.Root, aWebSocketsEncryptionKey,
-      aWebSocketsAjax, aWebSocketsBinaryOptions, nil, fCustomHeader);
+    uri := fWebSocketsUrl;
+    if uri = '' then
+      uri := fModel.Root;
+    if fWebSocketsBearer <> '' then // supply the token just during the upgrade
+    begin
+      bakhdr := fCustomHeader;
+      AppendLine(fCustomHeader, [AuthorizationBearer(fWebSocketsBearer)]);
+    end;
+    try
+      result := sockets.WebSocketsUpgrade(uri, aWebSocketsEncryptionKey,
+        aWebSocketsAjax, aWebSocketsBinaryOptions, nil, fCustomHeader);
+    finally
+      if fWebSocketsBearer <> '' then
+        fCustomHeader := bakhdr; // restore
+    end;
     if result = '' then
     begin
       // no error message = success
@@ -1031,7 +1091,7 @@ begin
         fOnWebSocketsUpgraded(self); // e.g. to register some callbacks
       if sockets.Settings^.ClientRestoreCallbacks and
          (prevconn <> 0) then
-        // call TServiceContainerServer.FakeCallbackReplaceConnectionID
+        // call TServiceContainerServer.ClientFakeCallbackReplaceConnectionID
         if CallBack(mPOST, 'CacheFlush/_replaceconn_',
             Int64ToUtf8(prevconn), result) = HTTP_SUCCESS then
           result := ''; // on error, log result = server response

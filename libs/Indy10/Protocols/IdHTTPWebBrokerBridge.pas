@@ -105,6 +105,9 @@ type
     {$ELSE}
     function GetFieldByName(const Name: string): string; override;
     {$ENDIF}
+    {$IFDEF VCL_13_OR_ABOVE}
+    procedure ExtractAllHeaders(Strings: TStrings); override;
+    {$ENDIF}
     function ReadClient(var Buffer{$IFDEF CLR}: TBytes{$ENDIF}; Count: Integer): Integer; override;
     function ReadString(Count: Integer): {$IFDEF WBB_ANSI}AnsiString{$ELSE}string{$ENDIF}; override;
     {function ReadUnicodeString(Count: Integer): string;}
@@ -236,6 +239,8 @@ const
   INDEX_Connection       = 26;
   INDEX_Cookie           = 27;
   INDEX_Authorization    = 28;
+  INDEX_AuthUserName     = 29;
+  INDEX_AuthMethod       = 30;
 
 { TIdHTTPAppRequest }
 
@@ -436,6 +441,8 @@ begin
     INDEX_Connection      : LValue := FRequestInfo.RawHeaders.Values['Connection'];      {do not localize}
     INDEX_Cookie          : LValue := '';  // not available at present. FRequestInfo.Cookies....;
     INDEX_Authorization   : LValue := FRequestInfo.RawHeaders.Values['Authorization'];   {do not localize}
+    INDEX_AuthUserName    : LValue := '';  // authentication is not performed
+    INDEX_AuthMethod      : LValue := '';  // authentication is not performed
   else
     LValue := '';
   end;
@@ -451,6 +458,13 @@ end;
 function TIdHTTPAppRequest.GetFieldByName(const Name: string): string;
 begin
   Result := FRequestInfo.RawHeaders.Values[Name];
+end;
+{$ENDIF}
+
+{$IFDEF VCL_13_OR_ABOVE}
+procedure TIdHTTPAppRequest.ExtractAllHeaders(Strings: TStrings);
+begin
+  Strings.SetStrings(FRequestInfo.RawHeaders);
 end;
 {$ENDIF}
 
@@ -755,8 +769,15 @@ end;
 procedure TIdHTTPAppResponse.SendResponse;
 begin
   FSent := True;
+
+  // RLebeau 2/1/2026: DO NOT reset the ContentLength to -1 here. Doing so
+  // will prevent users from setting it for HEAD responses. It should already
+  // be -1 by default for each response, so just let the user decide what they
+  // want to set it to...
+  //
   // Reset to -1 so Indy will auto set it
-  FResponseInfo.ContentLength := -1;
+  //FResponseInfo.ContentLength := -1;
+
   MoveCookiesAndCustomHeaders;
   {$IFDEF VCL_10_1_OR_ABOVE}
   // TODO: This code may not be in the correct location.
@@ -768,6 +789,7 @@ begin
     ContentType := Format('text/html; charset=%s', [HTTPApp.DefaultCharSet]); {Do not Localize}
   end;
   {$ENDIF}
+
   FResponseInfo.WriteContent;
 end;
 
@@ -877,6 +899,61 @@ begin
   FResponseInfo.CustomHeaders.AddStdValues(CustomHeaders);
 end;
 
+{$IFDEF VCL_13_OR_ABOVE}
+  // until Delphi 13 Update1 can be detected in IdCompilerDefines.inc,
+  // use {$IF DECLARED(...) here to enable the new class...)
+  {$IF DECLARED(TWebResponseStream)}
+    {$DEFINE HAS_TWebResponseStream}
+  {$IFEND}
+{$ENDIF}
+
+{$IFDEF HAS_TWebResponseStream}
+
+{ TIdHTTPAppResponseStream }
+
+type
+  TIdHTTPAppResponseStream = class(TWebResponseStream)
+  private
+    function GetIdResponse: TIdHTTPAppResponse; inline;
+  protected
+    function GetConnected: Boolean; override;
+    procedure StartResponse; override;
+    procedure FlushBuffer; override;
+  public
+    property IdResponse: TIdHTTPAppResponse read GetIdResponse;
+  end;
+
+function TIdHTTPAppResponseStream.GetIdResponse: TIdHTTPAppResponse;
+begin
+  Result := TIdHTTPAppResponse(Response);
+end;
+
+function TIdHTTPAppResponseStream.GetConnected: Boolean;
+begin
+  Result := inherited GetConnected;
+  if Result then
+  begin
+    IdResponse.FThread.Connection.IOHandler.CheckForDisconnect(False, True);
+    Result := IdResponse.FThread.Connection.IOHandler.Opened;
+  end;
+end;
+
+procedure TIdHTTPAppResponseStream.StartResponse;
+begin
+  IdResponse.FSent := True;
+  IdResponse.ContentLength := -2;
+  IdResponse.MoveCookiesAndCustomHeaders;
+  IdResponse.FResponseInfo.WriteHeader;
+end;
+
+procedure TIdHTTPAppResponseStream.FlushBuffer;
+begin
+  inherited FlushBuffer;
+  IdResponse.FThread.Connection.IOHandler.WriteBufferFlush;
+end;
+
+{$ENDIF}
+
 { TIdHTTPWebBrokerBridge }
 
 procedure TIdHTTPWebBrokerBridge.DoCommandOther(AThread: TIdContext;
@@ -894,14 +971,14 @@ end;
 
 type
   TIdHTTPWebBrokerBridgeRequestHandler = class(TWebRequestHandler)
-  {$IFDEF HAS_CLASSVARS}
+  {$IFDEF HAS_CLASS_VARS}
   private
    class var FWebRequestHandler: TIdHTTPWebBrokerBridgeRequestHandler;
   {$ENDIF}
   public
     constructor Create(AOwner: TComponent); override;
-    {$IFDEF HAS_CLASSVARS}
-      {$IFDEF HAS_CLASSDESTRUCTOR}
+    {$IFDEF HAS_CLASS_VARS}
+      {$IFDEF HAS_CLASS_DESTRUCTOR}
     class destructor Destroy;
       {$ENDIF}
     {$ENDIF}
@@ -909,7 +986,7 @@ type
     procedure Run(AThread: TIdContext; ARequestInfo: TIdHTTPRequestInfo; AResponseInfo: TIdHTTPResponseInfo);
   end;
 
-{$IFNDEF HAS_CLASSVARS}
+{$IFNDEF HAS_CLASS_VARS}
 var
   IndyWebRequestHandler: TIdHTTPWebBrokerBridgeRequestHandler = nil;
 {$ENDIF}
@@ -953,18 +1030,19 @@ begin
   inherited;
 end;
 
-{$IFDEF HAS_CLASSVARS}
-  {$IFDEF HAS_CLASSDESTRUCTOR}
+{$IFDEF HAS_CLASS_VARS}
+  {$IFDEF HAS_CLASS_DESTRUCTOR}
 class destructor TIdHTTPWebBrokerBridgeRequestHandler.Destroy;
 begin
   FreeAndNil(FWebRequestHandler);
+  WebReq.WebRequestHandlerProc := nil;
 end;
   {$ENDIF}
 {$ENDIF}
 
 function IdHTTPWebBrokerBridgeRequestHandler: TWebRequestHandler;
 begin
-  {$IFDEF HAS_CLASSVARS}
+  {$IFDEF HAS_CLASS_VARS}
   if not Assigned(TIdHTTPWebBrokerBridgeRequestHandler.FWebRequestHandler) then
     TIdHTTPWebBrokerBridgeRequestHandler.FWebRequestHandler := TIdHTTPWebBrokerBridgeRequestHandler.Create(nil);
   Result := TIdHTTPWebBrokerBridgeRequestHandler.FWebRequestHandler;
@@ -983,7 +1061,7 @@ begin
     RunWebModuleClass(AThread, ARequestInfo, AResponseInfo)
   end else
   begin
-    {$IFDEF HAS_CLASSVARS}
+    {$IFDEF HAS_CLASS_VARS}
     TIdHTTPWebBrokerBridgeRequestHandler.FWebRequestHandler.Run(AThread, ARequestInfo, AResponseInfo);
     {$ELSE}
     IndyWebRequestHandler.Run(AThread, ARequestInfo, AResponseInfo);
@@ -1051,14 +1129,26 @@ end;
 
 initialization
   WebReq.WebRequestHandlerProc := IdHTTPWebBrokerBridgeRequestHandler;
-{$IFDEF HAS_CLASSVARS}
-  {$IFNDEF HAS_CLASSDESTRUCTOR}
+{$IFDEF HAS_TWebResponseStream}
+  TWebResponse.FGetResponseStream :=
+    function(AResponse: TWebResponse): TWebResponseStream
+    begin
+      Result := TIdHTTPAppResponseStream.Create(AResponse);
+    end;
+{$ENDIF}
+
 finalization
+{$IFDEF HAS_CLASS_VARS}
+  {$IFNDEF HAS_CLASS_DESTRUCTOR}
   FreeAndNil(TIdHTTPWebBrokerBridgeRequestHandler.FWebRequestHandler);
+  WebReq.WebRequestHandlerProc := nil;
   {$ENDIF}
 {$ELSE}
-finalization
   FreeAndNil(IndyWebRequestHandler);
+  WebReq.WebRequestHandlerProc := nil;
+{$ENDIF}
+{$IFDEF HAS_TWebResponseStream}
+  TWebResponse.FGetResponseStream := nil;
 {$ENDIF}
 
 end.

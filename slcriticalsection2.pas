@@ -3,7 +3,10 @@ unit slcriticalsection2;
 interface
 
 uses
-  SyncObjs, Generics.Collections, sltimer, Generics.Defaults;
+  SyncObjs, Generics.Collections, sltimer, Generics.Defaults, mormot.core.os
+  {$IFNDEF FPC}
+  , Winapi.Windows
+  {$ENDIF};
 
 {
   TslCriticalSection
@@ -14,6 +17,54 @@ uses
 
 
 type
+  { TslRWLock - shared/exclusive lock built on mORMot2 TRWLock with the same
+    naming and Enter/Leave wrapper style as TslCriticalSection2.
+    - Enter / Leave             -> exclusive write lock (replaces a critical section)
+    - EnterReadOnly / LeaveReadOnly -> shared read lock (multiple readers in parallel)
+
+    Reentrant semantics match TRWLock: WriteLock is reentrant within the same
+    thread. ReadOnlyLock CANNOT be acquired while WriteLock is held by the same
+    thread (TRWLock.ReadOnlyLock spins on the write bit and would deadlock the
+    same thread on itself); EnterReadOnly raises an exception in that case.
+    WriteLock-inside-ReadOnlyLock would deadlock per TRWLock's own docs.
+
+    No timeout support (TRWLock spins on wait), so the deadlock-debug timeout
+    from TslCriticalSection2 does not apply here. The wrapper does, however,
+    track Write-owner thread/count and an outstanding-Read counter so that an
+    unbalanced Leave or LeaveReadOnly raises an exception immediately instead
+    of silently corrupting the underlying TRWLock Flags counter (which has no
+    underflow check and would wrap around to MaxPtrUInt, permanently breaking
+    the lock). }
+  TslRWLock = class
+  private
+    FName: string;
+    FRWLock: TRWLock;
+    FWriteOwner: TThreadID;
+    FWriteCount: integer; //< nesting depth of Enter/Leave by FWriteOwner
+    FReadCount: integer;  //< total outstanding EnterReadOnly across all threads
+  public
+    constructor Create(const aName: string);
+    destructor Destroy; override;
+
+    { Acquire exclusive write lock. aLockOwnerName is currently informational only
+      for parity with TslCriticalSection2.Enter. Returns True (kept for API symmetry). }
+    function Enter(const aLockOwnerName: string = ''): boolean;
+    { Release exclusive write lock. Raises an exception when called by a thread
+      that does not currently hold the write lock or when called more times than
+      Enter on the owning thread. }
+    procedure Leave;
+
+    { Acquire shared read lock - multiple callers may hold this concurrently.
+      Raises an exception when the calling thread already holds the write lock
+      (would otherwise spin forever inside TRWLock.ReadOnlyLock). }
+    function EnterReadOnly(const aLockOwnerName: string = ''): boolean;
+    { Release shared read lock. Raises an exception when there is no outstanding
+      EnterReadOnly globally on this lock. }
+    procedure LeaveReadOnly;
+
+    property Name: string read FName;
+  end;
+
   TslCriticalSection2 = class
   private
     FInternalCriticalSection: TCriticalSection;
@@ -84,7 +135,87 @@ type
 
 implementation
   uses
-    SysUtils, debugunit, Classes, Math, mormot.core.os;
+    SysUtils, debugunit, Classes, Math;
+
+  { TslRWLock }
+
+  constructor TslRWLock.Create(const aName: string);
+  begin
+    inherited Create;
+    FName := aName;
+    FRWLock.Init;
+    FWriteOwner := TThreadID(0);
+    FWriteCount := 0;
+    FReadCount := 0;
+  end;
+
+  destructor TslRWLock.Destroy;
+  begin
+    if FWriteCount > 0 then
+      Debug(dpError, 'slcriticalsection2', Format('TslRWLock(%s) destroyed while held by thread %s (write count=%d)',
+        [FName, IntToHex(FWriteOwner, 4), FWriteCount]));
+    if FReadCount > 0 then
+      Debug(dpError, 'slcriticalsection2', Format('TslRWLock(%s) destroyed with %d outstanding readers',
+        [FName, FReadCount]));
+    FRWLock.AssertDone;
+    inherited;
+  end;
+
+  function TslRWLock.Enter(const aLockOwnerName: string): boolean;
+  var
+    tid: TThreadID;
+  begin
+    FRWLock.WriteLock;
+    // After WriteLock returns, this thread is the exclusive write owner. The
+    // increment is safe without an extra atomic primitive because no other
+    // thread can be in this branch concurrently; reentrant calls from the same
+    // thread serialize through TRWLock's internal LastWriteLockCount.
+    tid := GetCurrentThreadId;
+    FWriteOwner := tid;
+    Inc(FWriteCount);
+    Result := True;
+  end;
+
+  procedure TslRWLock.Leave;
+  var
+    tid: TThreadID;
+  begin
+    tid := GetCurrentThreadId;
+    if (FWriteCount <= 0) or (FWriteOwner <> tid) then
+      raise Exception.CreateFmt(
+        'TslRWLock(%s).Leave by thread %s but lock is not held by this thread (owner=%s count=%d)',
+        [FName, IntToHex(tid, 4), IntToHex(FWriteOwner, 4), FWriteCount]);
+    Dec(FWriteCount);
+    if FWriteCount = 0 then
+      FWriteOwner := TThreadID(0);
+    FRWLock.WriteUnLock;
+  end;
+
+  function TslRWLock.EnterReadOnly(const aLockOwnerName: string): boolean;
+  begin
+    // Acquiring ReadOnlyLock while this thread already holds WriteLock spins
+    // forever inside TRWLock (the writer bit is set by us, ReadOnlyLock waits
+    // for it to clear, never happens). Detect and surface as an exception so
+    // the caller fails loudly instead of hanging the slot thread.
+    if (FWriteCount > 0) and (FWriteOwner = GetCurrentThreadId) then
+      raise Exception.CreateFmt(
+        'TslRWLock(%s).EnterReadOnly by thread %s while it holds the write lock; ' +
+        'use a *Locked helper that assumes the write lock is already held instead',
+        [FName, IntToHex(GetCurrentThreadId, 4)]);
+    FRWLock.ReadOnlyLock;
+    InterLockedIncrement(FReadCount);
+    Result := True;
+  end;
+
+  procedure TslRWLock.LeaveReadOnly;
+  begin
+    if FReadCount <= 0 then
+      raise Exception.CreateFmt(
+        'TslRWLock(%s).LeaveReadOnly with no outstanding readers (count=%d) by thread %s',
+        [FName, FReadCount, IntToHex(GetCurrentThreadId, 4)]);
+    InterLockedDecrement(FReadCount);
+    FRWLock.ReadOnlyUnLock;
+  end;
 
   // these types are used for timer log output
   type

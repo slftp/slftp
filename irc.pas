@@ -21,6 +21,14 @@ type
     property Message: String read FMessage;
   end;
 
+  { @abstract(Callback type for hooking into IRC message output) }
+  TIrcLogHook = procedure(const Netname, Channel, Msg: String);
+
+var
+  { @abstract(Optional hook called for every IRC output message; used by API speed test monitoring) }
+  GlIrcLogHook: TIrcLogHook = nil;
+
+type
   TIRCChannroles = record
     Name: String;
     Description: String;
@@ -28,8 +36,8 @@ type
 
   TMyIrcThread = class(TslTCPThread)
   private
-    FSocketWriteLock: TSlCriticalSection2; //< Lock to protected the underlying write function of the socket to disallow concurrent access
-    FPendingMessagesQueue: TThreadList<TIrcEchoItem>; //< Queue of messages which still need to be send to IRC channels
+    FSocketWriteLock: TSlCriticalSection2;
+    FPendingMessagesQueue: TThreadList<TIrcEchoItem>;
 
     irc_last_read: TDateTime;
     registered: Boolean;
@@ -37,6 +45,7 @@ type
     lastservername: String;
     FCurrentIrcNick: String;
     flood: integer;
+    FConsecutiveFailures: Integer;
 
     function GetIrcSSL: Boolean;
 
@@ -238,6 +247,9 @@ var
   end;
 
 begin
+  if Assigned(GlIrcLogHook) then
+    GlIrcLogHook(netname, channel, msg);
+
   if slshutdown then
     exit;
 
@@ -596,6 +608,7 @@ begin
   irc_last_written := Now;
   shouldquit := False;
   shouldrestart := False;
+  FConsecutiveFailures := 0;
   flood := RCInt('flood', 333);
   console_add_ircwindow(aNetname);
 
@@ -1760,6 +1773,7 @@ begin
         BncCsere;
 
       status := 'offline';
+      FConsecutiveFailures := 0;
       Continue;
 
       hiba:
@@ -1769,12 +1783,25 @@ begin
       end;
       status := 'offline';
 
+      inc(FConsecutiveFailures);
       m := sleep_on_error;
+      if FConsecutiveFailures > 1 then
+      begin
+        if FConsecutiveFailures - 1 > 5 then
+          m := m * (1 shl 5)
+        else
+          m := m * (1 shl (FConsecutiveFailures - 1));
+        if m > 600 then
+          m := 600;
+      end;
       for i := 1 to m do
       begin
         if (not shouldquit) then
         begin
-          status := 'sleeping additional ' + IntToStr(m - i) + ' seconds before retrying';
+          if (FConsecutiveFailures < 10) or ((m - i) mod 60 = 0) then
+            status := 'sleeping additional ' + IntToStr(m - i) + ' seconds before retrying (' + IntToStr(FConsecutiveFailures) + ' consecutive failures)'
+          else
+            status := 'sleeping additional ' + IntToStr(m - i) + ' seconds before retrying';
           Sleep(1000);
         end;
       end;

@@ -32,13 +32,14 @@ uses
 
 
 type
-  /// Dns Resource Record (RR) Types
+  /// most known Dns Resource Record (RR) Types
   // - from http://www.iana.org/assignments/dns-parameters
   // - main values are e.g. drrA for a host address, drrNS for an authoritative
   // name server, or drrCNAME for the alias canonical name
   // - this enumerate has no RTTI because it is mapped to the integer values
   TDnsResourceRecord = (
-    drrA = 1,
+    drrEmpty,
+    drrA,
     drrNS,
     drrMD,
     drrMF,
@@ -239,17 +240,19 @@ var
 {$A+}
 
 type
-  /// one DNS decoded record as stored by DnsQuery() in TDnsResult
+  /// one decoded DNS record as stored by DnsQuery() in TDnsResult
   TDnsAnswer = record
     /// the Name of this record
     QName: RawUtf8;
-    /// the type of this record
+    /// the known type of this record
     QType: TDnsResourceRecord;
     /// after how many seconds this record information is deprecated
     TTL: cardinal;
     /// 0-based position of the raw binary of the record content
     // - pointing into TDnsResult.RawAnswer binary buffer
     Position: integer;
+    /// encoded length of the raw binary of the record content
+    Len: integer;
     /// main text information decoded from Data binary
     // - only best-known DNS resource record QType are recognized, i.e.
     // A AAAA CNAME TXT NS PTR MX SOA SRV as decoded by DnsParseData()
@@ -293,9 +296,9 @@ function DnsQuery(const QName: RawUtf8; out Res: TDnsResult;
   TimeOutMS: integer = DNSQUERY_TIMEOUT; QClass: cardinal = QC_INET): boolean;
 
 /// retrieve the IPv4 address of a DNS host name - using DnsQuery(drrA)
-// - e.g. DnsLookup('synopse.info') currently returns '62.210.254.173'
+// - e.g. DnsLookup('synopse.info') currently returns '82.67.73.95'
 // - for aliases, the CNAME is ignored and only the first A is returned, e.g.
-// DnsLookup('blog.synopse.info') would simply return '62.210.254.173'
+// DnsLookup('blog.synopse.info') would simply return '82.67.73.95'
 // - will also recognize obvious values like 'localhost' or an IPv4 address
 // - this unit will register this function to mormot.net.sock's NewSocketIP4Lookup
 // - default NameServers = '' will call GetDnsAddresses - but NameServers could
@@ -306,7 +309,7 @@ function DnsLookup(const HostName: RawUtf8; const NameServers: RawUtf8 = '';
   TimeoutMS: integer = DNSQUERY_TIMEOUT): RawUtf8;
 
 /// retrieve the IPv4 address(es) of a DNS host name - using DnsQuery(drrA)
-// - e.g. DnsLookups('synopse.info') currently returns ['62.210.254.173'] but
+// - e.g. DnsLookups('synopse.info') currently returns ['82.67.73.95'] but
 // DnsLookups('yahoo.com') returns an array of several IPv4 addresses
 // - will also recognize obvious values like 'localhost' or an IPv4 address
 // - default NameServers = '' will call GetDnsAddresses - but NameServers could
@@ -341,13 +344,13 @@ function DnsServices(const HostName: RawUtf8; const NameServers: RawUtf8 = '';
 function DnsLdapServices(const DomainName: RawUtf8;
   const NameServers: RawUtf8 = ''): TRawUtf8DynArray;
 
-/// retrieve the LDAP controlers from the current system AD domain name
+/// retrieve the LDAP controllers from the current system AD domain name
 // - returns e.g. ['dc-one.mycorp.com:389', 'dc-two.mycorp.com:389']
-// - optionally return the associated AD controler host name, e.g. 'ad.mycorp.com'
+// - optionally return the associated AD controller host name, e.g. 'ad.mycorp.com'
 // - default NameServers = '' will call GetDnsAddresses - but NameServers could
 // be IPv4 address(es) CSV, maybe prefixed as 'tcp@1.2.3.4' to force TCP
 // - see also CldapMyController() from mormot.net.ldap for a safer client approach
-function DnsLdapControlers(const NameServers: RawUtf8 = '';
+function DnsLdapControllers(const NameServers: RawUtf8 = '';
   UsePosixEnv: boolean = false; DomainName: PRawUtf8 = nil): TRawUtf8DynArray;
 
 
@@ -370,7 +373,7 @@ const
 
   DNS_RESP_SUCCESS = $00;
 
-  DNS_RELATIVE = $c0; // two high bits set = pointer within the response message
+  DNS_RELATIVE = $c0; // two high bits set = offset within the response message
 
 
 { TDnsHeader }
@@ -448,8 +451,8 @@ var
   len: byte;
   tmp: ShortString;
 begin
-  nextpos := 0;
   result := 0; // indicates error
+  nextpos := 0;
   p := pointer(Answer);
   max := length(Answer);
   tmp[0] := #0;
@@ -462,22 +465,23 @@ begin
       break;
     while (len and DNS_RELATIVE) = DNS_RELATIVE do
     begin
+      // see https://www.rfc-editor.org/rfc/rfc1035.html#section-4.1.4
       if nextpos = 0 then
-        nextpos := Pos + 1; // if compressed, return end of 16-bit offset
+        nextpos := Pos + 1; // if compressed, return end of offset
       if Pos >= max then
         exit;
-      Pos := PtrInt(len and (not DNS_RELATIVE)) shl 8 + p[Pos];
+      Pos := PtrInt(len and (not DNS_RELATIVE)) shl 8 + p[Pos]; // 14-bit offset
       if Pos >= max then
         exit;
-      len := p[Pos];
+      len := p[Pos]; // 8-bit length from offset
       inc(Pos);
     end;
     if len = 0 then
       break;
     if Pos + len > max then
       exit;
-    AppendShortBuffer(pointer(@p[Pos]), len, @tmp);
-    AppendShortCharSafe('.', @tmp);
+    AppendShortBuffer(pointer(@p[Pos]), len, high(tmp), @tmp);
+    AppendShortCharSafe('.', tmp);
     inc(Pos, len);
   until false;
   if tmp[ord(tmp[0])] = '.' then
@@ -505,48 +509,54 @@ procedure DnsParseData(RR: TDnsResourceRecord;
   const Answer: RawByteString; Pos, Len: PtrInt; var Text: RawUtf8);
 var
   p: PByteArray;
-  s1, s2: RawUtf8;
+  s2: RawUtf8;
 begin
   p := @PByteArray(Answer)[Pos];
-  case RR of
+  case RR of // see https://www.rfc-editor.org/rfc/rfc1035#section-3.3
     drrA:
-      // IPv4 binary address
+      // 32-bit IPv4 binary address
       if Len = 4 then
         IP4Text(p, Text);
     drrAAAA:
-      // IPv6 binary address
+      // 128-bit IPv6 binary address
       if Len = 16 then
         IP6Text(p, Text);
     drrCNAME,
+    drrMB,
+    drrMD,
+    drrMG,
     drrTXT,
     drrNS,
     drrPTR:
       // single text Value
       DnsParseString(Answer, Pos, Text);
     drrMX:
-      // Priority / Value
+      // Priority:W / Value
       if Len > 2 then
         DnsParseString(Answer, Pos + 2, Text);
+    drrHINFO,
     drrSOA:
+      // several values, first two as TEXT
       begin
-        // MName / RName / Serial / Refresh / Retry / Expire / TTL
-        Pos := DnsParseString(Answer, Pos, s1);
+        // HINFO: CPU / OS
+        // SOA: MName / RName / Serial:I / Refresh:I / Retry:I / Expire:I / TTL:I
+        Pos := DnsParseString(Answer, Pos, Text);
         if (Pos <> 0) and
            (DnsParseString(Answer, Pos, s2) <> 0) then
-          Text := s1 + ' ' + s2;
+          Append(Text, ' ', s2);
       end;
-    drrSRV:
-      // Priority / Weight / Port / QName
+    drrSRV: // see https://www.rfc-editor.org/rfc/rfc2782
       if Len > 6 then
+        // Priority:W / Weight:W / Port:W / QName
         if DnsParseString(Answer, Pos + 6, Text) <> 0 then
-          Text := Text + ':' + UInt32ToUtf8(bswap16(PWordArray(p)[2])); // :port
+          Append(Text, [':', bswap16(PWordArray(p)[2])]); // QName:port
   end;
 end;
 
 function DnsBuildQuestion(const QName: RawUtf8; RR: TDnsResourceRecord;
   QClass: cardinal): RawByteString;
 var
-  tmp: TTextWriterStackBuffer;
+  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
   w: TBufferWriter;
   h: TDnsHeader;
   n: PUtf8Char;
@@ -582,7 +592,7 @@ end;
 var
   NoTcpSafe: TLightLock;
   NoTcpServers: TRawUtf8DynArray;
-  NoTcpTix16: cardinal; // cache flushed after 65,536 seconds
+  NoTcpTix16: cardinal; // cache flushed after 64 seconds
 
 function DnsSendQuestion(const Address, Port: RawUtf8;
   const Request: RawByteString; out Answer: RawByteString;
@@ -596,7 +606,7 @@ var
   start, stop: Int64;
   tix16: cardinal;
   lenw: word;
-  tmp: TSynTempBuffer;
+  tmp: TBuffer4K;
   hdr: PDnsHeader;
 begin
   result := false;
@@ -646,7 +656,7 @@ begin
   begin
     // UDP frame was too small: try with a TCP connection
     // ensure was not marked in NoTcpServers (avoid unneeded timeout)
-    tix16 := GetTickCount64 shr 16;
+    tix16 := GetTickSec shr 6;
     NoTcpSafe.Lock;
     if NoTcpTix16 <> tix16 then
       NoTcpServers := nil; // flush after 1 minute
@@ -707,6 +717,7 @@ function DnsParseRecord(const Answer: RawByteString; var Pos: PtrInt;
   var Dest: TDnsAnswer; QClass: cardinal): boolean;
 var
   len: PtrInt;
+  qc: cardinal;
   p: PByteArray;
 begin
   result := false;
@@ -716,13 +727,16 @@ begin
      (Pos + 10 > length(Answer)) then
     exit;
   word(Dest.QType) := DnsParseWord(p, Pos);
-  if DnsParseWord(p, Pos) <> QClass then
+  qc := DnsParseWord(p, Pos);
+  if (qc <> QClass) and  // https://www.rfc-editor.org/rfc/rfc6891#section-6.1.2
+     (Dest.QType <> drrOPT) then // OPT stores the UDP payload size here :(
     exit;
-  Dest.TTL := DnsParseCardinal(p, Pos);
+  Dest.TTL := DnsParseCardinal(p, Pos); // RCODE and flags for drrOPT
   len := DnsParseWord(p, Pos);
   if Pos + len > length(Answer) then
     exit;
   Dest.Position := Pos;
+  Dest.Len := len;
   DnsParseData(Dest.QType, Answer, Pos, len, Dest.Text);
   inc(Pos, len);
   result := true;
@@ -793,10 +807,10 @@ begin
   if PropNameEquals(HostName, 'localhost') or
      (HostName = c6Localhost) then
     Ip := IP4local
-  else if NetIsIP4(pointer(HostName)) then
+  else if NetIsIP4(pointer(HostName)) then // '1.2.3.4'
     Ip := HostName
   else
-    result := false;
+    result := false; // and Ip has been set to ''
 end;
 
 function DnsLookup(const HostName, NameServers: RawUtf8; TimeoutMS: integer): RawUtf8;
@@ -804,7 +818,7 @@ var
   res: TDnsResult;
   i: PtrInt;
 begin
-  if not DnsLookupKnown(HostName, result) then
+  if not DnsLookupKnown(HostName, result) then // e.g. 'localhost' or '1.2.3.4'
     if DnsQuery(HostName, res, drrA, NameServers, TimeoutMS) then
       for i := 0 to high(res.Answer) do
         if res.Answer[i].QType = drrA then
@@ -821,7 +835,7 @@ var
   i: PtrInt;
 begin
   result := nil;
-  if DnsLookupKnown(HostName, known) then
+  if DnsLookupKnown(HostName, known) then // e.g. 'localhost' or '1.2.3.4'
     AddRawUtf8(result, known)
   else if DnsQuery(HostName, res, drrA, NameServers, TimeoutMS) then
     for i := 0 to high(res.Answer) do
@@ -831,15 +845,13 @@ end;
 
 function DnsReverseLookup(const IP4, NameServers: RawUtf8; TimeoutMS: integer): RawUtf8;
 var
-  b: array[0..3] of byte; // to be asked in inverse byte order
+  rev: RawUtf8;
   res: TDnsResult;
   i: PtrInt;
 begin
   result := '';
-  cardinal(b) := 0;
-  if NetIsIP4(pointer(IP4), @b) and
-     DnsQuery(FormatUtf8('%.%.%.%.in-addr.arpa', [b[3], b[2], b[1], b[0]]),
-       res, drrPTR, NameServers, TimeoutMS) then
+  if ReverseIP4(IP4, rev) and
+     DnsQuery(rev, res, drrPTR, NameServers, TimeoutMS) then
     for i := 0 to high(res.Answer) do
       if res.Answer[i].QType = drrPTR then
       begin
@@ -865,7 +877,7 @@ begin
   result := DnsServices('_ldap._tcp.' + DomainName, NameServers);
 end;
 
-function DnsLdapControlers(const NameServers: RawUtf8; UsePosixEnv: boolean;
+function DnsLdapControllers(const NameServers: RawUtf8; UsePosixEnv: boolean;
   DomainName: PRawUtf8): TRawUtf8DynArray;
 var
   ad: TRawUtf8DynArray;
@@ -885,16 +897,18 @@ begin
   end;
 end;
 
-function _NewSocketIP4Lookup(const HostName: RawUtf8; out IP4: cardinal): boolean;
+function _NewSocketIP4Lookup(const HostName: RawUtf8; out IP4: TNetIP4): boolean;
 var
   ip: RawUtf8;
 begin
+  ip4 := 0; // clearly identify failure
   ip := DnsLookup(HostName, NewSocketIP4LookupServer);
   result := NetIsIP4(pointer(ip), @ip4);
 end;
 
 
 initialization
+  assert(ord(drrOPT) = 41);
   assert(ord(drrHTTPS) = 65);
   assert(ord(drrSPF) = 99);
   assert(ord(drrEUI64) = 109);

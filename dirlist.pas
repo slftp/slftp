@@ -44,6 +44,8 @@ type
       @returns(Recognized DirType see @link(globals.TDirType), @link(globals.TDirType.IsUnknown) otherwise) }
     FIsNFO: Boolean; //< True when this is a NFO file.
     FIsSFV: Boolean; //< True when this is a SFV file.
+    FIsSymlink: Boolean; //< @true if entry is a symlink
+    FSymlinkTarget: String; //< target of symlink (if applicable)
     function RecognizeDirTypeFromDirname(const aDirname: String): TDirType;
   public
     dirlist: TDirList;
@@ -80,6 +82,8 @@ type
     property IsBeingUploaded: Boolean read FIsBeingUploaded write FIsBeingUploaded;
     property IsNFO: Boolean read FIsNFO;
     property IsSFV: Boolean read FIsSFV;
+    property IsSymlink: Boolean read FIsSymlink;
+    property SymlinkTarget: string read FSymlinkTarget;
   end;
 
   { @abstract(Information for a single release dirlist) }
@@ -128,7 +132,7 @@ type
     procedure CalculateMultiCD;
     class function Timestamp(ts: String): TDateTime;
   public
-    dirlist_lock: TSlCriticalSection2;
+    dirlist_lock: TslRWLock;
     dirlistadded: Boolean;
     site_name: String; //< sitename
     error: Boolean;
@@ -158,6 +162,11 @@ type
     procedure Usefulfiles(out files: Integer; out size: Int64);
     function FindNfo: TDirListEntry;
     function Find(const filename: String): TDirListEntry;
+    { Same as Find but assumes the caller already holds dirlist_lock (Enter or
+      EnterReadOnly). Use this from blocks that already acquired the lock so
+      the call doesn't try to nest a ReadOnlyLock inside an existing WriteLock,
+      which would self-deadlock the TRWLock. }
+    function FindLocked(const filename: String): TDirListEntry;
     function FindDirlist(const dirname: String; createit: Boolean = False): TDirList;
 
 
@@ -280,15 +289,21 @@ begin
   files := 0;
   size := 0;
 
-  // dir has already been seen as complete
-  if FCachedCompleteResult then
-  begin
-    SetCompleteInfo(FromFtpd);
-    Result := True;
-    exit;
+  // Check cached result under ReadOnlyLock
+  dirlist_lock.EnterReadOnly('TDirList.Complete cache read');
+  try
+    if FCachedCompleteResult then
+    begin
+      SetCompleteInfo(FromFtpd);
+      Result := True;
+      exit;
+    end;
+  finally
+    dirlist_lock.LeaveReadOnly;
   end;
 
-  if error then
+  try
+    if error then
   begin
     if parent <> nil then
       Debug(dpSpam, section, 'TDirlist.Complete ERROR: Site: %s - Dir: %s - DirType: %s', [site_name, FFullPath, parent.DirTypeAsString])
@@ -361,7 +376,7 @@ begin
         Result := True;
 
         // check if all multi-cd subdirs are complete
-        dirlist_lock.Enter('TDirList.Complete');
+        dirlist_lock.EnterReadOnly('TDirList.Complete');
         try
           for d in entries.Values do
           begin
@@ -380,7 +395,7 @@ begin
             end;
           end;
         finally
-          dirlist_lock.Leave;
+          dirlist_lock.LeaveReadOnly;
         end;
       end;
     end;
@@ -393,14 +408,17 @@ begin
 
   end;
 
-  // set complete date if not already set
-  if ((Result) and (self.FCompletedTime = 0)) then
-  begin
-    self.FCompletedTime := Now();
+  finally
+    // Cache result under WriteLock
+    dirlist_lock.Enter('TDirList.Complete cache write');
+    try
+      if ((Result) and (self.FCompletedTime = 0)) then
+        self.FCompletedTime := Now();
+      FCachedCompleteResult := Result;
+    finally
+      dirlist_lock.Leave;
+    end;
   end;
-
-  // avoid further execution of TDirlist.Complete if Result is true
-  FCachedCompleteResult := Result;
 end;
 
 constructor TDirList.Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const aPazoSFV: TPazoSFV; SpeedTest: boolean = False; FromIrc: boolean = False);
@@ -422,12 +440,11 @@ begin
     finally
       uid_lock.Leave;
     end;
-    dirlist_lock := TSlCriticalSection2.Create('dirlist_' + site_name + '_' + uid.ToString());
+    dirlist_lock := TslRWLock.Create('dirlist_' + site_name + '_' + uid.ToString());
   end
   else
   begin
-    // no need for a unique name if we do not use timeout locking
-    dirlist_lock := TSlCriticalSection2.Create('dirlist_create');
+    dirlist_lock := TslRWLock.Create('dirlist_create');
   end;
 
   biggestcd:= 0;
@@ -486,9 +503,9 @@ end;
 
 destructor TDirList.Destroy;
 begin
-  skipped.Free;
   dirlist_lock.Enter('TDirList.Destroy');
   try
+    skipped.Free;
     entries.Free;
     FIsValidFileCache.Free;
     FIsValidDirCache.Free;
@@ -498,7 +515,7 @@ begin
   finally
     dirlist_lock.Leave;
   end;
-  dirlist_lock.Free;
+  FreeAndNil(dirlist_lock);
   inherited;
 end;
 
@@ -702,7 +719,9 @@ begin
       else
         akttimestamp := MinDateTime;
 
-      de := Find(fParsedDirlistEntry.Filename);
+      // We hold the write lock - use FindLocked to avoid a nested
+      // ReadOnlyLock self-deadlock on TslRWLock.
+      de := FindLocked(fParsedDirlistEntry.Filename);
       if de = nil then
       begin
         de := TDirListEntry.Create(fParsedDirlistEntry.Filename, self, (fParsedDirlistEntry.DirMask[1] = 'd'));
@@ -720,6 +739,8 @@ begin
 
         de.FUsername := fParsedDirlistEntry.Username;
         de.FGroupname := fParsedDirlistEntry.Groupname;
+        de.FIsSymlink := fParsedDirlistEntry.IsSymlink;
+        de.FSymlinkTarget := fParsedDirlistEntry.SymlinkTarget;
         de.timestamp := akttimestamp;
         de.justadded := True;
 
@@ -797,6 +818,8 @@ begin
 
       // entry is a file and is being uploaded (glftpd only?)
       de.FIsBeingUploaded := (fParsedDirlistEntry.DirMask[1] <> 'd') and ((fParsedDirlistEntry.DirMask[7] = 'x') and (fParsedDirlistEntry.DirMask[10] = 'x'));
+      de.FIsSymlink := fParsedDirlistEntry.IsSymlink;
+      de.FSymlinkTarget := fParsedDirlistEntry.SymlinkTarget;
 
       de.IsOnSite := True;
     end;
@@ -1095,7 +1118,7 @@ begin
   files := 0;
   size := 0;
 
-  dirlist_lock.Enter('TDirList.Usefulfiles');
+  dirlist_lock.EnterReadOnly('TDirList.Usefulfiles');
   try
     for de in entries.Values do
     begin
@@ -1122,7 +1145,7 @@ begin
       end;
     end;
   finally
-    dirlist_lock.Leave;
+    dirlist_lock.LeaveReadOnly;
   end;
 end;
 
@@ -1132,12 +1155,20 @@ begin
   if entries.Count = 0 then
     exit;
 
-  dirlist_lock.Enter('TDirList.Find');
+  dirlist_lock.EnterReadOnly('TDirList.Find');
   try
     entries.TryGetValue(filename, Result);
   finally
-    dirlist_lock.Leave;
+    dirlist_lock.LeaveReadOnly;
   end;
+end;
+
+function TDirList.FindLocked(const filename: String): TDirListEntry;
+begin
+  Result := nil;
+  if entries.Count = 0 then
+    exit;
+  entries.TryGetValue(filename, Result);
 end;
 
 procedure TDirList.SetLastChanged(const value: TDateTime);
@@ -1174,32 +1205,39 @@ begin
       lastdir := '';
     end;
 
+    // Inline the lookup (instead of calling Find which would try a nested
+    // EnterReadOnly while we hold WriteLock). On createit the WriteLock is
+    // necessary to safely add to entries; otherwise a ReadOnlyLock would do
+    // but we keep WriteLock since the path is rarely hot and reentrancy is safer.
+    // The subdirlist initialization MUST happen inside the same lock - two
+    // concurrent FindDirlist calls would otherwise both see d.subdirlist=nil
+    // and each create a new TDirList, with the second overwriting the first
+    // and leaking it (and any in-flight readers of the first instance).
     dirlist_lock.Enter('TDirList.FindDirlist');
     try
-      d := Find(firstdir);
+      if entries.Count = 0 then
+        d := nil
+      else if not entries.TryGetValue(firstdir, d) then
+        d := nil;
       if d = nil then
       begin
         if not createit then
-        begin
           exit;
-        end;
         d := TDirListEntry.Create(firstdir, self, True);
         entries.Add(d.filename, d);
       end;
+
+      if not d.Directory then
+        exit; // d is a file - no subdirlist to recurse into
+
+      if d.subdirlist = nil then
+      begin
+        d.subdirlist := TDirlist.Create(site_name, d, skiplist, FPazoSFV);
+        if d.subdirlist <> nil then
+          d.subdirlist.FullPath := MyIncludeTrailingSlash(self.FFullPath) + d.filename;
+      end;
     finally
       dirlist_lock.Leave;
-    end;
-
-    if (not d.Directory) then
-    begin
-      exit;
-    end;
-
-    if d.subdirlist = nil then
-    begin
-      d.subdirlist := TDirlist.Create(site_name, d, skiplist, FPazoSFV);
-      if d.subdirlist <> nil then
-        d.subdirlist.FullPath := MyIncludeTrailingSlash(self.FFullPath) + d.filename;
     end;
   except
     on E: Exception do
@@ -1208,7 +1246,10 @@ begin
       exit;
     end;
   end;
-  Result := d.subdirlist.FindDirlist(lastdir, createit);
+
+  // Recursive descent uses the subdirlist's own lock - safe to do outside ours.
+  if d.subdirlist <> nil then
+    Result := d.subdirlist.FindDirlist(lastdir, createit);
 end;
 
 function TDirList.Done: Integer;
@@ -1217,7 +1258,7 @@ var
 begin
   Result := 0;
 
-  dirlist_lock.Enter('TDirList.Done');
+  dirlist_lock.EnterReadOnly('TDirList.Done');
   try
     for de in entries.Values do
     begin
@@ -1239,7 +1280,7 @@ begin
       end;
     end;
   finally
-    dirlist_lock.Leave;
+    dirlist_lock.LeaveReadOnly;
   end;
 end;
 
@@ -1249,7 +1290,7 @@ var
 begin
   Result := 0;
 
-  dirlist_lock.Enter('TDirList.FilesRacedByMe');
+  dirlist_lock.EnterReadOnly('TDirList.FilesRacedByMe');
   try
     for de in entries.Values do
     begin
@@ -1278,7 +1319,7 @@ begin
       end;
     end;
   finally
-    dirlist_lock.Leave;
+    dirlist_lock.LeaveReadOnly;
   end;
 end;
 
@@ -1288,7 +1329,7 @@ var
 begin
   Result := 0;
 
-  dirlist_lock.Enter('TDirList.SizeRacedByMe');
+  dirlist_lock.EnterReadOnly('TDirList.SizeRacedByMe');
   try
     for de in entries.Values do
     begin
@@ -1317,7 +1358,7 @@ begin
       end;
     end;
   finally
-    dirlist_lock.Leave;
+    dirlist_lock.LeaveReadOnly;
   end;
 end;
 
@@ -1372,7 +1413,7 @@ var de: TDirlistEntry;
 begin
   Result := nil;
 
-  dirlist_lock.Enter('TDirList.FindNfo');
+  dirlist_lock.EnterReadOnly('TDirList.FindNfo');
   try
     for de in entries.Values do
     begin
@@ -1391,7 +1432,7 @@ begin
       end;
     end;
   finally
-    dirlist_lock.Leave;
+    dirlist_lock.LeaveReadOnly;
   end;
 end;
 
@@ -1453,6 +1494,8 @@ begin
   end;
 
   self.FDirectory := aIsDirectory;
+  self.FIsSymlink := False;
+  self.FSymlinkTarget := '';
   self.dirlist := dirlist;
   self.filename := filename;
   self.FRacedByMe := False;
@@ -1659,8 +1702,8 @@ var
   i: Integer;
   de: TDirListEntry;
 begin
-  allCdNumbers := '';
-  biggestcd := 0;
+  allCdNumbers := '';
+  biggestcd := 0;
 
   // find the biggest CD
   for de in entries.Values do

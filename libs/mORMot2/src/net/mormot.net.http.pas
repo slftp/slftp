@@ -12,6 +12,7 @@ unit mormot.net.http;
    - THttpSocket Implementing HTTP over plain sockets
    - Abstract Server-Side Types used e.g. for Client-Server Protocol
    - HTTP Server Logging/Monitoring Processors
+   - Additional High-Level Socket Functions
 
   *****************************************************************************
 
@@ -29,8 +30,8 @@ uses
   mormot.core.unicode,
   mormot.core.text,
   mormot.core.rtti,
-  mormot.core.buffers,
   mormot.core.datetime,
+  mormot.core.buffers,
   mormot.core.data,
   mormot.core.zip,
   mormot.net.sock;
@@ -106,8 +107,8 @@ type
   public
     /// the compression algorithms currently registered
     Algo: THttpSocketCompressRecDynArray;
-    /// the 'Accept-Encoding:' header value corresponding to Algo[]
-    AcceptEncoding: RawUtf8;
+    /// the 'Accept-Encoding:' client header value corresponding to Algo[]
+    AcceptEncodingClient: RawUtf8;
     /// enable a give compression function for a HTTP link
     // - returns the newly added record in the Compress.Algo[] list
     // - returns nil if this algorithm was already defined, updating existing
@@ -150,14 +151,16 @@ function KnownHttpHeader(P: PUtf8Char): THttpHeader;
 function AuthorizationBearer(const AuthToken: RawUtf8): RawUtf8;
 
 /// will remove most usual HTTP headers which are to be recomputed on sending
+// - trim=true would remove any space or CR/LF at the end of the result
 // - as used e.g. during TPublicRelay process from mormot.net.relay
+// - upIgnore is in IdemPCharSet() format, e.g. 'CONTENT-|CONNECTION:|'
 function PurgeHeaders(const headers: RawUtf8; trim: boolean = false;
-  upIgnore: PPAnsiChar = nil): RawUtf8;
+  upIgnore: PUtf8Char = nil): RawUtf8;
 
-/// search, copy and remove a given HTTP header
+/// search, copy and remove a given HTTP header as text or Int64
 // - FindNameValue() makes search + copy, but this function also REMOVES the header
 procedure ExtractHeader(var headers: RawUtf8; const upname: RawUtf8;
-  out res: RawUtf8);
+  extractText: PRawUtf8; extractInt: PInt64 = nil);
 
 /// retrieve a HTTP header text value from its case-insensitive name
 function GetHeader(const Headers, Name: RawUtf8; out Value: RawUtf8): boolean; overload;
@@ -165,8 +168,20 @@ function GetHeader(const Headers, Name: RawUtf8; out Value: RawUtf8): boolean; o
 /// retrieve a HTTP header 64-bit integer value from its case-insensitive name
 function GetHeader(const Headers, Name: RawUtf8; out Value: Int64): boolean; overload;
 
+/// get the content full length, from "Content-Length:" or "Content-Range:"
+function HttpRequestLength(aHeaders: PUtf8Char; aHeadersLen: PPtrInt = nil): PUtf8Char;
+
+/// extract size and date from HTTP headers
+// - note that some web servers (e.g. with HEAD, or when chunking) may not
+// return a "Content-Length" header - so we return ContentLength = -1 for them
+procedure GetHeaderInfo(const Headers: RawUtf8; out ContentLength: Int64;
+  out LastModified: TUnixTime);
+
+/// remove an HTTP header entry as specified by its name (e.g. 'Authorization')
+function DeleteHeader(const Headers, Name: RawUtf8): RawUtf8;
+
 /// 'HEAD' and 'OPTIONS' methods would be detected and return true
-// - will check only the first four chars for efficiency
+// - will check only the first four chars for efficiency  - requires method <> ''
 function HttpMethodWithNoBody(const method: RawUtf8): boolean;
   {$ifdef HASINLINE} inline; {$endif}
 
@@ -174,29 +189,29 @@ function HttpMethodWithNoBody(const method: RawUtf8): boolean;
 // - see https://tools.ietf.org/html/rfc2047
 function MimeHeaderEncode(const header: RawUtf8): RawUtf8;
 
-/// quick check for case-sensitive 'GET' HTTP method name
+/// quick check for case-sensitive 'GET' HTTP method name - requires method <> ''
 // - see also HttpMethodWithNoBody()
 function IsGet(const method: RawUtf8): boolean;
   {$ifdef HASINLINE} inline; {$endif}
 
-/// quick check for case-sensitive 'HEAD' HTTP method name
+/// quick check for case-sensitive 'HEAD' HTTP method name - requires method <> ''
 // - see also HttpMethodWithNoBody()
 function IsHead(const method: RawUtf8): boolean;
   {$ifdef HASINLINE} inline; {$endif}
 
-/// quick check for case-sensitive 'POST' HTTP method name
+/// quick check for case-sensitive 'POST' HTTP method name - requires method <> ''
 function IsPost(const method: RawUtf8): boolean;
   {$ifdef HASINLINE} inline; {$endif}
 
-/// quick check for case-sensitive 'PUT' HTTP method name
+/// quick check for case-sensitive 'PUT' HTTP method name - requires method <> ''
 function IsPut(const method: RawUtf8): boolean;
   {$ifdef HASINLINE} inline; {$endif}
 
-/// quick check for case-sensitive 'DELETE' HTTP method name
+/// quick check for case-sensitive 'DELETE' HTTP method name - requires method <> ''
 function IsDelete(const method: RawUtf8): boolean;
   {$ifdef HASINLINE} inline; {$endif}
 
-/// quick check for case-sensitive 'OPTIONS' HTTP method name
+/// quick check for case-sensitive 'OPTIONS' HTTP method name - requires method <> ''
 function IsOptions(const method: RawUtf8): boolean;
   {$ifdef HASINLINE} inline; {$endif}
 
@@ -247,14 +262,22 @@ function GetFileNameFromUrl(const Uri: RawUtf8): TFileName;
 // - returned P^ points to the first non digit char - not as GetNextItemQWord()
 function GetNextRange(var P: PUtf8Char): Qword;
 
+/// append an IPv4 as '"1.2.3.4"' JSON string
+procedure AddJsonWriterIP4(W: TTextWriter; ip4: pointer);
+  {$ifdef HASINLINE} inline; {$endif}
+
+/// append an IPv4 as "name":"1.2.3.4", JSON object field
+// - do nothing if IP is '0.0.0.0'
+procedure AddJsonWriterPropIP4(W: TTextWriter; const name: ShortString; ip4: pointer);
+
 const
   /// pseudo-header containing the current Synopse mORMot framework version
   XPOWEREDNAME = 'X-Powered-By';
 
   /// the full text of the current Synopse mORMot framework version
-  // - we don't supply full version number with build revision
+  // - e.g. 'mORMot 2.4' : won't supply full version number with build revision
   // (as SYNOPSE_FRAMEWORK_VERSION), to reduce potential attacker knowledge
-  XPOWEREDVALUE = SYNOPSE_FRAMEWORK_NAME + ' 2';
+  XPOWEREDVALUE = SYNOPSE_FRAMEWORK_NAME + ' 2.' + SYNOPSE_FRAMEWORK_BRANCH;
 
 
 { ******************** Reusable HTTP State Machine }
@@ -387,7 +410,8 @@ type
     CommandResp: RawUtf8;
     /// the HTTP method parsed from first header line, e.g. 'GET'
     CommandMethod: RawUtf8;
-    /// the HTTP URI parsed from first header line, e.g. '/path/to/resource'
+    /// the HTTP URI parsed from first header line
+    // - e.g. '/path/to/resource' on Server side or 'HTTP/1.1 200 OK' on client side
     CommandUri: RawUtf8;
     /// will contain all header lines after all ParseHeader()
     // - use HeaderGetValue() to get one HTTP header item value by name
@@ -448,14 +472,14 @@ type
     // - equals 0 if disabled or aborted
     // - several THttpRequestContext could share the same ID
     ProgressiveID: THttpPartialID;
-    /// internal per-second ticks set by THttpServerSocketGeneric.DoProgressive
+    /// internal GetTickSec set by THttpServerSocketGeneric.DoProgressive
     ProgressiveTix: cardinal;
     /// reset this request context to be used prior to any ProcessInit/Read/Write
     procedure Reset;
     /// parse CommandUri into CommandMethod/CommandUri fields on server side
     // - e.g. from CommandUri = 'GET /uri HTTP/1.1'
     function ParseCommand: boolean;
-    /// parse CommandUri into result fields on server side
+    /// parse CommandUri into result fields on client side
     // - e.g. from CommandUri = 'HTTP/1.1 200 OK'
     // - returns 0 on parsing error, or the HTTP status (e.g. 200)
     function ParseResponse(out RespStatus: integer): boolean;
@@ -518,7 +542,7 @@ type
     // - then append small content (<MaxSizeAtOnce) to result if possible, and
     // refresh the final State to hrsSendBody/hrsResponseDone
     function CompressContentAndFinalizeHead(MaxSizeAtOnce: integer): PRawByteStringBuffer;
-    /// compute ouput headers and body from current output state
+    /// compute output headers and body from current output state
     // - alternate to CompressContentAndFinalizeHead() when Headers and
     // Content/ContentStream/ContentLength/ContentEncoding are manually set
     // - used by THttpClientSocket.Request on custom protocol (e.g. 'file://')
@@ -746,23 +770,23 @@ type
   // the need to add mormot.net.server.pas dependency
   THttpServerRequestAbstract = class
   protected
-    fRemoteIP,
-    fUrl,
-    fMethod,
-    fInHeaders,
-    fInContentType,
-    fAuthenticatedUser,
-    fHost,
-    fAuthBearer,
-    fUserAgent,
-    fOutContentType,
+    fRemoteIP: RawUtf8;
+    fUrl: RawUtf8;
+    fMethod: RawUtf8;
+    fInHeaders: RawUtf8;
+    fInContentType: RawUtf8;
+    fAuthenticatedUser: RawUtf8;
+    fHost: RawUtf8;
+    fAuthBearer: RawUtf8;
+    fUserAgent: RawUtf8;
+    fOutContentType: RawUtf8;
     fOutCustomHeaders: RawUtf8;
-    fInContent,
+    fInContent: RawByteString;
     fOutContent: RawByteString;
-    fConnectionID: THttpServerConnectionID;
-    fConnectionFlags: THttpServerRequestFlags;
-    fAuthenticationStatus: THttpServerRequestAuthentication;
-    fInternalFlags: set of (ifUrlParamPosSet);
+    fConnectionID: THttpServerConnectionID;                  // 64-bit
+    fConnectionFlags: THttpServerRequestFlags;               // 8-bit
+    fAuthenticationStatus: THttpServerRequestAuthentication; // 8-bit
+    fInternalFlags: set of (ifUrlParamPosSet);               // 8-bit
     fRespStatus: integer;
     fConnectionThread: TThread;
     fConnectionOpaque: PHttpServerConnectionOpaque;
@@ -812,6 +836,10 @@ type
     // - could be used to avoid a lookup to a ConnectionID-indexed dictionary
     property ConnectionOpaque: PHttpServerConnectionOpaque
       read fConnectionOpaque;
+    /// access to the raw HTTP state machine associated to this connection
+    // - as supplied to Prepare() method
+    property ConnectionHttp: PHttpRequestContext
+      read fHttp;
     /// returns the TUriRouter <parameter> value parsed from URI as text
     // - Name lookup is case-sensitive
     // - is the default property to this function, so that you could write
@@ -855,6 +883,7 @@ type
     function SetOutText(const Fmt: RawUtf8; const Args: array of const;
       const ContentType: RawUtf8 = TEXT_CONTENT_TYPE): cardinal;
     /// set the OutContent and OutContentType fields to return a specific file
+    // - this overloaded method will check the file on disk
     // - returning status 200 with the STATICFILE_CONTENT_TYPE constant marker
     // - Handle304NotModified = TRUE will check the file age and size and return
     // status HTTP_NOTMODIFIED (304) if the file did not change
@@ -862,7 +891,20 @@ type
     // - can optionally return FileSize^ (0 if not found, -1 if is a folder)
     function SetOutFile(const FileName: TFileName; Handle304NotModified: boolean;
       const ContentType: RawUtf8 = ''; CacheControlMaxAgeSec: integer = 0;
-      FileSize: PInt64 = nil): cardinal;
+      FileSize: PInt64 = nil): cardinal; overload;
+    /// set the OutContent and OutContentType fields to return a specific file
+    // - this overload won't check the file on disk, but FileSize/FileLastModified
+    // - returning status 200 with the STATICFILE_CONTENT_TYPE constant marker
+    // - Handle304NotModified = TRUE will check the file age and any "ETag" in
+    // current OutCustomHeaders to return status HTTP_NOTMODIFIED (304)
+    // - set CacheControlMaxAgeSec<>0 to include a Cache-Control: max-age=xxx header
+    function SetOutFile(const FileName: TFileName; Handle304NotModified: boolean;
+      FileSize: Int64; FileLastModified: TUnixMSTime;
+      CacheControlMaxAgeSec: integer = 0): cardinal; overload;
+    /// return a specific file content, maybe in rfProgressiveStatic mode
+    // - include our internal 'STATIC-PROGSIZE:' header if ExpectedFileSize <> 0
+    procedure SetOutProgressiveFile(const FileName: TFileName;
+      ExpectedFileSize: Int64);
     /// set the OutContent and OutContentType fields to return a specific file
     // - returning status 200 with the supplied Content (and optional ContentType)
     // - Handle304NotModified = TRUE will check the supplied content and return
@@ -939,6 +981,9 @@ type
   end;
   {$M-}
 
+function ToText(a: THttpServerRequestAuthentication): PShortString; overload;
+
+type
   THttpAcceptBan = class;
 
   /// callback event when THttpAcceptBan BanIP() or IsBanned() methods are called
@@ -949,11 +994,13 @@ type
   // - used e.g. to implement hsoBan40xIP or THttpPeerCache instable
   // peers list (with a per-minute resolution)
   // - the DoRotate method should be called every second
+  // - can optionally maintain one TIp4SubNets blacklist of IPv4 from Internet
   THttpAcceptBan = class(TObjectOSLightLock)
   protected
     fCount, fLastSec: integer;
     fIP: array of TCardinalDynArray; // one [0..fMax] IP array per second
     fSeconds, fMax, fWhiteIP: cardinal;
+    fBlackList: TIp4SubNets;
     fRejected, fTotal: Int64;
     fOnBanIp, fOnBanned: TOnHttpAcceptBan;
     function IsBannedRaw(ip4: cardinal): boolean;
@@ -967,21 +1014,23 @@ type
     // - maxpersecond is the maximum number of banned IPs remembered per second
     constructor Create(banseconds: cardinal = 4; maxpersecond: cardinal = 1024;
       banwhiteip: cardinal = cLocalhost32); reintroduce;
-    /// register an IP4 to be rejected
+    /// finalize this process
+    destructor Destroy; override;
+    /// register a 32-bit IPv4 to be rejected
     function BanIP(ip4: cardinal): boolean; overload;
-    /// register an IP4 to be rejected
+    /// register a IPv4 text to be rejected
     function BanIP(const ip4: RawUtf8): boolean; overload;
       {$ifdef HASINLINE} inline; {$endif}
-    /// fast check if this IP4 is to be rejected
+    /// fast check if this IPv4 is to be rejected
     function IsBanned(const addr: TNetAddr): boolean; overload;
       {$ifdef HASINLINE} inline; {$endif}
-    /// fast check if this IP4 is to be rejected
+    /// fast check if this 32-bit IPv4 is to be rejected
     function IsBanned(ip4: cardinal): boolean; overload;
       {$ifdef HASINLINE} inline; {$endif}
-    /// register an IP4 if status in >= 400 (but not 401 HTTP_UNAUTHORIZED)
+    /// register an IPv4 if status in >= 400 (but not 401 HTTP_UNAUTHORIZED)
     function ShouldBan(status, ip4: cardinal): boolean; overload;
       {$ifdef HASINLINE} inline; {$endif}
-    /// register an IP4 if status in >= 400 (but not 401 HTTP_UNAUTHORIZED)
+    /// register an IPv4 if status in >= 400 (but not 401 HTTP_UNAUTHORIZED)
     function ShouldBan(status: cardinal; const ip4: RawUtf8): boolean; overload;
       {$ifdef HASINLINE} inline; {$endif}
     /// to be called every second to remove deprecated bans from the list
@@ -991,11 +1040,11 @@ type
     // - returns the number of freed bans
     function DoRotate: integer;
       {$ifdef HASINLINE} inline; {$endif}
-    /// a 32-bit IP4 which should never be banned
+    /// a 32-bit IPv4 which should never be banned
     // - is set to cLocalhost32, i.e. 127.0.0.1, by default
     property WhiteIP: cardinal
       read fWhiteIP write fWhiteIP;
-    /// how many seconds a banned IP4 should be rejected
+    /// how many seconds a banned IPv4 should be rejected
     // - will set the closest power of two <= 128, with a default of 4
     // - when set, any previous banned IP will be flushed
     property Seconds: cardinal
@@ -1013,14 +1062,23 @@ type
     /// event called when IsBanned() method returns true
     property OnBanned: TOnHttpAcceptBan
       read fOnBanned write fOnBanned;
+    /// raw access to an associated IPv4/CIDR blacklist storage
+    // - could be populated from fixed reference material, in addition to the
+    // transient banishment process set by ShouldBan() method on unexpected errors
+    // - typically filled from https://www.spamhaus.org/drop/drop.txt or
+    // https://github.com/firehol/blocklist-ipsets/blob/master/firehol_level1.netset
+    // - use Safe.Lock when accessing this instance, e.g. when initializing from
+    // text or binary once at startup, before IsBanned() is actually called
+    property BlackList: TIp4SubNets
+      read fBlackList;
   published
     /// total number of accept() rejected by IsBanned()
     property Rejected: Int64
       read fRejected;
-    /// total number of banned IP4 since the beginning
+    /// total number of banned IPv4 since the beginning
     property Total: Int64
       read fTotal;
-    /// current number of banned IP4
+    /// current number of banned IPv4
     property Count: integer
       read fCount;
   end;
@@ -1704,11 +1762,11 @@ type
     FileName: TFileName;
     Trigger: THttpRotaterTrigger;
     Files: integer;
-    NextTix10: cardinal;
+    NextTix32: cardinal;  // = GetTickSec
     TriggerDate: integer; // = next Trunc(NowUtc)
     OnRotate: procedure(Event: THttpRotaterEvent) of object; // owner access
     procedure Setup(aTrigger: THttpRotaterTrigger; aFiles: integer);
-    procedure TryRotate(Tix10: cardinal; Size: QWord);
+    procedure TryRotate(Tix32: cardinal; Size: QWord);
     procedure PrepareNextRotateDate(dt: TDateTime);
     procedure DoRotate;
   end;
@@ -1719,8 +1777,8 @@ type
     fHost: RawUtf8;
     fOwner: THttpLogger;
     fRotate: THttpRotater;
-    fLastWriteToStreamTix10: cardinal;
-    procedure TryRotate(Tix10: cardinal);
+    fLastWriteToStreamTix32: cardinal; // = GetTickSec
+    procedure TryRotate(Tix32: cardinal);
       {$ifdef HASINLINE} inline; {$endif}
     procedure OnRotate(Event: THttpRotaterEvent);
     procedure WriteToStream(data: pointer; len: PtrUInt); override;
@@ -1823,13 +1881,13 @@ type
     fUnknownPosLen: TIntegerDynArray; // matching hlvUnknown occurrence
     fFlags: set of (ffHadDefineHost, ffOwnWriterSingle);
     fVariables: THttpLogVariables;
-    fTimeTix10: cardinal;
+    fTimeTix32: cardinal; // = GetTickSec
     fTimeText: array[hlvTime_Iso8601 .. hlvTime_Http] of THttpDateNowUtc;
-    procedure SetTimeText(Tix64: Int64);
+    procedure SetTimeText(Tix32: cardinal; Tix64: Int64);
     procedure SetSettings(aSettings: THttpLoggerSettings);
     function GetWriterFileName(const aHost: RawUtf8; aError: boolean): TFileName; virtual;
     procedure CreateMainWriters;
-    function GetWriter(Tix10: cardinal; const Host: RawUtf8;
+    function GetWriter(Tix32: cardinal; const Host: RawUtf8;
       Error: boolean): TTextDateWriter;
   public
     /// initialize this multi-host logging instance
@@ -2416,14 +2474,14 @@ const
   /// low level magic marker in THttpMetrics .mhm binary files
   // - may not be at the beginning of the file, if compression was enabled: use
   // rather THttpMetrics.LoadHeader if you want to identify .mhm files
-  HTTPMETRICS_MAGIC: string[23] = 'mORMotAnalyzerV1'#26;
+  HTTPMETRICS_MAGIC: TShort23 = 'mORMotAnalyzerV1'#26;
 
 var // filled from RTTI enum trimmed text during unit initialization
   HTTP_SCOPE:  array[THttpAnalyzerScope]  of RawUtf8;
   HTTP_PERIOD: array[THttpAnalyzerPeriod] of RawUtf8;
 
-function ToText(s: THttpAnalyzerScope): PShortString; overload;  // HTTP_SCOPE[]
-function ToText(p: THttpAnalyzerPeriod): PShortString; overload; // HTTP_PERIOD[]
+function ToText(s: THttpAnalyzerScope): PShortString; overload;  // see also HTTP_SCOPE[]
+function ToText(p: THttpAnalyzerPeriod): PShortString; overload; // see also HTTP_PERIOD[]
 function ToText(v: THttpLogVariable): PShortString; overload;
 function ToText(r: THttpRotaterTrigger): PShortString; overload;
 
@@ -2436,6 +2494,59 @@ function FromText(const Text: RawUtf8; out Period: THttpAnalyzerPeriod): boolean
 // - as called by THttpMetrics.GetAsText() overloaded methods
 procedure MetricsToCsv(const Metrics: THttpAnalyzerToSaveDynArray;
   NoPeriod, NoScope: boolean; out Result: RawUtf8);
+
+
+{ ******************** Additional High-Level Socket Functions }
+
+type
+  /// define how GetMacAddress() makes its sorting choices
+  // - used e.g. for THttpPeerCacheSettings.InterfaceFilter property
+  // - mafUpOnly will return only connected network interfaces
+  // - mafEthernetOnly will only select TMacAddress.Kind = makEthernet
+  // - mafLocalOnly will only select makEthernet or makWifi adapters
+  // - mafRequireBroadcast won't return any TMacAddress with Broadcast = ''
+  // - mafIgnoreGateway won't put the TMacAddress.Gateway <> '' first
+  // - mafIgnoreKind and mafIgnoreSpeed will ignore Kind or Speed properties
+  TMacAddressFilter = set of (
+    mafUpOnly,
+    mafEthernetOnly,
+    mafLocalOnly,
+    mafRequireBroadcast,
+    mafIgnoreGateway,
+    mafIgnoreKind,
+    mafIgnoreSpeed);
+
+const
+  /// TMacAddress.Kind sort priority for GetMacAddress()
+  NETHW_ORDER: array[TMacAddressKind] of byte = (
+    2,  // makUndefined
+    0,  // makEthernet
+    1,  // makWifi
+    4,  // makTunnel
+    3,  // makPpp
+    5,  // makCellular
+    6); // makSoftware
+
+/// pickup the most suitable network according to some preferences
+// - will sort GetMacAddresses() results according to its Kind and Speed
+// to select the most suitable local interface e.g. for THttpPeerCache
+function GetMainMacAddress(out Mac: TMacAddress;
+  Filter: TMacAddressFilter = []): boolean; overload;
+
+/// return an ordered list of network interfaces - as used by GetMainMacAddress()
+function GetSortedMacAddress(Filter: TMacAddressFilter): TMacAddressDynArray;
+
+/// get a network interface from its TMacAddress main fields
+// - search is case insensitive for TMacAddress.Name and Address fields or as
+// exact IP, and eventually as CIDR pattern (e.g. '192.168.1.0/24')
+function GetMainMacAddress(out Mac: TMacAddress;
+  const InterfaceNameAddressOrIP: RawUtf8;
+  UpAndDown: boolean = false): boolean; overload;
+
+/// search for a matching TMacAddress in a list - as used by GetMainMacAddress()
+function FindMacAddress(const Macs: TMacAddressDynArray;
+  const InterfaceNameAddressOrIP: RawUtf8): PMacAddress;
+
 
 
 implementation
@@ -2456,11 +2567,11 @@ begin
 {$endif CPUINTEL}
   result := hhUnknown;
   // standard headers are expected to be pure A-Z chars: fast lowercase search
-  // - or $20 makes conversion to a-z lowercase, and won't affect - / : chars
+  // - "or $20" makes conversion to a-z lowercase, and won't affect - / : chars
   // - the worse case may be some false positive, which won't hurt unless
   // your network architecture suffers from HTTP request smuggling
   // - much less readable than cascaded IdemPPChar(), but O(1) efficiency for
-  // this very sensitive parsing function
+  // this very performance sensitive process
   case PCardinal(P)^ or mask_lower of
     // 'CONTENT-'
     ord('c') + ord('o') shl 8 + ord('n') shl 16 + ord('t') shl 24:
@@ -2599,76 +2710,73 @@ begin
   if AuthToken = '' then
     result := ''
   else
-    result := 'Authorization: Bearer ' + AuthToken;
+    Join(['Authorization: Bearer ', AuthToken], result);
 end;
 
 const
-  TOBEPURGED: array[0..9] of PAnsiChar = (
-    'CONTENT-',
-    'CONNECTION:',
-    'KEEP-ALIVE:',
-    'TRANSFER-',
-    'X-POWERED',
-    'USER-AGENT',
-    'REMOTEIP:',
-    'HOST:',
-    'ACCEPT:',
-    nil);
+  TOBEPURGED: PUtf8Char =
+    'CONTENT-|CONNECTION:|KEEP-ALIVE:|TRANSFER-|X-POWERED|USER-AGENT|' +
+    'REMOTEIP:|HOST:|ACCEPT:|DATE:|';
 
-function PurgeHeaders(const headers: RawUtf8; trim: boolean; upIgnore: PPAnsiChar): RawUtf8;
+function PurgeHeaders(const headers: RawUtf8; trim: boolean; upIgnore: PUtf8Char): RawUtf8;
 var
-  pos, len: array[byte] of word;
+  pos, len: array[byte] of word; // delete up to 255 entries
   n, purged, i, l, tot: PtrInt;
-  P, next: PUtf8Char;
+  P, next, last: PUtf8Char;
+  h: PUtf8Char absolute headers;
 begin
   n := 0;
   tot := 0;
   purged := 0;
-  if upIgnore = nil then
-    upIgnore := @TOBEPURGED;
   // put all allowed headers in pos[]/len[]
-  P := pointer(headers);
-  if length(headers) shr 16 = 0 then // defined as word
-    while P <> nil do
-    begin
-      if P^ = #0 then
-        break;
-      next := GotoNextLine(P);
-      if IdemPPChar(P, upIgnore) < 0 then
-      begin
-        if n = high(len) then
-          break;
-        pos[n] := P - pointer(headers);
-        l := next - P;
-        if next = nil then
-          if (purged = 0) and
-             not trim then
-            break
-          else
-            l := StrLen(P);
-        inc(tot, l);
-        len[n] := l;
-        inc(n);
-      end
-      else
-        inc(purged);
-      P := next;
-    end;
-  // recreate an expurgated headers set
-  if (purged = 0) and
-     not trim then
-    // nothing to purge
-    result := headers
-  else if tot = 0 then
-    // genocide
-    result := ''
-  else
+  P := h;
+  if P <> nil then
   begin
-    // allocate at once and append all non-purged headers
+    last := nil;
+    if upIgnore = nil then
+      upIgnore := TOBEPURGED;
+    if PStrLen(h - _STRLEN)^ <= high(pos[0]) then // void pos[]/len[] overflow
+      while P^ <> #0 do
+      begin
+        next := GotoNextLineSmall(P);
+        if IdemPCharSep(P, upIgnore) < 0 then // append this entry
+        begin
+          l := next - P;
+          if next = nil then
+            l := (h + PStrLen(h - _STRLEN)^) - P;
+          inc(tot, l);
+          if P = last then
+            inc(len[n - 1], l) // merge with previous block
+          else
+          begin
+            if n = high(len) then
+              break;
+            pos[n] := P - h;
+            len[n] := l;
+            inc(n);
+          end;
+          last := next;
+        end
+        else
+          inc(purged);
+        P := next;
+      end;
+  end;
+  // recreate an expurgated headers set
+  if tot = 0 then // genocide
+    result := ''
+  else if purged = 0 then
+    if (not trim) or
+       (headers[PStrLen(h - _STRLEN)^] > ' ') then
+      result := headers // nothing to purge
+    else
+      result := TrimRight(headers)
+  else
+  begin // allocate at once and append all non-purged headers
     dec(n);
     if trim then
     begin
-      P := PUtf8Char(pointer(headers)) + {%H-}pos[n];
+      P := h + {%H-}pos[n];
       l := {%H-}len[n];
       dec(tot, l);
       while (l > 0) and
@@ -2680,7 +2788,7 @@ begin
     P := FastSetString(result, tot);
     for i := 0 to n do
     begin
-      MoveFast(PByteArray(headers)[pos[i]], P^, len[i]);
+      MoveFast(h[pos[i]], P^, len[i]);
       inc(P, len[i]);
     end;
     assert(P - pointer(result) = tot);
@@ -2707,10 +2815,14 @@ begin
 end;
 
 procedure ExtractHeader(var headers: RawUtf8; const upname: RawUtf8;
-  out res: RawUtf8);
+  extractText: PRawUtf8; extractInt: PInt64);
 var
   i, j, k: PtrInt;
 begin
+  if extractText <> nil then
+    FastAssignNew(extractText^);
+  if extractInt <> nil then
+    extractInt^ := 0;
   if (headers = '') or
       (upname = '') then
     exit;
@@ -2729,7 +2841,10 @@ begin
     begin
       j := i;
       inc(i, length(upname));
-      TrimCopy(headers, i, k - i, res);
+      if extractText <> nil then
+        TrimCopy(headers, i, k - i, extractText^);
+      if extractInt <> nil then
+        SetInt64(@PByteArray(headers)[i - 1], extractInt^);
       while headers[k] in [#1 .. #31] do // delete also ending #13#10
         inc(k);
       delete(headers, j, k - j); // and remove
@@ -2769,6 +2884,63 @@ begin
   result := err = 0;
 end;
 
+function HttpRequestLength(aHeaders: PUtf8Char; aHeadersLen: PPtrInt): PUtf8Char;
+var
+  len, s: PtrInt;
+begin
+  result := FindNameValuePointer(aHeaders, 'CONTENT-RANGE: ', len);
+  if result = nil then // no range
+    result := FindNameValuePointer(aHeaders, 'CONTENT-LENGTH: ', len)
+  else
+  begin // content-range: bytes 100-199/3083 -> extract 3083
+    s := len;
+    while true do
+      case result[s - 1] of
+        '/':
+          break;
+        '0' .. '9':
+          dec(s);
+      else
+        result := nil; // RFC 7233 #2.3 may return 'Content-Range: bytes 0-0/*'
+        exit;
+      end;
+    inc(result, s);
+    dec(len, s);
+  end;
+  if aHeadersLen <> nil then
+    aHeadersLen^ := len;
+end;
+
+procedure GetHeaderInfo(const Headers: RawUtf8; out ContentLength: Int64;
+  out LastModified: TUnixTime);
+var
+  p: PUtf8Char;
+begin
+  ContentLength := -1;
+  LastModified := 0;
+  p := HttpRequestLength(pointer(Headers));
+  if p <> nil then // from 'Range: x-y/len' or 'Content-Length: len'
+    ContentLength := GetInt64(p);
+  p := FindNameValue(pointer(Headers), 'LAST-MODIFIED:');
+  if p <> nil then
+    LastModified := HttpDateToUnixTimeBuffer(p);
+end;
+
+function DeleteHeader(const Headers, Name: RawUtf8): RawUtf8;
+var
+  up: TByteToAnsiChar;
+begin
+  if (Headers = '') or
+     (length(Name) < 2) then
+  begin
+    result := Headers;
+    exit;
+  end;
+  PCardinal(UpperCopy255Buf(@up, pointer(Name), length(Name)))^ :=
+    ord(':') + ord('|') shl 8; // 'UPPER:|' IdemPCharSep() format
+  result := PurgeHeaders(Headers, false, @up);
+end;
+
 function MimeHeaderEncode(const header: RawUtf8): RawUtf8;
 begin
   if IsAnsiCompatible(header) then
@@ -2783,45 +2955,38 @@ var
   c: cardinal;
 begin
   c := PCardinal(method)^;
-  result := (((c xor cardinal(ord('H') + ord('E') shl 8 + ord('A') shl 16 +
-                     ord('D') shl 24)) and $dfdfdfdf) = 0) or
-            (((c xor cardinal(ord('O') + ord('P') shl 8 + ord('T') shl 16 +
-                     ord('I') shl 24)) and $dfdfdfdf) = 0);
+  result := (((c xor cardinal(HEAD_32)) and $dfdfdfdf) = 0) or
+            (((c xor cardinal(OPTI_32)) and $dfdfdfdf) = 0);
 end;
 
 function IsGet(const method: RawUtf8): boolean;
 begin
-  result := PCardinal(method)^ = ord('G') + ord('E') shl 8 + ord('T') shl 16;
+  result := PCardinal(method)^ = GET_24;
 end;
 
 function IsPost(const method: RawUtf8): boolean;
 begin
-  result := PCardinal(method)^ =
-    ord('P') + ord('O') shl 8 + ord('S') shl 16 + ord('T') shl 24;
+  result := PCardinal(method)^ = POST_32;
 end;
 
 function IsPut(const method: RawUtf8): boolean;
 begin
-  result := PCardinal(method)^ =
-    ord('P') + ord('U') shl 8 + ord('T') shl 16;
+  result := PCardinal(method)^ = PUT_24;
 end;
 
 function IsDelete(const method: RawUtf8): boolean;
 begin
-  result := PCardinal(method)^ =
-    ord('D') + ord('E') shl 8 + ord('L') shl 16 + ord('E') shl 24;
+  result := PCardinal(method)^ = DELE_32;
 end;
 
 function IsOptions(const method: RawUtf8): boolean;
 begin
-  result := PCardinal(method)^ =
-    ord('O') + ord('P') shl 8 + ord('T') shl 16 + ord('I') shl 24;
+  result := PCardinal(method)^ = OPTI_32;
 end;
 
 function IsHead(const method: RawUtf8): boolean;
 begin
-  result := PCardinal(method)^ =
-              ord('H') + ord('E') shl 8 + ord('A') shl 16 + ord('D') shl 24;
+  result := PCardinal(method)^ = HEAD_32;
 end;
 
 function IsUrlFavIcon(P: PUtf8Char): boolean;
@@ -2839,8 +3004,7 @@ end;
 function IsHttp(const text: RawUtf8): boolean;
 begin
   result := (length(text) > 5) and
-            (PCardinal(text)^ and $dfdfdfdf =
-               ord('H') + ord('T') shl 8 + ord('T') shl 16 + ord('P') shl 24) and
+            (PCardinal(text)^ and $dfdfdfdf = HTTP_32) and
             ((text[5] = ':') or
              ((text[5] in ['s', 'S']) and
               (text[6] = ':')));
@@ -2849,8 +3013,7 @@ end;
 function IsNone(const text: RawUtf8): boolean;
 begin
   result := (length(text) = 4) and
-            (PCardinal(text)^ and $dfdfdfdf =
-              ord('N') + ord('O') shl 8 + ord('N') shl 16 + ord('E') shl 24);
+            (PCardinal(text)^ and $dfdfdfdf = NONE_32);
 end;
 
 function IsHttpUserAgentBot(const UserAgent: RawUtf8): boolean;
@@ -2864,7 +3027,7 @@ begin
   l := length(UserAgent);
   if l < 10 then
     exit;
-  case PCardinal(p)^ or $20202020 of
+  case PCardinal(p)^ or $20202020 of // fast O(1) hardcoded list
     // Twitterbot/1.0
     ord('t') + ord('w') shl 8 + ord('i') shl 16 + ord('t') shl 24,
     // facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)
@@ -2894,11 +3057,12 @@ begin
       inc(i);
       inc(p, i);
       dec(l, i);
-    until PWord(p)^ = ord('/') + ord('/') shl 8; // found http://xxxxx
+    until cardinal(PWord(p)^) = SLASH_16; // found http://xxxxx
     i := ByteScanIndex(pointer(p + 2), l - 2, ord('/'));
     if i < 0 then
       exit;
     p := @p[i + 3]; // p^ = bot.html in http://www.google.com/bot.html
+    dec(l, i + 3);
     case PCardinal(p)^ and $00ffffff of
       // Googlebot/2.1 (+http://www.google.com/bot.html)
       ord('b') + ord('o') shl 8 + ord('t') shl 16,
@@ -2926,6 +3090,18 @@ begin
       // Mozilla/5.0 (compatible; AhrefsBot/6.1; +http://ahrefs.com/robot/)
       ord('r') + ord('o') shl 8 + ord('b') shl 16:
         result := true;
+    else // +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045
+      begin
+        i := ByteScanIndex(pointer(p), l, ord(')'));
+        if i < 0 then
+          exit;
+        inc(p, i);
+        if p[-1] = '/' then
+          dec(p);
+        if PCardinal(p - 3)^ and $00ffffff =
+             ord('b') + ord('o') shl 8 + ord('t') shl 16 then
+          result := true; // http*://*bot)
+      end;
     end;
   end;
 end;
@@ -2936,7 +3112,8 @@ begin
   if P <> nil then
   begin
     result := true;
-    inc(P);
+    if P^ = '?' then
+      inc(P);
     repeat
       if UrlDecodeValue(P, UpperName, Value, @P) then
         exit;
@@ -2951,7 +3128,8 @@ begin
   if P <> nil then
   begin
     result := true;
-    inc(P);
+    if P^ = '?' then
+      inc(P);
     repeat
       if UrlDecodeCardinal(P, UpperName, Value, @P) then
         exit;
@@ -2966,7 +3144,8 @@ begin
   if P <> nil then
   begin
     result := true;
-    inc(P);
+    if P^ = '?' then
+      inc(P);
     repeat
       if UrlDecodeInt64(P, UpperName, Value, @P) then
         exit;
@@ -2982,14 +3161,15 @@ var
 begin
   result := '';
   u.From(Uri);
-  if (u.Server = '') or
-     PropNameEquals(u.Server, 'localhost') or
-     IsLocalHost(pointer(u.Server)) then // supports only local files
+  if (u.UriScheme = usFile) and
+     ((u.Server = '') or
+      PropNameEquals(u.Server, 'localhost') or
+      IsLocalHost(pointer(u.Server))) then // supports only local files
   begin
     Utf8ToFileName(UrlDecodeName(u.Address), result);
     if (result <> '') and
        (result[1] <> '/') then
-      insert('/', result, 1);
+      insert('/', result, 1); // 'path/to' -> '/path/to'
   end;
 end;
 {$endif OSPOSIX}
@@ -3008,6 +3188,27 @@ begin
         result := result * 10 + Qword(c);
       inc(P);
     until false;
+end;
+
+procedure AddJsonWriterIP4(W: TTextWriter; ip4: pointer);
+var
+  P: PUtf8Char;
+begin
+  if W.BEnd - W.B <= 16 then // note: PtrInt(BEnd - B) could be < 0
+    W.FlushToStream;
+  P := W.B + 1;
+  P^ := '"';
+  W.B := pointer(IP4TextAppend(ip4, pointer(P + 1)));
+  W.B^ := '"';
+end;
+
+procedure AddJsonWriterPropIP4(W: TTextWriter; const name: ShortString; ip4: pointer);
+begin
+  if PCardinal(ip4)^ = 0 then
+    exit;
+  W.AddProp(@name[1], ord(name[0]));
+  AddJsonWriterIP4(W, ip4);
+  W.AddComma;
 end;
 
 
@@ -3072,10 +3273,10 @@ begin
   result^.Func := @CompFunction;
   result^.CompressMinSize := CompMinSize;
   result^.Priority := (CompPriority shl 14) or n; // by CompPriority, then call order
-  if AcceptEncoding = '' then
-    Join(['Accept-Encoding: ', name], AcceptEncoding)
+  if AcceptEncodingClient = '' then
+    Join(['Accept-Encoding: ', name], AcceptEncodingClient)
   else
-    Append(AcceptEncoding, ',', name);
+    Append(AcceptEncodingClient, ',', name); // transmit algos as CSV
   DynArray(TypeInfo(THttpSocketCompressRecDynArray), Algo).Sort(ByPriority);
 end;
 
@@ -3102,7 +3303,7 @@ begin
       begin
         // in-place compression of the OutContent body + update header
         result^.Func(OutContent, {compress=}true);
-        exit; // first in fCompress[] is prefered
+        exit; // first in fCompress[] is preferred
       end;
     inc(result);
   end;
@@ -3201,10 +3402,7 @@ begin
   while (P^ > #0) and
         (P^ <= ' ') do
     inc(P); // trim left
-  if L >= 0 then
-    dec(L, P - P2)
-  else
-    L := StrLen(P);
+  dec(L, P - P2);
   repeat
     if (L = 0) or
        (P[L - 1] > ' ') then
@@ -3449,8 +3647,6 @@ begin
       ContentLastModified := HttpDateToUnixTimeBuffer(P + 14);
   end;
   // store meaningful headers into WorkBuffer, if not already there
-  if PLen < 0 then
-    PLen := StrLen(P2);
   Head.Append(P2, PLen);
   Head.AppendCRLF;
 end;
@@ -3470,7 +3666,7 @@ begin
   if nfHeadersParsed in HeaderFlags then
     exit;
   include(HeaderFlags, nfHeadersParsed);
-  Head.AsText(Headers, {overheadForRemoteIP=}40, {usemain=}false); // keep 2KB main buffer
+  Head.AsText(Headers, {overheadForRemoteIP=}40); // keep 2KB main buffer
   Head.Reset; // set Len := 0
   if (CompressList <> nil) and
      (AcceptEncoding <> '') then
@@ -3506,10 +3702,8 @@ end;
 function THttpRequestContext.ParseHttp(P: PUtf8Char): boolean;
 begin
   result := false;
-  if (PCardinal(P)^ <>
-       ord('H') + ord('T') shl 8 + ord('T') shl 16 + ord('P') shl 24) or
-     (PCardinal(P + 4)^ and $ffffff <>
-       ord('/') + ord('1') shl 8 + ord('.') shl 16) then
+  if (PCardinal(P)^ <> HTTP_32) or
+     (PCardinal(P + 4)^ and $ffffff <> ord('/') + ord('1') shl 8 + ord('.') shl 16) then
     exit;
   if P[7] <> '1' then
     include(ResponseFlags, rfHttp10);
@@ -3522,8 +3716,6 @@ end;
 
 var
   _GETVAR, _POSTVAR, _HEADVAR: RawUtf8;
-const
-  _HEAD32 = ord('H') + ord('E') shl 8 + ord('A') shl 16 + ord('D') shl 24;
 
 function THttpRequestContext.ParseCommand: boolean;
 var
@@ -3537,18 +3729,19 @@ begin
   P := pointer(CommandUri);
   if P = nil then
     exit;
+  // parse CommandMethod
   case PCardinal(P)^ of
-    ord('G') + ord('E') shl 8 + ord('T') shl 16 + ord(' ') shl 24:
+    GET_24 + ord(' ') shl 24:
       begin
         CommandMethod := _GETVAR; // optimistic
         inc(P, 4);
       end;
-    ord('P') + ord('O') shl 8 + ord('S') shl 16 + ord('T') shl 24:
+    POST_32:
       begin
         CommandMethod := _POSTVAR;
         inc(P, 5);
       end;
-    _HEAD32:
+    HEAD_32:
       begin
         CommandMethod := _HEADVAR;
         inc(P, 5);
@@ -3570,7 +3763,18 @@ begin
       inc(P);
     end;
   end;
+  // parse CommandUri and HTTP/1.x
   B := P;
+  if (PCardinal(P)^ = HTTP__32) and
+     (PCardinal(P + 4)^ and $ffffff = HTTP__24) then
+  begin
+    // absolute-URI from https://datatracker.ietf.org/doc/html/rfc7230#section-5.3.2
+    P := PosChar(P + 7, '/'); // use fast SSE2 asm on x86_64
+    if P = nil then
+      P := B // paranoid
+    else
+      B := P;
+  end;
   while true do
     if P^ = ' ' then
       break
@@ -3610,28 +3814,28 @@ procedure THttpRequestContext.HeadAddCustom(P, PEnd: PUtf8Char);
 var
   len: PtrInt;
   hh: THttpHeader;
-begin
+begin // caller ensured P <> nil
   repeat
-    len := BufferLineLength(P, PEnd); // use fast SSE2 assembly on x86-64 CPU
-    if len > 0 then // no void line (means headers ending)
-    begin
-      hh := KnownHttpHeader(P);
-      include(HeadCustom, hh); // used e.g. by CompressContentAndFinalizeHead()
-      case hh of
-        hhContentEncoding:
-          // custom CONTENT-ENCODING: disable any late compression
-          integer(CompressAcceptHeader) := 0;
-      end;
-      if not (hh in [hhConnection, hhTransferEncoding]) then
-      begin
-        Head.Append(P, len);
-        Head.AppendCRLF; // normalize CR/LF endings
-      end;
-      inc(P, len);
+    while P^ <= ' ' do
+      if P^ <> #0 then
+        inc(P) // trim spaces, and ignore any kind of line feed or void line
+      else
+        exit;  // end of input
+    len := BufferLineLength(P, PEnd); // SSE2 on x86-64 CPU - we know len <> 0
+    hh := KnownHttpHeader(P);
+    include(HeadCustom, hh); // used e.g. by CompressContentAndFinalizeHead()
+    case hh of
+      hhContentEncoding:
+        // custom CONTENT-ENCODING: disable any late compression
+        integer(CompressAcceptHeader) := 0;
     end;
-    while P^ in [#10, #13] do
-      inc(P);
-  until P^ = #0;
+    if not (hh in [hhConnection, hhTransferEncoding]) then
+    begin
+      Head.Append(P, len);
+      Head.AppendCRLF; // normalize CR/LF endings
+    end;
+    inc(P, len);
+  until false;
 end;
 
 procedure THttpRequestContext.UncompressData;
@@ -3818,6 +4022,8 @@ end;
 
 function THttpRequestContext.ContentToOutput(
   aStatus: integer; aOutStream: TStream): integer;
+var
+  date: TShort31;
 begin
   if (aStatus = HTTP_SUCCESS) and
      (ContentLength = 0) then
@@ -3826,8 +4032,10 @@ begin
   // compute response headers for custom protocol (e.g. 'file://')
   AppendLine(Headers, ['Content-Length: ', ContentLength]); // should always be
   if ContentLastModified <> 0 then
-    AppendLine(Headers, ['Last-Modified: ',
-      UnixMSTimeUtcToHttpDate(ContentLastModified)]);
+  begin
+    UnixMSTimeUtcToHttpDate(ContentLastModified, date);
+    AppendLine(Headers, ['Last-Modified: ', date]);
+  end;
   if rfAcceptRange in ResponseFlags then
     AppendLine(Headers, ['Accept-Ranges: bytes']);
   if rfRange in ResponseFlags then
@@ -3836,7 +4044,7 @@ begin
   if ContentEncoding <> nil then
     AppendLine(Headers, ['Content-Encoding: ', ContentEncoding^.Name]);
   // compute response body
-  if (PCardinal(CommandMethod)^ = _HEAD32) or
+  if (PCardinal(CommandMethod)^ = HEAD_32) or
      (ContentLength = 0) then
     exit;
   if aOutStream <> nil then
@@ -3854,21 +4062,23 @@ end;
 
 function THttpRequestContext.CompressContentAndFinalizeHead(
   MaxSizeAtOnce: integer): PRawByteStringBuffer;
+var
+  date: TShort31;
 begin
-  // same logic than THttpSocket.CompressDataAndWriteHeaders below
-  if (integer(CompressAcceptHeader) <> 0) and
-     (CompressList <> nil) and
-     (ContentStream = nil) then // no stream compression (yet)
-    ContentEncoding := CompressList^.CompressContent(
-                         CompressAcceptHeader, ContentType, Content);
   // DoRequest will use Head buffer by default (and send the body separated)
   result := @Head;
   // handle response body with optional range support
   if (rfAcceptRange in ResponseFlags) and
       not (hhAcceptRangeBytes in HeadCustom) then
     result^.AppendShort('Accept-Ranges: bytes'#13#10);
-  if ContentStream = nil then
+  if ContentStream = nil then // <> nil e.g. for rfProgressiveStatic
   begin
+    // same logic than THttpSocket.CompressDataAndWriteHeaders below
+    if (integer(CompressAcceptHeader) <> 0) and
+       (CompressList <> nil) and
+       (Content <> '') then // no stream compression (yet)
+      ContentEncoding := CompressList^.CompressContent(
+                           CompressAcceptHeader, ContentType, Content);
     fContentPos := pointer(Content); // for ProcessBody below
     ContentLength := length(Content);
     if rfWantRange in ResponseFlags then
@@ -3909,7 +4119,8 @@ begin
      not (hhLastModified in HeadCustom) then
   begin
     result^.AppendShort('Last-Modified: ');
-    result^.AppendShort(UnixMSTimeUtcToHttpDate(ContentLastModified));
+    UnixMSTimeUtcToHttpDate(ContentLastModified, date);
+    result^.AppendShort(date);
     result^.AppendCRLF;
   end;
   if (ContentType <> '') and
@@ -3926,18 +4137,11 @@ begin
   begin
     if rfHttp10 in ResponseFlags then // implicit with HTTP/1.1
       result^.AppendShort('Connection: Keep-Alive'#13#10);
-    if (CompressList <> nil) and
-       (CompressList^.AcceptEncoding <> '') and
-       not (hhAcceptEncoding in HeadCustom) then
-    begin
-      result^.Append(CompressList^.AcceptEncoding);
-      result^.AppendCRLF;
-    end;
     result^.AppendCRLF; // end with a void line
   end;
   // try to send both headers and body in a single socket syscall
   Process.Reset;
-  if PCardinal(CommandMethod)^ = _HEAD32 then
+  if PCardinal(CommandMethod)^ = HEAD_32 then
     // return only the headers
     State := hrsResponseDone
   else
@@ -4066,8 +4270,8 @@ begin
   exclude(ResponseFlags, rfContentStreamNeedFree);
 end;
 
-function THttpRequestContext.ContentFromFile(
-  const FileName: TFileName; CompressGz: integer): integer;
+function THttpRequestContext.ContentFromFile(const FileName: TFileName;
+  CompressGz: integer): integer;
 var
   gz: TFileName;
   h: THandle;
@@ -4080,7 +4284,7 @@ begin
   if (CompressGz >= 0) and
      (CompressGz in CompressAcceptHeader) and
      (CompressList <> nil) and
-     (PCardinal(CommandMethod)^ <> _HEAD32) and
+     (PCardinal(CommandMethod)^ <> HEAD_32) and
      not (rfWantRange in ResponseFlags) then
   begin
     gz := FileName + '.gz';
@@ -4105,7 +4309,7 @@ begin
       exit;
     end;
   include(ResponseFlags, rfAcceptRange);
-  if PCardinal(CommandMethod)^ = _HEAD32 then // make FileOpen() only for GET
+  if PCardinal(CommandMethod)^ = HEAD_32 then // make FileOpen() only for GET
   begin
     result := HTTP_SUCCESS;
     ContentStream := TStreamWithPositionAndSize.Create; // <> nil
@@ -4228,53 +4432,38 @@ end;
 
 function THttpSocket.GetHeader(HeadersUnFiltered: boolean): boolean;
 var
-  s: RawUtf8;
-  err: integer;
-  line: array[0..8191] of AnsiChar; // avoid most memory allocations
+  len: integer;
+  line: TBuffer8K; // avoid most memory allocations - 8KB seems enough
 begin
-  // parse the headers
   result := false;
   HttpStateReset;
-  if SockIn <> nil then
-    repeat
-      {$I-}
-      readln(SockIn^, line);
-      err := ioresult;
-      if err <> 0 then
-        EHttpSocket.RaiseUtf8('%.GetHeader error=%', [self, err]);
-      {$I+}
-      if line[0] = #0 then
-        break; // HTTP headers end with a void line
-      Http.ParseHeader(@line, {linelen=}-1, HeadersUnFiltered);
-      if Http.State <> hrsNoStateMachine then
-        exit; // error
-    until false
-  else
-    repeat
-      SockRecvLn(s);
-      if s = '' then
-        break;
-      Http.ParseHeader(pointer(s), length(s), HeadersUnFiltered);
-      if Http.State <> hrsNoStateMachine then
-        exit; // error
-    until false;
-  // finalize the headers
-  result := true;
-  Http.ParseHeaderFinalize; // compute all meaningful headers
+  repeat
+    len := SockInReadLn(line, SizeOf(line)); // very efficient readln()
+    if len <= 0 then // HTTP headers end with a void line
+    begin
+      if len < 0 then // -1 = buffer overflow
+        Http.State := hrsErrorPayloadTooLarge;
+      break;
+    end;
+    Http.ParseHeader(@line, len, HeadersUnFiltered);
+  until Http.State <> hrsNoStateMachine;
+  if Http.State = hrsNoStateMachine then
+  begin
+    Http.ParseHeaderFinalize; // compute all meaningful headers
+    result := true;           // success
+  end;
   if Assigned(OnLog) then
-    OnLog(sllTrace, 'GetHeader % % flags=% len=% %', [Http.CommandMethod,
-      Http.CommandUri, ToText(Http.HeaderFlags), Http.ContentLength,
-      Http.ContentType], self);
+    OnLog(sllTrace, 'GetHeader=% % % flags=% len=% %', [ToText(Http.State)^,
+      Http.CommandMethod, Http.CommandUri, ToText(Http.HeaderFlags),
+      Http.ContentLength, Http.ContentType], self);
 end;
 
-{$I-}
 procedure THttpSocket.GetBody(DestStream: TStream);
 var
-  line: RawUtf8;
-  chunkline: array[0..31] of AnsiChar; // 32 bits chunk length in hexa
-  chunk: RawByteString;
-  len32, err: integer;
-  len64: Int64;
+  chunk: RawUtf8;
+  len: PtrInt;
+  remain: Int64;
+  chunksize: array[0..31] of AnsiChar; // 32 bits chunk length in hexa
 begin
   include(fFlags, fBodyRetrieved);
   Http.Content := '';
@@ -4288,62 +4477,50 @@ begin
     // Content-Length header should be ignored when chunked (RFC2616 #4.4.3)
     Http.ContentLength := 0;
     repeat // chunks decoding loop
-      if SockIn <> nil then
-      begin
-        readln(SockIn^, chunkline); // use of a static PChar is convenient
-        err := ioresult;
-        if err <> 0 then
-          EHttpSocket.RaiseUtf8('%.GetBody chunked ioresult=%', [self, err]);
-        len32 := ParseHex0x(chunkline, {noOx=}true); // hexa chunk length
-      end
-      else
-      begin
-        SockRecvLn(line);
-        len32 := ParseHex0x(pointer(line), {noOx=}true); // hexa chunk length
-      end;
-      if len32 = 0 then
+      if SockInReadLn(@chunksize, SizeOf(chunksize)) < 0 then
+        EHttpSocket.RaiseUtf8('%.GetBody: invalid chunk size line', [self]);
+      len := ParseHex0x(chunksize, {noOx=}true); // hexa chunk length
+      if len = 0 then
       begin
         SockRecvLn; // ignore next line (normally void)
-        break; // reached the end of input stream
+        break;      // reached the end of input stream
       end;
       if DestStream <> nil then
       begin
-        if length({%H-}chunk) < len32 then
-          SetString(chunk, nil, len32 + len32 shr 3); // +shr 3 to avoid realloc
-        SockInRead(pointer(chunk), len32);
-        DestStream.WriteBuffer(pointer(chunk)^, len32);
+        if length({%H-}chunk) < len then
+          SetString(chunk, nil, len + len shr 3); // +shr 3 to avoid realloc
+        SockInRead(pointer(chunk), len);
+        DestStream.WriteBuffer(pointer(chunk)^, len);
       end
       else
       begin
-        SetLength(Http.Content, Http.ContentLength + len32); // reserve space for this chunk
-        SockInRead(@PByteArray(Http.Content)[Http.ContentLength], len32); // append data
+        SetLength(Http.Content, Http.ContentLength + len); // space for this chunk
+        SockInRead(@PByteArray(Http.Content)[Http.ContentLength], len); // append
       end;
-      inc(Http.ContentLength, len32);
+      inc(Http.ContentLength, len);
       SockRecvLn; // ignore next #13#10
     until false;
   end
   else if Http.ContentLength > 0 then
-    // read Content-Length: header bytes
+    // read Content-Length: header bytes into DestStream or Http.Content
     if DestStream <> nil then
     begin
-      len32 := 256 shl 10; // not chunked: use a 256 KB temp buffer
-      if Http.ContentLength < len32 then
-        len32 := Http.ContentLength;
-      SetLength(chunk, len32);
-      len64 := Http.ContentLength;
+      len := 256 shl 10; // not chunked: use a 256 KB temp buffer
+      remain := Http.ContentLength;
+      if remain < len then
+        len := remain;
+      SetLength(chunk, len);
       repeat
-        if len32 > len64 then
-          len32 := len64;
-        SockInRead(pointer(chunk), len32);
-        DestStream.WriteBuffer(pointer(chunk)^, len32);
-        dec(len64, len32);
-      until len64 = 0;
+        if len > remain then
+          len := remain;
+        SockInRead(pointer(chunk), len);
+        DestStream.WriteBuffer(pointer(chunk)^, len);
+        dec(remain, len);
+      until remain = 0;
     end
     else
-    begin
-      SetLength(Http.Content, Http.ContentLength); // not chuncked: direct read
-      SockInRead(pointer(Http.Content), Http.ContentLength);
-    end
+      SockInRead(FastSetString(RawUtf8(Http.Content), Http.ContentLength),
+                 Http.ContentLength) // not chuncked: direct Http.Content read
   else if (Http.ContentLength < 0) and // -1 means no Content-Length header
           (hfConnectionClose in Http.HeaderFlags) then
   begin
@@ -4351,15 +4528,11 @@ begin
     // mainly for HTTP/1.0: https://www.rfc-editor.org/rfc/rfc7230#section-3.3.3
     if Assigned(OnLog) then
       OnLog(sllTrace, 'GetBody deprecated loop', [], self);
-    if SockIn <> nil then // client loop for compatibility with oldest servers
-    begin
-      while not eof(SockIn^) do
-      begin
-        readln(SockIn^, line);
-        AppendLine(RawUtf8(Http.Content), [line]);
-      end;
-      CloseSockIn; // we have hfConnectionClose anyway
-    end;
+    repeat
+      chunk := SockReceiveString; // rough process
+      Append(RawUtf8(Http.Content), chunk);
+    until chunk = '';
+    CloseSockIn; // we have hfConnectionClose anyway
     Http.ContentLength := length(Http.Content); // update Content-Length
     if DestStream <> nil then
     begin
@@ -4372,14 +4545,7 @@ begin
     Http.UncompressData;
   if Assigned(OnLog) then
     OnLog(sllTrace, 'GetBody len=%', [Http.ContentLength], self);
-  if SockIn <> nil then
-  begin
-    err := ioresult;
-    if err <> 0 then
-      EHttpSocket.RaiseUtf8('%.GetBody ioresult2=%', [self, err]);
-  end;
 end;
-{$I+}
 
 procedure THttpSocket.HeaderAdd(const aValue: RawUtf8);
 begin
@@ -4419,6 +4585,12 @@ end;
 
 
 { ******************** Abstract Server-Side Types e.g. for Client-Server Protocol }
+
+function ToText(a: THttpServerRequestAuthentication): PShortString;
+begin
+  result := GetEnumName(TypeInfo(THttpServerRequestAuthentication), ord(a));
+end;
+
 
 { THttpServerRequestAbstract }
 
@@ -4473,7 +4645,7 @@ end;
 
 procedure THttpServerRequestAbstract.ExtractOutContentType;
 begin
-  ExtractHeader(fOutCustomHeaders, 'CONTENT-TYPE:', fOutContentType);
+  ExtractHeader(fOutCustomHeaders, 'CONTENT-TYPE:', @fOutContentType);
 end;
 
 function THttpServerRequestAbstract.GetRouteValuePosLen(const Name: RawUtf8;
@@ -4546,11 +4718,12 @@ begin
   result := false;
   Value.Text := nil;
   Value.Len := 0;
-  if self = nil then
+  if (self = nil) or
+     (fRouteName = nil) then
     exit;
   v := pointer(fRouteValuePosLen);
   if v = nil then
-    exit;
+    exit; // paranoid
   ParamIndex := ParamIndex * 2;
   if ParamIndex >= PtrUInt(PDALen(PAnsiChar(v) - _DALEN)^ + (_DAOFF - 1)) then
     exit; // avoid buffer overflow
@@ -4569,7 +4742,7 @@ begin
      (ifUrlParamPosSet in fInternalFlags) then
     exit;
   include(fInternalFlags, ifUrlParamPosSet); // call PosChar() once
-  result := PosChar(pointer(Url), '?');
+  result := PosCharU(Url, '?'); // use fast SSE2 asm on x86_64
   fUrlParamPos := result;
 end;
 
@@ -4638,13 +4811,63 @@ begin
     result := HTTP_NOTMODIFIED;
     exit;
   end;
+  result := HTTP_SUCCESS;
   if ContentType = '' then
     AppendLine(fOutCustomHeaders, [HEADER_CONTENT_TYPE, GetMimeContentType('', FileName)])
   else
     AppendLine(fOutCustomHeaders, [HEADER_CONTENT_TYPE, ContentType]);
   fOutContentType := STATICFILE_CONTENT_TYPE;
   StringToUtf8(FileName, RawUtf8(fOutContent));
+end;
+
+function THttpServerRequestAbstract.SetOutFile(const FileName: TFileName;
+  Handle304NotModified: boolean; FileSize: Int64; FileLastModified: TUnixMSTime;
+  CacheControlMaxAgeSec: integer): cardinal;
+var
+  e, h: PUtf8Char;
+  el, hl: PtrInt;
+  date: TShort31;
+begin
+  result := HTTP_NOTFOUND;
+  if (FileSize <= 0) or
+     (FileName = '') then
+    exit;
+  if Handle304NotModified then
+  begin
+    result := HTTP_NOTMODIFIED;
+    if FileLastModified > 0 then
+    begin
+      h := FindNameValuePointer(pointer(fInHeaders), 'IF-MODIFIED-SINCE: ', hl);
+      if h <> nil then
+      begin
+        UnixMSTimeUtcToHttpDate(FileLastModified, date);
+        if IdemPropName(date, h, hl) then
+          exit;
+      end;
+    end;
+    e := FindNameValuePointer(pointer(fOutCustomHeaders), 'ETAG: ', el);
+    if e <> nil then
+    begin
+      h := FindNameValuePointer(pointer(fInHeaders), 'IF-NONE-MATCH: ', hl);
+      if (h <> nil) and
+         IdemPropName(e, h, el, hl) then
+        exit;
+    end;
+  end;
   result := HTTP_SUCCESS;
+  if CacheControlMaxAgeSec <> 0 then
+    AppendLine(fOutCustomHeaders, ['Cache-Control: max-age=', CacheControlMaxAgeSec]);
+  fOutContentType := STATICFILE_CONTENT_TYPE;
+  StringToUtf8(FileName, RawUtf8(fOutContent));
+end;
+
+procedure THttpServerRequestAbstract.SetOutProgressiveFile(
+  const FileName: TFileName; ExpectedFileSize: Int64);
+begin
+  StringToUtf8(FileName, RawUtf8(fOutContent));
+  fOutContentType := STATICFILE_CONTENT_TYPE;
+  if ExpectedFileSize <> 0 then // rfProgressiveStatic mode
+    AppendLine(fOutCustomHeaders, [STATICFILE_PROGSIZE + ' ', ExpectedFileSize]);
 end;
 
 function THttpServerRequestAbstract.SetOutContent(const Content: RawByteString;
@@ -4679,6 +4902,13 @@ begin
   fMax := maxpersecond;
   SetSeconds(banseconds);
   fWhiteIP := banwhiteip;
+  fBlackList := TIp4SubNets.Create;
+end;
+
+destructor THttpAcceptBan.Destroy;
+begin
+  inherited Destroy;
+  fBlackList.Free;
 end;
 
 procedure THttpAcceptBan.SetMax(Value: cardinal);
@@ -4694,7 +4924,7 @@ end;
 
 procedure THttpAcceptBan.SetSeconds(Value: cardinal);
 begin
-  Value := NextPowerOfTwo(MinPtrUInt(Value, 128));
+  Value := NextPowerOfTwo(MinPtrUInt(128, Value));
   fSafe.Lock;
   try
     fSeconds := Value; // use closest power of two in 1..128 range
@@ -4771,7 +5001,8 @@ var
 begin
   result := false;
   if (self = nil) or
-     (fCount = 0) then
+     ((fCount = 0) and
+      (fBlackList.SubNet = nil)) then
     exit;
   ip4 := addr.IP4;
   if (ip4 = 0) or
@@ -4783,7 +5014,8 @@ end;
 function THttpAcceptBan.IsBanned(ip4: cardinal): boolean;
 begin
   result := (self <> nil) and
-            (fCount <> 0) and
+            ((fCount <> 0) or
+             (fBlackList.SubNet = nil)) and
             (ip4 <> 0) and
             (ip4 <> fWhiteIP) and
             IsBannedRaw(ip4);
@@ -4803,7 +5035,8 @@ begin
   {$else}
   begin
   {$endif HASFASTTRYFINALLY}
-    s := pointer(fIP); // fIP[secs,0]=count fIP[secs,1..fMax]=ips
+    // search the transient list of fIP[secs,0]=count fIP[secs,1..fMax]=ips
+    s := pointer(fIP);
     n := fSeconds;
     if n <> 0 then
       repeat
@@ -4813,19 +5046,24 @@ begin
         if (cnt <> 0) and
            IntegerScanExists(@P[1], cnt, ip4) then // O(n) SSE2 asm on Intel
         begin
-          inc(fRejected);
           result := true;
           break;
         end;
         dec(n);
       until n = 0;
+    // also try the public blacklist of IPv4 (if any)
+    if not result and
+       (fBlackList.SubNet <> nil) then
+      result := fBlackList.Match(ip4); // - done within the main TOSLightLock
   {$ifdef HASFASTTRYFINALLY}
   finally
   {$endif HASFASTTRYFINALLY}
     fSafe.UnLock;
   end;
-  if result and
-     Assigned(fOnBanned) then
+  if not result then
+    exit;
+  inc(fRejected);
+  if Assigned(fOnBanned) then
     fOnBanned(self, ip4);
 end;
 
@@ -4864,15 +5102,14 @@ begin
   result := 0;
   fSafe.Lock; // very quick O(1) process
   try
-    if fCount <> 0 then
-    begin
-      n := (fLastSec + 1) and (fSeconds - 1); // per-second round robin
-      fLastSec := n; // the oldest slot becomes the current (no memory move)
-      p := @fIP[n][0]; // fIP[secs,0]=count fIP[secs,1..fMax]=ips
-      result := p^;
-      p^ := 0; // void the current slot
-      dec(fCount, result);
-    end;
+    if fCount = 0 then
+      exit;
+    n := (fLastSec + 1) and (fSeconds - 1); // per-second round robin
+    fLastSec := n; // the oldest slot becomes the current (no memory move)
+    p := @fIP[n][0]; // fIP[secs,0]=count fIP[secs,1..fMax]=ips
+    result := p^;
+    p^ := 0; // void the current slot
+    dec(fCount, result);
   finally
     fSafe.UnLock;
   end;
@@ -4945,7 +5182,7 @@ begin
   end;
 end;
 
-procedure THttpRotater.TryRotate(Tix10: cardinal; Size: QWord);
+procedure THttpRotater.TryRotate(Tix32: cardinal; Size: QWord);
 var
   needrotate: boolean;
   dt: TDateTime;
@@ -4960,9 +5197,9 @@ begin
     hrtWeekly:
       begin
         needrotate := Size >= 100 shl 20; // always rotate above 100MB
-        if NextTix10 >= Tix10 then
+        if NextTix32 >= Tix32 then
         begin
-          NextTix10 := Tix10 + 60 * 60; // check TriggerDate every hour
+          NextTix32 := Tix32 + 60 * 60; // check TriggerDate every hour
           dt := NowUtc;
           if Trunc(dt) >= TriggerDate then
           begin
@@ -5055,17 +5292,17 @@ end;
 
 { THttpLoggerWriter }
 
-procedure THttpLoggerWriter.TryRotate(Tix10: cardinal);
+procedure THttpLoggerWriter.TryRotate(Tix32: cardinal);
 begin
-  if (fStream <> nil) and
+  if (fDest <> nil) and
      (fRotate.Trigger > hrtDisabled) then
-    fRotate.TryRotate(Tix10, fTotalFileSize + PendingBytes);
+    fRotate.TryRotate(Tix32, WrittenBytes + Int64(PendingBytes));
 end;
 
 procedure THttpLoggerWriter.WriteToStream(data: pointer; len: PtrUInt);
 begin
   // no need of THttpLogger.OnIdle to flush this log file within this second
-  fLastWriteToStreamTix10 := GetTickCount64 shr MilliSecsPerSecShl;
+  fLastWriteToStreamTix32 := GetTickSec;
   // perform the actual flush to disk
   inherited WriteToStream(data, len);
 end;
@@ -5079,14 +5316,14 @@ begin
       fOwner.fSafe.UnLock;
     hreOpenFile:
       begin
-        fStream := TFileStreamEx.Create(FileName, fmCreate or fmShareRead);
+        fDest := TFileStreamEx.Create(FileName, fmCreate or fmShareRead);
         fInitialStreamPosition := 0; // brand new file
         CancelAll;
       end;
     hreCloseFile:
       begin
         FlushFinal;
-        FreeAndNil(fStream);
+        FreeAndNil(fDest);
       end;
   end;
 end;
@@ -5104,9 +5341,9 @@ begin
   s := TFileStreamNoWriteError.CreateAndRenameIfLocked(fRotate.FileName);
   s.Seek(0, soEnd); // append
   inherited Create(s, 65536);
-  fCustomOptions := [twoNoWriteToStreamException,
-                     twoFlushToStreamNoAutoResize,
-                     twoStreamIsOwned];
+  fFlags := [twfDestIsOwnedStream,
+             twfFlushNoAutoResize,
+             twfNoWriteToStreamException];
 end;
 
 destructor THttpLoggerWriter.Destroy;
@@ -5174,7 +5411,7 @@ end;
 procedure THttpLogger.OnIdle(tix64: Int64);
 var
   i: PtrInt;
-  tix10: cardinal;
+  tix32: cardinal;
 begin
   // optionally merge calls
   if Assigned(fOnContinue) then
@@ -5187,15 +5424,15 @@ begin
   try
     // force write to disk at least every second
     if fWriterSingle <> nil then
-      fWriterSingle.FlushFinal // plain TTextDateWriter with no tix10
+      fWriterSingle.FlushFinal // plain TTextDateWriter with no tix32
     else if (fWriterHost <> nil) and
             fWriterHostSafe.TryLock then
       try
-        tix10 := tix64 shr MilliSecsPerSecShl;
+        tix32 := tix64 div MilliSecsPerSec;
         for i := 0 to length(fWriterHost) - 1 do
           with fWriterHost[i] do
-            if fLastWriteToStreamTix10 <> tix10 then
-              FlushFinal; // no TryRotate(tix10) since may be slow
+            if fLastWriteToStreamTix32 <> tix32 then
+              FlushFinal; // no TryRotate(tix32) since may be slow
       finally
         fWriterHostSafe.UnLock;
       end;
@@ -5223,14 +5460,14 @@ begin
   // caller made fWriterHostSafe.Lock
   fWriterHostMain := THttpLoggerWriter.Create(self, '',
     {error=}false, fSettings.DefaultRotate, fSettings.DefaultRotateFiles);
-  ObjArrayAdd(fWriterHost, fWriterHostMain);
+  PtrArrayAdd(fWriterHost, fWriterHostMain);
   // DefineHost() filters '!' so error.log has a fake name for debugging
   fWriterHostError := THttpLoggerWriter.Create(self, '!error.log!',
     {error=}true, fSettings.DefaultRotate, fSettings.DefaultRotateFiles);
-  ObjArrayAdd(fWriterHost, fWriterHostError);
+  PtrArrayAdd(fWriterHost, fWriterHostError);
 end;
 
-function THttpLogger.GetWriter(Tix10: cardinal;
+function THttpLogger.GetWriter(Tix32: cardinal;
   const Host: RawUtf8; Error: boolean): TTextDateWriter;
 var
   n: integer;
@@ -5246,7 +5483,7 @@ begin
     result := fWriterHostMain; // very common case of loopback or no Host
     if (Host <> '') and
        (ffHadDefineHost in fFlags) and
-       not IsLocalHost(pointer(Host)) then
+       (PCardinal(Host)^ <> HOST_127) then
     // 127.0.0.0/8 (e.g. from THttpClientSocket.RequestSendHeader) is no host
     begin
       result := fWriterHostLast; // pointer-sized variables are atomic
@@ -5270,9 +5507,9 @@ begin
         result := p^; // p^ = WriterHost[0] = access.log as default
         if (Host <> '') and
            (ffHadDefineHost in fFlags) and
-           not IsLocalHost(pointer(Host)) then
+           (PCardinal(Host)^ <> HOST_127) then
         begin
-          n := PDALen(PAnsiChar(p) - _DALEN)^ + (_DAOFF - 1);
+          n := PDALen(PAnsiChar(p) - _DALEN)^ + (_DAOFF - 1); // = high()
           inc(p); // ignore both WriterHost[0/1]
           repeat
             inc(p);
@@ -5305,7 +5542,7 @@ begin
       end;
   end;
   // try rotation before appending any new information - and outside of the lock
-  THttpLoggerWriter(result).TryRotate(Tix10);
+  THttpLoggerWriter(result).TryRotate(Tix32);
 end;
 
 procedure THttpLogger.DefineHost(const aHost: RawUtf8;
@@ -5347,7 +5584,7 @@ begin
     if aRotateFiles < 0 then
       aRotateFiles := fSettings.DefaultRotateFiles;
     w := THttpLoggerWriter.Create(self, h, {err=}false, aRotate, aRotateFiles);
-    ObjArrayAdd(fWriterHost, w);
+    PtrArrayAdd(fWriterHost, w);
     include(fFlags, ffHadDefineHost);
   finally
     fWriterHostSafe.UnLock;
@@ -5442,11 +5679,11 @@ begin
     DynArrayFakeLength(fUnknownPosLen, un);
 end;
 
-procedure THttpLogger.SetTimeText(Tix64: Int64);
+procedure THttpLogger.SetTimeText(Tix32: cardinal; Tix64: Int64);
 var
   now: TSynSystemTime;
 begin
-  fTimeTix10 := Tix64 shr MilliSecsPerSecShl; // acquire it asap
+  fTimeTix32 := Tix32; // acquire it asap
   // dates are all in UTC/GMT as it should on any serious server design
   FromGlobalTime(now, {local=}false, Tix64); // call OS outside of the lock
   fSafe.Lock; // update all cached text in an atomic way
@@ -5459,14 +5696,14 @@ end;
 
 procedure THttpLogger.Append(var Context: TOnHttpServerAfterResponseContext);
 var
-  n, urllen: integer;
-  tix10, crc, reqcrc, uricrc: cardinal;
+  n, urllen: PtrInt;
+  tix32, crc, reqcrc, uricrc: cardinal;
   v: ^THttpLogVariable;
   poslen: PWordArray; // pos1,len1, pos2,len2, ... 16-bit pairs
   wr: TTextDateWriter;
 const
-  SCHEME: array[boolean] of string[7]  = ('http', 'https');
-  HTTP:   array[boolean] of string[15] = ('HTTP/1.1', 'HTTP/1.0');
+  _SCHEME: array[boolean] of TShort7  = ('http', 'https');
+  _HTTP:   array[boolean] of TShort15 = ('HTTP/1.1', 'HTTP/1.0');
 begin
   // optionally merge calls
   if Assigned(fOnContinue) then
@@ -5475,23 +5712,17 @@ begin
     exit;
   // retrieve the output stream for the expected .log file
   if Context.Tix64 = 0 then
-    Context.Tix64 := GetTickCount64;
-  tix10 := Context.Tix64 shr MilliSecsPerSecShl;
-  wr := GetWriter(tix10, RawUtf8(Context.Host), Context.State <> hrsResponseDone);
-  if (wr = nil) or
-     (wr.Stream = nil) then
+    Context.Tix64 := GetTickCount64; // retrieve from OS and cache for below
+  tix32 := Context.Tix64 div MilliSecsPerSec;
+  wr := GetWriter(tix32, RawUtf8(Context.Host), Context.State <> hrsResponseDone);
+  if wr = nil then
     exit;
   // pre-compute CPU intensive values outside of fSafe.Lock
   urllen := 0;
-  if (fVariables * [hlvDocument_Uri, hlvUri, hlvUri_Hash] <> []) and
-     (Context.Url <> nil) then
-  begin
-    urllen := PosExChar('?', RawUtf8(Context.Url)) - 1; // exclude arguments
-    if urllen < 0 then
-      urllen := length(RawUtf8(Context.Url));
-  end;
-  if fTimeTix10 <> tix10 then
-    SetTimeText(Context.Tix64); // update cached time texts every second
+  if (fVariables * [hlvDocument_Uri, hlvUri, hlvUri_Hash] <> []) then
+    urllen := UriTruncLen(RawUtf8(Context.Url)); // excludes ?params and #anchor
+  if fTimeTix32 <> tix32 then
+    SetTimeText(tix32, Context.Tix64); // update cached time texts every second
   reqcrc := 0;
   uricrc := 0;
   if (hlvRequest_Hash in fVariables) or
@@ -5509,7 +5740,7 @@ begin
   v := pointer(fVariable);
   n := length(fVariable);
   poslen := pointer(fUnknownPosLen); // 32-bit array into 16-bit pos,len pairs
-  fSafe.Lock;
+  fSafe.Lock; // fast non-reentrant TOSLightLock
   {$ifdef HASFASTTRYFINALLY}
   try
   {$else}
@@ -5602,7 +5833,7 @@ begin
               wr.AddDirect('/'); // TRestHttpServer may have trimmed it
             wr.AddString(RawUtf8(Context.Url)); // full request = raw Url
             wr.AddDirect(' ');
-            wr.AddShorter(HTTP[hsrHttp10 in Context.Flags]);
+            wr.AddShorter(_HTTP[hsrHttp10 in Context.Flags]);
           end;
         hlvRequest_Hash:
           wr.AddUHex(reqcrc, #0);
@@ -5613,11 +5844,11 @@ begin
         hlvRequest_Uri:
           wr.AddString(RawUtf8(Context.Url)); // include arguments
         hlvScheme:
-          wr.AddShorter(SCHEME[hsrHttps in Context.Flags]);
+          wr.AddShorter(_SCHEME[hsrHttps in Context.Flags]);
         hlvSent:
           wr.AddShort(KBNoSpace(Context.Sent));
         hlvServer_Protocol:
-           wr.AddShorter(HTTP[hsrHttp10 in Context.Flags]);
+           wr.AddShorter(_HTTP[hsrHttp10 in Context.Flags]);
         hlvStatus:
           wr.AddU(Context.StatusCode);
         hlvStatus_Text:
@@ -5638,7 +5869,7 @@ begin
     until n = 0;
     wr.AddShorter(LINE_FEED[fSettings.LineFeed]);
     if (fWriterSingle = nil) and
-       (THttpLoggerWriter(wr).fLastWriteToStreamTix10 <> tix10) then
+       (THttpLoggerWriter(wr).fLastWriteToStreamTix32 <> tix32) then
       wr.FlushFinal; // force write to disk at least every second
   {$ifdef HASFASTTRYFINALLY}
   finally
@@ -5725,7 +5956,7 @@ end;
 
 function THttpAnalyzerToSave.DateTime: TDateTime;
 begin
-  result := (Int64(Date) + UNIXTIME_MINIMAL) / SecsPerDay + UnixDateDelta;
+  result := (Int64(Date) + UNIXTIME_MINIMAL) * SecsPerDate + UnixDateDelta;
 end;
 
 
@@ -5755,7 +5986,7 @@ begin
     else
       FillcharFast(fState, SizeOf(fState), 0);
   ComputeConsolidateTime(hapAll, fromgz);
-  tix := GetTickCount64 div 1000;
+  tix := GetTickSec;
   if fromgz <> 0 then
     Consolidate(tix); // consolidate old data
   if fSuspendFileAutoSaveMinutes <> 0 then
@@ -6015,17 +6246,17 @@ function ToScope(Text: PCardinal; out Scope: THttpAnalyzerScope): boolean;
 begin
   result := false;
   case Text^ of // case-sensitive test in occurrence order
-    ord('G') + ord('E') shl 8 + ord('T') shl 16:
+    GET_24:
       Scope := hasGet;
-    ord('P') + ord('O') shl 8 + ord('S') shl 16 + ord('T') shl 24:
+    POST_32:
       Scope := hasPost;
-    ord('P') + ord('U') shl 8 + ord('T') shl 16:
+    PUT_24:
       Scope := hasPut;
-    _HEAD32:
+    HEAD_32:
       Scope := hasHead;
-    ord('D') + ord('E') shl 8 + ord('L') shl 16 + ord('E') shl 24:
+    DELE_32:
       Scope := hasDelete;
-    ord('O') + ord('P') shl 8 + ord('T') shl 16 + ord('I') shl 24:
+    OPTI_32:
       Scope := hasOptions;
   else
     exit;
@@ -6234,9 +6465,9 @@ begin
 end;
 
 const
-  _WIDTH = 10;
+  _WIDTH = 10; // any value < TTextWriter internal buffer size would do
 
-procedure AppendFieldNames(w: TTextWriter);
+procedure AppendFieldNames(w: TTextDateWriter);
 begin
   w.AddSpaced('Count',    _WIDTH, ',');
   w.AddSpaced('Time',     _WIDTH, ',');
@@ -6246,7 +6477,7 @@ begin
   w.AddCR;
 end;
 
-procedure AppendFieldValues(w: TTextWriter; const d: THttpAnalyzerState);
+procedure AppendFieldValues(w: TTextDateWriter; const d: THttpAnalyzerState);
 begin
   w.AddSpaced(d.Count,    _WIDTH, ',');
   w.AddSpaced(d.Time,     _WIDTH, ',');
@@ -6260,11 +6491,11 @@ function THttpAnalyzer.GetAsText(Period: THttpAnalyzerPeriod): RawUtf8;
 var
   s: THttpAnalyzerScope;
   d: THttpAnalyzerStatePerScope;
-  w: TTextWriter;
-  tmp: TTextWriterStackBuffer;
+  w: TTextDateWriter;
+  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
 begin
   Get(Period, d);
-  w := TTextWriter.CreateOwnedStream(tmp);
+  w := TTextDateWriter.CreateOwnedStream(tmp);
   try
     w.AddSpaced('Scope', _WIDTH, ',');
     AppendFieldNames(w);
@@ -6283,11 +6514,11 @@ function THttpAnalyzer.GetAsText(Scope: THttpAnalyzerScope): RawUtf8;
 var
   p: THttpAnalyzerPeriod;
   d: THttpAnalyzerStatePerPeriod;
-  w: TTextWriter;
+  w: TTextDateWriter;
   tmp: TTextWriterStackBuffer;
 begin
   Get(Scope, d);
-  w := TTextWriter.CreateOwnedStream(tmp);
+  w := TTextDateWriter.CreateOwnedStream(tmp);
   try
     w.AddSpaced('Period', _WIDTH, ',');
     AppendFieldNames(w);
@@ -6342,7 +6573,7 @@ constructor THttpAnalyzerPersistAbstract.CreateOwned(aOwner: THttpAnalyzer);
 begin
   Create(''); // Rotate.FileName will be set in OnSave() from fOwner.DestFolder
   fRotate.Trigger := hrtDaily;
-  ObjArrayAdd(aOwner.fPersisters, self);
+  PtrArrayAdd(aOwner.fPersisters, self);
   fOnContinue := aOwner.fOnSave;
   aOwner.fOnSave := OnSave;
   fOwner := aOwner;
@@ -6367,7 +6598,7 @@ begin
   try
     // try rotation before appending any new information - and outside Safe.lock
     if fRotate.Trigger > hrtDisabled then
-      fRotate.TryRotate(GetTickCount64 shr 10, FileSize(FileName));
+      fRotate.TryRotate(GetTickSec, FileSize(FileName));
     // append the new information using DoSave() overriden method
     fSafe.Lock;
     try
@@ -6401,7 +6632,7 @@ var
   p: PHttpAnalyzerToSave;
   t: TSynSystemTime;
   w: TTextDateWriter;
-  tmp: TSynTempBuffer;
+  tmp: TBuffer4K;
 begin
   w := TTextDateWriter.Create(Dest, @tmp, SizeOf(tmp));
   try
@@ -6456,7 +6687,7 @@ var
   p: PHttpAnalyzerToSave;
   t: TSynSystemTime;
   w: TTextDateWriter;
-  tmp: TSynTempBuffer;
+  tmp: TBuffer4K;
 begin
   // {"d":"xxx","p":x,"s":x,"c":x,"t":x,"i":x,"r":x,"w":x}
   existing := Dest.Seek(0, soEnd); // append to existing content
@@ -6586,7 +6817,8 @@ begin
       hapCurrent,
       hapYear,
       hapAll: // paranoid
-        raise EHttpMetrics.Create('Unexpected period');
+        EHttpMetrics.RaiseUtf8('Unexpected %.CreatePeriodIndex(%)',
+          [self, ToText(p^.Period)^]);
     else // hapHour .. hapMonth
       with fPeriod[p^.Period] do
       begin
@@ -6736,7 +6968,7 @@ end;
 procedure THttpMetrics.SaveToFile(const Dest: TFileName; Algo: TAlgoCompress);
 var
   w: TBufferWriter;
-  tmp: TTextWriterStackBuffer;
+  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
 begin
   if Algo = nil then
     w := TBufferWriter.Create(Dest) // direct-to-fly persistence
@@ -6935,7 +7167,7 @@ var
   last, first: cardinal;
   p: THttpAnalyzerPeriod;
   rd: TFastReader;
-  tmp: array[0..4095] of AnsiChar; // first 4KB should be enough (with metadata)
+  tmp: TBuffer4K; // first 4KB should be enough (with metadata)
   unc: array[0..6143] of AnsiChar; // partially decompressed content
 begin
   RecordZero(@Info, TypeInfo(THttpMetricsHeader));
@@ -7182,30 +7414,22 @@ end;
 
 function FromText(const Text: RawUtf8; out Scope: THttpAnalyzerScope): boolean;
 var
-  s: THttpAnalyzerScope;
+  i: PtrInt;
 begin
-  for s := low(s) to high(s) do
-    if IdemPropNameU(Text, HTTP_SCOPE[s]) then
-    begin
-      Scope := s;
-      result := true;
-      exit;
-    end;
-  result := false;
+  i := FindPropName(@HTTP_SCOPE, Text, length(HTTP_SCOPE));
+  result := i >= 0;
+  if result then
+    byte(Scope) := i;
 end;
 
 function FromText(const Text: RawUtf8; out Period: THttpAnalyzerPeriod): boolean;
 var
-  p: THttpAnalyzerPeriod;
+  i: PtrInt;
 begin
-  for p := low(p) to high(p) do
-    if IdemPropNameU(Text, HTTP_PERIOD[p]) then
-    begin
-      Period := p;
-      result := true;
-      exit;
-    end;
-  result := false;
+  i := FindPropName(@HTTP_PERIOD, Text, length(HTTP_PERIOD));
+  result := i >= 0;
+  if result then
+    byte(Period) := i;
 end;
 
 const
@@ -7217,13 +7441,13 @@ procedure MetricsToCsv(const Metrics: THttpAnalyzerToSaveDynArray;
 var
   n: integer;
   d: PHttpAnalyzerToSave;
-  w: TTextWriter;
+  w: TTextDateWriter;
   date: TShort16;
-  tmp: TTextWriterStackBuffer;
+  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
 begin
   if Metrics = nil then
     exit;
-  w := TTextWriter.CreateOwnedStream(tmp);
+  w := TTextDateWriter.CreateOwnedStream(tmp);
   try
     w.AddSpaced('Date', _WIDTH, ',');
     if not NoPeriod then
@@ -7252,14 +7476,207 @@ begin
 end;
 
 
+{ ******************** Additional High-Level Socket Functions }
+
+type
+  TSortByMacAddress = class // a fake class to propagate TMacAddressFilter
+    function Compare(const A, B): integer;
+  end;
+
+function TSortByMacAddress.Compare(const A, B): integer;
+var
+  ma: TMacAddress absolute A;
+  mb: TMacAddress absolute B;
+  filter: TMacAddressFilter;
+begin
+  result := 0;
+  if @ma = @mb then
+    exit;
+  // was called as arr.Sort(TSortByMacAddress(PtrUInt(byte(Filter))).Compare)
+  byte(filter) := PtrInt(self);
+  // sort with gateway first
+  if not (mafIgnoreGateway in filter) then
+  begin
+    result := ord(ma.Gateway = '') - ord(mb.Gateway = '');
+    if result <> 0 then
+      exit;
+  end;
+  // sort by kind
+  if not (mafIgnoreKind in filter) then
+  begin
+    result := CompareCardinal(NETHW_ORDER[ma.Kind], NETHW_ORDER[mb.Kind]);
+    if result <> 0 then
+      exit;
+  end;
+  // sort by speed within this kind and gateway
+  if not (mafIgnoreSpeed in filter) then
+  begin
+    result := CompareCardinal(mb.Speed, ma.Speed);
+    if result <> 0 then
+      exit;
+  end;
+  // fallback to sort by IfIndex or plain MAC address
+  result := CompareCardinal(ma.IfIndex, mb.IfIndex);
+  if result = 0 then
+    result := SortDynArrayAnsiStringI(ma.Address, mb.Address);
+  if result = 0 then
+    result := ComparePointer(@ma, @mb);
+end;
+
+function GetSortedMacAddress(Filter: TMacAddressFilter): TMacAddressDynArray;
+var
+  allowed, available: TMacAddressKinds;
+  arr: TDynArray;
+  i, bct: PtrInt;
+begin
+  result := copy(GetMacAddresses(not (mafUpOnly in Filter))); // 65 secs cache
+  if result = nil then
+    exit;
+  arr.Init(TypeInfo(TMacAddressDynArray), result);
+  bct := 0;
+  available := [];
+  for i := 0 to high(result) do
+    with result[i] do
+    begin
+      include(available, Kind);
+      if Broadcast <> '' then
+        inc(bct);
+      {writeln(Kind, ' ', Address,' name=',Name,' ifindex=',IfIndex,
+         ' ip=',ip,' netmask=',netmask,' broadcast=',broadcast);}
+    end;
+  allowed := [];
+  if mafLocalOnly in Filter then
+    allowed := [makEthernet, makWifi]
+  else if mafEthernetOnly in Filter then
+    include(allowed, makEthernet);
+  if (available * allowed) <> [] then // e.g. if result makUndefined
+    for i := high(result) downto 0 do
+      if not (result[i].Kind in allowed) then
+        arr.Delete(i);
+  if (mafRequireBroadcast in Filter) and
+     (bct <> 0) then
+    for i := high(result) downto 0 do
+      if result[i].Broadcast = '' then
+        arr.Delete(i);
+  if result = nil then
+    exit;
+  if length(result) > 1 then
+    arr.Sort(TSortByMacAddress(PtrUInt(byte(Filter))).Compare);
+end;
+
+function GetMainMacAddress(out Mac: TMacAddress; Filter: TMacAddressFilter): boolean;
+var
+  all: TMacAddressDynArray;
+begin
+  result := false;
+  all := GetSortedMacAddress(Filter);
+  if all = nil then
+    exit;
+  Mac := all[0];
+  result := true;
+end;
+
+function FindMacAddress(const Macs: TMacAddressDynArray;
+  const InterfaceNameAddressOrIP: RawUtf8): PMacAddress;
+var
+  n: integer;
+  mask: TIp4SubNet;
+  m: PMacAddress;
+begin
+  result := nil;
+  if InterfaceNameAddressOrIP = '' then
+    exit;
+  m := pointer(Macs);
+  if m = nil then
+    exit;
+  n := PDALen(PAnsiChar(m) - _DALEN)^ + _DAOFF;
+  if mask.From(InterfaceNameAddressOrIP) then
+    // search as IP bitmask pattern e.g. '192.168.1.0/24' or '192.168.1.13'
+    repeat
+      if mask.Match(m^.IP) then // e.g. 192.168.1.2 against '192.168.1.0/24'
+        if (result = nil) or
+           (NETHW_ORDER[m^.Kind] < NETHW_ORDER[result^.Kind]) then
+          result := m; // pickup the interface with the best hardware (paranoid)
+      inc(m);
+      dec(n);
+    until n = 0
+  else
+    // search for interface Name or MAC Address
+    repeat
+      if IdemPropNameU(m^.Name,    InterfaceNameAddressOrIP) or
+         IdemPropNameU(m^.Address, InterfaceNameAddressOrIP) then
+      begin
+        result := m;
+        break;
+      end;
+      inc(m);
+      dec(n);
+    until n = 0;
+end;
+
+function GetMainMacAddress(out Mac: TMacAddress;
+  const InterfaceNameAddressOrIP: RawUtf8; UpAndDown: boolean): boolean;
+var
+  m: PMacAddress;
+begin
+  // retrieve and filter the current network interfaces
+  m := FindMacAddress(GetMacAddresses(UpAndDown), InterfaceNameAddressOrIP);
+  if m <> nil then
+  begin
+    Mac := m^;
+    result := true;
+  end
+  else
+    result := false;
+end;
+
+procedure _GlobalInfoNet(Sender: TBinDictionary);
+var
+  dns: RawUtf8;
+  u: TRawUtf8DynArray;
+  mac: TMacAddress;
+begin
+  if GetMainMacAddress(mac) then
+  begin
+    Sender.UpdateTextNotVoid( 'net:mac',       mac.Address);
+    Sender.UpdateTextNotVoid( 'net:if',        mac.Name);
+    if mac.Mtu <> 0 then
+      Sender.UpdateText(     ['net:mtu'],     [mac.Mtu]);
+    if mac.Speed <> 0 then
+      Sender.UpdateText(     ['net:speed'],   [mac.Speed]);
+    Sender.UpdateText(       ['net:ifindex'], [mac.IfIndex]);
+    Sender.UpdateTextNotVoid( 'net:ifname',    mac.FriendlyName);
+    Sender.UpdateTextNotVoid( 'net:ip',        mac.IP);
+    Sender.UpdateTextNotVoid( 'net:mask',      mac.NetMask);
+    Sender.UpdateTextNotVoid('net:gateway',    mac.Gateway);
+    Sender.UpdateTextNotVoid('net:broadcast',  mac.Broadcast);
+    if mac.Kind > makUndefined then
+      Sender.UpdateText('net:kind', ShortTrim(ToText(mac.Kind), scLowerCase));
+    {$ifdef OSWINDOWS}
+    dns := mac.Dns;
+    {$endif OSWINDOWS}
+  end
+  else
+  begin
+    u := GetIPAddresses;
+    if u <> nil then
+      Sender.UpdateText('net:ip', u[0]);
+  end;
+  if dns = '' then
+    dns := RawUtf8ArrayToCsv(GetDomainNames);
+  Sender.UpdateTextNotVoid('net:dns', dns);
+end;
+
+
 initialization
   assert(SizeOf(THttpAnalyzerToSave) = 40);
-  _GETVAR :=  'GET';
+  _GETVAR  := 'GET';
   _POSTVAR := 'POST';
   _HEADVAR := 'HEAD';
   GetEnumTrimmedNames(TypeInfo(THttpAnalyzerScope),  @HTTP_SCOPE);
   GetEnumTrimmedNames(TypeInfo(THttpAnalyzerPeriod), @HTTP_PERIOD);
   GetEnumTrimmedNames(TypeInfo(THttpRequestState),   @HTTP_STATE);
+  GlobalInfoRegister('net:', @_GlobalInfoNet);
 
 finalization
 

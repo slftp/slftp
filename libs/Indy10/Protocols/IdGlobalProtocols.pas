@@ -627,11 +627,7 @@ uses
   IdResourceStringsProtocols,
   IdStack
   {$IFDEF HAS_IOUtils_TPath}
-    {$IFDEF VCL_XE2_OR_ABOVE}
-  , System.IOUtils
-    {$ELSE}
   , IOUtils
-    {$ENDIF}
   {$ENDIF}
   {$IFDEF USE_OBJECT_ARC}
     {$IFDEF HAS_UNIT_Generics_Collections}
@@ -1584,7 +1580,7 @@ begin
     {$ELSE}
       {$IFDEF HAS_IOUtils_TPath}
   if lPath = '' then begin
-    lPath := {$IFDEF VCL_XE2_OR_ABOVE}System.{$ENDIF}IOUtils.TPath.GetTempPath;
+    lPath := IOUtils.TPath.GetTempPath;
   end;
       {$ENDIF}
     {$ENDIF}
@@ -2865,7 +2861,7 @@ var
     end;
     if S <> '' then begin
       if IsNumeric(S, 1, 1) then begin
-        raise Exception.Create('Invalid Cookie Time');
+        raise Exception.Create('Invalid Cookie Time'); // TODO: add a resource string
       end;
     end;
     if not TryStrToInt(LTemp, LSecond) then begin
@@ -2873,13 +2869,13 @@ var
     end;
 
     if LHour > 23 then begin
-      raise Exception.Create('Invalid Cookie Time');
+      raise Exception.Create('Invalid Cookie Time'); // TODO: add a resource string
     end;
     if LMinute > 59 then begin
-      raise Exception.Create('Invalid Cookie Time');
+      raise Exception.Create('Invalid Cookie Time'); // TODO: add a resource string
     end;
     if LSecond > 59 then begin
-      raise Exception.Create('Invalid Cookie Time');
+      raise Exception.Create('Invalid Cookie Time'); // TODO: add a resource string
     end;
 
     Result := True;
@@ -2902,14 +2898,14 @@ var
     end;
     if S <> '' then begin
       if IsNumeric(S, 1, 1) then begin
-        raise Exception.Create('Invalid Cookie Day of Month');
+        raise Exception.Create('Invalid Cookie Day of Month'); // TODO: add a resource string
       end;
     end;
     if not TryStrToInt(LTemp, LDayOfMonth) then begin
       Exit;
     end;
     if (LDayOfMonth < 1) or (LDayOfMonth > 31) then begin
-      raise Exception.Create('Invalid Cookie Day of Month');
+      raise Exception.Create('Invalid Cookie Day of Month'); // TODO: add a resource string
     end;
 
     Result := True;
@@ -2937,14 +2933,14 @@ var
       end;
       if S <> '' then begin
         if IsNumeric(S, 1, 1) then begin
-          raise Exception.Create('Invalid Cookie Month');
+          raise Exception.Create('Invalid Cookie Month'); // TODO: add a resource string
         end;
       end;
       if not TryStrToInt(LTemp, LMonth) then begin
         Exit;
       end;
       if (LMonth < 1) or (LMonth > 12) then begin
-        raise Exception.Create('Invalid Cookie Month');
+        raise Exception.Create('Invalid Cookie Month'); // TODO: add a resource string
       end;
     end;
 
@@ -2974,7 +2970,7 @@ var
       Inc(LYear, 2000);
     end;
     if LYear < 1601 then begin
-      raise Exception.Create('Invalid Cookie Year');
+      raise Exception.Create('Invalid Cookie Year'); // TODO: add a resource string
     end;
 
     Result := True;
@@ -3030,7 +3026,7 @@ begin
     until False;
 
     if (not LFoundDayOfMonth) or (not LFoundMonth) or (not LFoundYear) or (not LFoundTime) then begin
-      raise Exception.Create('Invalid Cookie Date format');
+      raise Exception.Create('Invalid Cookie Date format'); // TODO: add a resource string
     end;
 
     Result := EncodeDate(LYear, LMonth, LDayOfMonth) + EncodeTime(LHour, LMinute, LSecond, 0);
@@ -3089,35 +3085,39 @@ begin
     // I think - at least in terms of storage
     KeyList := TStringList.Create;
     try
-      // TODO: use TStreamReader instead, on versions that support it
-      KeyList.LoadFromFile(AFileName); {Do not localize}
-      for i := 0 to KeyList.Count -1 do begin
-        s := KeyList[i];
-        p := IndyPos('#', s); {Do not localize}
-        if p > 0 then begin
-          SetLength(s, p-1);
-        end;
-        if s <> '' then begin {Do not localize}
-          s := Trim(s);
-          LMimeType := IndyLowerCase(Fetch(s));
-          if LMimeType <> '' then begin {Do not localize}
-             while s <> '' do begin {Do not localize}
-               LExtension := IndyLowerCase(Fetch(s));
-               if LExtension <> '' then {Do not localize}
-               try
-                 if LExtension[1] <> '.' then begin
-                   LExtension := '.' + LExtension; {Do not localize}
+      try
+        // TODO: use TStreamReader instead, on versions that support it
+        KeyList.LoadFromFile(AFileName);
+        for i := 0 to KeyList.Count -1 do begin
+          s := KeyList[i];
+          p := IndyPos('#', s); {Do not localize}
+          if p > 0 then begin
+            SetLength(s, p-1);
+          end;
+          if s <> '' then begin {Do not localize}
+            s := Trim(s);
+            LMimeType := IndyLowerCase(Fetch(s));
+            if LMimeType <> '' then begin {Do not localize}
+               while s <> '' do begin {Do not localize}
+                 LExtension := IndyLowerCase(Fetch(s));
+                 if LExtension <> '' then {Do not localize}
+                 try
+                   if LExtension[1] <> '.' then begin {Do not localize}
+                     LExtension := '.' + LExtension; {Do not localize}
+                   end;
+                   AMIMEList.Values[LExtension] := LMimeType;
+                 except
+                   on EListError do {ignore} ;
                  end;
-                 AMIMEList.Values[LExtension] := LMimeType;
-               except
-                 on EListError do {ignore} ;
                end;
-             end;
+            end;
           end;
         end;
+      except
+        on EFOpenError do {ignore} ;
       end;
-    except
-      on EFOpenError do {ignore} ;
+    finally
+      KeyList.Free;
     end;
   End;
 end;
@@ -4886,13 +4886,11 @@ end;
     {$DEFINE NO_NATIVE_ASM}
   {$ENDIF}
 {$ENDIF}
-{$IFDEF OSX} // !!! ADDED OSX BY EMBT
-  {$IFDEF CPUX64}
-    {$DEFINE NO_NATIVE_ASM}
-  {$ENDIF}
-  {$IFDEF CPUARM64}
-    {$DEFINE NO_NATIVE_ASM}
-  {$ENDIF}
+{$IFDEF CPUX64}
+  {$DEFINE NO_NATIVE_ASM}
+{$ENDIF}
+{$IFDEF CPUARM64}
+  {$DEFINE NO_NATIVE_ASM}
 {$ENDIF}
 {$IFDEF ANDROID}
   {$DEFINE NO_NATIVE_ASM}

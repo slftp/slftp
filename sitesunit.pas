@@ -203,7 +203,7 @@ type
   { @abstract(Object which holds all the site informations) }
   TSite = class
   private
-    FWorkingStatus: TSiteStatus;
+    FWorkingStatus: Integer; //< stored as Integer for lock-free atomic reads/writes
     fFeatures: TSiteFeatures;
     foutofannounce: TDateTime;
     fkreditz: TDateTime;
@@ -226,14 +226,22 @@ type
     flegacydirlist: boolean;
     fSlotsAssignmentLock: TSlCriticalSection2;
     fFailedNfoCounter: integer;
+    fDownloadCooldownUntil: TDateTime; //< no new download on this site until Now() > this
+    fUploadCooldownUntil: TDateTime;   //< no new upload on this site until Now() > this
+    fLoginCooldownUntil: TDateTime;
+    fLoginCooldownSeconds: integer;
+    fLoginCooldownLastSlot: String;
+    fActiveLoginAttempts: integer; //< in-flight login attempts; prevents thundering herd on cooldown expiry
+    FSocketInitErrorCount: integer; //< site-wide counter for socket initialization errors
     fConnect_timeout: integer;
     fIdleInterval: integer;
     fIo_timeout: integer;
     fMaxIdle: integer;
     fKillConnectionOnStalledTransferSeconds: integer;
-    fSpeedFromCS: TSlCriticalSection2;
+    fSpeedFromCS: TslRWLock; //< RWLock - GetSpeed_From called per route lookup, UpdateSpeedFromCache only on site reload
     fSpeedFromCache: TList<TSpeedFromRouteInfo>;
     fFreeSlotsCS: TSlCriticalSection2;
+    fWorkingStatusEffectsLock: TSlCriticalSection2; //< serializes side-effects in SetWorking (Auto*, PrintSiteStatusToIRC, etc.)
     FSettingsCacheDict: TVariantCache; //< Cache for site-settings in the sites.dat to avoid the sites.dat bottleneck (lock)
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
@@ -244,6 +252,7 @@ type
 
     function Software: TSiteSW;
 
+    function GetWorkingStatus: TSiteStatus;
     procedure SetWorking(const Value: TSiteStatus);
 
     function GetMaxDn: integer;
@@ -411,6 +420,8 @@ type
     { Sets a value saying after how many seconds a stalled transfer should be ended by destroying the socket }
     procedure SetKillConnectionOnStalledTransferSeconds(const Value: integer);
     function GetSpeed_From: TList<TSpeedFromRouteInfo>;
+    function GetNewdirDirlistReadd: integer;
+    procedure SetNewdirDirlistReadd(const Value: integer);
   public
     emptyQueue: boolean;
     siteinvited: boolean;
@@ -566,6 +577,25 @@ type
     { Migrates old speedlock config values to the new speed-from config and remove all speed-to configs which we don't need anymore. }
     procedure MigrateSpeedLockAndSpeedToConfig;
 
+    { @abstract(Register a failed login attempt hit for exponential backoff cooldown) }
+    procedure RegisterLoginCooldownHit(const aSlotName: String);
+    { @abstract(Returns true if site is currently in login cooldown) }
+    function LoginCooldownActive: boolean;
+    { @abstract(Reset login cooldown state) }
+    procedure ResetLoginCooldown;
+    { @abstract(Returns remaining login cooldown seconds) }
+    function LoginCooldownRemainingSeconds: integer;
+    { @abstract(Increment active login attempt counter) }
+    procedure IncrementActiveLoginAttempts;
+    { @abstract(Decrement active login attempt counter) }
+    procedure DecrementActiveLoginAttempts;
+    { @abstract(Returns true if there is at least one active login attempt in flight) }
+    function HasActiveLoginAttempt: boolean;
+    { @abstract(Returns true if download cooldown is currently active) }
+    function DownloadCooldownActive: boolean;
+    { @abstract(Returns true if upload cooldown is currently active) }
+    function UploadCooldownActive: boolean;
+
     property sections: String read GetSections write SettSections;
     property sectiondir[const Name: String]: String read GetSectionDir write SetSectionDir;
     property sectionprecmd[Name: String]: String read GetSectionPreCmd write SetSectionPrecmd;
@@ -601,7 +631,7 @@ type
     property swVersion: String read GetSwVersion write SetSwVersion; //< FTPd software version
     property features: TSiteFeatures read fFeatures write fFeatures;
     property noannounce: boolean read GetNoannounce write SetNoAnnounce;
-    property WorkingStatus: TSiteStatus read FWorkingStatus write SetWorking; //< indicates current site status, see @link(TSiteStatus)
+    property WorkingStatus: TSiteStatus read GetWorkingStatus write SetWorking; //< indicates current site status, see @link(TSiteStatus)
     property max_dn: integer read GetMaxDn write SetMaxDn;
     property max_pre_dn: integer read GetMaxPreDn write SetMaxPreDn;
     property max_up: integer read GetMaxUp write SetMaxUp;
@@ -633,7 +663,13 @@ type
     property ReducedSpeedstatWeight: boolean read GetReducedSpeedstatWeight write SetReducedSpeedstatWeight; //< a value indicating whether speedstats should not change calculated rank for this destination site
     property KillConnectionOnStalledTransferSeconds: integer read GetKillConnectionOnStalledTransferSeconds write SetKillConnectionOnStalledTransferSeconds; //< a value saying after how many seconds a stalled transfer should be ended by destroying the socket
     property Speed_From: TList<TSpeedFromRouteInfo> read GetSpeed_From; //< Access cached speed-from speedstats. Creates a new TStringList which you need to free yourself after use
+    { @abstract(Re-add dirlist task after new directory detection; 0 = disabled) }
+    property NewdirDirlistReadd: integer read GetNewdirDirlistReadd write SetNewdirDirlistReadd;
   end;
+
+const
+  LOGIN_COOLDOWN_INITIAL_SECONDS = 5;
+  LOGIN_COOLDOWN_MAX_SECONDS = 120;
 
 function ReadSites(): boolean;
 procedure SlotsFire;
@@ -740,6 +776,9 @@ procedure AddSite(const aSite: TSite);
 { Deletes a site from the relevant data structures.
   @param(aSite The @link(TSite) object to delete.) }
 procedure DeleteSite(const aSite: TSite);
+
+{ @abstract(Returns count of pending race tasks targeting the given destination site) }
+function GetPendingRaceTaskCountForDestination(const aDestinationSiteName: String): integer;
 
 var
   sitesdat: TEncIniFile = nil; //< the inifile @link(encinifile.TEncIniFile) object for sites.dat
@@ -2185,6 +2224,7 @@ begin
     exit;
   end;
 
+
   tryToGetSiteSoftwareAndVersionFromLastResponse;
 
   if not Send('TYPE I') then
@@ -3160,10 +3200,12 @@ begin
   features := [];
   fSlotsAssignmentLock := TSlCriticalSection2.Create('SLFTP_SlotsAssignmentMutex_' + Name, True);
   fQueue := TQueueThread.Create(Name);
-  self.fSpeedFromCS := TSlCriticalSection2.Create('SpeedFromCS_' + Name);
+  self.fSpeedFromCS := TslRWLock.Create('SpeedFromCS_' + Name);
   self.fSpeedFromCache := nil;
   self.fFreeSlotsCS := TSlCriticalSection2.Create('FreeSlotsCS_' + Name);
+  self.fWorkingStatusEffectsLock := TSlCriticalSection2.Create('WorkingStatusEffectsLock_' + Name);
   FSettingsCacheDict := TVariantCache.Create;
+
 
   if (Name = getAdminSiteName) then
   begin
@@ -3181,6 +3223,13 @@ begin
   fMaxUp := RCInteger('max_up', 2);
   fMaxPreDn := RCInteger('max_pre_dn', max_dn);
   fFailedNfoCounter := 0;
+  fDownloadCooldownUntil := 0;
+  fUploadCooldownUntil := 0;
+  fLoginCooldownUntil := 0;
+  fLoginCooldownSeconds := 0;
+  fLoginCooldownLastSlot := '';
+  fActiveLoginAttempts := 0;
+  FSocketInitErrorCount := 0;
 
   fReducedSpeedstatWeight := RCBool('reduced_speedstat_weight', config.ReadBool('speedstats', 'reduced_speedstat_weight', False));;
   fPermDownStatus := RCBool('permdown', False);
@@ -3350,6 +3399,7 @@ begin
   fSpeedFromCS.Free;
   FreeAndNil(fSpeedFromCache);
   fFreeSlotsCS.Free;
+  fWorkingStatusEffectsLock.Free;
   FSettingsCacheDict.Free;
   Debug(dpSpam, section, 'Site %s destroy end', [Name]);
   inherited;
@@ -3401,29 +3451,60 @@ end;
 
 procedure TSite.PrintSiteStatusToIRC;
 begin
-  case FWorkingStatus of
+  case GetWorkingStatus of
     sstUp: irc_addadmin(Format('<%s>SITE <b>%s</b> IS UP</c>', [globals.SiteColorOnline, Name]));
     sstDown, sstMarkedAsDownByUser: irc_addadmin(Format('<%s>SITE <b>%s</b> IS DOWN</c>', [globals.SiteColorOffline, Name]));
     sstTempDown: irc_addadmin(Format('<%s>SITE <b>%s</b> IS TEMPDOWN</c>', [globals.SiteColorOffline, Name]));
   end;
 end;
 
-procedure TSite.SetWorking(const Value: TSiteStatus);
+function TSite.GetWorkingStatus: TSiteStatus;
 begin
-  if Value <> FWorkingStatus then
+  // Aligned 32-bit reads are atomic on x86/x64; no lock needed.
+  Result := TSiteStatus(FWorkingStatus);
+end;
+
+procedure TSite.SetWorking(const Value: TSiteStatus);
+var
+  fOldValue, fNewValue: Integer;
+begin
+  fNewValue := Ord(Value);
+
+  // Fast path: no change needed
+  if TSiteStatus(FWorkingStatus) = Value then
+    Exit;
+
+  // Atomically update FWorkingStatus with CAS loop.
+  // For TempDown we guard against overwriting permanent-down states.
+  if Value = sstTempDown then
   begin
+    repeat
+      fOldValue := FWorkingStatus;
+      if TSiteStatus(fOldValue) in [sstDown, sstMarkedAsDownByUser] then
+        Exit;
+    until InterlockedCompareExchange(FWorkingStatus, fNewValue, fOldValue) = fOldValue;
+  end
+  else
+  begin
+    repeat
+      fOldValue := FWorkingStatus;
+    until InterlockedCompareExchange(FWorkingStatus, fNewValue, fOldValue) = fOldValue;
+  end;
 
-    //if the site is already perm down or set down by user, never set temp down because then some
-    //idle or login task could set the site up again which we clearly do not want
-    if (Value = sstTempDown) and (FWorkingStatus in [sstDown, sstMarkedAsDownByUser]) then
-      exit;
+  // If another thread won the race with the same value, skip side effects.
+  if fOldValue = fNewValue then
+    Exit;
 
-    FWorkingStatus := Value;
+  // Side effects are serialized so they never run concurrently for the same site,
+  // but GetWorkingStatus remains completely lock-free.
+  fWorkingStatusEffectsLock.Enter('SetWorkingEffects');
+  try
+    // Re-verify: another thread may have changed the value again.
+    if FWorkingStatus <> fNewValue then
+      Exit;
 
     if Name = getAdminSiteName then
-    begin
       Exit;
-    end;
 
     PrintSiteStatusToIRC;
 
@@ -3437,7 +3518,6 @@ begin
             AutoNuke;
           if AutoIndexInterval <> 0 then
             AutoIndex;
-          //if s.RCString('autologin','-1') <> '-1' then
           if AutoBncTestInterval <> 0 then
             AutoBnctest;
           if AutoRulesStatus <> 0 then
@@ -3447,18 +3527,15 @@ begin
         end;
       sstDown, sstMarkedAsDownByUser:
         begin
-          // removeing all tasks for the site
           RemoveAutoIndex;
           RemoveAutoBnctest;
           RemoveAutoRules;
           RemoveAutoNuke;
           RemoveAutoDirlist;
-
           QueueEmpty(Name);
         end;
       sstTempDown:
         begin
-          // just temp down, removeing all tasks except autobnctest
           RemoveAutoIndex;
           RemoveAutoRules;
           RemoveAutoNuke;
@@ -3467,6 +3544,8 @@ begin
     end;
 
     SiteStat;
+  finally
+    fWorkingStatusEffectsLock.Leave;
   end;
 end;
 
@@ -4942,22 +5021,33 @@ end;
 
 function TSite.GetSpeed_From: TList<TSpeedFromRouteInfo>;
 begin
-  if self.fSpeedFromCache = nil then
-  begin
-    try
-      self.fSpeedFromCS.Enter('GetSpeed_From1');
-      if self.fSpeedFromCache = nil then
-        self.UpdateSpeedFromCache;
-    finally
-      self.fSpeedFromCS.Leave;
+  // Hot path: try with ReadOnlyLock first (majority of calls have cache initialized)
+  self.fSpeedFromCS.EnterReadOnly;
+  try
+    if self.fSpeedFromCache <> nil then
+    begin
+      Result := TList<TSpeedFromRouteInfo>.Create((self.fSpeedFromCache));
+      Exit;
     end;
+  finally
+    self.fSpeedFromCS.LeaveReadOnly;
   end;
 
-  self.fSpeedFromCS.Enter('GetSpeed_From2');
+  // Cold path: cache needs initialization
+  self.fSpeedFromCS.Enter;
+  try
+    if self.fSpeedFromCache = nil then
+      self.UpdateSpeedFromCache;
+  finally
+    self.fSpeedFromCS.Leave;
+  end;
+
+  // Read with ReadOnlyLock
+  self.fSpeedFromCS.EnterReadOnly;
   try
     Result := TList<TSpeedFromRouteInfo>.Create((self.fSpeedFromCache));
   finally
-    self.fSpeedFromCS.Leave;
+    self.fSpeedFromCS.LeaveReadOnly;
   end;
 end;
 
@@ -4988,7 +5078,9 @@ begin
   end;
 
   fNewValue.Sort(TComparer<TSpeedFromRouteInfo>.Construct(_mySpeedComparer));
-  self.fSpeedFromCS.Enter('UpdateSpeedFromCache');
+  // Atomic swap of cache pointer. WriteLock is reentrant so this is safe to
+  // call from inside GetSpeed_From's init phase.
+  self.fSpeedFromCS.Enter;
   try
     fOldValue := self.fSpeedFromCache;
     self.fSpeedFromCache := fNewValue;
@@ -5073,6 +5165,100 @@ begin
     fStringList.Free;
   end;
 
+end;
+
+function TSite.DownloadCooldownActive: boolean;
+begin
+  Result := (fDownloadCooldownUntil > 0) and (Now < fDownloadCooldownUntil);
+end;
+
+function TSite.UploadCooldownActive: boolean;
+begin
+  Result := (fUploadCooldownUntil > 0) and (Now < fUploadCooldownUntil);
+end;
+
+procedure TSite.RegisterLoginCooldownHit(const aSlotName: String);
+var
+  fNewCooldown: integer;
+begin
+  if fLoginCooldownSeconds = 0 then
+    fNewCooldown := LOGIN_COOLDOWN_INITIAL_SECONDS
+  else
+  begin
+    fNewCooldown := fLoginCooldownSeconds * 2;
+    if fNewCooldown > LOGIN_COOLDOWN_MAX_SECONDS then
+      fNewCooldown := LOGIN_COOLDOWN_MAX_SECONDS;
+  end;
+  fLoginCooldownSeconds := fNewCooldown;
+  fLoginCooldownUntil := IncSecond(Now, fLoginCooldownSeconds);
+  fLoginCooldownLastSlot := aSlotName;
+  Debug(dpSpam, section, '[LOGIN COOLDOWN] %s: cooldown set to %ds (slot: %s)',
+    [Name, fLoginCooldownSeconds, aSlotName]);
+end;
+
+function TSite.LoginCooldownActive: boolean;
+begin
+  if fLoginCooldownUntil = 0 then
+  begin
+    Result := False;
+    Exit;
+  end;
+  if Now >= fLoginCooldownUntil then
+  begin
+    if fLoginCooldownSeconds > 0 then
+      Debug(dpSpam, section, '[LOGIN COOLDOWN] %s: cooldown expired after %ds', [Name, fLoginCooldownSeconds]);
+    fLoginCooldownUntil := 0;
+    Result := False;
+    Exit;
+  end;
+  Result := True;
+end;
+
+procedure TSite.ResetLoginCooldown;
+begin
+  fLoginCooldownSeconds := 0;
+  fLoginCooldownUntil := 0;
+end;
+
+function TSite.LoginCooldownRemainingSeconds: integer;
+begin
+  if not LoginCooldownActive then
+    Result := 0
+  else
+    Result := SecondsBetween(Now, fLoginCooldownUntil);
+end;
+
+procedure TSite.IncrementActiveLoginAttempts;
+begin
+  Inc(fActiveLoginAttempts);
+end;
+
+procedure TSite.DecrementActiveLoginAttempts;
+begin
+  if fActiveLoginAttempts > 0 then
+    Dec(fActiveLoginAttempts);
+end;
+
+function TSite.HasActiveLoginAttempt: boolean;
+begin
+  Result := fActiveLoginAttempts > 0;
+end;
+
+function TSite.GetNewdirDirlistReadd: integer;
+begin
+  Result := RCInteger('newdir_dirlist_readd', 0);
+end;
+
+procedure TSite.SetNewdirDirlistReadd(const Value: integer);
+begin
+  WCInteger('newdir_dirlist_readd', Value);
+end;
+
+
+{ @abstract(Returns count of pending race tasks targeting the given destination site) }
+function GetPendingRaceTaskCountForDestination(const aDestinationSiteName: String): integer;
+begin
+  Result := GetPendingRaceTasksToDestination(aDestinationSiteName);
 end;
 
 end.

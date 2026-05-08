@@ -67,7 +67,11 @@ uses
   precatcherTests,
   slcriticalsection2Tests,
   variantCacheTests,
-  sltimerTests;
+  sltimerTests,
+  ruleconditions.tvTests,
+  mycryptoTests,
+  mormot.db.raw.sqlite3.static,
+  mormot.db.sql.sqlite3;
 
 var
   filecheck: String;

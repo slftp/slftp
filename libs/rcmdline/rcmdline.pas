@@ -16,29 +16,33 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 }
 (*** @abstract(
   Command line reader
-)*)
+)
+
+See TCommandLineReader
+*)
 unit rcmdline;
 
 interface
 {$IFDEF FPC}
   {$mode objfpc}{$H+}
+  {$ModeSwitch autoderef}
 {$ENDIF}
 
 //{$define unitcheck_rcmdline}
 
-uses sysutils; //for exceptions
+uses sysutils,classes;
+const PACKAGE_VERSION = '1.0.0.repo';
 type
   TStringArray=array of string;
   TLongintArray=array of longint;
   TFloatArray=array of extended;
   TBooleanArray=array of boolean;
   TCommandLineReaderLanguage=(clrlEnglish,clrlGerman);
-  TCommandLineReaderShowError=procedure (errorDescription: string) of object;
   ECommandLineParseException=class(Exception);
   TKindOfProperty=(kpStr,kpFile,kpInt,kpFloat,kpFlag);
   TProperty=record
    category: string;
-   name,desc,strvalue,strvalueDefault:string;
+   name,description,strvalue,strvalueDefault:string;
    strenumeration: TStringArray;
    found: boolean;
    abbreviation: char;
@@ -51,6 +55,7 @@ type
   PProperty=^TProperty;
   TOptionReadEvent = procedure (sender: TObject; const name, value: string) of object;
   TOptionInterpretationEvent = procedure (sender: TObject; var name, value: string; const args: TStringArray; var argpos: integer) of object;
+  TCommandLineReaderShowError=procedure (sender: TObject; errorDescription: string) of object;
 
   { TCommandLineReader }
 
@@ -61,20 +66,110 @@ type
                                                                                                            @br
     Usage: @orderedList(
       @item(  Declare all allowed arguments with the corresponding DeclareXXXX functions )
-      @item(  (optional) Call parse to explicitely read the actual command line )
+      @item(  Call parse to explicitely read the actual command line (optionally) )
       @item(  Use readXXX to read a declared argument )
     )
 
+
     On the command line arguments can be given in different ways, e.g.
-      @code(--name=value), @code(/name=value), @code(--name value), @code(/name value)                     @br
+    @preformatted(
+      --name=value
+      /name=value
+      --name value
+      /name value
+      --name="value"
+      /name="value"
+    )
+
+
     Declared flags can be changed with @code(--enable-flag) or @code(--disable-flag) or @code(--flag) where
     latter option negates the default value.@br
-    File are checked for spaces, so it is not always necessary to include them in quotes.
+    File names are checked for spaces, so it is not always necessary to surround them with quotes.
+
+    Internally, the allowed command line arguments are called both "properties" and "options".
+
+    Example:
+
+    @longCode(#
+var cmdline: TCommandLineReader;
+begin
+  cmdline := TCommandLineReader.create;
+
+  //Initial declaration of some command line parameters:
+  cmdline.declareString('name', 'An example string property');
+  cmdline.declareString('foo', 'Another example string property', 'bar');
+  cmdline.declareInt('count', 'An example integer property', 123);
+  cmdline.declareFlag('flag', 'An example boolean property');
+
+  //cmdline.parse();
+
+
+
+  //1. Parsing some command line options
+  cmdline.parse('--name="some name" --count 9');
+
+  cmdline.readString('name'); //some name
+  cmdline.readString('foo');  //bar
+  cmdline.readInt('count');   //9
+  cmdline.readFlag('flag');   //false
+
+  cmdline.existsProperty('name'); //true
+  cmdline.existsProperty('foo');  //false
+
+
+
+
+  //2. Parsing some other command line options
+  cmdline.parse('--foo barbar --flag');
+
+  cmdline.readString('name'); //
+  cmdline.readString('foo');  //barbar
+  cmdline.readInt('count');   //123
+  cmdline.readFlag('flag');   //true
+
+  cmdline.existsProperty('name'); //false
+  cmdline.existsProperty('foo');  //true
+
+
+
+
+  //3. Parsing some other command line options
+  cmdline.parse('--help');
+
+  //prints automatically generated help to stdout and halts:
+  {
+  The following command line options are valid:
+
+  --name=<string> 	An example string property
+  --foo=<string>  	Another example string property (default: bar)
+  --count=<int>   	An example integer property (default: 123)
+  --flag          	An example boolean property
+  }
+
+
+
+
+  //4. Some more advanced usage
+  cmdline.addAbbreviation('f'); //abbreviation for the last option (--flag)
+  cmdline.allowDOSStyle := true; //DOS slash options. Default is only true on Windows
+
+  cmdline.parse('/name "x y z" -f /count=1 /foo="abc"');
+  cmdline.readString('name'); //x y z
+  cmdline.readString('foo');  //abc
+  cmdline.readInt('count');   //1
+  cmdline.readFlag('flag');   //true
+
+  cmdline.existsProperty('name'); //true
+  cmdline.existsProperty('foo');  //true
+    #)
+
   *)
   TCommandLineReader=class
   protected
-    parsed{,searchNameLessFile,searchNameLessInt,searchNameLessFloat,searchNameLessFlag}: boolean;
-    propertyArray: array of TProperty;
+    parsed: boolean;
+    propertyArrayBuffer: array of TProperty;
+    propertyCount: NativeInt;
+    FPropertySortedCache: TStringList;
     nameless: TStringArray;
     currentDeclarationCategory: String;
     FOnOptionRead: TOptionReadEvent;
@@ -82,6 +177,7 @@ type
     FAllowOverrides: boolean;
     function findProperty(name:string):PProperty;
     function declareProperty(name,description,default:string;kind: TKindOfProperty):PProperty;
+    function getPropertySortedCache: TStringList;
 
     procedure raiseErrorWithHelp(message: string);
     procedure parseSingleValue(var prop: TProperty);
@@ -90,116 +186,131 @@ type
     class function splitCommandLine(s: string; skipFirst: boolean): TStringArray;
   public
     language:TCommandLineReaderLanguage; //not implemented yet
+    //** Event called when an invalid option is found during parsing of the command line.
     onShowError: TCommandLineReaderShowError;
-    automaticalShowError: boolean;
+    //** Automatically show an error message when the parsing finds an invalid option.
+    showErrorAutomatically: boolean;
+    //** Allow @code(/name value) option syntax.
     allowDOSStyle: boolean;
 
     constructor create;
     destructor destroy;override;
 
-    //** Returns the option summary printed by unknown errors
+    //** Returns a human-readable summary about the declared options. @br
+    //** It is automatically printed when an unknown option is given by the user.
     function availableOptions:string;
 
-    //** Resets all options to their default values
+    //** Resets all options to their default values.
     procedure reset();
 
-    //** Reads the standard command line parameters
+    //** Reads the standard command line parameters.
     procedure parse(autoReset: boolean = true);overload;virtual;
-    //** Reads the command line parameters from the string s
+    //** Reads the command line parameters from the string s.
     procedure parse(const s:string; skipFirst: boolean = false; autoReset: boolean = true);overload;virtual;
-    //** Reads the command line parameters from the array args
+    //** Reads the command line parameters from the array args.
     procedure parse(const args:TStringArray; autoReset: boolean = true);overload;virtual;
 
-    //** Adds a new option category. The category is just printed in the --help output
+    //** Adds a new option category. The category is printed in the --help and availableOptions output
     procedure beginDeclarationCategory(category: string);
 
-    //**DeclareFlag allows the use of flags                     @br
+    //**DeclareFlag declares a boolean property.                 @br
     //**Example:                                                @br
-    //**  @code(declareFlag('flag','f',true);)                  @br
-    //**  Following command-line options are always possible    @br
-    //**    --enable-flag      =>     flag:=true                @br
-    //**    --disable-flag     =>     flag:=false               @br
-    //**    --flag             =>     flag:=not default         @br
-    //**    -xfy               =>     flag:=not default
+    //**  @code(declareFlag('flag', 'description', 'f', true);) @br
+    //**Following command-line options are then allowed:
+    //**@preformatted(
+    //**    --enable-flag      =>     flag:=true
+    //**    --disable-flag     =>     flag:=false
+    //**    --flag             =>     flag:=not default
+    //**    -xfy               =>     flag:=not default  (when flags x and y have also been declared)
+    //**)
     procedure declareFlag(const name,description:string;flagNameAbbreviation:char;default:boolean=false);overload;
+    //**Overloaded @link(DeclareFlag) without a single letter abbreviation.
     procedure declareFlag(const name,description:string;default:boolean=false);overload;
 
 
-    //**DeclareFile allows the use of a file name                                     @br
+    //**DeclareFile declares a file name property.
+    //**
     //**Example:                                                                      @br
-    //**  @code(declareFile('file');)                                                 @br
-    //**  Following command-line options are  possible                                @br
-    //**    --file C:\test                  =>     file:=C:\test                      @br
-    //**    --file 'C:\test'                =>     file:=C:\test                      @br
-    //**    --file "C:\test"                =>     file:=C:\test                      @br
-    //**    --file='C:\test'                =>     file:=C:\test                      @br
-    //**    --file="C:\test"                =>     file:=C:\test                      @br
-    //**    --file C:\Eigene Dateien\a.bmp  =>     file:=C:\Eigene                    @br
-    //**                                           or file:=C:\Eigene Dateien\a.bmp,  @br
-    //**                                             if C:\Eigene does not exist
+    //**  @code(declareFile('file', 'description');)                                  @br
+    //**  Following command-line options are then allowed:                            @br
+    //**@preformatted(
+    //**    --file C:\test                  =>     file:=C:\test
+    //**    --file 'C:\test'                =>     file:=C:\test
+    //**    --file "C:\test"                =>     file:=C:\test
+    //**    --file='C:\test'                =>     file:=C:\test
+    //**    --file="C:\test"                =>     file:=C:\test
+    //**    --file C:\Program Files\a.exe   =>     file:=C:\Program
+    //**                                           or file:=C:\Program Files\a.exe if C:\Program does not exist
+    //**)
     procedure declareFile(const name,description:string;default:string='');overload;
 
-    //**DeclareXXXX allows the use of string, int, float, ...
+    //**DeclareInt declares an integer property.
+    //**
     //**Example:                                                    @br
-    //**   @code(declareInt('property');)                           @br
-    //**  Following command-line options are  possible              @br
-    //**    --file 123                  =>     file:=123            @br
-    //**    --file '123'                =>     file:=123            @br
-    //**    --file "123"                =>     file:=123            @br
-    //**    --file='123'                =>     file:=123            @br
-    //**    --file="123"                =>     file:=123            @br
-
-    procedure declareString(const name,description:string;value: string='');overload;
+    //**   @code(declareInt('prop', 'description');)                @br
+    //**  Following command-line options are then allowed:          @br
+    //**  @preformatted(
+    //**    --prop 123                  =>     prop:=123
+    //**    --prop '123'                =>     prop:=123
+    //**    --prop "123"                =>     prop:=123
+    //**    --prop='123'                =>     prop:=123
+    //**    --prop="123"                =>     prop:=123
+    //**   )
     procedure declareInt(const name,description:string;value: longint=0);overload;
+    //** DeclareString declares a string property. @br
+    //** See declareInt for a related example.
+    procedure declareString(const name,description:string;value: string='');overload;
+    //** DeclareFloat declares a float property. @br
+    //** See declareInt for a related example.
     procedure declareFloat(const name,description:string;value: extended=0);overload;
 
     //**Allows to use -abbreviation=... additionally to --originalName=... @br
     //**With windows style /abbreviation and /originalName will behave in the same way
-    //**(only single letter abbreviations are allowed like in unix commands)
+    //**(only single letter abbreviations are allowed like in unix commands).
     procedure addAbbreviation(const abbreviation: char; const originalName: string = '');
 
-    //**Only allow certain values for argument @code(originalName)
+    //**Only allow certain values for property @code(originalName).
     procedure addEnumerationValues(const originalName: string; const enumeration: array of string);overload;
-    //**Only allow certain values for the last argument
+    //**Only allow certain values for the last property.
     procedure addEnumerationValues(const enumeration: array of string);overload;
   protected
     procedure addEnumerationValues(p: PProperty; const enumeration: array of string);overload;
 
   public
-    //** Reads a previously declared string property
+    //** Reads a previously declared string property.
     function readString(const name:string):string; overload;
-    //** Reads a previously declared int property
+    //** Reads a previously declared int property.
     function readInt(const name:string):longint;overload;
-    //** Reads a previously declared float property
+    //** Reads a previously declared float property.
     function readFloat(const name:string):extended; overload;
-    //** Reads a previously declared boolean property
+    //** Reads a previously declared boolean property.
     function readFlag(const name:string):boolean;overload;
 
-    //** Tests if a declared property named name has been read
+    //** Tests if a declared property named name has been found on the command line.
     function existsProperty(const name:string):boolean;
 
-    //** Reads all file names that are given on the command line and do not belong to an declared option (doesn't check for non existing files, yet)
+    //** Reads all file names that are given on the command line and do not belong to a declared option (doesn't check for non existing files, yet).
     function readNamelessFiles():TStringArray;
-    //** Reads all strings that are given on the command line and do not belong to an declared option
+    //** Reads all strings that are given on the command line and do not belong to a declared option.
     function readNamelessString():TStringArray;
-    //** Reads all integers that are given on the command line and do not belong to an declared option
+    //** Reads all integers that are given on the command line and do not belong to a declared option.
     function readNamelessInt():TLongintArray;
-    //** Reads all floats that are given on the command line and do not belong to an declared option
+    //** Reads all floats that are given on the command line and do not belong to a declared option.
     function readNamelessFloat():TFloatArray;
-    //** Reads all booleans (true, false) that are given on the command line and do not belong to an declared option
+    //** Reads all booleans (true, false) that are given on the command line and do not belong to a declared option.
     function readNamelessFlag():TBooleanArray;
 
     //** Event called when an option has been parsed. (e.g. to read all values if an option is given multiple times)
-    //** @code(name) contains the declared name of the property (not necessarily the same as the name the user used)
-    //** @code(value) the value read
+    //** @code(name) contains the declared name of the property (not necessarily the same as the name the user used).
+    //** @code(value) the value read.
     property onOptionRead: TOptionReadEvent read FOnOptionRead write FOnOptionRead;
-    //** Event  called when an option is being parsed. (e.g. to allow custom abbreviations of names)@br
-    //** @code(name) contains the read name of the property@br
-    //** @code(value) the value read; or the next value for boolean options (which will ignored)@br
-    //** @code(args) all arguments@br
-    //** @code(argpos) the current argument @br
+    //** Event  called when an option is being parsed. (e.g. to allow custom abbreviations of names).@br
+    //** @code(name) contains the read name of the property.@br
+    //** @code(value) the value read; or the next value for boolean options (which will ignored).@br
+    //** @code(args) all arguments.@br
+    //** @code(argpos) the current argument. @br
     property onCustomOptionInterpretation: TOptionInterpretationEvent read FOnOptionInterpretation write FOnOptionInterpretation;
-    //** If the same option may be given multiple times. Only the last value is remained.
+    //** If the same option may be given multiple times. Only the last value is stored.
     property allowOverrides: boolean read FAllowOverrides write FAllowOverrides;
   end;
 
@@ -223,6 +334,16 @@ begin
   for i := 1 to high(a) do
     result := result + ', ' + a[i];
 end;
+
+function test(const s: string): integer;
+begin
+  result := ord(s = 'XXXX');
+end;
+procedure TestSub;
+begin
+  Writeln('TestSub');
+end;
+
 
 {$ifdef fpc}
 function equalCaseInseq(const a, b: string): boolean;
@@ -273,11 +394,12 @@ begin
   searchNameLessInt:=false;
   searchNameLessFloat:=false;
   searchNameLessFlag:=false;}
-  automaticalShowError:=not IsLibrary;
+  showErrorAutomatically:=not IsLibrary;
   FAllowOverrides:=false;
 end;
 destructor TCommandLineReader.destroy;
 begin
+  FPropertySortedCache.free;
   inherited;
 end;
 
@@ -347,27 +469,27 @@ var i:integer;
   category: String;
   terminalWidth: Integer;
   pseudoLineBreak: String;
+  prop: PProperty;
 begin
   names := nil;
-  setlength(names, length(propertyArray));
+  setlength(names, propertyCount);
   maxLen := 0;
   multiline:=false;
   category := '';
   terminalWidth := getTerminalWidth;
-  for i:=0 to high(propertyArray) do begin
-    cur:='--'+propertyArray[i].name;
-    case propertyArray[i].kind of
+  for i:=0 to propertyCount - 1 do begin
+    cur:='--'+propertyArrayBuffer[i].name;
+    case propertyArrayBuffer[i].kind of
       kpFlag: ;
       kpInt: cur := cur + '=<int> ';
       kpFloat: cur := cur + '=<float> ';
       kpStr: cur := cur + '=<string> ';
       kpFile: cur := cur + '=<file> ';
-      else cur:=cur+'=';
     end;
-    if propertyArray[i].abbreviation<>#0 then cur := cur + ' or -'+propertyArray[i].abbreviation;
+    if propertyArrayBuffer[i].abbreviation<>#0 then cur := cur + ' or -'+propertyArrayBuffer[i].abbreviation;
     names[i] := cur;
     if length(cur) > maxLen then maxLen := length(cur);
-    multiline:=multiline or (pos(LineEnding, propertyArray[i].desc) > 0) or (length(propertyArray[i].strenumeration) > 0);
+    multiline:=multiline or (pos(LineEnding, propertyArrayBuffer[i].description) > 0) or (length(propertyArrayBuffer[i].strenumeration) > 0);
   end;
 
   dupped := '';
@@ -375,9 +497,10 @@ begin
              ;
 
   result:='';
-  for i:=0 to high(propertyArray) do begin
-    if propertyArray[i].category <> category then begin
-      category := propertyArray[i].category;
+  for i:=0 to propertyCount - 1 do begin
+    prop := @propertyArrayBuffer[i];
+    if prop.category <> category then begin
+      category := prop.category;
       result := result + LineEnding + LineEnding + category + LineEnding+LineEnding;
     end;
     cur:=names[i];
@@ -388,9 +511,11 @@ begin
     if category <> '' then pseudoLineBreak := pseudoLineBreak + ' ';
     pseudoLineBreak := pseudoLineBreak + #9;
 
-    description := propertyArray[i].desc;
-    if length(propertyArray[i].strenumeration) > 0 then
-      description := description + LineEnding + 'Allowed values: ' + strJoin(propertyArray[i].strenumeration);
+    description := prop.description;
+    if (prop.strvalueDefault <> '') and (prop.strvalueDefault <> '0') then
+      description := description + ' (default: '+prop.strvalueDefault+')';
+    if length(prop.strenumeration) > 0 then
+      description := description + LineEnding + 'Allowed values: ' + strJoin(prop.strenumeration);
     if (not multiline or ( pos(LineEnding, description) = 0 )) and (length(description)+maxLen+10 < terminalWidth)  then
        cur := cur + mydup(maxLen - length(cur)) + #9 + description + LineEnding
     else begin
@@ -413,8 +538,8 @@ var
   i: Integer;
 begin
   SetLength(nameless,0);
-  for i:=0 to high(propertyArray) do begin
-    with propertyArray[i] do begin
+  for i:=0 to propertyCount - 1 do begin
+    with propertyArrayBuffer[i] do begin
       if found then begin
         found:=false;
         case kind of
@@ -474,16 +599,17 @@ var a: string;
   var
     i: Integer;
   begin
-    if allowLong then
-      for i:=0 to high(propertyArray) do
-        if equalCaseInseq(propertyArray[i].name, name) then begin
-          result:=i;
-          exit;
-        end;
+    if allowLong then begin
+      i := getPropertySortedCache.IndexOf(name);
+      if i >= 0 then begin
+        result := NativeInt(FPropertySortedCache.Objects[i]);
+        exit;
+      end;
+    end;
 
     if allowAbbreviation then
-      for i:=0 to high(propertyArray) do
-        if propertyArray[i].abbreviation = name then begin
+      for i:=0 to propertyCount - 1 do
+        if propertyArrayBuffer[i].abbreviation = name then begin
           result:=i;
           exit;
         end;
@@ -501,7 +627,7 @@ var argpos: Integer;
     currentProperty: PProperty;
     found: Boolean;
   begin
-    currentProperty := @propertyArray[currentPropertyIndex];
+    currentProperty := @propertyArrayBuffer[currentPropertyIndex];
     if length(currentProperty^.strenumeration) > 0 then begin
       found := false;
       for i := 0 to high(currentProperty^.strenumeration) do
@@ -530,7 +656,7 @@ var argpos: Integer;
 
   function invertedFlag(flagId: integer): string;
   begin
-    if propertyArray[flagId].flagvalue then result := 'false' else result := 'true';
+    if propertyArrayBuffer[flagId].flagvalue then result := 'false' else result := 'true';
   end;
 
 var currentProperty:longint;
@@ -583,18 +709,18 @@ begin
             delete(a, 1, 8);
             value := 'false';
           end;
-          if (propertyArray[findPropertyIndex(a, true, false, false)].kind <> kpFlag) then raiseError('No flag: '+a);
+          if (propertyArrayBuffer[findPropertyIndex(a, true, false, false)].kind <> kpFlag) then raiseError('No flag: '+a);
           a := a + '=' + value; //this will be split again in the next step, but simplifies the code
         end;
       end else begin
         noFlagExpansion := false;
         for j:=2 to length(a) do begin //2 to skip leading -
           i:=findPropertyIndex(a[j], false, true, false);
-          if propertyArray[i].kind=kpFlag then begin
+          if propertyArrayBuffer[i].kind=kpFlag then begin
             setPropertyFromStringValue(i, invertedFlag(i));
           end else if (j = length(a)) or (a[j+1] = '=') then begin
             noFlagExpansion := true;
-            a := propertyArray[i].name + copy(a, j+1, length(a) - j);
+            a := propertyArrayBuffer[i].name + copy(a, j+1, length(a) - j);
             break
           end else raiseError('Invalid abbreviation: '+a[j]+ LineEnding +'(use -- or / for arguments)');
         end;
@@ -606,12 +732,12 @@ begin
         name := copy(a, 1, index - 1);
         value := copy(a, index + 1, length(a) - index);
         currentProperty := findPropertyIndex(name, true, allowAbbreviation, true);
-        if currentProperty >= 0 then name := propertyArray[currentProperty].name;
+        if currentProperty >= 0 then name := propertyArrayBuffer[currentProperty].name;
       end else begin
         name := a;
         currentProperty := findPropertyIndex(name, true, allowAbbreviation, true);
-        if currentProperty >= 0 then name := propertyArray[currentProperty].name;
-        if (currentProperty >= 0) and (propertyArray[currentProperty].kind = kpFlag) then value := invertedFlag(currentProperty)
+        if currentProperty >= 0 then name := propertyArrayBuffer[currentProperty].name;
+        if (currentProperty >= 0) and (propertyArrayBuffer[currentProperty].kind = kpFlag) then value := invertedFlag(currentProperty)
         else if (argpos < length(args)) then begin
           value := args[argpos];
           inc(argpos);
@@ -659,40 +785,66 @@ end;
 function TCommandLineReader.findProperty(name:string):PProperty;
 var i:integer;
 begin
-  name:=lowercase(name);
-  for i:=0 to high(propertyArray) do
-    if propertyArray[i].name=name then begin
-      result:=@propertyArray[i];
-      exit;
-    end;
-  raise ECommandLineParseException.Create('Property not found: '+name);
+  i := getPropertySortedCache.IndexOf(name);
+  if i < 0 then
+    raise ECommandLineParseException.Create('Property not found: '+name);
+  result := @propertyArrayBuffer[NativeInt(FPropertySortedCache.Objects[i])];
 end;
 
 function TCommandLineReader.declareProperty(name,description,default:string;kind: TKindOfProperty):PProperty;
 begin
-  SetLength(propertyArray,length(propertyArray)+1);
-  result:=@propertyArray[high(propertyArray)];
+  propertyCount := propertyCount + 1;
+  if length(propertyArrayBuffer) < propertycount then
+    if length(propertyArrayBuffer) < 4 then SetLength(propertyArrayBuffer, 4)
+    else if length(propertyArrayBuffer) < 64 then SetLength(propertyArrayBuffer, length(propertyArrayBuffer) * 2)
+    else SetLength(propertyArrayBuffer, length(propertyArrayBuffer) + 64);
+  result:=@propertyArrayBuffer[propertyCount - 1];
   result^.category:=currentDeclarationCategory;
   result^.name:=lowercase(name);
-  result^.desc:=description;
+  result^.description:=description;
   result^.strvalue:=default;
+  result^.strvalueDefault:=default;
   result^.kind:=kind;
+end;
+
+function TCommandLineReader.getPropertySortedCache: TStringList;
+var
+  i: NativeInt;
+begin
+  if FPropertySortedCache = nil then begin
+    FPropertySortedCache := TStringList.Create;
+    {$IF FPC_FULLVERSION > 30100}{$DEFINE HAS_STRINGLIST_LOCALE}{$ENDIF}
+    {$IFNDEF FPC}{$IF CompilerVersion > 22}{$DEFINE HAS_STRINGLIST_LOCALE}{$ENDIF}{$ENDIF}
+    {$ifdef HAS_STRINGLIST_LOCALE}
+    FPropertySortedCache.Options:=[];
+    FPropertySortedCache.CaseSensitive := false;
+    FPropertySortedCache.UseLocale := false;
+    {$endif}
+    FPropertySortedCache.OwnsObjects:=false;
+  end;
+  result := FPropertySortedCache;
+  if FPropertySortedCache.Count = propertyCount then exit;
+  FPropertySortedCache.Clear;
+  FPropertySortedCache.Sorted := false;
+  for i := 0 to propertyCount - 1 do
+    FPropertySortedCache.AddObject(propertyArrayBuffer[i].name, tobject(i));
+  FPropertySortedCache.Sorted := true;
 end;
 
 procedure TCommandLineReader.raiseErrorWithHelp(message: string);
 var errorMessage: string;
 begin
-  if assigned(onShowError) or automaticalShowError then begin
+  if assigned(onShowError) or showErrorAutomatically then begin
     errorMessage:=message+LineEnding;
-    if length(propertyArray)=0 then
+    if propertyCount=0 then
       errorMessage:=errorMessage+LineEnding+LineEnding+'You are not allowed to use command line options starting with -'
      else
       errorMessage:=errorMessage+ LineEnding+LineEnding+'The following command line options are valid: '+LineEnding+LineEnding+ availableOptions;
   end;
 
   if assigned(onShowError) then
-    onShowError(errorMessage);
-  if automaticalShowError then begin
+    onShowError(self,errorMessage);
+  if showErrorAutomatically then begin
     if system.IsConsole then begin
       writeln(errorMessage);
       halt;
@@ -715,6 +867,7 @@ begin
         if not prop.flagvalue and not equalCaseInseq(prop.strvalue, 'false') then
           raiseErrorWithHelp('Only "true" and "false" are valid flag values for option '+prop.name);
       end;
+      kpStr, kpFile: ;
     end;
   except
     raiseErrorWithHelp('Invalid value: '+prop.strvalue+' for option '+prop.name);
@@ -819,27 +972,27 @@ begin
     flagvalue:=default;
     flagdefault:=default;
     abbreviation:=flagNameAbbreviation;
+    if default then strvalueDefault:='true';
   end;
 end;
 procedure TCommandLineReader.declareFlag(const name,description:string;default:boolean=false);
 begin
-  if default<>false then declareFlag(name,description+' (default: true)',#0,default)
-  else declareFlag(name,description,#0,default);
+  declareFlag(name,description,#0,default);
 end;
 
 procedure TCommandLineReader.declareFile(const name,description:string;default:string='');
 begin
-  declareProperty(name,description,default,kpFile)^.strvalueDefault:=default;
+  declareProperty(name,description,default,kpFile)
 end;
 
 procedure TCommandLineReader.declareString(const name,description:string;value: string='');
 begin
-  declareProperty(name,description,value,kpStr)^.strvalueDefault:=value;
+  declareProperty(name,description,value,kpStr)
 end;
 procedure TCommandLineReader.declareInt(const name,description:string;value: longint=0);
 begin
   if value<>0 then
-    with declareProperty(name,description+' (default: '+IntToStr(value)+')',IntToStr(value),kpInt)^ do begin
+    with declareProperty(name,description,IntToStr(value),kpInt)^ do begin
       intvalue:=value;
       intvalueDefault:=intvalue;
     end
@@ -861,8 +1014,8 @@ begin
   if originalName <> '' then
     findProperty(originalName)^.abbreviation:=abbreviation
    else begin
-     if length(propertyArray) = 0 then raise ECommandLineParseException.Create('No properties defined');
-     propertyArray[high(propertyArray)].abbreviation:=abbreviation;
+     if propertyCount = 0 then raise ECommandLineParseException.Create('No properties defined');
+     propertyArrayBuffer[propertyCount - 1].abbreviation:=abbreviation;
    end;
 end;
 
@@ -873,8 +1026,8 @@ end;
 
 procedure TCommandLineReader.addEnumerationValues(const enumeration: array of string);
 begin
-  if length(propertyArray) = 0 then raise ECommandLineParseException.Create('No properties defined');
-  addEnumerationValues(@propertyArray[high(propertyArray)], enumeration);
+  if propertyCount = 0 then raise ECommandLineParseException.Create('No properties defined');
+  addEnumerationValues(@propertyArrayBuffer[propertyCount - 1], enumeration);
 end;
 
 procedure TCommandLineReader.addEnumerationValues(p: PProperty; const enumeration: array of string);

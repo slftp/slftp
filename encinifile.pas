@@ -97,7 +97,7 @@ type
   // threadsafe TIniFile with encryption support
   TEncIniFile = class(TMyCustomIniFile)
   private
-    il: TSlCriticalSection2;
+    il: TslRWLock; //< RWLock - parallel ReadString/Read* calls scale; mutations are exclusive
     fSima: Boolean;
     FFilename: String;
     FPassHash: TslMD5Data;
@@ -118,6 +118,7 @@ type
     procedure Clear;
     procedure DeleteKey(const Section, Ident: String); override;
     procedure EraseSection(const Section: String); override;
+    { NOTE: Caller must hold il (ReadOnlyLock or WriteLock) before calling GetStrings. }
     procedure GetStrings(List: TStrings);
     procedure ReadSection(const Section: String; Strings: TStrings); override;
     procedure ReadSections(Strings: TStrings); override;
@@ -546,7 +547,7 @@ end;
 constructor TEncIniFile.Create(const FileName: String; Passphrase: TslMD5Data; autoupdate: Boolean = False; compression: Boolean = True);
 begin
   inherited Create(FileName);
-  il:= TSlCriticalSection2.Create('encinifile_' + FileName);
+  il := TslRWLock.Create('encinifile_' + FileName);
   fPassHash:= Passphrase;
   self.AutoUpdate:= autoupdate;
   FFilename:= FileName;
@@ -581,7 +582,11 @@ function TEncIniFile.AddSection(const Section: String): TStrings;
 begin
   Result := TMyHashedStringList.Create;
   try
-    TMyHashedStringList(Result).CaseSensitive := CaseSensitive;
+    { Direct field access — AddSection is only called from SetStrings/WriteString
+      which already hold il.Enter. Using the CaseSensitive property would call
+      GetCaseSensitive → EnterReadOnly, causing a self-deadlock because the same
+      thread already holds the write lock. }
+    TMyHashedStringList(Result).CaseSensitive := FSections.CaseSensitive;
     FSections.AddObject(Section, Result);
   except
     Result.Free;
@@ -593,7 +598,7 @@ procedure TEncIniFile.Clear;
 var
   I: Integer;
 begin
-  il.Enter('Clear');
+  il.Enter;
   try
     for I := 0 to FSections.Count - 1 do
       TObject(FSections.Objects[I]).Free;
@@ -608,7 +613,7 @@ var
   I, J: Integer;
   Strings: TStrings;
 begin
-  il.Enter('DeleteKey');
+  il.Enter;
   try
     I := FSections.IndexOf(Section);
     if I >= 0 then
@@ -631,7 +636,7 @@ procedure TEncIniFile.EraseSection(const Section: String);
 var
   I: Integer;
 begin
-  il.Enter('EraseSection');
+  il.Enter;
   try
     I := FSections.IndexOf(Section);
     if I >= 0 then
@@ -650,7 +655,12 @@ end;
 
 function TEncIniFile.GetCaseSensitive: Boolean;
 begin
-  Result := FSections.CaseSensitive;
+  il.EnterReadOnly;
+  try
+    Result := FSections.CaseSensitive;
+  finally
+    il.LeaveReadOnly;
+  end;
 end;
 
 procedure TEncIniFile.MoveAndOverwriteFile(const aSourceFileName, aDestinationFileName: string);
@@ -668,6 +678,7 @@ begin
     raise Exception.CreateFmt('Cannot move file from %s to %s', [aSourceFileName, aDestinationFileName]);
 end;
 
+{ NOTE: Caller must hold il (ReadOnlyLock or WriteLock). This method does NOT acquire the lock itself. }
 procedure TEncIniFile.GetStrings(List: TStrings);
 var
   I, J: Integer;
@@ -754,22 +765,25 @@ begin
   if (FileName <> '') and FileExists(FileName) then
   begin
     myS:= TMemoryStream.Create;
-    List := TStringList.Create;
     try
-      if not fSima then
-      begin
-        DecryptFileToStream(FFileName, myS, fPassHash, fCompression);
-        List.LoadFromStream(myS);
-      end
-      else
-      begin
-        List.LoadFromFile(FFileName);
+      List := TStringList.Create;
+      try
+        if not fSima then
+        begin
+          DecryptFileToStream(FFileName, myS, fPassHash, fCompression);
+          List.LoadFromStream(myS);
+        end
+        else
+        begin
+          List.LoadFromFile(FFileName);
+        end;
+
+        SetStrings(List);
+
+      finally
+        List.Free;
       end;
-
-      SetStrings(List);
-
     finally
-      List.Free;
       myS.Free;
     end;
   end
@@ -783,30 +797,33 @@ var
   I, J: Integer;
   SectionStrings: TStrings;
 begin
-  il.Enter('ReadSection');
-  Strings.BeginUpdate;
+  il.EnterReadOnly;
   try
-    Strings.Clear;
-    I := FSections.IndexOf(Section);
-    if I >= 0 then
-    begin
-      SectionStrings := TStrings(FSections.Objects[I]);
-      for J := 0 to SectionStrings.Count - 1 do
-        Strings.Add(SectionStrings.Names[J]);
+    Strings.BeginUpdate;
+    try
+      Strings.Clear;
+      I := FSections.IndexOf(Section);
+      if I >= 0 then
+      begin
+        SectionStrings := TStrings(FSections.Objects[I]);
+        for J := 0 to SectionStrings.Count - 1 do
+          Strings.Add(SectionStrings.Names[J]);
+      end;
+    finally
+      Strings.EndUpdate;
     end;
   finally
-    Strings.EndUpdate;
-    il.Leave;
+    il.LeaveReadOnly;
   end;
 end;
 
 procedure TEncIniFile.ReadSections(Strings: TStrings);
 begin
-  il.Enter('ReadSections');
+  il.EnterReadOnly;
   try
     Strings.Assign(FSections);
   finally
-    il.Leave;
+    il.LeaveReadOnly;
   end;
 end;
 
@@ -815,16 +832,19 @@ procedure TEncIniFile.ReadSectionValues(const Section: String;
 var
   I: Integer;
 begin
-  il.Enter('ReadSectionValues');
-  Strings.BeginUpdate;
+  il.EnterReadOnly;
   try
-    Strings.Clear;
-    I := FSections.IndexOf(Section);
-    if I >= 0 then
-      Strings.Assign(TStrings(FSections.Objects[I]));
+    Strings.BeginUpdate;
+    try
+      Strings.Clear;
+      I := FSections.IndexOf(Section);
+      if I >= 0 then
+        Strings.Assign(TStrings(FSections.Objects[I]));
+    finally
+      Strings.EndUpdate;
+    end;
   finally
-    Strings.EndUpdate;
-    il.Leave;
+    il.LeaveReadOnly;
   end;
 end;
 
@@ -835,7 +855,7 @@ var
   Strings: TStrings;
 begin
   Result := Default;
-  il.Enter('ReadString');
+  il.EnterReadOnly;
   try
     I := FSections.IndexOf(Section);
     if I >= 0 then
@@ -846,7 +866,7 @@ begin
         Result := Copy(Strings[I], Length(Ident) + 2, Maxint);
     end;
   finally
-    il.Leave;
+    il.LeaveReadOnly;
   end;
 end;
 
@@ -855,7 +875,7 @@ procedure TEncIniFile.SetCaseSensitive(Value: Boolean);
 var
   I: Integer;
 begin
-  il.Enter('SetCaseSensitive');
+  il.Enter;
   try
     if Value <> FSections.CaseSensitive then
     begin
@@ -881,9 +901,13 @@ var
   ListSplitFile: TStringList;
   split_site_data: Boolean;
 begin
-  Clear;
-  il.Enter('SetStrings');
+  il.Enter;
   try
+    // Clear FSections atomically inside the same lock to prevent readers from observing an empty state
+    for I := 0 to FSections.Count - 1 do
+      TObject(FSections.Objects[I]).Free;
+    FSections.Clear;
+
     Strings := nil;
 
     if config <> nil then begin
@@ -945,25 +969,33 @@ var
   List: TStringList;
   myS: TMemoryStream;
 begin
-  myS:= TMemoryStream.Create;
-  List := TStringList.Create;
-  il.Enter('UpdateFile');
+  // WriteLock so it nests safely inside DeleteKey/EraseSection/WriteString/SetStrings/LoadUnencrypted
+  // (TRWLock WriteLock is reentrant within the same thread).
+  il.Enter;
   try
-    GetStrings(List);
+    myS:= TMemoryStream.Create;
+    try
+      List := TStringList.Create;
+      try
+        GetStrings(List);
 
-    if not fSima then
-    begin
-      List.SaveToStream(myS);
-      EncryptStreamToFile(myS, fFilename + '.sltmp', fPassHash, fCompression);
-    end else
-      list.SaveToFile(fFilename + '.sltmp');
+        if not fSima then
+        begin
+          List.SaveToStream(myS);
+          EncryptStreamToFile(myS, fFilename + '.sltmp', fPassHash, fCompression);
+        end else
+          list.SaveToFile(fFilename + '.sltmp');
 
-    // save to temp file and then overwrite to avoid corrupted files when the process crashes or gets killed
-    MoveAndOverwriteFile(fFilename + '.sltmp', fFilename);
+        // save to temp file and then overwrite to avoid corrupted files when the process crashes or gets killed
+        MoveAndOverwriteFile(fFilename + '.sltmp', fFilename);
+      finally
+        List.Free;
+      end;
+    finally
+      myS.Free;
+    end;
   finally
     il.Leave;
-    List.Free;
-    myS.Free;
   end;
 end;
 
@@ -981,7 +1013,7 @@ var
   S: String;
   Strings: TStrings;
 begin
-  il.Enter('WriteString');
+  il.Enter;
   try
     I := FSections.IndexOf(Section);
     if I >= 0 then
@@ -1007,15 +1039,18 @@ procedure TEncIniFile.SaveUnencrypted(filename: String);
 var
   List: TStringList;
 begin
-  il.Enter('SaveUnencrypted');
-  List := TStringList.Create;
+  il.EnterReadOnly;
   try
-    GetStrings(List);
+    List := TStringList.Create;
+    try
+      GetStrings(List);
 
-    List.SaveToFile(filename);
+      List.SaveToFile(filename);
+    finally
+      List.Free;
+    end;
   finally
-    List.Free;
-    il.Leave;
+    il.LeaveReadOnly;
   end;
 end;
 
@@ -1024,7 +1059,7 @@ procedure TEncIniFile.LoadUnencrypted(filename: String);
 var
   List: TStringList;
 begin
-  il.Enter('LoadUnencrypted');
+  il.Enter;
   try
     if (FileName <> '') and FileExists(FileName) then
     begin

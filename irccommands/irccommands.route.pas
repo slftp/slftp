@@ -49,7 +49,7 @@ begin
   try
     try
       rcmd.allowDOSStyle := True;
-      rcmd.automaticalShowError := False;
+      rcmd.showErrorAutomatically := False;
       rcmd.declareString('c1','','');
       rcmd.declareString('c2','','');
       rcmd.declareString('sw1','','');

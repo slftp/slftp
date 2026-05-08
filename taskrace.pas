@@ -231,6 +231,29 @@ begin
     exit;
   end;
 
+  // Check if dirlist has been marked as errored (e.g. 550 Permission denied)
+  try
+    if ((ps1.dirlist <> nil) and ps1.dirlist.error) then
+    begin
+      readyerror := True;
+      mainpazo.errorreason := Format('Dirlist error on %s', [site1]);
+      Debug(dpSpam, c_section, '<-- ' + tname);
+      exit;
+    end;
+
+    d := ps1.dirlist.FindDirlist(dir);
+    if ((d <> nil) and d.error) then
+    begin
+      readyerror := True;
+      mainpazo.errorreason := Format('Dirlist error on %s for %s', [site1, dir]);
+      Debug(dpSpam, c_section, '<-- ' + tname);
+      exit;
+    end;
+  except
+    on e: Exception do
+      Debug(dpError, c_section, '[EXCEPTION] TPazoDirlistTask dirlist error check: %s', [e.Message]);
+  end;
+
   // Count errors and exit if too many
   try
     Inc(numerrors);
@@ -402,6 +425,24 @@ begin
           end
           else
           begin
+            // 550 Permission denied is not a transient error, don't waste retries
+            if ((0 < Pos('Permission denied', s.lastResponse)) or (0 < Pos('Permission Denied', s.lastResponse))) then
+            begin
+              try
+                d := ps1.dirlist.FindDirlist(dir);
+                if (d <> nil) then
+                  d.error := True;
+              except
+                on e: Exception do
+                  Debug(dpError, c_section, '[EXCEPTION] (dirlist permission denied handling): %s', [e.Message]);
+              end;
+
+              readyerror := True;
+              mainpazo.errorreason := Format('Permission denied on %s', [site1]);
+              Debug(dpMessage, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+              exit;
+            end;
+
             Debug(dpSpam, c_section, '[DIRLIST FAILED] %s: %d %s', [tname, s.lastResponseCode, s.lastResponse]);
             goto TryAgain;
           end;
@@ -416,6 +457,9 @@ begin
   end
   else
   begin
+    if GlDirlistCompletedCounter <> nil then
+      GlDirlistCompletedCounter.Increment;
+
     try
       itwasadded := ps1.ParseDirlist(netname, channel, dir, s.lastResponse, is_pre);
     except
@@ -698,6 +742,7 @@ var
   secondsSinceLastChange: Int64;
 begin
   baseValue := GetNewdirDirlistReaddValue();
+  baseValue := GetNewdirDirlistReaddLoadAdjustedValue(baseValue);
 
   if (aSite <> nil) and (aDirlist <> nil) then
   begin
@@ -1134,7 +1179,8 @@ begin
 
   try
     // echo race info
-    irc_SendRACESTATS(tname);
+    if spamcfg.ReadBool(c_section, 'mkdir', True) then
+      irc_SendRACESTATS(tname);
   except
     on e: Exception do
     begin
@@ -1297,7 +1343,8 @@ var
     begin
       fSrcDirlist.dirlist_lock.Enter('TPazoRaceTask.Execute-Source');
       try
-        fSrcDirlistEntry := fSrcDirlist.Find(filename);
+        // We hold the write lock - use the *Locked variant.
+        fSrcDirlistEntry := fSrcDirlist.FindLocked(filename);
         if fSrcDirlistEntry <> nil then
         begin
           lSrcFileSize := fSrcDirlistEntry.filesize;
@@ -1382,7 +1429,8 @@ var
     begin
       fDstDirlist.dirlist_lock.Enter('TPazoRaceTask.Execute-Destination');
       try
-        fDstDirlistEntry := fDstDirlist.Find(filename);
+        // We hold the write lock - use the *Locked variant.
+        fDstDirlistEntry := fDstDirlist.FindLocked(filename);
         if fDstDirlistEntry <> nil then
         begin
           lDstFileSize := fDstDirlistEntry.filesize;
@@ -2791,7 +2839,8 @@ begin
           fDstDirlist := ps2.dirlist.FindDirlist(dir);
         fDstDirlist.dirlist_lock.Enter('TPazoRaceTask.Execute');
         try
-          fDirlistEntry := fDstDirlist.Find(filename);
+          // We hold the write lock - use the *Locked variant.
+          fDirlistEntry := fDstDirlist.FindLocked(filename);
           fDiffMSec := MillisecondsBetween(Now, fDstDirlist.LastUpdated);
         finally
           fDstDirlist.dirlist_lock.Leave;
@@ -3489,6 +3538,9 @@ begin
       slotInfo := Format(' <c9>[%s]</c>', [slot2name]);
     if slotInfo = '' then
       siteInfo := Format(' <b>%s</b>-><b>%s</b>', [site1, site2]);
+
+    if mainpazo = nil then
+      Debug(dpError, c_section, 'CRITICAL LOG: TPazoRaceTask.Name called but mainpazo is nil!');
 
     if mainpazo.rls = nil then
       Result := Format('<c7>[RACE]</c> #%d%s%s : <c10>%s</c> <c7>(%d)</c>',

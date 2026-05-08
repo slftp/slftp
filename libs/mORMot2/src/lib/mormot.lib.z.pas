@@ -13,6 +13,7 @@ unit mormot.lib.z;
    - Simple Wrapper Functions for Deflate/ZLib Process
 
   FPC Intel-Linux and Win32 use the faster libdeflate for in-memory compression
+  Note: when compiling on i386-linux .so library, define NOLIBDEFLATESTATIC
 
   *****************************************************************************
 
@@ -39,16 +40,19 @@ interface
       {$ifdef OSANDROID}
         {$define ZLIBPAS}  // FPC Android: paszlib (Alf reported problems)
       {$else}
-        {$define ZLIBEXT}  // FPC other POSIX: system's libz.so
+        {$ifdef CPUARM}
+          {$define ZLIBSTATIC} // use our static/arm-linux/libz.a for FPC
+        {$else}
+          {$define ZLIBEXT}  // FPC other POSIX: system's libz.so
+        {$endif CPUARM}
       {$endif OSANDROID}
     {$endif OSWINDOWS}
   {$else not FPC}
     {$ifdef WIN32}
       {$define ZLIBSTATIC} // Delphi Win32: our static .obj
+    {$else}
+      {$define ZLIBRTL}    // system.zlib.pas from Delphi RTL is good enough
     {$endif WIN32}
-    {$ifdef WIN64}
-      {$define ZLIBRTL}    // Delphi Win64: system.zlib.pas from Delphi RTL
-    {$endif WIN64}
   {$endif FPC}
 
 {$ifend}
@@ -74,7 +78,8 @@ uses
        defined(ZLIBSTATIC)}
   mormot.lib.static, // some definitions to properly link libdeflate
   {$ifend}
-  mormot.core.base;
+  mormot.core.base,
+  mormot.core.os;
 
 
 { ****************** Low-Level ZLib Streaming Access }
@@ -201,7 +206,7 @@ function zlibCompressMax(input: PtrUInt): PtrUInt;
 
 
 const
-  ZLIB_VERSION = '1.2.3';
+  ZLIB_VERSION = '1.2.3'; // conservative API version
 
   // block methods results
   Z_NO_FLUSH      = 0;
@@ -225,11 +230,12 @@ const
   Z_VERSION_ERROR = -6;
 
   // compression levels
-  Z_DEFAULT_COMPRESSION = -1; // documented to match Z_USUAL_COMPRESSION (6)
-  Z_NO_COMPRESSION      = 0;
-  Z_BEST_SPEED          = 1;
-  Z_USUAL_COMPRESSION   = 6;
-  Z_BEST_COMPRESSION    = {$ifdef LIBDEFLATESTATIC} 12 {$else} 9 {$endif};
+  Z_DEFAULT_COMPRESSION   = -1; // documented to match Z_USUAL_COMPRESSION (6)
+  Z_NO_COMPRESSION        = 0;
+  Z_BEST_SPEED            = 1;
+  Z_USUAL_COMPRESSION     = 6;
+  Z_BEST_COMPRESSION      = {$ifdef LIBDEFLATESTATIC} 12 {$else} 9 {$endif};
+  Z_BEST_COMPRESSION_ZLIB = 9; // for zlib stream functions
 
   // compression strategies/algorithms
   Z_DEFAULT_STRATEGY = 0;
@@ -249,7 +255,7 @@ const
   // default 15-bit / 32KB size for the LZ77 window
   MAX_WBITS = 15;
   // the LZ77 window parameter value
-  Z_MAX_BITS: array[{ZlibFormat:}boolean] of integer = (
+  Z_MAX_BITS: array[{ZlibFormat:}boolean] of ShortInt = (
     -MAX_WBITS,   // raw output with no header or trailing checksum
      MAX_WBITS);  // include zlib-specific header
 
@@ -625,6 +631,10 @@ end;
     {$L ..\..\static\x86_64-win64\crc32.o}
   {$endif WIN64}
 
+  {$ifdef CPUARM}
+    {$linklib ../../static/arm-linux/libz.a}
+  {$endif CPUARM}
+
 {$else} // for Delphi Win32 - Delphi 7 has no reliable zlib.pas
 
   {$L ..\..\static\delphi\zlibdeflate.obj}
@@ -640,7 +650,7 @@ end;
 function zcalloc(AppData: pointer; Items, Size: cardinal): pointer; cdecl;
 begin
   // direct use of the (FastMM4) delphi heap for all zip memory allocation
-  Getmem(result, Items * Size);
+  GetMem(result, Items * Size);
 end;
 
 procedure zcfree(AppData, Block: pointer); cdecl;
@@ -759,7 +769,7 @@ end;
 
 function zlibAllocMem(AppData: pointer; Items, Size: cardinal): pointer; cdecl;
 begin
-  Getmem(result, Items * Size);
+  GetMem(result, Items * Size);
 end;
 
 procedure zlibFreeMem(AppData, Block: pointer); cdecl;
@@ -780,7 +790,7 @@ begin
   Stream.next_out := dst;
   Stream.avail_out := dstLen;
   {$ifndef ZLIBPAS}
-  Stream.zalloc := @zlibAllocMem; // even under Linux, use program heap
+  Stream.zalloc := @zlibAllocMem; // even under Linux/BSD, use program heap
   Stream.zfree  := @zlibFreeMem;
   {$endif ZLIBPAS}
   Written := 0;
@@ -809,8 +819,8 @@ end;
 
 function TZLib.CompressInit(CompressionLevel: integer; ZlibFormat: boolean): boolean;
 begin
-  if CompressionLevel > Z_BEST_COMPRESSION then
-    CompressionLevel := Z_BEST_COMPRESSION; // libdeflate is up to 12
+  if CompressionLevel > Z_BEST_COMPRESSION_ZLIB then // zlib limit is 9
+    CompressionLevel := Z_BEST_COMPRESSION_ZLIB; // libdeflate is up to 12
   result := deflateInit2_(
     Stream, CompressionLevel, Z_DEFLATED, Z_MAX_BITS[ZLibFormat],
     DEF_MEM_LEVEL, Z_DEFAULT_STRATEGY, ZLIB_VERSION, SizeOf(Stream)) >= 0;
@@ -995,6 +1005,7 @@ begin
   FreeMem(P);
 end;
 
+{$ifndef ZLIBPAS}
 function crc32(crc: TZCRC; buf: pointer; len: cardinal): TZCRC;
 begin
   result := libdeflate_crc32(crc, buf, len);
@@ -1004,6 +1015,7 @@ function adler32(adler: TZCRC; buf: pointer; len: cardinal): TZCRC;
 begin
   result := libdeflate_adler32(adler, buf, len);
 end;
+{$endif ZLIBPAS}
 
 {$endif LIBDEFLATESTATIC}
 
@@ -1016,7 +1028,7 @@ end;
 function CompressMem(src, dst: pointer; srcLen, dstLen: PtrInt;
   CompressionLevel: integer; ZlibFormat: boolean): PtrInt;
 var
-  comp: PLibDeflateCompressor;
+  comp: PLibDeflateCompressor; // note: instances should not be cached/reused
 begin
   comp := libdeflate_alloc_compressor(CompressionLevel);
   if comp = nil then
@@ -1034,10 +1046,10 @@ end;
 function UncompressMem(src, dst: pointer; srcLen, dstLen: PtrInt;
   ZlibFormat: boolean): PtrInt;
 var
-  dec: PLibDeflateDecompressor;
+  dec: PLibDeflateDecompressor; // note: instances should not be cached/reused
   res: TLibDeflateResult;
 begin
-  dec := libdeflate_alloc_decompressor;
+  dec := libdeflate_alloc_decompressor; // alloc when needed
   if dec = nil then
     raise EZLib.Create('UncompressMem: libdeflate_alloc_decompressor failed');
   if ZlibFormat then
@@ -1046,7 +1058,8 @@ begin
     res := libdeflate_deflate_decompress(dec, src, srcLen, dst, dstLen, @result);
   libdeflate_free_decompressor(dec);
   if res <> LIBDEFLATE_SUCCESS  then
-    raise EZLib.CreateFmt('UncompressMem: libdeflate = %d', [ord(res)]);
+    raise EZLib.CreateFmt('UncompressMem: libdeflate=%s',
+      [GetEnumNameRtti(TypeInfo(TLibDeflateResult), ord(res))^]);
 end;
 
 {$else}
@@ -1090,7 +1103,7 @@ function CompressStream(src: pointer; srcLen: integer; tmp: TStream;
 var
   z: TZLib;
   code: integer;
-  temp: array[word] of word; // 128KB is good enough (fine for IIS e.g.)
+  temp: TBuffer128K; // seems good enough (fine for IIS e.g.)
 begin
   z.Init(src, srcLen, tmp, nil, @temp, SizeOf(temp), TempBufSize);
   if z.CompressInit(CompressionLevel, ZlibFormat) then
@@ -1111,7 +1124,7 @@ function UncompressStream(src: pointer; srcLen: integer; tmp: TStream;
 var
   z: TZLib;
   code: integer;
-  temp: array[word] of word; // 128KB
+  temp: TBuffer128K;
 begin
   z.Init(src, srcLen, tmp, checkCRC, @temp, SizeOf(temp), TempBufSize);
   if z.UncompressInit(ZlibFormat) then
@@ -1220,7 +1233,11 @@ end;
 {$endif LIBDEFLATESTATIC}
 
 initialization
-  mormot.core.base.crc32 := @crc;
+  (*{$ifdef ZLIBSTATIC} writeln('ZLIBSTATIC'); {$endif}
+  {$ifdef ZLIBPAS} writeln('ZLIBPAS');  {$endif}
+  {$ifdef ZLIBEXT} writeln('ZLIBEXT');  {$endif}
+  {$ifdef LIBDEFLATESTATIC} writeln('LIBDEFLATE'); {$endif}*)
+  mormot.core.base.crc32   := @crc;
   mormot.core.base.adler32 := @adler;
 
 end.

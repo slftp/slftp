@@ -6,7 +6,7 @@ unit mormot.db.raw.sqlite3.static;
 {
   *****************************************************************************
 
-    Statically linked SQLite3 3.46.1 engine with optional AES encryption
+    Statically linked SQLite3 3.51.2 engine with optional AES encryption
     - TSqlite3LibraryStatic Implementation
     - Encryption-Related Functions
 
@@ -94,15 +94,16 @@ const
   /// the exact version expected by the current state of this unit
   // - an error message is generated via DisplayFatalError() if the statically
   // linked sqlite3.o(bj) does not match this expected value
-  EXPECTED_SQLITE3_VERSION = '3.46.1';
+  EXPECTED_SQLITE3_VERSION = '3.51.2';
 
   /// the github release tag associated with this EXPECTED_SQLITE3_VERSION
   // - to be used if you don't want the latest version of sqlite3, but the very
   // same binaries expected by this unit, in one of its previous version
   // - you could download the static for this exact mORMot source revision e.g. as
-  // https://github.com/synopse/mORMot2/releases/download/2.3.stable/mormot2static.7z
-  // https://github.com/synopse/mORMot2/releases/download/2.3.stable/mormot2static.tgz
-  EXPECTED_RELEASE_TAG = '2.3.stable';
+  // https://github.com/synopse/mORMot2/releases/download/2.4-stable/mormot2static.7z
+  // https://github.com/synopse/mORMot2/releases/download/2.4-stable/mormot2static.tgz
+  // - see also EXPECTED_STATIC_DOWNLOAD for the latest static binaries
+  EXPECTED_RELEASE_TAG = '2.4-stable';
 
   /// where to download the latest available static binaries, including SQLite3
   {$ifdef OSWINDOWS}
@@ -385,6 +386,8 @@ begin
   result := abs(x);
 end;
 
+{$endif CPU32}
+
 function strchr(p: PAnsiChar; chr: AnsiChar): PAnsiChar; cdecl;
 begin // needed since 3.46.1
   result := nil;
@@ -396,8 +399,6 @@ begin // needed since 3.46.1
         inc(p);
   result := p;
 end;
-
-{$endif CPU32}
 
 function memchr(p: pointer; chr: byte; n: PtrInt): PAnsiChar; cdecl;
 var
@@ -781,14 +782,14 @@ end;
 
 function IsOldSqlEncryptTable(const FileName: TFileName): boolean;
 var
-  hdr: array[0..2047] of byte;
+  hdr: TBuffer2K;
 begin
   result := BufferFromFile(FileName, @hdr, SizeOf(hdr)) and
      IsEqual(PHash128(@hdr)^, SQLITE_FILE_HEADER128.b) and
      // see https://www.sqlite.org/fileformat.html (4 in bigendian = 1024 bytes)
      (PWord(@hdr[16])^ = 4) and
      // B-tree leaf Type to be either 5 (interior) 10 (index) or 13 (table)
-     not (hdr[1024] in [5, 10, 13]);
+     not (ord(hdr[1024]) in [5, 10, 13]);
 end;
 
 const
@@ -838,7 +839,7 @@ procedure OldSqlEncryptTablePassWordToPlain(const FileName: TFileName;
 var
   F: THandle;
   R: integer;
-  buf: array[word] of byte; // temp buffer for read/write (64KB seems enough)
+  buf: TBuffer64K; // temp buffer for read/write (64KB seems enough)
   size, posi: Int64;
   oldtable: array[0..OLDENCRYPTTABLESIZE - 1] of byte; // 2x16KB tables
 begin

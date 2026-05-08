@@ -59,6 +59,22 @@
     {+} Add enable_boxofficemojo_lookup option in [dbaddimdb] to fetch screen counts from Box Office Mojo (adds ~5-6s to IMDB lookup)
 
 --=============================( SLFTP v1.5.11 )==================================-
+    {+} Complete React 19 / Mantine 8 Web UI (http://localhost:8089/ui) with real-time monitoring and configuration
+    {+} Comprehensive REST API (/api) for external integrations and remote management
+    {+} Add AES-256-CBC encryption support for cbftp UDP race notifications
+    {+} Add !newdirlistreadd IRC command
+    {+} Add Clear button to delete all issues at once in the Web UI
+    {+} Make MKDIR IRC announcement toggleable via slftp.spamconf
+    {+} Add version reporting to startup and !status
+    {^} Integrated rank and speed-from data into site settings when split_site_data is enabled.
+    {#} Stop infinite 550 Permission denied dirlist retry loop
+    {#} Ensure clean exit on Linux/Windows for interactive and cmdline mode
+    {#} Exponential backoff on consecutive IRC connection failures
+    {#} Fix missing IssueLog calls for SKIP, DONT_MATCH, NUKE and MISSING_SECTION
+    {#} Exclude not-allowed sites from ROUTEINFOS output
+    {#} Match API AddChannel behavior to !ircchanadd IRC command
+    {#} Fix IRC network added via API not persisted after restart
+    {#} Fix section insertion order tracking to preserve RulesSave sequence
     {#} Fix error when trying to install openssl 1.1.1w via the libinstaller
     {#} Fix build on BSD
     {#} Fix corrupted sites.dat and rtpl/SITE.setting files when the process gets killed or crashes

@@ -44,7 +44,7 @@
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
-      <OtherUnitFiles Value="libs/BeRoHighResolutionTimer;libs/FLRE;libs/Indy10/Core;libs/Indy10/Protocols;libs/Indy10/Protocols/OpenSSL;libs/Indy10/Protocols/OpenSSL/dynamic;libs/Indy10/System;libs/LibTar;libs/lkJSON;libs\mORMot2\src\core;libs\mORMot2\src\lib;libs\mORMot2\src\crypt;libs\mORMot2\src\db;libs\mORMot2\src\orm;libs\mORMot2\src\rest;libs\mORMot2\src\soa;libs/pasmp;libs/rcmdline;libs/TRegExpr;libs/ZeosLib/core;libs/ZeosLib/dbc;libs/ZeosLib/parsesql;libs/ZeosLib/plain;irccommands;rules;tests/fptest;tests/fptest/epiktimer"/>
+      <OtherUnitFiles Value="api;libs/BeRoHighResolutionTimer;libs/FLRE;libs/Indy10/Core;libs/Indy10/Protocols;libs/Indy10/Protocols/OpenSSL;libs/Indy10/Protocols/OpenSSL/dynamic;libs/Indy10/System;libs/LibTar;libs/lkJSON;libs\mORMot2\src\core;libs\mORMot2\src\lib;libs\mORMot2\src\crypt;libs\mORMot2\src\db;libs\mORMot2\src\orm;libs\mORMot2\src\rest;libs\mORMot2\src\soa;libs/pasmp;libs/rcmdline;libs/TRegExpr;libs/ZeosLib/core;libs/ZeosLib/dbc;libs/ZeosLib/parsesql;libs/ZeosLib/plain;irccommands;rules;tests/fptest;tests/fptest/epiktimer"/>
       <UnitOutputDirectory Value="tests/lib/$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <Parsing>

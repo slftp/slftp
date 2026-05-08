@@ -14,6 +14,9 @@ unit mormot.core.os.security;
   - Active Directory Definitions
   - Security Descriptor Definition Language (SDDL)
   - TSecurityDescriptor Wrapper Object
+  - Kerberos KeyTab File Support
+  - Basic ASN.1 Support
+  - Operating System Certificates Operation
   - Windows API Specific Security Types and Functions
 
   Even if most of those security definitions comes from the Windows/AD world,
@@ -35,6 +38,7 @@ interface
 uses
   {$ifdef OSWINDOWS}
   Windows, // for Windows API Specific Security Types and Functions below
+  Messages,
   {$endif OSWINDOWS}
   sysutils,
   classes,
@@ -65,7 +69,7 @@ type
   /// Security IDentifier (SID) binary format, as retrieved e.g. by Windows API
   // - this definition is not detailed on oldest Delphi, and not available on
   // POSIX, whereas it makes sense to also have it, e.g. for server process
-  // - its maximum used length is 1032 bytes
+  // - its maximum used length is 1032 bytes (but usually much shorter)
   // - see [MS-DTYP] 2.4.2 SID
   TSid = packed record
     Revision: byte;
@@ -96,6 +100,9 @@ function SidLength(sid: PSid): PtrInt;
 
 /// allocate a RawSid instance from a PSid raw handler
 procedure ToRawSid(sid: PSid; out result: RawSid);
+
+/// initialize a TSid structure by setting Revision and length to 0
+procedure FillZero(var sid: TSid); overload;
 
 /// check if a RawSid binary buffer has the expected length of a valid SID
 function IsValidRawSid(const sid: RawSid): boolean;
@@ -527,7 +534,7 @@ type
     // ACE body
     Mask: TSecAccessMask;
     case integer of
-      0: (CommonSid: cardinal);
+      0: (CommonSid:   cardinal);
       1: (ObjectFlags: cardinal;
           ObjectStart: cardinal);
   end;
@@ -1261,7 +1268,7 @@ const
     '{3f78c3e5-f79a-46bd-a0b8-9d18116ddc79}',  // kaMsDsAllowedToActOnBehalfOfOtherIdentity
     '{037088f8-0ae1-11d2-b422-00a0c968f939}'); // kaRasInformation
 
-  /// the official ldapDisplayName of our known Active Directory schema attributes
+  /// the official "Ldap-Display-Name" of our known Active Directory schema attributes
   ATTR_TXT: array[TAdsKnownAttribute] of RawUtf8 = (
     '',                                        // kaNull
     'User-Account-Restrictions',               // kaUserAccountRestrictions
@@ -1314,12 +1321,12 @@ function ToText(a: TAdsKnownAttribute): PShortString; overload;
 // - returns kaNull if the supplied TGuid was not found
 function UuidToKnownAttribute(const u: TGuid): TAdsKnownAttribute;
 
-/// recognize the ldapDisplayName of our TAdsKnownAttribute selection
+/// recognize the "Ldap-Display-Name" of our TAdsKnownAttribute selection
 // - use FindNonVoidRawUtf8I(ATTR_TXT[]) O(n) case-insensitive brute force search
-// - returns kaNull if the supplied text does not match any known ldapDisplayName
+// - returns kaNull if the supplied text does not match any known Ldap-Display-Name
 function TextToKnownAttribute(p: PUtf8Char; len: TStrLen): TAdsKnownAttribute;
 
-/// append an ObjectID as TAdsKnownAttribute's ldapDisplayName, or as UUID hexa
+/// append an ObjectID as TAdsKnownAttribute's Ldap-Display-Name, or as UUID hexa
 // - if u is a TAdsKnownAttribute, append its ATTR_TXT[] text
 // - otherwise, append regular '3f2504e0-4f89-11d3-9a0c-0305e82c3301' text
 // - can be used as TAppendShortUuid optional parameter for SDDL generation
@@ -1334,7 +1341,7 @@ procedure AppendShortKnownUuid(const u: TGuid; var s: ShortString);
 procedure ObjectUuidToText({$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif}
   guid: TGuid; uuid: TAppendShortUuid; var Text: RawUtf8);
 
-/// parse an ObjectID, recognizing TAdsKnownAttribute's ldapDisplayName or UUID hexa
+/// parse an ObjectID, recognizing TAdsKnownAttribute's Ldap-Display-Name or UUID hexa
 // - can be used as TShortToUuid optional parameter for SDDL parsing
 // - you can also define your own TShortToUuidfunction
 // - use O(n) case-insensitive brute force search over ATTR_TXT[] values
@@ -1415,10 +1422,10 @@ function SddlToKnownSid(const sddl: RawUtf8; out wks: TWellKnownSid): boolean;
 function SddlToKnownRid(const sddl: RawUtf8; out wkr: TWellKnownRid): boolean;
 
 const
-  { SDDL standard identifiers using string[3] for efficient 32-bit alignment }
+  { SDDL standard identifiers using TShort3 for efficient 32-bit alignment }
 
   /// define how ACE kinds in TSecAce.AceType are stored as SDDL
-  SAT_SDDL: array[TSecAceType] of string[3] = (
+  SAT_SDDL: array[TSecAceType] of TShort3 = (
     '',    // satUnknown
     'A',   // satAccessAllowed
     'D',   // satAccessDenied
@@ -1444,7 +1451,7 @@ const
     'FL'); // satAccessFilter
 
   /// define how ACE flags in TSecAce.Flags are stored as SDDL
-  SAF_SDDL: array[TSecAceFlag] of string[3] = (
+  SAF_SDDL: array[TSecAceFlag] of TShort3 = (
     'OI',  // safObjectInherit
     'CI',  // safContainerInherit
     'NP',  // safNoPropagateInherit
@@ -1455,7 +1462,7 @@ const
     'FA'); // safFailedAccess
 
   /// define how ACE access rights bits in TSecAce.Mask are stored as SDDL
-  SAM_SDDL: array[TSecAccess] of string[3] = (
+  SAM_SDDL: array[TSecAccess] of TShort3 = (
     'CC',  // samCreateChild
     'DC',  // samDeleteChild
     'LC',  // samListChildren
@@ -1490,7 +1497,7 @@ const
     'GR'); // samGenericRead
 
   /// define how full 32-bit ACE access rights in TSecAce.Mask are stored as SDDL
-  SAR_SDDL: array[TSecAccessRight] of string[3] = (
+  SAR_SDDL: array[TSecAccessRight] of TShort3 = (
     'FA',  //  sarFileAll
     'FR',  //  sarFileRead
     'FW',  //  sarFileWrite
@@ -1501,7 +1508,7 @@ const
     'KX'); //  sarKeyExecute
 
   /// define how a sctAttribute is stored as SDDL
-  ATTR_SDDL: array[sctLocalAttribute .. sctDeviceAttribute] of string[10] = (
+  ATTR_SDDL: array[sctLocalAttribute .. sctDeviceAttribute] of TShort15 = (
    '',            // sctLocalAttribute
    '@User.',      // sctUserAttribute
    '@Resource.',  // sctResourceAttribute
@@ -1804,7 +1811,7 @@ type
     /// decode a Security Descriptor from its SDDL textual representation
     // - could also recognize SDDL RID placeholders, with the specified
     // RidDomain in its 'S-1-5-21-xxxxxx-xxxxxxx-xxxxxx' text form
-    // - recognize ldapDisplayName of TAdsKnownAttribute if uuid=@ShortToKnownUuid
+    // - recognize Ldap-Display-Name of TAdsKnownAttribute if uuid=@ShortToKnownUuid
     function FromText(const SddlText: RawUtf8;
       const RidDomain: RawUtf8 = ''; uuid: TShortToUuid = nil): TAceTextParse; overload;
     /// decode a Security Descriptor from its SDDL textual representation
@@ -1832,7 +1839,7 @@ type
       saf: TSecAceFlags = []): PSecAce; overload;
     /// add one new ACE to the DACL (or SACL) from SDDL text
     // - dom <> nil would enable SDDL RID placeholders recognition
-    // - recognize ldapDisplayName of TAdsKnownAttribute if uuid=@ShortToKnownUuid
+    // - recognize Ldap-Display-Name of TAdsKnownAttribute if uuid=@ShortToKnownUuid
     // - add to Dacl[] unless scope is sasSacl so it is added to Sacl[]
     // - return nil on sddl input text parsing error, or the newly added entry
     function Add(const sddl: RawUtf8; dom: PSid = nil; uuid: TShortToUuid = nil;
@@ -1883,12 +1890,919 @@ function SecurityDescriptorToText(const sd: RawSecurityDescriptor;
   var text: RawUtf8; dom: PSid = nil; uuid: TAppendShortUuid = nil): boolean;
 
 
+{ ****************** Kerberos KeyTab File Support }
+
+const
+  ENCTYPE_DES3_CBC_SHA1              = $10;
+  ENCTYPE_AES128_CTS_HMAC_SHA1_96    = $11; // RFC 3962
+  ENCTYPE_AES256_CTS_HMAC_SHA1_96    = $12;
+  ENCTYPE_AES128_CTS_HMAC_SHA256_128 = $13; // RFC 8009 - libktb5 1.15+
+  ENCTYPE_AES256_CTS_HMAC_SHA384_192 = $14;
+
+  /// the standard KeyTab encoding names - do not change
+  ENCTYPE_NAME: array[$11 .. $14] of RawUtf8 = (
+    'aes128-cts-hmac-sha1-96',    'aes256-cts-hmac-sha1-96',
+    'aes128-cts-hmac-sha256-128', 'aes256-cts-hmac-sha384-192');
+
+type
+  /// store one KeyTab entry in a TKerberosKeyTab storage
+  TKerberosKeyEntry = record
+    /// when the key was established for that principal
+    Timestamp: TUnixTime;
+    /// 16 bit value indicating the keytype, as indicated in RFC3962
+    // - e.g. ENCTYPE_AES128_CTS_HMAC_SHA1_96 or ENCTYPE_AES256_CTS_HMAC_SHA1_96
+    EncType: integer;
+    /// 32-bit version number of the key
+    KeyVersion: integer;
+    /// 32 bit name_type
+    // - almost certainly 1 meaning KRB5_NT_PRINCIPAL
+    NameType: integer;
+    /// the principal name of the keytab e.g. 'HTTP/www.foo.net@FOO.NET'
+    Principal: RawUtf8;
+    /// the associated binary key content
+    Key: RawByteString;
+  end;
+  TKerberosKeyEntries = array of TKerberosKeyEntry;
+
+  /// Kerberos KeyTab file basic read/write support
+  // - TKerberosKeyTabGenerator from mormot.crypt.secure can compute a new key
+  TKerberosKeyTab = class(TSynPersistent)
+  protected
+    fEntry: TKerberosKeyEntries;
+    fFileName: TFileName;
+  public
+    /// remove all stored entries
+    procedure Clear;
+    /// parse the raw binary buffer of a KeyTab file content
+    function LoadFromBuffer(P, PEnd: PAnsiChar): boolean;
+    /// parse the string binary buffer of a KeyTab file content
+    function LoadFromBinary(const Binary: RawByteString): boolean;
+    /// parse a KeyTab file from its name
+    function LoadFromFile(const aFile: TFileName): boolean;
+    /// search one entry content specified as a TKerberosKeyEntry record
+    // - will compare all fields, including the binary key
+    function Exists(const aEntry: TKerberosKeyEntry): boolean;
+    /// append one entry specified as a TKerberosKeyEntry record
+    // - returns true if was added, or false if it would have been duplicated
+    function Add(const aEntry: TKerberosKeyEntry): boolean;
+    /// append some entries from another TKerberosKeyTab instance
+    // - if Principals is not [], only those principal names will be added
+    // - returns the number of entries added to the main list
+    function AddFrom(Another: TKerberosKeyTab;
+      const Principals: array of RawUtf8): integer;
+    /// append some entries from another KeyTab file
+    // - if Principals is not [], only those principal names will be added
+    // - returns the number of entries added to the main list
+    function AddFromFile(const aFile: TFileName;
+      const Principals: array of RawUtf8): integer;
+    /// remove an entry in the internal KeyTab list
+    function Delete(aIndex: PtrUInt): boolean;
+    /// returns the first Entry[].Principal in the form HOSTNAME$@REALM
+    function MachineAccountPrincipal(FallbackToFirst: boolean = false): RawUtf8;
+    /// persist this KeyTab list as a memory buffer
+    function SaveToBinary: RawByteString;
+    /// persist this KeyTab list as a local file
+    procedure SaveToFile(const aFile: TFileName);
+    /// direct access to the KeyTab entries
+    property Entry: TKerberosKeyEntries
+      read fEntry;
+    /// the KeyTab file name, as supplied to LoadFromFile()
+    property FileName: TFileName
+      read fFileName;
+  end;
+
+/// internal comparison of two KeyTab entries as in a TKerberosKeyTab storage
+function CompareEntry(const A, B: TKerberosKeyEntry): boolean;
+
+/// check if a buffer contains a valid Kerberos keytab
+// - redirect to TKerberosKeyTab.LoadFromBuffer() from this unit
+function BufferIsKeyTab(const aKeytab: RawByteString): boolean;
+
+/// check if a file is readable and is a valid Kerberos keytab
+function FileIsKeyTab(const aKeytab: TFileName): boolean;
+
+/// returns the first Principal in the form HOSTNAME$@REALM of a given keytab file
+function FileIsKeyTabMachineAccountPrincipal(const aKeytab: TFileName;
+  aFallbackToFirst: boolean = false): RawUtf8;
+
+/// check if a file is a valid Kerberos keytab, and return its entries
+// - so that you could write e.g. for entry in FileIsKeyTabEntries() do ...
+function FileIsKeyTabEntries(const aKeytab: TFileName): TKerberosKeyEntries;
+
+
+{ **************** Basic ASN.1 Support }
+
+type
+  /// we defined our own type to hold an ASN object binary
+  TAsnObject = RawByteString;
+  PAsnObject = ^TAsnObject;
+
+const
+  /// constructed class type bitmask
+  ASN1_CL_CTR   = $20;
+  /// application-specific class type bitmask
+  ASN1_CL_APP   = $40;
+  /// context-specific class type bitmask
+  ASN1_CL_CTX   = $80;
+  /// private class type bitmask
+  ASN1_CL_PRI   = $c0;
+
+  // base ASN.1 types
+  ASN1_BOOL        = $01;
+  ASN1_INT         = $02;
+  ASN1_BITSTR      = $03;
+  ASN1_OCTSTR      = $04;
+  ASN1_NULL        = $05;
+  ASN1_OBJID       = $06;
+  ASN1_ENUM        = $0a;
+  ASN1_UTF8STRING  = $0c;
+  ASN1_PRINTSTRING = $13;
+  ASN1_IA5STRING   = $16;
+  ASN1_UTCTIME     = $17;
+  ASN1_GENTIME     = $18;
+
+  // base ASN1_CL_CTR types
+  ASN1_SEQ         = $30;
+  ASN1_SETOF       = $31;
+
+  ASN1_TEXT = [
+    ASN1_UTF8STRING,
+    ASN1_PRINTSTRING,
+    ASN1_IA5STRING];
+
+  ASN1_NUMBERS = [
+    ASN1_INT,
+    ASN1_ENUM,
+    ASN1_BOOL];
+
+  //  context-specific class, tag #n
+  ASN1_CTX0  = $80;
+  ASN1_CTX1  = $81;
+  ASN1_CTX2  = $82;
+  ASN1_CTX3  = $83;
+  ASN1_CTX4  = $84;
+  ASN1_CTX5  = $85;
+  ASN1_CTX6  = $86;
+  ASN1_CTX7  = $87;
+  ASN1_CTX8  = $88;
+  ASN1_CTX9  = $89;
+  ASN1_CTX10 = $8a;
+  ASN1_CTX11 = $8b;
+  ASN1_CTX12 = $8c;
+  ASN1_CTX13 = $8d;
+  ASN1_CTX14 = $8e;
+  ASN1_CTX15 = $8f;
+
+  //  context-specific class, constructed, tag #n
+  ASN1_CTC0  = $a0;
+  ASN1_CTC1  = $a1;
+  ASN1_CTC2  = $a2;
+  ASN1_CTC3  = $a3;
+  ASN1_CTC4  = $a4;
+  ASN1_CTC5  = $a5;
+  ASN1_CTC6  = $a6;
+  ASN1_CTC7  = $a7;
+  ASN1_CTC8  = $a8;
+  ASN1_CTC9  = $a9;
+  ASN1_CTC10 = $aa;
+  ASN1_CTC11 = $ab;
+  ASN1_CTC12 = $ac;
+  ASN1_CTC13 = $ad;
+  ASN1_CTC14 = $ae;
+  ASN1_CTC15 = $af;
+
+  /// encode a boolean value into ASN.1 binary
+  ASN1_BOOLEAN_VALUE: array[boolean] of TAsnObject = (
+    RawByteString(#$01#$01#$00),
+    RawByteString(#$01#$01#$ff));
+
+  /// encode a boolean value into nothing or true as ASN.1 binary
+  // - as used e.g. in X.509 v3 extensions optional fields
+  ASN1_BOOLEAN_NONE: array[boolean] of TAsnObject = (
+    '',
+    RawByteString(#$01#$01#$ff));
+
+  /// encode a 0 value into ASN.1 binary
+  ASN1_ZERO_VALUE: TAsnObject = RawByteString(#$00);
+
+  /// encode a null value into ASN.1 binary
+  ASN1_NULL_VALUE: TAsnObject = RawByteString(#$05#$00);
+
+/// encode a 64-bit signed integer value into ASN.1 binary
+function AsnEncInt(Value: Int64): TAsnObject; overload;
+
+/// encode a raw binary-encoded integer value into ASN.1 binary
+function AsnEncInt(Value: pointer; ValueLen: PtrUInt): TAsnObject; overload;
+
+/// encode a 64-bit unsigned OID integer value into ASN.1 binary
+// - append the encoded value into the Result shortstring existing content
+procedure AsnEncOidItem(Value: PtrUInt; var Result: ShortString);
+
+/// create an ASN.1 ObjectID from '1.x.x.x.x' text
+function AsnEncOid(OidText: PUtf8Char): TAsnObject;
+
+/// encode the len of a ASN.1 binary item
+function AsnEncLen(Len: cardinal; dest: PHash128): PtrInt;
+
+/// create an ASN.1 binary from the aggregation of several binaries
+function Asn(AsnType: integer;
+  const Content: array of TAsnObject): TAsnObject; overload;
+
+/// create an ASN.1 binary from some raw data
+function AsnTyped(const Data: RawByteString; AsnType: integer): TAsnObject;
+
+/// create an ASN.1 binary from several raw data - as OCTSTR by default
+function AsnArr(const Data: array of RawUtf8;
+  AsnType: integer = ASN1_OCTSTR): TAsnObject;
+
+/// create an ASN.1 binary from 64-bit signed integer, calling AsnEncInt()
+function Asn(Value: Int64; AsnType: integer = ASN1_INT): TAsnObject; overload;
+
+/// create an ASN.1 binary from an unsigned Big Integer raw buffer
+// - the raw buffer is likely to come from mormot.crypt.rsa TBigInt.Save result
+// - will trim unneeded leading zeros, and ensure will be stored as unsigned
+// even if starts with a $80 byte
+// - any temporary string will be zeroed during the process for anti-forensic,
+// since a BigInt may be sensitive information (e.g. a RSA secret prime)
+function AsnBigInt(const BigInt: RawByteString;
+  AsnType: integer = ASN1_INT): TAsnObject;
+
+/// create an ASN.1 SEQuence from some raw data
+function AsnSeq(const Data: TAsnObject): TAsnObject; overload;
+  {$ifdef HASINLINE} inline; {$endif}
+
+/// create an ASN.1 OCTetSTRing from some raw data
+function AsnOctStr(const Data: TAsnObject): TAsnObject;
+  {$ifdef HASINLINE} inline; {$endif}
+
+/// create an ASN.1 SEQuence from the aggregation of several binaries
+function AsnSeq(const Content: array of TAsnObject): TAsnObject; overload;
+  {$ifdef FPC} inline; {$endif}
+
+/// create an ASN.1 ObjectID from some raw binary data
+function AsnObjId(const Data: TAsnObject): TAsnObject;
+  {$ifdef HASINLINE} inline; {$endif}
+
+/// create an ASN.1 SETOF from some raw binary data
+function AsnSetOf(const Data: TAsnObject): TAsnObject;
+  {$ifdef HASINLINE} inline; {$endif}
+
+/// create an ASN.1 BITSTRing from some raw binary data
+function AsnBitStr(const Data: TAsnObject): TAsnObject;
+  {$ifdef HASINLINE} inline; {$endif}
+
+/// create an ASN.1 ENUMerate from some raw integer
+function AsnEnum(Data: PtrInt): TAsnObject;
+  {$ifdef HASINLINE} inline; {$endif}
+
+/// create an ASN.1 ObjectID from 'x.x.x.x.x' text
+function AsnOid(OidText: PUtf8Char): TAsnObject;
+
+/// create an ASN.1 PrintableString or UTF8String from some UTF-8 text
+// - will prefer ASN1_PRINTSTRING if the charset of the supplied text do suffice
+function AsnText(const Text: RawUtf8): TAsnObject;
+
+/// internal function used to wipe any temporary string for anti-forensic
+// - warning: all Content[] will be filled with zeroes even if marked as  "const"
+function AsnSafeOct(const Content: array of TAsnObject): TAsnObject;
+
+/// raw append some binary to an ASN.1 object buffer
+procedure AsnAdd(var Data: TAsnObject; const Buffer: TAsnObject);
+  overload; {$ifdef HASINLINE} inline; {$endif}
+
+/// encode and append some raw data as ASN.1
+procedure AsnAdd(var Data: TAsnObject; const Buffer: TAsnObject;
+  AsnType: integer); overload;
+
+/// decode the len of a ASN.1 binary item
+function AsnDecLen(var Start: integer; const Buffer: TAsnObject): cardinal;
+  {$ifdef HASINLINE} inline; {$endif}
+
+/// decode the header of a ASN.1 binary item
+function AsnDecHeader(var Pos: integer; const Buffer: TAsnObject;
+  out AsnType, AsnSize: integer): boolean;
+
+/// check if a DER memory buffer is a full block, e.g. a full ASN1_SEQ
+function AsnDecChunk(const der: RawByteString; exptyp: integer = ASN1_SEQ): boolean;
+
+/// decode an ASN1_INT ASN1_ENUM ASN1_BOOL value
+function AsnDecInt(var Start: integer; const Buffer: TAsnObject;
+  AsnSize: integer): Int64;
+
+/// decode an OID ASN.1 value into human-readable text
+function AsnDecOid(Pos, EndPos: PtrInt; const Buffer: TAsnObject): RawUtf8;
+
+/// decode an OCTSTR ASN.1 value into its raw bynary buffer
+// - returns plain input value if was not a valid ASN1_OCTSTR
+function AsnDecOctStr(const input: RawByteString): RawByteString;
+
+/// parse the next ASN.1 value as text
+// - returns the ASN.1 value type, and optionally the ASN.1 value blob itself
+function AsnNext(var Pos: integer; const Buffer: TAsnObject;
+  Value: PRawByteString = nil; CtrEndPos: PInteger = nil): integer;
+
+/// parse the next ASN1_INT ASN1_ENUM ASN1_BOOL value as 64-bit integer
+function AsnNextInteger(var Pos: integer; const Buffer: TAsnObject;
+  out ValueType: integer): Int64;
+
+/// parse the next ASN1_INT ASN1_ENUM ASN1_BOOL value as 32-bit integer
+// - warning: parameters do NOT match AsnNextInteger() signature
+// - returns the ASN.1 value type, and optionally the ASN.1 value blob itself
+function AsnNextInt32(var Pos: integer; const Buffer: TAsnObject;
+  out Value: integer): integer;
+  {$ifdef HASINLINE} inline; {$endif}
+
+/// parse the next ASN.1 value as raw buffer
+// - returns the ASN.1 value type, and the ASN.1 raw value blob itself
+function AsnNextRaw(var Pos: integer; const Buffer: TAsnObject;
+  out Value: RawByteString; IncludeHeader: boolean = false): integer;
+
+/// parse the next ASN1_INT value as raw Big Integer binary
+function AsnNextBigInt(var Pos: integer; const Buffer: TAsnObject;
+  out Value: RawByteString): boolean;
+
+/// initialize a set of AsnNext() Pos[] with its 1 default position
+procedure AsnNextInit(var Pos: TIntegerDynArray; Count: PtrInt);
+
+
+{ ****************** Operating System Certificates Operation }
+
+type
+  /// identify the (Windows) system certificate stores for GetSystemStoreAsPem()
+  // - ignored on POSIX systems, in which the main cacert.pem file is used
+  // - scsCA contains known Certification Authority certificates, i.e. from
+  // entities entrusted to issue certificates that assert that the recipient
+  // individual, computer, or organization requesting the certificate fulfills
+  // the conditions of an established policy
+  // - scsMY holds certificates with associated private keys (Windows only)
+  // - scsRoot contains known Root certificates, i.e. self-signed CA certificates
+  // which are the root of the whole certificates trust tree
+  // - scsSpc contains Software Publisher Certificates (Windows only)
+  TSystemCertificateStore = (
+    scsCA,
+    scsMY,
+    scsRoot,
+    scsSpc);
+  TSystemCertificateStores = set of TSystemCertificateStore;
+
+var
+  /// the local PEM file name to be searched by GetSystemStoreAsPem() to
+  // override the OS certificates store
+  // - a relative file name (i.e. with no included path, e.g. 'cacert.pem') will
+  // be searched in the Executable.ProgramFilePath folder
+  // - an absolute file name (e.g. 'C:\path\to\file.pem' or '/posix/path') could
+  // also be specified
+  // - set by default to '' to disable this override (for security purposes)
+  GetSystemStoreAsPemLocalFile: TFileName;
+
+/// retrieve the OS certificates store as PEM text
+// - first search for [Executable.ProgramFilePath+]GetSystemStoreAsPemLocalFile,
+// then for a file pointed by a 'SSL_CA_CERT_FILE' environment variable - unless
+// OnlySystemStore is forced to true
+// - if no such file exists, or if OnlySystemStore is true, will concatenate the
+// supplied CertStores values via individual GetOneSystemStoreAsPem() calls
+// - return CA + ROOT certificates by default, ready to validate a certificate
+// - Darwin specific API is not supported yet, and is handled as a BSD system
+// - an internal cache is refreshed every 4 minutes unless FlushCache is set
+function GetSystemStoreAsPem(
+  CertStores: TSystemCertificateStores = [scsCA, scsRoot];
+  FlushCache: boolean = false; OnlySystemStore: boolean = false): RawUtf8;
+
+/// retrieve all certificates of a given system store as PEM text
+// - on Windows, will use the System Crypt API
+// - on POSIX, scsRoot loads the main CA file of the known system file, and
+// scsCA the additional certificate files which may not be part of the main file
+// - GetSystemStoreAsPemLocalFile file and 'SSL_CA_CERT_FILE' environment
+// variables are ignored: call GetSystemStoreAsPem() instead for the global store
+// - an internal cache is refreshed every 4 minutes unless FlushCache is set
+function GetOneSystemStoreAsPem(CertStore: TSystemCertificateStore;
+  FlushCache: boolean = false): RawUtf8;
+
+var
+  /// low-level function used by StuffExeCertificate() in mormot.misc.pecoff.pas
+  // - properly implemented by mormot.crypt.openssl.pas, but mormot.misc.pecoff
+  // has its own stand-alone version using a pre-generated fixed certificate
+  // - warning: the Marker should have no 0 byte within
+  CreateDummyCertificate: function(const Stuff, CertName: RawUtf8;
+    Marker: cardinal): RawByteString;
+
+var
+  /// allow half a day margin when checking a Certificate date validity
+  // - this global setting is used as default for all our units
+  CERT_DEPRECATION_THRESHOLD: TDateTime = 0.5;
+
+
 { ****************** Windows API Specific Security Types and Functions }
 
 {$ifdef OSWINDOWS}
 
+/// low-level function returning some random binary from the Operating System
+// - POSIX version (using /dev/urandom or /dev/random) is located in mormot.core.os
+// - will call CryptGenRandom API on Windows then return TRUE, or fallback to
+// mormot.core.base gsl_rng_taus2's generator and return FALSE if the API failed
+// - you should not have to call this low-level procedure, but faster and safer
+// TAesPrng from mormot.crypt.core - also consider the TSystemPrng class
+function FillSystemRandom(Buffer: PByteArray; Len: integer;
+  AllowBlocking: boolean): boolean;
+
+/// protect some data for the current user, using Windows DPAPI
+// - the application can specify a secret salt text, which should reflect the
+// current execution context, to ensure nobody could decrypt the data without
+// knowing this application-specific AppSecret value
+// - will use CryptProtectData DPAPI function call under Windows, as defined
+// by https://msdn.microsoft.com/en-us/library/ms995355
+// - this function is Windows-only, could be slow, and you don't know which
+// algorithm is really used on your system, so using our mormot.crypt.core.pas
+// CryptDataForCurrentUser() is probably a safer (and cross-platform) alternative
+// - also note that DPAPI has been closely reverse engineered - see e.g.
+// https://www.passcape.com/index.php?section=docsys&cmd=details&id=28 -
+// and that it seems unreliable under PRISM WinArm emulation so it will return
+// SymmetricEncrypt(Data) weak encryption/obfuscation on this platform
+function CryptDataForCurrentUserDPAPI(const Data, AppSecret: RawByteString;
+  Encrypt: boolean): RawByteString;
+
+{$ifdef CPU64}
+{$A8}
+{$else}
+{$A4}
+{$endif CPU64}
 type
-  /// the SID types, as recognized by LookupSid()
+  HCRYPTPROV = pointer;
+  HCRYPTKEY  = pointer;
+  HCRYPTHASH = pointer;
+  HCERTSTORE = pointer;
+
+  CRYPTOAPI_BLOB = record
+    cbData: DWord;
+    pbData: PByteArray;
+  end;
+  CRYPT_INTEGER_BLOB = CRYPTOAPI_BLOB;
+  CERT_NAME_BLOB     = CRYPTOAPI_BLOB;
+  CRYPT_OBJID_BLOB   = CRYPTOAPI_BLOB;
+
+  CRYPT_BIT_BLOB = record
+    cbData: DWord;
+    pbData: PByteArray;
+    cUnusedBits: DWord;
+  end;
+
+  CRYPT_ALGORITHM_IDENTIFIER = record
+    pszObjId: PAnsiChar;
+    Parameters: CRYPT_OBJID_BLOB;
+  end;
+
+  CERT_PUBLIC_KEY_INFO = record
+    Algorithm: CRYPT_ALGORITHM_IDENTIFIER;
+    PublicKey: CRYPT_BIT_BLOB;
+  end;
+
+  CERT_EXTENSION = record
+    pszObjId: PAnsiChar;
+    fCritical: BOOL;
+    Blob: CRYPT_OBJID_BLOB;
+  end;
+  PCERT_EXTENSION = ^CERT_EXTENSION;
+  CERT_EXTENSIONS = array[word] of CERT_EXTENSION;
+  PCERT_EXTENSIONS = ^CERT_EXTENSIONS;
+
+  CERT_INFO = record
+    dwVersion: DWord;
+    SerialNumber: CRYPT_INTEGER_BLOB;
+    SignatureAlgorithm: CRYPT_ALGORITHM_IDENTIFIER;
+    Issuer: CERT_NAME_BLOB;
+    NotBefore: TFileTime;
+    NotAfter: TFileTime;
+    Subject: CERT_NAME_BLOB;
+    SubjectPublicKeyInfo: CERT_PUBLIC_KEY_INFO;
+    IssuerUniqueId: CRYPT_BIT_BLOB;
+    SubjectUniqueId: CRYPT_BIT_BLOB;
+    cExtension: DWord;
+    rgExtension: PCERT_EXTENSIONS;
+  end;
+  PCERT_INFO = ^CERT_INFO;
+
+  CERT_CONTEXT = record
+    dwCertEncodingType: DWord;
+    pbCertEncoded: PByte;
+    cbCertEncoded: DWord;
+    pCertInfo: PCERT_INFO;
+    hCertStore: HCERTSTORE;
+  end;
+  PCCERT_CONTEXT = ^CERT_CONTEXT;
+  PPCCERT_CONTEXT = ^PCCERT_CONTEXT;
+
+  CRYPT_KEY_PROV_PARAM = record
+    dwParam: DWord;
+    pbData: PByte;
+    cbData: DWord;
+    dwFlags: DWord;
+  end;
+  PCRYPT_KEY_PROV_PARAM = ^CRYPT_KEY_PROV_PARAM;
+
+  CRYPT_KEY_PROV_INFO = record
+    pwszContainerName: PWideChar;
+    pwszProvName: PWideChar;
+    dwProvType: DWord;
+    dwFlags: DWord;
+    cProvParam: DWord;
+    rgProvParam: PCRYPT_KEY_PROV_PARAM;
+    dwKeySpec: DWord;
+  end;
+  PCRYPT_KEY_PROV_INFO = ^CRYPT_KEY_PROV_INFO;
+
+  CRYPT_OID_INFO = record
+    cbSize: DWord;
+    pszOID: PAnsiChar;
+    pwszName: PWideChar;
+    dwGroupId: DWord;
+    Union: record
+      case integer of
+        0: (dwValue:  DWord);
+        1: (Algid:    DWord);
+        2: (dwLength: DWord);
+    end;
+    ExtraInfo: CRYPTOAPI_BLOB;
+  end;
+  PCRYPT_OID_INFO = ^CRYPT_OID_INFO;
+
+  PCCRL_CONTEXT = pointer;
+  PPCCRL_CONTEXT = ^PCCRL_CONTEXT;
+  PCRYPT_ATTRIBUTE = pointer;
+
+  CRYPT_SIGN_MESSAGE_PARA = record
+    cbSize: DWord;
+    dwMsgEncodingType: DWord;
+    pSigningCert: PCCERT_CONTEXT;
+    HashAlgorithm: CRYPT_ALGORITHM_IDENTIFIER;
+    pvHashAuxInfo: pointer;
+    cMsgCert: DWord;
+    rgpMsgCert: PPCCERT_CONTEXT;
+    cMsgCrl: DWord;
+    rgpMsgCrl: PPCCRL_CONTEXT;
+    cAuthAttr: DWord;
+    rgAuthAttr: PCRYPT_ATTRIBUTE;
+    cUnauthAttr: DWord;
+    rgUnauthAttr: PCRYPT_ATTRIBUTE;
+    dwFlags: DWord;
+    dwInnerContentType: DWord;
+    HashEncryptionAlgorithm: CRYPT_ALGORITHM_IDENTIFIER;
+    pvHashEncryptionAuxInfo: pointer;
+  end;
+
+  PFN_CRYPT_GET_SIGNER_CERTIFICATE = function(pvGetArg: pointer;
+    dwCertEncodingType: DWord; pSignerId: PCERT_INFO;
+    hMsgCertStore: HCERTSTORE): PCCERT_CONTEXT; stdcall;
+  CRYPT_VERIFY_MESSAGE_PARA = record
+    cbSize: DWord;
+    dwMsgAndCertEncodingType: DWord;
+    hCryptProv: HCRYPTPROV;
+    pfnGetSignerCertificate: PFN_CRYPT_GET_SIGNER_CERTIFICATE;
+    pvGetArg: pointer;
+  end;
+
+  PUNICODE_STRING = ^UNICODE_STRING;
+  UNICODE_STRING = packed record
+    Length: word;
+    MaximumLength: word;
+    {$ifdef CPUX64}
+    _align: array[0..3] of byte;
+    {$endif CPUX64}
+    Buffer: PWideChar;
+  end;
+{$A+}
+
+  /// direct access to the Windows CryptoApi - use the global CryptoAPI variable
+  {$ifdef USERECORDWITHMETHODS}
+  TWinCryptoApi = record
+  {$else}
+  TWinCryptoApi = object
+  {$endif USERECORDWITHMETHODS}
+  private
+    /// if the presence of this API has been tested
+    Tested: boolean;
+    /// if this API has been loaded
+    Handle: THandle;
+    /// used when inlining Available method
+    procedure Resolve;
+  public
+    /// acquire a handle to a particular key container within a
+    // particular cryptographic service provider (CSP)
+    AcquireContextA: function(var phProv: HCRYPTPROV; pszContainer: PAnsiChar;
+      pszProvider: PAnsiChar; dwProvType: DWord; dwFlags: DWord): BOOL; stdcall;
+    /// releases the handle of a cryptographic service provider (CSP) and a
+    // key container
+    ReleaseContext: function(hProv: HCRYPTPROV; dwFlags: PtrUInt): BOOL; stdcall;
+    /// transfers a cryptographic key from a key BLOB into a cryptographic
+    // service provider (CSP)
+    ImportKey: function(hProv: HCRYPTPROV; pbData: pointer; dwDataLen: DWord;
+      hPubKey: HCRYPTKEY; dwFlags: DWord; var phKey: HCRYPTKEY): BOOL; stdcall;
+    /// customizes various aspects of a session key's operations
+    SetKeyParam: function(hKey: HCRYPTKEY; dwParam: DWord; pbData: pointer;
+      dwFlags: DWord): BOOL; stdcall;
+    /// releases the handle referenced by the hKey parameter
+    DestroyKey: function(hKey: HCRYPTKEY): BOOL; stdcall;
+    /// encrypt the data designated by the key held by the CSP module
+    // referenced by the hKey parameter
+    Encrypt: function(hKey: HCRYPTKEY; hHash: HCRYPTHASH; Final: BOOL;
+      dwFlags: DWord; pbData: pointer; var pdwDataLen: DWord; dwBufLen: DWord): BOOL; stdcall;
+    /// decrypts data previously encrypted by using the CryptEncrypt function
+    Decrypt: function(hKey: HCRYPTKEY; hHash: HCRYPTHASH; Final: BOOL;
+      dwFlags: DWord; pbData: pointer; var pdwDataLen: DWord): BOOL; stdcall;
+    /// fills a buffer with cryptographically random bytes
+    // - since Windows Vista with Service Pack 1 (SP1), an AES counter-mode
+    // based PRNG specified in NIST Special Publication 800-90 is used
+    GenRandom: function(hProv: HCRYPTPROV; dwLen: DWord; pbBuffer: pointer): BOOL; stdcall;
+    /// converts a security descriptor to a string format
+    ConvertSecurityDescriptorToStringSecurityDescriptorA: function(
+      SecurityDescriptor: PSECURITY_DESCRIPTOR; RequestedStringSDRevision: DWord;
+      SecurityInformation: DWord; var StringSecurityDescriptor: PAnsiChar;
+      StringSecurityDescriptorLen: LPDWORD): BOOL; stdcall;
+
+    /// try to load the CryptoApi on this system
+    function Available: boolean;
+      {$ifdef HASINLINE}inline;{$endif}
+    /// wrapper around ConvertSecurityDescriptorToStringSecurityDescriptorA()
+    // - see also SecurityDescriptorToText() function in mormot.core.os.security
+    function SecurityDescriptorToText(sd: pointer; out text: RawUtf8): boolean;
+  end;
+
+const
+  PROV_RSA_FULL                   = 1;
+  PROV_RSA_AES                    = 24;
+  CRYPT_NEWKEYSET                 = 8;
+  CRYPT_VERIFYCONTEXT             = DWord($F0000000);
+  CRYPT_STRING_BASE64HEADER       = 0; // = PEM textual format
+  CRYPTPROTECT_UI_FORBIDDEN       = 1;
+  PLAINTEXTKEYBLOB                = 8;
+  CUR_BLOB_VERSION                = 2;
+  KP_IV                           = 1;
+  KP_MODE                         = 4;
+  CALG_AES_128                    = $660E;
+  CALG_AES_192                    = $660F;
+  CALG_AES_256                    = $6610;
+  CRYPT_MODE_CBC                  = 1;
+  CRYPT_MODE_ECB                  = 2;
+  CRYPT_MODE_OFB                  = 3;
+  CRYPT_MODE_CFB                  = 4;
+  CRYPT_MODE_CTS                  = 5;
+  HCRYPTPROV_NOTTESTED            = HCRYPTPROV(-1);
+  NTE_BAD_KEYSET                  = HRESULT($80090016);
+  BCRYPT_USE_SYSTEM_PREFERRED_RNG = $00000002;
+
+var
+  /// direct access to the Windows CryptoApi - with late binding
+  CryptoApi: TWinCryptoApi;
+
+const
+  crypt32 = 'crypt32.dll';
+
+function CertOpenSystemStoreW(hProv: HCRYPTPROV;
+  szSubsystemProtocol: PWideChar): HCERTSTORE ;
+    stdcall; external crypt32;
+
+function CertEnumCertificatesInStore(hCertStore: HCERTSTORE;
+  pPrevCertContext: PCCERT_CONTEXT): PCCERT_CONTEXT;
+    stdcall; external crypt32;
+
+function CryptBinaryToStringA(pBinary: PByte; cbBinary, dwFlags: DWord;
+  pszString: PAnsiChar; var pchString: DWord): BOOL;
+    stdcall; external crypt32;
+
+function CertCloseStore(hCertStore: HCERTSTORE; dwFlags: DWord): BOOL;
+    stdcall; external crypt32;
+
+type
+  /// TSynWindowsPrivileges enumeration synchronized with WinAPI
+  // - see https://docs.microsoft.com/en-us/windows/desktop/secauthz/privilege-constants
+  TWinSystemPrivilege = (
+    wspCreateToken,
+    wspAssignPrimaryToken,
+    wspLockMemory,
+    wspIncreaseQuota,
+    wspUnsolicitedInput,
+    wspMachineAccount,
+    wspTCB,
+    wspSecurity,
+    wspTakeOwnership,
+    wspLoadDriver,
+    wspSystemProfile,
+    wspSystemTime,
+    wspProfSingleProcess,
+    wspIncBasePriority,
+    wspCreatePageFile,
+    wspCreatePermanent,
+    wspBackup,
+    wspRestore,
+    wspShutdown,
+    wspDebug,
+    wspAudit,
+    wspSystemEnvironment,
+    wspChangeNotify,
+    wspRemoteShutdown,
+    wspUndock,
+    wspSyncAgent,
+    wspEnableDelegation,
+    wspManageVolume,
+    wspImpersonate,
+    wspCreateGlobal,
+    wspTrustedCredmanAccess,
+    wspRelabel,
+    wspIncWorkingSet,
+    wspTimeZone,
+    wspCreateSymbolicLink);
+
+  /// TSynWindowsPrivileges set synchronized with WinAPI
+  TWinSystemPrivileges = set of TWinSystemPrivilege;
+
+  /// define which WinAPI token is to be retrieved
+  // - define the execution context, i.e. if the token is used for the current
+  // process or the current thread
+  // - used e.g. by TSynWindowsPrivileges or mormot.core.os.security
+  TWinTokenType = (
+    wttProcess,
+    wttThread);
+
+  /// manage available privileges on Windows platform
+  // - not all available privileges are active for all process
+  // - for usage of more advanced WinAPI, explicit enabling of privilege is
+  // sometimes needed
+  {$ifdef USERECORDWITHMETHODS}
+  TSynWindowsPrivileges = record
+  {$else}
+  TSynWindowsPrivileges = object
+  {$endif USERECORDWITHMETHODS}
+  private
+    fAvailable: TWinSystemPrivileges;
+    fEnabled: TWinSystemPrivileges;
+    fDefEnabled: TWinSystemPrivileges;
+    fToken: THandle;
+    function SetPrivilege(wsp: TWinSystemPrivilege; on: boolean): boolean;
+    procedure LoadPrivileges;
+  public
+    /// initialize the object dedicated to management of available privileges
+    // - aTokenPrivilege can be used for current process or current thread
+    procedure Init(aTokenPrivilege: TWinTokenType = wttProcess;
+      aLoadPrivileges: boolean = true);
+    /// finalize the object and relese Token handle
+    // - aRestoreInitiallyEnabled parameter can be used to restore initially
+    // state of enabled privileges
+    procedure Done(aRestoreInitiallyEnabled: boolean = true);
+    /// enable privilege
+    // - if aPrivilege is already enabled return true, if operation is not
+    // possible (required privilege doesn't exist or API error) return false
+    function Enable(aPrivilege: TWinSystemPrivilege): boolean; overload;
+    /// enable one or several privilege(s) from a set
+    // - if aPrivilege is already enabled return true, if operation is not
+    // possible (required privilege doesn't exist or API error) return false
+    function Enable(aPrivilege: TWinSystemPrivileges): boolean; overload;
+    /// disable privilege
+    // - if aPrivilege is already disabled return true, if operation is not
+    // possible (required privilege doesn't exist or API error) return false
+    function Disable(aPrivilege: TWinSystemPrivilege): boolean;
+    /// set of available privileges for current process/thread
+    property Available: TWinSystemPrivileges
+      read fAvailable;
+    /// set of enabled privileges for current process/thread
+    property Enabled: TWinSystemPrivileges
+      read fEnabled;
+    /// low-level access to the privileges token handle
+    property Token: THandle
+      read fToken;
+  end;
+
+  /// which information was returned by GetProcessInfo() overloaded functions
+  // - wpaiPID is set when PID was retrieved
+  // - wpaiBasic with ParentPID/BasePriority/ExitStatus/PEBBaseAddress/AffinityMask
+  // - wpaiPEB with SessionID/BeingDebugged
+  // - wpaiCommandLine and wpaiImagePath when CommandLine and ImagePath are set
+  TWinProcessAvailableInfos = set of (
+    wpaiPID,
+    wpaiBasic,
+    wpaiPEB,
+    wpaiCommandLine,
+    wpaiImagePath);
+
+  /// information returned by GetProcessInfo() overloaded functions
+  TWinProcessInfo = record
+    /// which information was returned within this structure
+    AvailableInfo: TWinProcessAvailableInfos;
+    /// the Process ID
+    PID: cardinal;
+    /// the Parent Process ID
+    ParentPID: cardinal;
+    /// Terminal Services session identifier associated with this process
+    SessionID: cardinal;
+    /// points to the low-level internal PEB structure
+    // - you can not directly access this memory, unless ReadProcessMemory()
+    // with proper wspDebug priviledge API is called
+    PEBBaseAddress: pointer;
+    /// GetProcessAffinityMask-like value
+    AffinityMask: cardinal;
+    /// process priority
+    BasePriority: integer;
+    /// GetExitCodeProcess-like value
+    ExitStatus: integer;
+    /// indicates whether the specified process is currently being debugged
+    BeingDebugged: byte;
+    /// command-line string passed to the process
+    CommandLine: SynUnicode;
+    /// path of the image file for the process
+    ImagePath: SynUnicode;
+  end;
+
+  PWinProcessInfo = ^TWinProcessInfo;
+  TWinProcessInfoDynArray = array of TWinProcessInfo;
+
+
+function ToText(p: TWinSystemPrivilege): PShortString; overload;
+
+/// calls OpenProcessToken() or OpenThreadToken() to get the current token
+// - caller should then run CloseHandle() once done with the Token handle
+function RawTokenOpen(wtt: TWinTokenType; access: cardinal): THandle;
+
+/// low-level retrieveal of raw binary information for a given token
+// - returns the number of bytes retrieved into buf.buf
+// - caller should then run buf.Done to release the buf result memory
+function RawTokenGetInfo(tok: THandle; tic: TTokenInformationClass;
+  var buf: TSynTempBuffer): cardinal;
+
+/// retrieve low-level process information, from the Windows API
+// - will set the needed wspDebug / SE_DEBUG_NAME priviledge during the call
+procedure GetProcessInfo(aPid: cardinal; out aInfo: TWinProcessInfo); overload;
+
+/// retrieve low-level process(es) information, from the Windows API
+// - will set the needed wspDebug / SE_DEBUG_NAME priviledge during the call
+procedure GetProcessInfo(const aPidList: TCardinalDynArray;
+  out aInfo: TWinProcessInfoDynArray); overload;
+
+/// set the current system time as UTC timestamp
+// - we define two functions with diverse signature to circumvent the FPC RTL
+// TSystemTime field order inconsistency - POSIX version is in mormot.core.os
+// - warning: do not call this function directly, but rather mormot.core.datetime
+// TSynSystemTime.ChangeOperatingSystemTime cross-platform method instead
+function SetSystemTime(const utctime: TSystemTime): boolean;
+
+
+{ netapi32.dll API calls - see also mormot.lib.sspi.pas }
+
+const
+  netapi32 = 'netapi32.dll';
+
+  NERR_Success = 0;
+
+type
+  TNetApiStatus = cardinal;
+
+  /// define the join status of a computer for WinJoinStatus()
+  TJoinStatus = (
+    jsUnknown,
+    jsUnjoined,
+    jsWorkgroup,
+    jsDomain);
+
+// published since used by mormot.lib.sspi
+function NetApiBufferFree(Buffer: pointer): TNetApiStatus;
+    stdcall; external netapi32;
+
+/// return join status of a given computer, local if server is default ''
+// - could return the associated joined workgroup or domain name
+// - the value is cached for the current computer (server = '')
+function WinJoinStatus(const server: RawUtf8 = ''; name: PRawUtf8 = nil): TJoinStatus;
+
+
+{ some Windows API redefined here for Delphi and FPC consistency }
+
+type
+  TTimeZoneName = array[0..31] of WideChar;
+  TTimeZoneInformation = record
+    Bias: integer;
+    StandardName: TTimeZoneName;
+    StandardDate: TSystemTime;
+    StandardBias: integer;
+    DaylightName: TTimeZoneName;
+    DaylightDate: TSystemTime;
+    DaylightBias: integer;
+  end;
+
+  TDynamicTimeZoneInformation = record
+    TimeZone: TTimeZoneInformation; // XP information
+    TimeZoneKeyName: array[0..127] of WideChar;
+    DynamicDaylightTimeDisabled: boolean;
+  end;
+
+function GetTimeZoneInformation(var info: TTimeZoneInformation): DWord;
+  stdcall; external kernel32;
+
+/// allow to change the current system time zone on Windows
+// - don't use this low-level function but the high-level mormot.core.search
+// TSynTimeZone.ChangeOperatingSystemTimeZone method
+// - will set the needed wspSystemTime / SE_SYSTEMTIME_NAME priviledge
+// - will select the proper API before and after Vista, if needed
+// - raise EOSException on failure
+procedure SetSystemTimeZone(const info: TDynamicTimeZoneInformation);
+
+type
+  /// the SID types, as recognized by LookupSid() and LookupName()
   TSidType = (
     stUndefined,
     stTypeUser,
@@ -1902,6 +2816,8 @@ type
     stTypeComputer,
     stTypeLabel,
     stTypeLogonSession);
+  /// pointer to a SID type for LookupName() optional parameter
+  PSidType = ^TSidType;
 
 /// return the SID of a given token, nil if none found
 // - the returned PSid is located within buf temporary buffer
@@ -1985,6 +2901,72 @@ function LookupToken(tok: THandle; out name, domain: RawUtf8;
 /// retrieve the 'domain\name' combined value of a given Token
 function LookupToken(tok: THandle; const server: RawUtf8 = ''): RawUtf8; overload;
 
+/// retrieve the binary SID and type of a given account by name
+// - use fully qualified account names (for example, domain_name\user_name)
+function LookupName(const system, account: RawUtf8;
+  out domain: RawUtf8; out sid: TSid): TSidType; overload;
+
+/// retrieve the text SID of a given account by name
+// - use fully qualified account names (for example, domain_name\user_name)
+// instead of isolated names (for example, user_name); fully qualified names are
+// unambiguous and provide better performance when the lookup is performed. This
+// function also supports fully qualified DNS names (for example,
+// example.example.com\user_name) and user principal names (UPN) (for example,
+// someone@example.com)
+function LookupName(const system, account: RawUtf8;
+  domain: PRawUtf8 = nil; st: PSidType = nil): RawUtf8; overload;
+
+type
+  /// select a type of output for the WinComputerName() function
+  // - cnfNetbios may be truncated so return e.g. 'corporate-mail-'
+  // - cnfHostname is e.g. 'corporate-mail-server'
+  // - cnfDomain is e.g. 'microsoft.com'
+  // - cnfFqn is e.g. 'corporate-mail-server.microsoft.com'
+  // - cnfLocalNetbios, cnfLocalHostname, cnfLocalDomain and
+  // cnfLocalFqn return the local/physical node name on a cluster
+  TComputerNameFormat = (
+    cnfNetbios,
+    cnfHostname,
+    cnfDomain,
+    cnfFqn,
+    cnfLocalNetbios,
+    cnfLocalHostname,
+    cnfLocalDomain,
+    cnfLocalFqn);
+
+  /// extended type output for WinComputerName() and WinUserName() functions
+  // - enfFqdn is e.g. 'CN=Jeff Smith,OU=Users,DC=Engineering,DC=Microsoft,DC=Com'
+  // - enfSam is e.g. 'Engineering\JSmith'
+  // - enfDisplay is e.g. 'Jeff Smith'
+  // - enfGuid is e.g. '{4fa050f0-f561-11cf-bdd9-00aa003a77b6}'
+  // - enfUuid is e.g. '4fa050f0-f561-11cf-bdd9-00aa003a77b6'
+  // - enfCanonical is e.g. 'engineering.microsoft.com/software/someone'
+  // - enfUserPrincipal is e.g. 'someone@example.com'
+  // - enfServicePrincipal is e.g. 'www/www.microsoft.com@microsoft.com'
+  // - enfDnsDomain is e.g. 'engineering.microsoft.com/software\JSmith'
+  // - enfGivenname (only for WinUserName) is e.g. 'Jeff'
+  // - enfSurname (only for WinUserName) is e.g. 'Smith'
+  TExtendedNameFormat = (
+    enfFqdn,
+    enfSam,
+    enfDisplay,
+    enfGuid,
+    enfUuid,
+    enfCanonical,
+    enfUserPrincipal,
+    enfServicePrincipal,
+    enfDnsDomain,
+    enfGivenname,
+    enfSurname);
+
+/// retrieves a NetBIOS or DNS name associated with the local computer
+function WinComputerName(fmt: TComputerNameFormat = cnfFqn): RawUtf8; overload;
+
+/// retrieves an extended name associated with the local computer
+function WinComputerName(fmt: TExtendedNameFormat): RawUtf8; overload;
+
+/// retrieves an extended name associated with the current user
+function WinUserName(fmt: TExtendedNameFormat): RawUtf8;
 
 type
   /// define the kind of resource access by GetFileSecurityDescriptor()
@@ -2038,6 +3020,7 @@ function SetSystemSecurityDescriptor(const fn: TFileName;
 
 {$endif OSWINDOWS}
 
+
 implementation
 
 
@@ -2067,6 +3050,11 @@ begin
     FastSetRawByteString(RawByteString(result), sid, SidLength(sid));
 end;
 
+procedure FillZero(var sid: TSid);
+begin
+  PInt64(@sid)^ := 0;
+end;
+
 procedure SidAppendShort(sid: PSid; var s: ShortString);
 var
   a: PSidAuth;
@@ -2090,7 +3078,7 @@ begin // faster than ConvertSidToStringSidA(), and cross-platform
   end;
   for i := 0 to PtrInt(sid^.SubAuthorityCount) - 1 do
   begin
-    AppendShortCharSafe('-', @s);
+    AppendShortCharSafe('-', s);
     AppendShortCardinal(sid^.SubAuthority[i], s);
   end;
 end;
@@ -2315,11 +3303,11 @@ var
   i: PtrInt;
 begin
   for i := 0 to length(OldSid) - 1 do
-    {$ifdef CPUX64}
+    {$ifdef ASMX64}
     if MemCmp(pointer(OldSid[i]), @Sid, SidLen) = 0 then // use SSE2 asm
     {$else}
-    if CompareMem(pointer(OldSid[i]), @Sid, SidLen) then
-    {$endif CPUX64}
+    if mormot.core.base.CompareMem(pointer(OldSid[i]), @Sid, SidLen) then
+    {$endif ASMX64}
     begin
       MoveFast(pointer(NewSid[i])^, Sid, SidLen); // in-place overwrite
       result := 1;
@@ -2332,7 +3320,7 @@ procedure SddlInitialize; forward;
 var
   SddlInitialized: boolean; // delayed initialization of those lookup constants
   KNOWN_SID: array[TWellKnownSid] of RawSid;
-  KNOWN_SID_TEXT: array[TWellKnownSid] of string[23];
+  KNOWN_SID_TEXT: array[TWellKnownSid] of TShort23;
 
 const
   INTEGRITY_SID:
@@ -2676,7 +3664,7 @@ begin
   result := 0;
   if acl = nil then
     exit;
-  hdr := pointer(p);
+  hdr := pointer(p); // can be called with p=nil just to compute the length
   result := SizeOf(hdr^);
   if hdr <> nil then // need to write ACL header
     inc(p, result);
@@ -2764,7 +3752,7 @@ begin
   if a = kaNull then
     AppendShortUuid(u, s) // append as regular UUID hexadecimal text
   else
-    AppendShortAnsi7String(ATTR_TXT[a], s); // append the ldapDisplayName
+    AppendShortAnsi7String(ATTR_TXT[a], s); // append the Ldap-Display-Name
 end;
 
 procedure ObjectUuidToText({$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif}
@@ -3073,7 +4061,7 @@ begin
   p := s;
 end;
 
-function SddlNextTwo(var p: PUtf8Char; out u: ShortString): boolean;
+function SddlNextTwo(var p: PUtf8Char; u: PAnsiChar): boolean;
 var
   s: PUtf8Char;
 begin
@@ -3120,7 +4108,7 @@ var
   a: TSecAccess;
   m: integer absolute mask;
   one: integer;
-  u: string[2];
+  u: TShort3;
 begin
   result := false;
   m := 0;
@@ -3135,7 +4123,7 @@ begin
         break // we got the mask as a 32-bit hexadecimal value
       else
         exit;
-    if not SddlNextTwo(p, u) then
+    if not SddlNextTwo(p, @u) then
       exit;
     one := 0;
     for r := low(r) to high(r) do
@@ -3172,8 +4160,8 @@ begin
     AppendShortTwoChars(@SAR_SDDL[TSecAccessRight(i)][1], @s)
   else if mask - samWithSddl <> [] then
   begin
-    AppendShortTwoChars('0x', @s);        // we don't have all needed tokens
-    AppendShortIntHex(cardinal(mask), s); // store as @x##### hexadecimal
+    AppendShortTwoChars(ord('0') + ord('x') shl 8, @s);  // missing token
+    AppendShortIntHex(cardinal(mask), s); // stored as @x##### hexadecimal
   end
   else
     for a := low(a) to high(a) do
@@ -3325,7 +4313,7 @@ begin
     sctInt64:
       if v^.Int.Base <> scbDecimal then // scbOctal does fallback to hexa
       begin
-        AppendShortTwoChars('0x', @s);
+        AppendShortTwoChars(ord('0') + ord('x') shl 8, @s);
         AppendShortIntHex(v^.Int.Value, s);
       end
       else if v^.Int.Sign = scsNegative then
@@ -3334,13 +4322,13 @@ begin
         AppendShortQWord(v^.Int.Value, s);
     sctUnicode:
       begin
-        AppendShortCharSafe('"', @s);
+        AppendShortCharSafe('"', s);
         Unicode_WideToShort(@v^.Unicode, v^.UnicodeBytes shr 1, CP_UTF8, utf8);
         if ord(s[0]) + ord(utf8[0]) > 250 then
           result := false // we don't like to be truncated
         else
           AppendShort(utf8, s);
-        AppendShortCharSafe('"', @s);
+        AppendShortCharSafe('"', s);
       end;
     sctLocalAttribute,
     sctUserAttribute,
@@ -3358,14 +4346,11 @@ begin
             AppendShortByteHex(ord(utf8[i]), s);
           end
           else
-          begin
-            inc(s[0]);
-            s[ord(s[0])] := utf8[i];
-          end;
+            AppendShortChar(utf8[i], @s);
       end;
     sctOctetString:
       begin
-        AppendShortCharSafe('#', @s);
+        AppendShortCharSafe('#', s);
         if ord(s[0]) + v^.OctetBytes shl 1 > 250 then
           result := false // we don't like to be truncated
         else
@@ -3385,9 +4370,9 @@ begin
             singleComposite := false
           else
             // e.g. '(@User.Project Any_of 1)'
-            AppendShortCharSafe(' ', @s);
+            AppendShortCharSafe(' ', s);
         if not singleComposite then
-          AppendShortCharSafe('{', @s);
+          AppendShortCharSafe('{', s);
         repeat
           clen := AceTokenLength(c);
           if clen > comp then
@@ -3399,10 +4384,10 @@ begin
           if comp = 0 then
             break;
           inc(PByte(c), clen);
-          AppendShortCharSafe(',', @s);
+          AppendShortCharSafe(',', s);
         until false;
         if not singleComposite then
-          AppendShortCharSafe('}', @s);
+          AppendShortCharSafe('}', s);
         result := true;
       end;
     sctSid:
@@ -3410,7 +4395,7 @@ begin
       begin
         AppendShort('SID(', s);
         SddlAppendSid(s, @v^.Sid, dom);
-        AppendShortCharSafe(')', @s);
+        AppendShortCharSafe(')', s);
       end
       else
         exit; // should not be void
@@ -3723,42 +4708,42 @@ procedure TSecAce.AppendAsText(var s: ShortString; var sddl: TSynTempAdder;
 var
   f: TSecAceFlag;
 begin
-  AppendShortCharSafe('(', @s);
+  AppendShortCharSafe('(', s);
   if SAT_SDDL[AceType][0] <> #0 then
     AppendShort(SAT_SDDL[AceType], s)
   else
   begin
-    AppendShortTwoChars('0x', @s);
+    AppendShortTwoChars(ord('0') + ord('x') shl 8, @s);
     AppendShortIntHex(RawType, s); // fallback to lower hex - paranoid
   end;
-  AppendShortCharSafe(';', @s);
+  AppendShortCharSafe(';', s);
   if Flags <> [] then
     for f := low(f) to high(f) do
       if f in Flags then
         AppendShort(SAF_SDDL[f], s);
-  AppendShortCharSafe(';', @s);
+  AppendShortCharSafe(';', s);
   SddlAppendMask(s, Mask);
   if AceType in satObject then
   begin
-    AppendShortCharSafe(';', @s);
+    AppendShortCharSafe(';', s);
     if not IsNullGuid(ObjectType) then
       uuid(ObjectType, s); // RTL or mormot.core.text
-    AppendShortCharSafe(';', @s);
+    AppendShortCharSafe(';', s);
     if not IsNullGuid(InheritedObjectType) then
       uuid(InheritedObjectType, s);
-    AppendShortCharSafe(';', @s);
+    AppendShortCharSafe(';', s);
   end
   else
     AppendShort(';;;', s);
   SddlAppendSid(s, pointer(Sid), dom);
   if Opaque <> '' then
   begin
-    AppendShortCharSafe(';', @s);
+    AppendShortCharSafe(';', s);
     sddl.AddShort(s);
     s[0] := #0;
     SddlAppendOpaque(sddl, self, dom); // direct expression write in sddl
   end;
-  AppendShortCharSafe(')', @s);
+  AppendShortCharSafe(')', s);
   sddl.AddShort(s);
   s[0] := #0;
 end;
@@ -3801,7 +4786,7 @@ begin
   result := atpInvalidFlags;
   while p^ <> ';' do
   begin
-    if not SddlNextTwo(p, u) then
+    if not SddlNextTwo(p, @u) then
       exit;
     for f := low(f) to high(f) do
       if SAF_SDDL[f] = u then
@@ -3843,7 +4828,7 @@ var
   f: cardinal;
   pf: PCardinal;
 begin
-  hdr := pointer(dest);
+  hdr := pointer(dest); // can be called with dest=nil to compute the length
   inc(dest, 8); // ACE header + Mask
   if AceType in satObject then
   begin
@@ -4070,7 +5055,7 @@ begin
   StorageSize := length(Input);
   Count := 0;
   if (Storage = nil) or
-     (StorageSize and 3 <> 0) or // should be DWORD-aligned
+     (StorageSize and 3 <> 0) or // should be DWord-aligned
      (StorageSize >= MAX_TREE_BYTES) or
      (PCardinal(Storage)^ <> ACE_CONDITION_SIGNATURE) then
     exit;
@@ -4674,7 +5659,7 @@ var
 begin
   p := FastNewRawByteString(RawByteString(result),
     SizeOf(hdr^) + length(Owner) + length(Group) +
-    SecAclToBin(nil, Sacl) + SecAclToBin(nil, Dacl));
+    SecAclToBin(nil, Sacl) + SecAclToBin(nil, Dacl)); // nil to compute length
   hdr := pointer(p);
   FillCharFast(hdr^, SizeOf(hdr^), 0);
   hdr^.Revision := 1;
@@ -4706,11 +5691,12 @@ begin
     inc(p, length(Group));
   end;
   if p - pointer(result) <> length(result) then
-    raise EOSSecurity.Create('TSecurityDescriptor.ToBinary'); // paranoid
+    raise EOSSecurity.Create('TSecurityDescriptor.ToBinary') // paranoid
+    {$ifdef FPC} at get_caller_addr(get_frame), get_caller_frame(get_frame) {$endif}
 end;
 
 const
-  SCOPE_SDDL: array[TSecAceScope] of string[3] = (
+  SCOPE_SDDL: array[TSecAceScope] of TShort3 = (
     'D:', 'S:');
   SCOPE_P: array[TSecAceScope] of TSecControl = (
     scDaclProtected, scSaclProtected);
@@ -4946,7 +5932,7 @@ begin
   n := length(dest^);
   if index >= n then
     exit;
-  Finalize(dest^[index]);
+  Finalize(dest^[index]); // avoid GPF
   dec(n);
   if n = 0 then
   begin
@@ -5039,14 +6025,1793 @@ begin
 end;
 
 
+{ ****************** Kerberos KeyTab File Support }
+
+function CompareEntry(const A, B: TKerberosKeyEntry): boolean;
+begin
+  result := (A.Timestamp  = B.Timestamp) and
+            (A.KeyVersion = B.KeyVersion) and
+            (A.EncType    = B.EncType) and
+            (A.NameType   = B.NameType) and
+            (SortDynArrayRawByteString(A.Principal, B.Principal) = 0) and
+            (SortDynArrayRawByteString(A.Key, B.Key) = 0);
+end;
+
+function BufferIsKeyTab(const aKeytab: RawByteString): boolean;
+begin
+  result := TKerberosKeyTab(nil).LoadFromBinary(aKeyTab); // fast with self=nil
+end;
+
+function FileIsKeyTab(const aKeytab: TFileName): boolean;
+begin
+  result := TKerberosKeyTab(nil).LoadFromFile(aKeyTab); // fast with self=nil
+end;
+
+function FileIsKeyTabMachineAccountPrincipal(const aKeytab: TFileName;
+  aFallbackToFirst: boolean): RawUtf8;
+var
+  kt: TKerberosKeyTab;
+begin
+  result := '';
+  kt := TKerberosKeyTab.Create;
+  try
+    if kt.LoadFromFile(aKeyTab) then
+      result := kt.MachineAccountPrincipal(aFallbackToFirst);
+  finally
+    kt.Free;
+  end;
+end;
+
+function FileIsKeyTabEntries(const aKeytab: TFileName): TKerberosKeyEntries;
+var
+  kt: TKerberosKeyTab;
+begin
+  result := nil;
+  kt := TKerberosKeyTab.Create;
+  try
+    if kt.LoadFromFile(aKeyTab) then
+      result := kt.fEntry;
+  finally
+    kt.Free;
+  end;
+end;
+
+
+{ TKerberosKeyTab }
+
+procedure TKerberosKeyTab.Clear;
+var
+  i: PtrInt;
+begin
+  if self = nil then
+    exit;
+  for i := 0 to length(fEntry) - 1 do
+    FillZero(fEntry[i].Key); // anti-forensic
+  fEntry := nil;
+end;
+
+// see https://vfssoft.com/en/blog/mit_kerberos_keytab_file_format and
+// https://web.mit.edu/kerberos/krb5-latest/doc/formats/keytab_file_format.html
+
+function TKerberosKeyTab.LoadFromBuffer(P, PEnd: PAnsiChar): boolean;
+var
+  bigendian: boolean;
+
+  function Read8(var v: integer): boolean;
+  begin
+    v := PByte(P)^;
+    inc(P);
+    result := PtrUInt(P) <= PtrUInt(PEnd);
+  end;
+
+  function Read16(var v: integer): boolean;
+  begin
+    v := PWord(P)^;
+    if bigendian then
+      v := bswap16(v);
+    inc(P, 2);
+    result := PtrUInt(P) <= PtrUInt(PEnd);
+  end;
+
+  function Read32(var v: integer): boolean;
+  begin
+    v := PCardinal(P)^; // may read up to 4 bytes after end - fine with strings
+    if bigendian then
+      v := bswap32(v);
+    inc(P, 4);
+    result := PtrUInt(P) <= PtrUInt(PEnd);
+  end;
+
+  function ReadOctStr(var v): boolean;
+  var
+    len: integer;
+  begin
+    result := false;
+    if not Read16(len) or
+       (PtrUInt(P + len) > PtrUInt(PEnd)) then
+      exit;
+    if self <> nil then // no transient memory alloc from BufferIsKeyTab()
+      FastSetString(RawUtf8(v), P, len);
+    inc(P, len);
+    result := true;
+  end;
+
+var
+  n, v, siz, ncomp: integer;
+  pendbak: PAnsiChar;
+  realm, u: RawUtf8;
+  e: TKerberosKeyEntry;
+begin
+  // note: may be called with self = nil to implement BufferIsKeyTab()
+  Clear;
+  n := 0;
+  result := false;
+  if (P = nil) or
+     not Read8(v) or
+     (v <> 5) or
+     not Read8(v) or
+     not (v in [1, 2]) then
+    exit;
+  bigendian := v = 2;
+  repeat
+    if not Read32(siz) then // entry size
+      exit;
+    if siz = 0 then
+      break; // may happen to notify the end of file (but not from kutil)
+    if siz < 0 then // this entry has been deleted
+    begin
+      inc(P, -siz);
+      if PtrUInt(P) > PtrUInt(PEnd) then
+        exit;
+      continue;
+    end;
+    pendbak := PEnd;
+    PEnd := P + siz; // paranoid: avoid overflow above the entry size
+    if (PtrUInt(PEnd) > PtrUInt(pendbak)) or
+       not Read16(ncomp) then
+      exit;
+    if not bigendian then
+      inc(ncomp); // minus 1 if version 0x501
+    if (ncomp = 0) or
+       not ReadOctStr(realm) or
+       not ReadOctStr(e.Principal) then
+      exit;
+    repeat
+      dec(ncomp);
+      if ncomp = 0 then
+        break;
+      if not ReadOctStr(u) then
+        exit;
+      if self <> nil then
+        e.Principal := Join([e.Principal, '/', u]);
+    until false;
+    if self <> nil then
+      e.Principal := Join([e.Principal, '@', realm]);
+    e.NameType := 0;
+    if bigendian then
+      if not Read32(e.NameType) then // not present if version 0x501
+        exit;
+    if not Read32(v) or // e.Timestamp is 64-bit -> use temp 32-bit v
+       not Read8(e.KeyVersion) or
+       not Read16(e.EncType) or
+       not ReadOctStr(e.Key) then
+      exit;
+    e.Timestamp := PCardinal(@v)^; // cardinal is Year-2038-ready (up to 2106)
+    if (PtrUInt(P + 4) <= PtrUInt(PEnd)) and
+       (PCardinal(P)^ <> 0) then
+      if not Read32(e.KeyVersion) then // optional 32-bit key version
+        exit;
+    P := PEnd;
+    PEnd := pendbak;
+    if (self <> nil) and        // not from BufferIsKeyTab()
+       (e.Principal <> '') then // we expect non void principals
+    begin
+      if n = length(fEntry) then
+        SetLength(fEntry, NextGrow(n));
+      fEntry[n] := e;
+      inc(n);
+      Finalize(e);
+    end;
+  until P = PEnd;
+  if self <> nil then // not from BufferIsKeyTab()
+    DynArrayFakeLength(fEntry, n);
+  result := true;
+end;
+
+function TKerberosKeyTab.LoadFromBinary(const Binary: RawByteString): boolean;
+var
+  p: PAnsiChar;
+begin
+  Clear;
+  p := pointer(Binary);
+  result := (p <> nil) and
+            LoadFromBuffer(p, p + PStrLen(p - _STRLEN)^);
+end;
+
+function TKerberosKeyTab.LoadFromFile(const aFile: TFileName): boolean;
+var
+  bin: RawByteString;
+begin
+  if self <> nil then // may be called with self = nil from FileIsKeyTab()
+    fFileName := aFile;
+  bin := StringFromFile(aFile);
+  result := LoadFromBinary(bin);
+  FillZero(bin); // anti-forensic
+end;
+
+function TKerberosKeyTab.Exists(const aEntry: TKerberosKeyEntry): boolean;
+var
+  e: ^TKerberosKeyEntry;
+  n: integer;
+begin
+  result := false;
+  e := pointer(fEntry);
+  if (e = nil) or
+     (aEntry.Principal = '') or
+     (aEntry.Key = '') then
+    exit;
+  n := PDALen(PAnsiChar(e) - _DALEN)^ + _DAOFF;
+  repeat
+    result := CompareEntry(aEntry, e^);
+    if result then
+      exit;
+    inc(e);
+    dec(n);
+  until n = 0;
+end;
+
+function TKerberosKeyTab.Add(const aEntry: TKerberosKeyEntry): boolean;
+var
+  n: PtrInt;
+begin
+  result := false;
+  if (aEntry.Principal = '') or
+     (aEntry.Key = '') or
+     (aEntry.EncType = 0) or
+     Exists(aEntry) then
+    exit;
+  n := length(fEntry);
+  SetLength(fEntry, n + 1);
+  fEntry[n] := aEntry;
+  result := true;
+end;
+
+function TKerberosKeyTab.AddFrom(Another: TKerberosKeyTab;
+  const Principals: array of RawUtf8): integer;
+var
+  e: ^TKerberosKeyEntry;
+  n: integer;
+begin
+  result := 0;
+  if Another = nil then
+    exit;
+  e := pointer(Another.fEntry);
+  if e = nil then
+    exit;
+  n := PDALen(PAnsiChar(e) - _DALEN)^ + _DAOFF;
+  repeat
+    if (high(Principals) < 0) or
+       (FindPropName(Principals, e^.Principal) >= 0) then
+      if Add(e^) then
+        inc(result);
+    inc(e);
+    dec(n);
+  until n = 0;
+end;
+
+function TKerberosKeyTab.AddFromFile(const aFile: TFileName;
+  const Principals: array of RawUtf8): integer;
+var
+  another: TKerberosKeyTab;
+begin
+  another := TKerberosKeyTab.Create;
+  try
+    if another.LoadFromFile(aFile) then
+      result := AddFrom(another, Principals)
+    else
+      result := 0;
+  finally
+    another.Free;
+  end;
+end;
+
+function TKerberosKeyTab.Delete(aIndex: PtrUInt): boolean;
+var
+  n: PtrUInt;
+begin
+  result := false;
+  n := length(fEntry);
+  if aIndex >= n then // index out of range
+    exit;
+  result := true;
+  FillZero(fEntry[aIndex].Key); // anti-forensic
+  Finalize(fEntry[aIndex]);     // avoid GPF
+  dec(n);
+  if n = 0 then
+    Clear
+  else
+    DynArrayFakeDelete(fEntry, aIndex, n, SizeOf(fEntry[n]));
+end;
+
+function TKerberosKeyTab.MachineAccountPrincipal(FallbackToFirst: boolean): RawUtf8;
+var
+  n: integer;
+  e: ^TKerberosKeyEntry;
+begin
+  result := '';
+  if self = nil then
+    exit;
+  e := pointer(fEntry);
+  if e = nil then
+    exit;
+  n := PDALen(PAnsiChar(e) - _DALEN)^ + _DAOFF;
+  repeat
+    if PosEx('$@', e^.Principal) <> 0 then
+    begin
+      result := e^.Principal;
+      exit;
+    end;
+    inc(e);
+    dec(n);
+  until n = 0;
+  if FallbackToFirst then
+    result := fEntry[0].Principal;
+end;
+
+function TKerberosKeyTab.SaveToBinary: RawByteString;
+var
+  e: ^TKerberosKeyEntry;
+  principal: PUtf8Char;
+  n, pos, start, stop, realm, compn: integer;
+  dest: TSynTempAdder;
+
+  procedure AddOctStr(start, stop: integer);
+  begin
+    dec(stop, start); // = length
+    dest.Add16BigEndian(stop);
+    dest.Add(principal + start, stop);
+  end;
+
+var
+  compstart, compstop: array[0 .. 31] of integer; // 31 seems big enough
+begin
+  result := '';
+  e := pointer(fEntry);
+  if e = nil then
+    exit; // kutil write_kt don't save anything for a void keytab
+  dest.Init;
+  try
+    dest.Add16BigEndian($0502); // only new big-endian format
+    n := PDALen(PAnsiChar(e) - _DALEN)^ + _DAOFF;
+    repeat
+      pos := dest.Size;
+      dest.Add32BigEndian(0); // entry size will be filled below
+      compn := 0;
+      realm := PosExChar('@', e^.Principal);
+      if realm = 0 then
+        exit;
+      principal := pointer(e^.Principal); // parse into comp1/comp2@realm
+      start := 0;
+      stop  := 0;
+      repeat
+        if principal[stop] in ['/', '@'] then
+        begin
+          if compn > high(compstart) then
+            exit;
+          compstart[compn] := start;
+          compstop[compn]  := stop;
+          inc(compn);
+          start := stop + 1;
+          if start = realm then
+            break;
+        end;
+        inc(stop);
+      until false;
+      dest.Add16BigEndian(compn);
+      AddOctStr(realm, length(e^.Principal));
+      for stop := 0 to compn - 1 do
+        AddOctStr(compstart[stop], compstop[stop]); // no memory allocation
+      dest.Add32BigEndian(e^.NameType);
+      dest.Add32BigEndian(e^.Timestamp);
+      dest.Add(@e^.KeyVersion, 1); // 8-bit
+      dest.Add16BigEndian(e^.EncType);
+      dest.Add16BigEndian(length(e^.Key));
+      dest.Add(e^.Key);
+      dest.Add32BigEndian(e^.KeyVersion); // easier to include it (as kutil)
+      PCardinal(PAnsiChar(dest.Buffer) + pos)^ := bswap32(dest.Size - pos - 4);
+      inc(e);
+      dec(n);
+    until n = 0;
+    FastSetRawByteString(result, dest.Buffer, dest.Size);
+  finally
+    FillCharFast(dest.Buffer^, dest.Size, 0); // anti-forensic
+    dest.Store.Done;
+    FillCharFast(dest, SizeOf(dest), 0); // dest.Buffer may have been on heap
+  end;
+end;
+
+procedure TKerberosKeyTab.SaveToFile(const aFile: TFileName);
+var
+  bin: RawByteString;
+begin
+  bin := SaveToBinary;
+  FileFromString(bin, aFile);
+  FillZero(bin); // anti-forensic
+end;
+
+
+{ **************** Basic ASN.1 Support }
+
+// the longest OID described in the OID repository has 171 chars and 34 arcs
+// the greatest number for an OID arc has 39 digits, but we limit to 32-bit
+// see https://oid-base.com/faq.htm#size-limitations
+
+procedure AsnEncOidItem(Value: PtrUInt; var Result: ShortString);
+var
+  tmp: THash128; // written in reverse order (big endian)
+  vl, rl: PtrInt;
+  r: PByte;
+begin
+  r := @tmp[14];
+  r^ := byte(Value) and $7f;
+  Value := Value shr 7;
+  while Value <> 0 do
+  begin
+    dec(r);
+    r^ := byte(Value) or $80;
+    Value := Value shr 7;
+  end;
+  rl := ord(Result[0]);
+  vl := PAnsiChar(@tmp[15]) - pointer(r);
+  inc(Result[0], vl);
+  MoveFast(r^, Result[rl + 1], vl);
+end;
+
+function AsnEncOid(OidText: PUtf8Char): TAsnObject;
+var
+  x, y: PtrUInt;
+  tmp: ShortString; // no temporary memory allocation
+begin
+  tmp[0] := #0;
+  if OidText <> nil then
+  begin
+    // first byte = two first numbers modulo 40
+    x := GetNextUInt32(OidText) * 40;
+    y := 0;
+    while OidText^ <> #0 do
+    begin
+      y := GetNextUInt32(OidText); // warning: y=0 is a valid value
+      inc(x, y);
+      AsnEncOidItem(x, tmp);
+      x := 0;
+    end;
+    if (y = 0) or   // y=0 is not a valid last item
+       (tmp[0] < #3) then
+      tmp[0] := #0; // clearly invalid input
+  end;
+  FastSetRawByteString(result, @tmp[1], ord(tmp[0]));
+end;
+
+function AsnEncLen(Len: cardinal; dest: PHash128): PtrInt;
+begin
+  if Len <= $7f then
+  begin
+    dest^[0] := Len; // most simple case
+    result := 1;
+    exit;
+  end;
+  result := 0;
+  repeat
+    dest^[high(dest^) - result] := byte(Len); // prepare big endian storage
+    inc(result);
+    Len := Len shr 8;
+  until Len = 0;
+  dest^[0] := byte(result) or $80; // first byte is following bytes count + $80
+  inc(PByte(dest));
+  MoveFast(dest^[high(dest^) - result], dest^[0], result);
+  inc(result);
+end;
+
+function AsnDecLen(var Start: integer; const Buffer: TAsnObject): cardinal;
+var
+  n: byte;
+begin
+  result := cardinal(Buffer[Start]);
+  inc(Start);
+  if result <= $7f then
+    exit;
+  n := result and $7f; // first byte is number of following bytes + $80
+  result := 0;
+  repeat
+    result := result shl 8;
+    inc(result, cardinal(Buffer[Start]));
+    if integer(result) < 0 then
+      exit; // 31-bit overflow: clearly invalid input
+    inc(Start);
+    dec(n);
+  until n = 0;
+end;
+
+function AsnEncInt(Value: Int64): TAsnObject;
+var
+  y: byte;
+  neg: boolean;
+  n: PtrInt;
+  p: PByte;
+  tmp: THash128;
+begin
+  result := '';
+  neg := Value < 0;
+  Value := Abs(Value);
+  if neg then
+    dec(Value);
+  n := 0;
+  repeat
+    y := byte(Value);
+    if neg then
+      y := not y;
+    tmp[n] := y;
+    inc(n);
+    Value := Value shr 8;
+  until Value = 0;
+  if neg then
+  begin
+    if y <= $7f then
+    begin
+      tmp[n] := $ff; // negative numbers start with ff or 8x
+      inc(n);
+    end;
+  end
+  else if y > $7F then
+  begin
+    tmp[n] := 0; // positive numbers start with a 0 or 0x..7x
+    inc(n);
+  end;
+  p := FastNewString(n);
+  pointer(result) := p;
+  repeat
+    dec(n);
+    p^ := tmp[n]; // stored as big endian
+    inc(p);
+  until n = 0;
+end;
+
+function AsnEncInt(Value: pointer; ValueLen: PtrUInt): TAsnObject;
+begin // same logic as DerAppend() but for any value size
+  while (ValueLen > 0) and
+        (PByte(Value)^ = 0) do
+  begin
+    inc(PByte(Value)); // ignore leading zeros
+    dec(ValueLen);
+  end;
+  FastSetRawByteString(result, Value, ValueLen);
+  if (result <> '') and
+     (PByte(result)^ and $80 <> 0) then
+    insert(#0, result, 1); // prevent storage as negative number (not)
+  result := Asn(ASN1_INT, [result]);
+end;
+
+function AsnDecInt(var Start: integer; const Buffer: TAsnObject;
+  AsnSize: integer): Int64;
+var
+  x: byte;
+  neg: boolean;
+begin
+  result := 0;
+  if (AsnSize <= 0) or
+     (Start - 1 + AsnSize > length(Buffer)) then
+    exit;
+  neg := ord(Buffer[Start]) > $7f;
+  while AsnSize > 0 do
+  begin
+    x := ord(Buffer[Start]);
+    if neg then
+      x := not x;
+    result := result shl 8;
+    inc(result, x);
+    inc(Start);
+    dec(AsnSize);
+  end;
+  if neg then
+    result := -(result + 1);
+end;
+
+function Asn(AsnType: integer; const Content: array of TAsnObject): TAsnObject;
+var
+  tmp: THash128;
+  i, len, al: PtrInt;
+  p: PByte;
+begin
+  len := ord(AsnType = ASN1_BITSTR);
+  for i := 0 to high(Content) do
+    inc(len, length(Content[i]));
+  al := AsnEncLen(len, @tmp);
+  p := FastNewRawByteString(result, al + len + 1);
+  p^ := AsnType;         // type
+  inc(p);
+  MoveFast(tmp, p^, al); // encoded length
+  inc(p, al);
+  if AsnType = ASN1_BITSTR then
+  begin
+    p^ := 0; // leading unused bit length
+    inc(p);
+  end;
+  for i := 0 to high(Content) do
+  begin
+    len := length(Content[i]);
+    MoveFast(pointer(Content[i])^, p^, len); // content
+    inc(p, len);
+  end;
+end;
+
+function AsnTyped(const Data: RawByteString; AsnType: integer): TAsnObject;
+var
+  tmp: THash128;
+  len, al: PtrInt;
+  p: PByte;
+begin
+  len := ord(AsnType = ASN1_BITSTR) + length(Data);
+  al := AsnEncLen(len, @tmp);
+  p := FastNewRawByteString(result, al + len + 1);
+  p^ := AsnType;         // type
+  inc(p);
+  MoveFast(tmp, p^, al); // encoded length
+  inc(p, al);
+  if AsnType = ASN1_BITSTR then
+  begin
+    p^ := 0; // leading unused bit length
+    inc(p);
+  end;
+  MoveFast(pointer(Data)^, p^, length(Data)); // content
+end;
+
+procedure AsnAdd(var Data: TAsnObject; const Buffer: TAsnObject);
+var
+  d, b: PtrInt;
+begin
+  if Buffer = '' then
+    exit;
+  d := length(Data);
+  b := length(Buffer);
+  SetLength(Data, d + b);
+  MoveFast(pointer(Buffer)^, PByteArray(Data)[d], b);
+end;
+
+function AsnArr(const Data: array of RawUtf8; AsnType: integer): TAsnObject;
+var
+  i: PtrInt;
+begin
+  result := '';
+  for i := 0 to high(Data) do
+    AsnAdd(result, AsnTyped(Data[i], AsnType));
+end;
+
+function Asn(Value: Int64; AsnType: integer): TAsnObject;
+begin
+  result := AsnTyped(AsnEncInt(Value), AsnType);
+end;
+
+function AsnBigInt(const BigInt: RawByteString; AsnType: integer): TAsnObject;
+var
+  i, l: PtrInt;
+  v: RawByteString;
+begin
+  l := length(BigInt);
+  i := 1;
+  while (i < l) and
+        (BigInt[i] = #0) do
+    inc(i); // trim leading zeros
+  if i = l then
+    v := ASN1_ZERO_VALUE
+  else
+  begin
+    v := copy(BigInt, i, l); // always make a new string for FillZero() below
+    if (v <> '') and
+       (ord(v[1]) and $80 <> 0) then
+      insert(#0, v, 1); // prepend 0 to ensure not parsed as negative number
+  end;
+  result := AsnTyped(v, AsnType);
+  FillZero(v); // anti-forensic
+end;
+
+function AsnSeq(const Data: TAsnObject): TAsnObject;
+begin
+  result := AsnTyped(Data, ASN1_SEQ);
+end;
+
+function AsnOctStr(const Data: TAsnObject): TAsnObject;
+begin
+  result := AsnTyped(Data, ASN1_OCTSTR);
+end;
+
+function AsnSeq(const Content: array of TAsnObject): TAsnObject;
+begin
+  result := Asn(ASN1_SEQ, Content);
+end;
+
+function AsnObjId(const Data: TAsnObject): TAsnObject;
+begin
+  result := AsnTyped(Data, ASN1_OBJID);
+end;
+
+function AsnSetOf(const Data: TAsnObject): TAsnObject;
+begin
+  result := AsnTyped(Data, ASN1_SETOF);
+end;
+
+function AsnBitStr(const Data: TAsnObject): TAsnObject;
+begin
+  result := AsnTyped(Data, ASN1_BITSTR);
+end;
+
+function AsnEnum(Data: PtrInt): TAsnObject;
+begin
+  result := Asn(Data, ASN1_ENUM);
+end;
+
+function AsnOid(OidText: PUtf8Char): TAsnObject;
+begin
+  result := AsnTyped(AsnEncOid(OidText), ASN1_OBJID);
+end;
+
+function AsnTypeText(p: PUtf8Char): integer;
+begin
+  // allow A..Z, a..z, 0..9, ' = ( ) + , - . / : ? but excluding @ & _
+  result := ASN1_PRINTSTRING;
+  if p = nil then
+    exit;
+  while true do
+    case p^ of
+      #0:
+        exit; // whole string was printable
+      'A'..'Z',
+      'a'..'z',
+      '0'..'9',
+      '''', '=', '(', ')', '+', ',', '-', '.', '/', ':', '?':
+        inc(p);
+    else
+      break;
+    end;
+  result := ASN1_UTF8STRING; // need UTF-8 encoding
+end;
+
+function AsnText(const Text: RawUtf8): TAsnObject;
+begin
+  result := AsnTyped(Text, AsnTypeText(pointer(Text)));
+end;
+
+function AsnSafeOct(const Content: array of TAsnObject): TAsnObject;
+var
+  i: PtrInt;
+  seq: RawByteString;
+begin
+  seq := AsnSeq(Content);
+  result := AsnOctStr(seq);
+  FillZero(seq);
+  for i := 0 to high(Content) do // wipe temporary "const" memory buffers
+    FillCharFast(pointer(Content[i])^, length(Content[i]), 0);
+end;
+
+procedure AsnAdd(var Data: TAsnObject; const Buffer: TAsnObject; AsnType: integer);
+begin
+  AsnAdd(Data, AsnTyped(Buffer, AsnType));
+end;
+
+function AsnDecOid(Pos, EndPos: PtrInt; const Buffer: TAsnObject): RawUtf8;
+var
+  b: byte;
+  x, y: cardinal;
+  tmp: ShortString; // the longest OID described in the repository has 171 chars
+begin
+  tmp[0] := #0;
+  y := 0;
+  while Pos < EndPos do
+  begin
+    x := 0;
+    repeat
+      x := x shl 7;
+      b := ord(Buffer[Pos]);
+      inc(Pos);
+      inc(x, cardinal(b) and $7F);
+    until (b and $80) = 0;
+    if y = 0 then
+    begin
+      y := x div 40; // first byte = two first numbers modulo 40
+      dec(x, y * 40);
+      AppendShortByte(y, @tmp); // in range '0'..'39'
+    end;
+    {%H-}AppendShortCharSafe('.', tmp);
+    AppendShortCardinal(x, tmp);
+  end;
+  FastSetString(result, @tmp[1], ord(tmp[0]));
+end;
+
+function AsnDecOctStr(const input: RawByteString): RawByteString;
+var
+  pos: integer;
+begin
+  pos := 1;
+  if AsnNextRaw(pos, input, result) <> ASN1_OCTSTR then
+    result := input;
+end;
+
+function AsnDecHeader(var Pos: integer; const Buffer: TAsnObject;
+  out AsnType, AsnSize: integer): boolean;
+var
+  vtype, len: integer;
+begin
+  result := false;
+  len := length(Buffer);
+  if Pos > len then
+    exit;
+  vtype := ord(Buffer[Pos]);
+  inc(Pos);
+  AsnSize := AsnDecLen(Pos, Buffer);
+  if (Pos + AsnSize - 1) > len then
+    exit; // avoid overflow
+  AsnType := vtype;
+  result := true;
+end;
+
+function AsnDecChunk(const der: RawByteString; exptyp: integer): boolean;
+var
+  pos, typ, siz: integer;
+begin
+  pos := 1;
+  result := (der <> '') and
+            AsnDecHeader(pos, der, typ, siz) and
+            (typ = exptyp) and
+            (pos + siz = length(der) + 1);
+end;
+
+function AsnNextInteger(var Pos: integer; const Buffer: TAsnObject;
+  out ValueType: integer): Int64;
+var
+  asnsize: integer;
+begin
+  if AsnDecHeader(Pos, Buffer, ValueType, asnsize) and
+     (ValueType in [ASN1_INT, ASN1_ENUM, ASN1_BOOL]) then
+    result := AsnDecInt(Pos, Buffer, asnsize)
+  else
+  begin
+    ValueType := ASN1_NULL;
+    result := -1;
+  end;
+end;
+
+function AsnNextInt32(var Pos: integer; const Buffer: TAsnObject;
+  out Value: integer): integer;
+begin
+  Value := AsnNextInteger(Pos, Buffer, result);
+end;
+
+function AsnNextRaw(var Pos: integer; const Buffer: TAsnObject;
+  out Value: RawByteString; IncludeHeader: boolean): integer;
+var
+  headpos, asnsize: integer;
+begin
+  result := ASN1_NULL;
+  headpos := Pos;
+  if AsnDecHeader(Pos, Buffer, result, asnsize) then
+  begin
+    if result = ASN1_BITSTR then
+    begin
+      inc(Pos); // ignore bit length
+      dec(asnsize);
+    end;
+    if IncludeHeader then
+      Value := copy(Buffer, headpos, asnsize + Pos - headpos)
+    else
+      Value := copy(Buffer, Pos, asnsize);
+    inc(Pos, asnsize);
+  end;
+end;
+
+function AsnNextBigInt(var Pos: integer; const Buffer: TAsnObject;
+  out Value: RawByteString): boolean;
+begin
+  result := AsnNextRaw(Pos, Buffer, Value) = ASN1_INT;
+  if result then
+    while (Value <> '') and
+          (Value[1] = #0) do
+      delete(Value, 1, 1);
+end;
+
+function AsnNext(var Pos: integer; const Buffer: TAsnObject;
+  Value: PRawByteString; CtrEndPos: PInteger): integer;
+var
+  asnsize: integer;
+  tmp: TTemp24;
+  p: PAnsiChar;
+begin
+  if Value <> nil then
+    Value^ := '';
+  result := ASN1_NULL;
+  if not AsnDecHeader(Pos, Buffer, result, asnsize) then
+    exit;
+  if CtrEndPos <> nil then
+    CtrEndPos^ := Pos + asnsize;
+  if Value = nil then
+  begin
+    // no need to allocate and return the whole Value^: just compute position
+    if (result and ASN1_CL_CTR) = 0 then
+      // constructed (e.g. SEQ/SETOF): keep Pos after header
+      inc(Pos, asnsize);
+    exit;
+  end;
+  // we need to decode and return the Value^
+  if (result and ASN1_CL_CTR) <> 0 then
+    // constructed (e.g. SEQ/SETOF): return whole data, but keep Pos after header
+    Value^ := copy(Buffer, Pos, asnsize)
+  else
+    // decode Value^ as text - use AsnNextRaw() to avoid the decoding
+    case result of
+      ASN1_INT,
+      ASN1_ENUM,
+      ASN1_BOOL:
+        begin
+          p := StrInt64(@tmp[23], AsnDecInt(Pos, Buffer, asnsize));
+          FastSetString(PRawUtf8(Value)^, p, @tmp[23] - p);
+        end;
+      ASN1_OBJID:
+        begin
+          Value^ := AsnDecOid(Pos, Pos + asnsize, Buffer);
+          inc(Pos, asnsize);
+        end;
+      ASN1_NULL:
+        inc(Pos, asnsize);
+    else
+      // ASN1_UTF8STRING, ASN1_OCTSTR or unknown - return as CP_UTF8 for FPC
+      if asnsize > 0 then
+      begin
+        Value^ := copy(Buffer, Pos, asnsize);
+        FakeCodePage(Value^, CP_UTF8);
+        inc(Pos, asnsize);
+      end;
+    end;
+end;
+
+procedure AsnNextInit(var Pos: TIntegerDynArray; Count: PtrInt);
+var
+  i: PtrInt;
+begin
+  SetLength(Pos, Count);
+  for i := 0 to Count - 1 do
+    Pos[i] := 1;
+end;
+
+
+{ ****************** Operating System Certificates Operation }
+
+{$ifdef OSWINDOWS}
+
+const
+  WINDOWS_CERTSTORE: array[TSystemCertificateStore] of PWideChar = (
+    'CA', 'MY', 'ROOT', 'SPC');
+
+function _GetSystemStoreAsPem(CertStore: TSystemCertificateStore): RawUtf8;
+var
+  store: HCERTSTORE;
+  ctx: PCCERT_CONTEXT;
+  certlen: DWord;
+  tmp: TSynTempBuffer;
+begin
+  // call the Windows API to retrieve the System certificates
+  result := '';
+  store := CertOpenSystemStoreW(nil, WINDOWS_CERTSTORE[CertStore]);
+  try
+    ctx := CertEnumCertificatesInStore(store, nil);
+    while ctx <> nil do
+    begin
+      certlen := 0;
+      if not CryptBinaryToStringA(ctx^.pbCertEncoded, ctx^.cbCertEncoded,
+          CRYPT_STRING_BASE64HEADER, nil, certlen) then
+        break;
+      tmp.Init(certlen); // a PEM is very likely to be < 8KB so will be on stack
+      if CryptBinaryToStringA(ctx^.pbCertEncoded, ctx^.cbCertEncoded,
+          CRYPT_STRING_BASE64HEADER, tmp.buf, certlen) then
+         AppendBufferToUtf8(tmp.buf, certlen, result);
+      tmp.Done;
+      ctx := CertEnumCertificatesInStore(store, ctx); // next certificate
+    end;
+  finally
+    CertCloseStore(store, 0);
+  end;
+end;
+
+{$else}
+
+function _GetSystemStoreAsPem(CertStore: TSystemCertificateStore): RawUtf8;
+var
+  files: TRawUtf8DynArray;
+  f: PtrInt;
+begin
+  FastAssignNew(result);
+  // see https://go.dev/src/crypto/x509/root_unix.go as reference
+  case CertStore of
+    scsRoot:
+      result := StringFromFirstFile([
+        {$ifdef OSLINUXANDROID}
+          '/etc/ssl/certs/ca-certificates.crt',                // Debian/Gentoo
+      	  '/etc/pki/tls/certs/ca-bundle.crt',                  // Fedora/RHEL 6
+          '/etc/ssl/ca-bundle.pem',                            // OpenSUSE
+          '/etc/pki/tls/cacert.pem',                           // OpenELEC
+          '/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem', // CentOS/RHEL 7
+          '/etc/ssl/cert.pem'                                  // Alpine Linux
+        {$else}
+      	  '/usr/local/etc/ssl/cert.pem',            // FreeBSD
+      	  '/etc/ssl/cert.pem',                      // OpenBSD
+      	  '/usr/local/share/certs/ca-root-nss.crt', // DragonFly
+      	  '/etc/openssl/certs/ca-certificates.crt'  // NetBSD
+        {$endif OSLINUXANDROID}
+        ]);
+    scsCA:
+      begin
+        files := TRawUtf8DynArray(StringFromFolders([
+          {$ifdef OSLINUXANDROID}
+            '/etc/ssl/certs',               // Debian/SLES10/SLES11
+            '/etc/pki/tls/certs',           // Fedora/RHEL
+      	    '/system/etc/security/cacerts'  // Android
+          {$else}
+            '/etc/ssl/certs',         // FreeBSD 12.2+
+            '/usr/local/share/certs', // FreeBSD
+            '/etc/openssl/certs'      // NetBSD
+          {$endif OSLINUXANDROID}
+          ]));
+        for f := 0 to length(files) - 1 do
+          if (PosEx('-----BEGIN', files[f]) <> 0) and
+             IsAnsiCompatible(files[f]) and
+             (PosEx(files[f], result) = 0) then // append PEM files once
+            result := Join([result, #10, files[f]]);
+      end;
+  end;
+end;
+
+{$endif OSWINDOWS}
+
+var
+  _OneSystemStoreAsPem: array[TSystemCertificateStore] of TCachedValue;
+  _PemLocalFile: TCachedValue;
+
+function GetOneSystemStoreAsPem(CertStore: TSystemCertificateStore;
+  FlushCache: boolean): RawUtf8;
+begin
+  _OneSystemStoreAsPem[CertStore].Cache(@_GetSystemStoreAsPem,
+    pointer(CertStore), 8, result, FlushCache); // every 256s = 4 min
+end;
+
+function _GetPemLocalFile(dummy: pointer): RawUtf8;
+var
+  fn: TFileName;
+begin
+  // load from a file, bounded within the application or from env variable
+  FastAssignNew(result);
+  fn := GetSystemStoreAsPemLocalFile;
+  if fn <> '' then
+    {$ifdef OSPOSIX}
+    if fn[1] = '/' then // full /posix/path
+    {$else}
+    if fn[2] = ':' then // 'C:\path\to\file.pem'
+    {$endif OSPOSIX}
+      result := StringFromFile(fn)
+    else
+      result := StringFromFile(Executable.ProgramFilePath + fn);
+  if result = '' then
+    result := StringFromFile(GetSystemEnvString('SSL_CA_CERT_FILE'));
+end;
+
+function GetSystemStoreAsPem(CertStores: TSystemCertificateStores;
+  FlushCache, OnlySystemStore: boolean): RawUtf8;
+var
+  s: TSystemCertificateStore;
+  v: RawUtf8;
+begin
+  FastAssignNew(result);
+  // system store may be overriden by a (cached) custom file or SSL_CA_CERT_FILE
+  if not OnlySystemStore then
+    _PemLocalFile.Cache(@_GetPemLocalFile, nil, {shr=}8, result, FlushCache);
+  if result = '' then
+    // append the POSIX / Windows specific OS stores (also cached)
+    for s := low(s) to high(s) do
+      if s in CertStores then
+      begin
+        v := GetOneSystemStoreAsPem(s, FlushCache);
+        if v <> '' then
+          result := Join([result, v, #13#10]);
+      end;
+end;
+
+
 { ****************** Windows API Specific Security Types and Functions }
 
 {$ifdef OSWINDOWS}
+
+{ TWinCryptoApi }
+
+function TWinCryptoApi.Available: boolean;
+begin
+  if not Tested then
+    Resolve;
+  result := Assigned(AcquireContextA);
+end;
+
+procedure TWinCryptoApi.Resolve;
+const
+  NAMES: array[0..8] of PAnsiChar = (
+    'CryptAcquireContextA',
+    'CryptReleaseContext',
+    'CryptImportKey',
+    'CryptSetKeyParam',
+    'CryptDestroyKey',
+    'CryptEncrypt',
+    'CryptDecrypt',
+    'CryptGenRandom',
+    'ConvertSecurityDescriptorToStringSecurityDescriptorA');
+var
+  p: PPointer;
+  i: PtrInt;
+begin
+  Tested := true;
+  Handle := GetModuleHandle(advapi32);
+  if Handle <> 0 then
+  begin
+    p := @@AcquireContextA;
+    for i := 0 to high(NAMES) do
+    begin
+      p^ := LibraryResolve(Handle, NAMES[i]);
+      if p^ = nil then
+      begin
+        PPointer(@@AcquireContextA)^ := nil;
+        break;
+      end;
+      inc(p);
+    end;
+  end;
+end;
+
+const
+  SDDL_REVISION_1 = 1;
+  ALL_INFO = OWNER_SECURITY_INFORMATION or GROUP_SECURITY_INFORMATION or
+             DACL_SECURITY_INFORMATION  or SACL_SECURITY_INFORMATION;
+
+function TWinCryptoApi.SecurityDescriptorToText(sd: pointer; out text: RawUtf8): boolean;
+var
+  txt: PAnsiChar;
+begin
+  result := false;
+  txt := nil;
+  if (sd = nil) or
+     not Available or
+     not ConvertSecurityDescriptorToStringSecurityDescriptorA(
+       sd, SDDL_REVISION_1, ALL_INFO, txt, nil) then
+    exit;
+  FastSetString(text, txt, StrLen(txt));
+  LocalFree(HLOCAL(txt));
+  result := true;
+end;
+
+var
+  BCryptApi: THandle;
+  BCryptGenRandom: function(hAlgorithm, pBuffer: pointer;
+    cbBuffer, dwFlags: ULONG): cardinal; stdcall;
+  CryptProv: HCRYPTPROV; // use GenRandom() as XP fallback
+
+function FillSystemRandom(Buffer: PByteArray; Len: integer;
+  AllowBlocking: boolean): boolean;
+begin
+  result := false;
+  if Len <= 0 then
+    exit;
+  if (OSVersion >= wVista) and
+     DelayedProc(BCryptGenRandom, BCryptApi, 'bcrypt.dll', 'BCryptGenRandom') then
+    // use the new Vista+ API
+    result := BCryptGenRandom(nil, Buffer, Len, BCRYPT_USE_SYSTEM_PREFERRED_RNG) = NOERROR;
+  if not result then
+  begin
+    if (CryptProv = nil) and
+       CryptoApi.Available then
+      CryptoApi.AcquireContextA(CryptProv, nil, nil,
+        PROV_RSA_FULL, CRYPT_VERIFYCONTEXT); // initialize once for XP fallback
+    if CryptProv <> nil then
+      result := CryptoApi.GenRandom(CryptProv, Len, Buffer);
+  end;
+  if not result then
+    // OS API call failed -> fallback to our TLecuyer gsl_rng_taus2 generator
+    SharedRandom.Fill(pointer(Buffer), Len)
+  else if Len >= SizeOf(SystemEntropy.LiveFeed) then
+    crcblock(@SystemEntropy.LiveFeed, pointer(Buffer)); // shuffle live state
+end;
+
+type
+  {$ifdef FPC}
+  {$packrecords C} // mandatory under Win64
+  {$endif FPC}
+  DATA_BLOB = record
+    cbData: DWord;
+    pbData: PAnsiChar;
+  end;
+  PDATA_BLOB = ^DATA_BLOB;
+  {$ifdef FPC}
+  {$packrecords DEFAULT}
+  {$endif FPC}
+
+function CryptProtectData(const DataIn: DATA_BLOB; szDataDescr: PWideChar;
+  OptionalEntropy: PDATA_BLOB; Reserved, PromptStruct: pointer; dwFlags: DWord;
+  var DataOut: DATA_BLOB): BOOL;
+    stdcall; external crypt32;
+
+function CryptUnprotectData(const DataIn: DATA_BLOB; szDataDescr: PWideChar;
+  OptionalEntropy: PDATA_BLOB; Reserved, PromptStruct: pointer; dwFlags: DWord;
+  var DataOut: DATA_BLOB): BOOL;
+    stdcall; external crypt32;
+
+function CryptDataForCurrentUserDPAPI(const Data, AppSecret: RawByteString;
+  Encrypt: boolean): RawByteString;
+var
+  src, dst, ent: DATA_BLOB;
+  e: PDATA_BLOB;
+  ok: boolean;
+begin
+  if IsWow64Emulation then // PRISM seems inconsistent about these API calls
+  begin
+    result := Data;
+    SymmetricEncrypt(crc32cHash(AppSecret), result); // weak but consistent
+    exit; // only used internally by read_h as mean of obfuscation
+  end;
+  src.pbData := pointer(Data);
+  src.cbData := length(Data);
+  if AppSecret <> '' then
+  begin
+    ent.pbData := pointer(AppSecret);
+    ent.cbData := length(AppSecret);
+    e := @ent;
+  end
+  else
+    e := nil;
+  if Encrypt then
+    ok := CryptProtectData(
+      src, nil, e, nil, nil, CRYPTPROTECT_UI_FORBIDDEN, dst)
+  else
+    ok := CryptUnprotectData(
+      src, nil, e, nil, nil, CRYPTPROTECT_UI_FORBIDDEN, dst);
+  if ok then
+  begin
+    FastSetRawByteString(result, dst.pbData, dst.cbData);
+    LocalFree(HLOCAL(dst.pbData));
+  end
+  else
+    result := '';
+end;
+
+function SetSystemTime(const utctime: TSystemTime): boolean;
+var
+  privileges: TSynWindowsPrivileges;
+begin
+  try
+    privileges.Init;
+    try
+      privileges.Enable(wspSystemTime); // ensure has SE_SYSTEMTIME_NAME
+      result := Windows.SetSystemTime(PSystemTime(@utctime)^);
+    finally
+      privileges.Done;
+    end;
+    if result then
+      PostMessage(HWND_BROADCAST, WM_TIMECHANGE, 0, 0); // notify the apps
+  except
+    result := false;
+  end;
+end;
+
+function SetTimeZoneInformation(const info: TTimeZoneInformation): BOOL;
+  stdcall; external kernel32; // make it consistent on Delphi and FPC
+
+procedure SetSystemTimeZone(const info: TDynamicTimeZoneInformation);
+var
+  SetDynamicTimeZoneInformation: function(
+    const lpTimeZoneInformation: TDynamicTimeZoneInformation): BOOL; stdcall;
+  privileges: TSynWindowsPrivileges;
+  ok: BOOL;
+  err: integer;
+begin
+  SetDynamicTimeZoneInformation := LibraryResolve(
+    GetModuleHandle(kernel32), 'SetDynamicTimeZoneInformation');
+  privileges.Init;
+  try
+    privileges.Enable(wspTimeZone); // ensure has SE_TIME_ZONE_NAME
+    if Assigned(SetDynamicTimeZoneInformation) then
+      ok := SetDynamicTimeZoneInformation(info)    // Vista+
+    else
+      ok := SetTimeZoneInformation(info.TimeZone); // XP
+    err := GetLastError;
+  finally
+    privileges.Done;
+  end;
+  if not ok then
+    RaiseLastError('SetSystemTimeZone', EOSException, err);
+  PostMessage(HWND_BROADCAST, WM_TIMECHANGE, 0, 0); // notify the apps
+end;
+
+
+const
+  _WSP: array[TWinSystemPrivilege] of TShort32 = (
+    // note: string[32] to ensure there is a #0 terminator for all items
+    'SeCreateTokenPrivilege',          // wspCreateToken
+    'SeAssignPrimaryTokenPrivilege',   // wspAssignPrimaryToken
+    'SeLockMemoryPrivilege',           // wspLockMemory - e.g. MEM_LARGE_PAGES
+    'SeIncreaseQuotaPrivilege',        // wspIncreaseQuota
+    'SeUnsolicitedInputPrivilege',     // wspUnsolicitedInput
+    'SeMachineAccountPrivilege',       // wspMachineAccount
+    'SeTcbPrivilege',                  // wspTCB
+    'SeSecurityPrivilege',             // wspSecurity
+    'SeTakeOwnershipPrivilege',        // wspTakeOwnership
+    'SeLoadDriverPrivilege',           // wspLoadDriver
+    'SeSystemProfilePrivilege',        // wspSystemProfile
+    'SeSystemtimePrivilege',           // wspSystemTime
+    'SeProfileSingleProcessPrivilege', // wspProfSingleProcess
+    'SeIncreaseBasePriorityPrivilege', // wspIncBasePriority
+    'SeCreatePagefilePrivilege',       // wspCreatePageFile
+    'SeCreatePermanentPrivilege',      // wspCreatePermanent
+    'SeBackupPrivilege',               // wspBackup
+    'SeRestorePrivilege',              // wspRestore
+    'SeShutdownPrivilege',             // wspShutdown
+    'SeDebugPrivilege',                // wspDebug
+    'SeAuditPrivilege',                // wspAudit
+    'SeSystemEnvironmentPrivilege',    // wspSystemEnvironment
+    'SeChangeNotifyPrivilege',         // wspChangeNotify
+    'SeRemoteShutdownPrivilege',       // wspRemoteShutdown
+    'SeUndockPrivilege',               // wspUndock
+    'SeSyncAgentPrivilege',            // wspSyncAgent
+    'SeEnableDelegationPrivilege',     // wspEnableDelegation
+    'SeManageVolumePrivilege',         // wspManageVolume
+    'SeImpersonatePrivilege',          // wspImpersonate
+    'SeCreateGlobalPrivilege',         // wspCreateGlobal
+    'SeTrustedCredManAccessPrivilege', // wspTrustedCredmanAccess
+    'SeRelabelPrivilege',              // wspRelabel
+    'SeIncreaseWorkingSetPrivilege',   // wspIncWorkingSet
+    'SeTimeZonePrivilege',             // wspTimeZone
+    'SeCreateSymbolicLinkPrivilege');  // wspCreateSymbolicLink
+
+type
+  TOKEN_PRIVILEGES = packed record
+    PrivilegeCount : DWord;
+    Privileges : array[0..0] of LUID_AND_ATTRIBUTES;
+  end;
+  PTOKEN_PRIVILEGES = ^TOKEN_PRIVILEGES;
+
+  TOKEN_GROUPS = record
+    GroupCount: DWord;
+    Groups: array[0..0] of SID_AND_ATTRIBUTES;
+  end;
+  PTOKEN_GROUPS = ^TOKEN_GROUPS;
+
+function OpenProcessToken(ProcessHandle: THandle; DesiredAccess: DWord;
+  var TokenHandle: THandle): BOOL;
+    stdcall; external advapi32;
+
+function LookupPrivilegeValueA(lpSystemName, lpName: PAnsiChar;
+  var lpLuid: TLargeInteger): BOOL;
+    stdcall; external advapi32;
+
+function LookupPrivilegeNameA(lpSystemName: PAnsiChar; var lpLuid: TLargeInteger;
+  lpName: PAnsiChar; var cbName: DWord): BOOL;
+    stdcall; external advapi32;
+
+function AdjustTokenPrivileges(TokenHandle: THandle; DisableAllPrivileges: BOOL;
+  const NewState: TOKEN_PRIVILEGES; BufferLength: DWord;
+  PreviousState: PTokenPrivileges; ReturnLength: PDWord): BOOL;
+    stdcall; external advapi32;
 
 function LookupAccountSidW(lpSystemName: PWideChar; Sid: PSID; Name: PWideChar;
   var cchName: DWord; ReferencedDomainName: PAnsiChar;
   var cchReferencedDomainName: DWord; var peUse: DWord): BOOL;
     stdcall; external advapi32;
+
+function LookupAccountNameW(lpSystemName, lpAccountName: PWideChar; Sid: PSID;
+  var cbSid: DWord; ReferencedDomainName: PWideChar; var cbReferencedDomainName: DWord;
+  var peUse: DWord): BOOL;
+    stdcall; external advapi32;
+
+function GetComputerNameExW(NameType: DWord; lpbuffer: PWideChar; var nSize: DWord): BOOL;
+    stdcall; external kernel32;
+
+const
+  secur32 = 'secur32.dll';
+
+function GetComputerObjectNameW(NameFormat: DWord; lpNameBuffer: PWideChar;
+  var nSize: DWord): BOOL;
+    stdcall; external secur32;
+
+function GetUserNameExW(NameFormat: DWord; lpNameBuffer: PWideChar;
+  var nSize: DWord): BOOL;
+    stdcall; external secur32;
+
+function RawTokenOpen(wtt: TWinTokenType; access: cardinal): THandle;
+begin
+  if wtt = wttProcess then
+  begin
+    if not OpenProcessToken(GetCurrentProcess, access, result) then
+      RaiseLastError('OpenToken: OpenProcessToken');
+  end
+  else if not OpenThreadToken(GetCurrentThread, access, false, result) then
+    if GetLastError = ERROR_NO_TOKEN then
+    begin
+      // try to impersonate the thread
+      if not ImpersonateSelf(SecurityImpersonation) or
+         not OpenThreadToken(GetCurrentThread, access, false, result) then
+        RaiseLastError('OpenToken: ImpersonateSelf');
+    end
+    else
+      RaiseLastError('OpenToken: OpenThreadToken');
+end;
+
+function RawTokenGetInfo(tok: THandle; tic: TTokenInformationClass;
+  var buf: TSynTempBuffer): cardinal;
+begin
+  buf.Init; // stack-allocated buffer (enough in most cases)
+  result := 0; // error
+  if (tok = INVALID_HANDLE_VALUE) or
+     (tok = 0) or
+     GetTokenInformation(tok, tic, buf.buf, buf.len, result) then
+    exit; // we directly store the output buffer on buf stack
+  if GetLastError <> ERROR_INSUFFICIENT_BUFFER then
+  begin
+    result := 0;
+    exit;
+  end;
+  buf.Done;
+  buf.Init(result); // we need a bigger buffer (unlikely)
+  if not GetTokenInformation(tok, tic, buf.buf, buf.len, result) then
+    result := 0;
+end;
+
+
+{ TSynWindowsPrivileges }
+
+function ToText(p: TWinSystemPrivilege): PShortString;
+begin
+  result := @_WSP[p];
+end;
+
+procedure TSynWindowsPrivileges.Init(aTokenPrivilege: TWinTokenType;
+  aLoadPrivileges: boolean);
+begin
+  fAvailable := [];
+  fEnabled := [];
+  fDefEnabled := [];
+  fToken := RawTokenOpen(aTokenPrivilege, TOKEN_QUERY or TOKEN_ADJUST_PRIVILEGES);
+  if aLoadPrivileges then
+    LoadPrivileges;
+end;
+
+procedure TSynWindowsPrivileges.Done(aRestoreInitiallyEnabled: boolean);
+var
+  p: TWinSystemPrivilege;
+  new: TWinSystemPrivileges;
+begin
+  if aRestoreInitiallyEnabled then
+  begin
+    new := fEnabled - fDefEnabled;
+    if new <> [] then
+      for p := low(p) to high(p) do
+        if p in new then
+        begin
+          Disable(p);
+          exclude(new, p);
+          if new = [] then
+            break; // all done
+        end;
+  end;
+  CloseHandle(fToken);
+  fToken := 0;
+end;
+
+function TSynWindowsPrivileges.Enable(aPrivilege: TWinSystemPrivilege): boolean;
+begin
+  result := aPrivilege in fEnabled;
+  if result or
+     not (aPrivilege in fAvailable) or
+     not SetPrivilege(aPrivilege, true) then
+    exit;
+  Include(fEnabled, aPrivilege);
+  result := true;
+end;
+
+function TSynWindowsPrivileges.Enable(aPrivilege: TWinSystemPrivileges): boolean;
+var
+  p: TWinSystemPrivilege;
+begin
+  result := true;
+  for p := low(p) to high(p) do
+    if p in aPrivilege then
+      if not Enable(p) then
+        result := false; // notify an error at some point
+end;
+
+function TSynWindowsPrivileges.Disable(
+  aPrivilege: TWinSystemPrivilege): boolean;
+begin
+  result := not (aPrivilege in fEnabled);
+  if result or
+     not (aPrivilege in fAvailable) or
+     not SetPrivilege(aPrivilege, false) then
+    exit;
+  Exclude(fEnabled, aPrivilege);
+  result := true;
+end;
+
+procedure TSynWindowsPrivileges.LoadPrivileges;
+var
+  buf: TSynTempBuffer;
+  name: TShort127;
+  tp: PTOKEN_PRIVILEGES;
+  i: PtrInt;
+  len: cardinal;
+  p: TWinSystemPrivilege;
+  priv: PLUIDANDATTRIBUTES;
+begin
+  if Token = 0 then
+    raise EOSException.Create('LoadPriviledges: no token');
+  fAvailable := [];
+  fEnabled := [];
+  fDefEnabled := [];
+  try
+    if RawTokenGetInfo(Token, TokenPrivileges, buf) = 0 then
+      RaiseLastError('LoadPriviledges: GetTokenInformation');
+    tp := buf.buf;
+    priv := @tp.Privileges;
+    for i := 1 to tp.PrivilegeCount do
+    begin
+      len := high(name);
+      if not LookupPrivilegeNameA(nil, priv.Luid, @name[1], len) or
+         (len = 0) then
+         RaiseLastError('LoadPriviledges: LookupPrivilegeNameA');
+      name[0] := AnsiChar(len);
+      for p := low(p) to high(p) do
+        if not (p in fAvailable) and
+           PropNameEquals(PShortString(@name), PShortString(@_WSP[p])) then
+        begin
+          include(fAvailable, p);
+          if priv.Attributes and SE_PRIVILEGE_ENABLED <> 0 then
+            include(fDefEnabled, p);
+          break;
+        end;
+      inc(priv);
+    end;
+    fEnabled := fDefEnabled;
+  finally
+    buf.Done;
+  end;
+end;
+
+function TSynWindowsPrivileges.SetPrivilege(
+  wsp: TWinSystemPrivilege; on: boolean): boolean;
+var
+  tp: TOKEN_PRIVILEGES;
+  id: TLargeInteger;
+  tpprev: TOKEN_PRIVILEGES;
+  cbprev: DWord;
+begin
+  result := false;
+  if not LookupPrivilegeValueA(nil, @_WSP[wsp][1], id) then
+    exit;
+  tp.PrivilegeCount := 1;
+  tp.Privileges[0].Luid := PInt64(@id)^;
+  tp.Privileges[0].Attributes := 0;
+  cbprev := SizeOf(TOKEN_PRIVILEGES);
+  AdjustTokenPrivileges(
+    Token, false, tp, SizeOf(TOKEN_PRIVILEGES), @tpprev, @cbprev);
+  if GetLastError <> ERROR_SUCCESS then
+    exit;
+  tpprev.PrivilegeCount := 1;
+  tpprev.Privileges[0].Luid := PInt64(@id)^;
+  with tpprev.Privileges[0] do
+    if on then
+      Attributes := Attributes or SE_PRIVILEGE_ENABLED
+    else
+      Attributes := Attributes xor (SE_PRIVILEGE_ENABLED and Attributes);
+  AdjustTokenPrivileges(
+    Token, false, tpprev, cbprev, nil, nil);
+  if GetLastError <> ERROR_SUCCESS then
+    exit;
+  result := true;
+end;
+
+type
+  _PPS_POST_PROCESS_INIT_ROUTINE = ULONG;
+
+  PMS_PEB_LDR_DATA = ^MS_PEB_LDR_DATA;
+  MS_PEB_LDR_DATA = packed record
+    Reserved1: array[0..7] of byte;
+    Reserved2: array[0..2] of pointer;
+    InMemoryOrderModuleList: LIST_ENTRY;
+  end;
+
+  PMS_RTL_USER_PROCESS_PARAMETERS = ^MS_RTL_USER_PROCESS_PARAMETERS;
+  MS_RTL_USER_PROCESS_PARAMETERS = packed record
+    Reserved1: array[0..15] of byte;
+    Reserved2: array[0..9] of pointer;
+    ImagePathName: UNICODE_STRING;
+    CommandLine: UNICODE_STRING ;
+  end;
+
+  PMS_PEB = ^MS_PEB;
+  MS_PEB = packed record
+    Reserved1: array[0..1] of byte;
+    BeingDebugged: byte;
+    Reserved2: array[0..0] of byte;
+    {$ifdef CPUX64}
+    _align1: array[0..3] of byte;
+    {$endif CPUX64}
+    Reserved3: array[0..1] of pointer;
+    Ldr: PMS_PEB_LDR_DATA;
+    ProcessParameters: PMS_RTL_USER_PROCESS_PARAMETERS;
+    Reserved4: array[0..103] of byte;
+    Reserved5: array[0..51] of pointer;
+    PostProcessInitRoutine: _PPS_POST_PROCESS_INIT_ROUTINE;
+    Reserved6: array[0..127] of byte;
+    {$ifdef CPUX64}
+    _align2: array[0..3] of byte;
+    {$endif CPUX64}
+    Reserved7: array[0..0] of pointer;
+    SessionId: ULONG;
+    {$ifdef CPUX64}
+    _align3: array[0..3] of byte;
+    {$endif CPUX64}
+  end;
+
+  PMS_PROCESS_BASIC_INFORMATION = ^MS_PROCESS_BASIC_INFORMATION;
+  MS_PROCESS_BASIC_INFORMATION = packed record
+    ExitStatus: integer;
+    {$ifdef CPUX64}
+    _align1: array[0..3] of byte;
+    {$endif CPUX64}
+    PebBaseAddress: PMS_PEB;
+    AffinityMask: PtrUInt;
+    BasePriority: integer;
+    {$ifdef CPUX64}
+    _align2: array[0..3] of byte;
+    {$endif CPUX64}
+    UniqueProcessId: PtrUInt;
+    InheritedFromUniqueProcessId: PtrUInt;
+  end;
+
+  {$Z4}
+  PROCESSINFOCLASS = (
+    ProcessBasicInformation = 0,
+    ProcessDebugPort = 7,
+    ProcessWow64Information = 26,
+    ProcessImageFileName = 27,
+    ProcessBreakOnTermination = 29,
+    ProcessSubsystemInformation = 75);
+  {$Z1}
+
+var
+  // low-level (undocumented) ntdll.dll functions - accessed via late-binding
+  NtQueryInformationProcess: function(ProcessHandle: THandle;
+    ProcessInformationClass: PROCESSINFOCLASS; ProcessInformation: pointer;
+    ProcessInformationLength: ULONG; ReturnLength: PULONG): integer; stdcall;
+  ReadProcessMemory: function (hProcess: THandle; lpBaseAddress, lpBuffer: pointer;
+    nSize: PtrUInt; var lpNumberOfBytesRead: PtrUInt): BOOL; stdcall;
+  NtQueryInformationProcessChecked: boolean;
+
+function InternalGetProcessInfo(aPID: DWord; out aInfo: TWinProcessInfo): boolean;
+var
+  bytesread: PtrUInt;
+  sizeneeded: DWord;
+  pbi: MS_PROCESS_BASIC_INFORMATION;
+  peb: MS_PEB;
+  peb_upp: MS_RTL_USER_PROCESS_PARAMETERS;
+  prochandle, ntdll: THandle;
+begin
+  if not NtQueryInformationProcessChecked then
+  begin
+    NtQueryInformationProcessChecked := true;
+    ntdll := GetModuleHandle('NTDLL.DLL');
+    if ntdll > 0 then
+      NtQueryInformationProcess := LibraryResolve(ntdll, 'NtQueryInformationProcess');
+    ReadProcessMemory := // late-binding is safer for anti-virus heuristics
+      LibraryResolve(GetModuleHandle(kernel32), 'ReadProcessMemory');
+  end;
+  result := false;
+  Finalize(aInfo);
+  FillCharFast(aInfo, SizeOf(aInfo), 0);
+  if (aPID = 0) or
+     not Assigned(NtQueryInformationProcess) then
+    exit;
+  prochandle := OpenProcess(
+    PROCESS_QUERY_INFORMATION or PROCESS_VM_READ, FALSE, aPid);
+  if prochandle = INVALID_HANDLE_VALUE then
+    exit;
+  Include(aInfo.AvailableInfo, wpaiPID);
+  aInfo.PID := aPid;
+  try
+    // read PBI (Process Basic Information)
+    sizeneeded := 0;
+    FillCharFast(pbi, SizeOf(pbi), 0);
+    if NtQueryInformationProcess(prochandle, ProcessBasicInformation,
+         @pbi, Sizeof(pbi), @sizeneeded) < 0 then
+      exit;
+    with aInfo do
+    begin
+      Include(AvailableInfo, wpaiBasic);
+      PID := pbi.UniqueProcessId;
+      ParentPID := pbi.InheritedFromUniqueProcessId;
+      BasePriority := pbi.BasePriority;
+      ExitStatus := pbi.ExitStatus;
+      PEBBaseAddress := pbi.PebBaseAddress;
+      AffinityMask := pbi.AffinityMask;
+    end;
+    // read PEB (Process Environment Block)
+    if not Assigned(pbi.PebBaseAddress) then
+      exit;
+    bytesread := 0;
+    FillCharFast(peb, SizeOf(peb), 0);
+    if not ReadProcessMemory(prochandle, pbi.PebBaseAddress,
+             @peb, SizeOf(peb), bytesread) then
+      exit;
+    Include(aInfo.AvailableInfo, wpaiPEB);
+    aInfo.SessionID := peb.SessionId;
+    aInfo.BeingDebugged := peb.BeingDebugged;
+    FillCharFast(peb_upp, SizeOf(MS_RTL_USER_PROCESS_PARAMETERS), 0);
+    bytesread := 0;
+    if not ReadProcessMemory(prochandle, peb.ProcessParameters,
+         @peb_upp, SizeOf(MS_RTL_USER_PROCESS_PARAMETERS), bytesread) then
+      exit;
+    // command line info
+    if peb_upp.CommandLine.Length > 0 then
+    begin
+      SetLength(aInfo.CommandLine, peb_upp.CommandLine.Length shr 1);
+      bytesread := 0;
+      if not ReadProcessMemory(prochandle, peb_upp.CommandLine.Buffer,
+           pointer(aInfo.CommandLine), peb_upp.CommandLine.Length, bytesread) then
+        exit;
+      Include(aInfo.AvailableInfo, wpaiCommandLine);
+    end;
+    // image info
+    if peb_upp.ImagePathName.Length > 0 then
+    begin
+      SetLength(aInfo.ImagePath, peb_upp.ImagePathName.Length shr 1);
+      bytesread := 0;
+      if not ReadProcessMemory(prochandle, peb_upp.ImagePathName.Buffer,
+           pointer(aInfo.ImagePath), peb_upp.ImagePathName.Length, bytesread) then
+        exit;
+      Include(aInfo.AvailableInfo, wpaiImagePath);
+    end;
+    result := true;
+  finally
+    CloseHandle(prochandle);
+  end;
+end;
+
+procedure GetProcessInfo(aPid: cardinal; out aInfo: TWinProcessInfo);
+var
+  privileges: TSynWindowsPrivileges;
+begin
+  privileges.Init(wttThread);
+  try
+    privileges.Enable(wspDebug);
+    InternalGetProcessInfo(aPid, aInfo);
+  finally
+    privileges.Done;
+  end;
+end;
+
+procedure GetProcessInfo(const aPidList: TCardinalDynArray;
+  out aInfo: TWinProcessInfoDynArray);
+var
+  privileges: TSynWindowsPrivileges;
+  i: PtrInt;
+begin
+  SetLength(aInfo, Length(aPidList));
+  privileges.Init(wttThread);
+  try
+    privileges.Enable(wspDebug);
+    for i := 0 to High(aPidList) do
+      InternalGetProcessInfo(aPidList[i], aInfo[i]);
+  finally
+    privileges.Done;
+  end;
+end;
 
 type
   TOKEN_USER = record
@@ -5246,6 +8011,7 @@ begin
     exit;
   nl := SizeOf(n);
   dl := SizeOf(d);
+  use := ord(stUndefined);
   if LookupAccountSidW(
        Utf8ToWin32PWideChar(server, s), sid, @n, nl, @d, dl, use) then
   begin
@@ -5271,6 +8037,95 @@ begin
     result := stUndefined;
 end;
 
+function LookupName(const system, account: RawUtf8; out domain: RawUtf8;
+  out sid: TSid): TSidType;
+var
+  s, a: TSynTempBuffer;
+  nsid, ndom, use: cardinal;
+  dom: TByteToWideChar;
+begin
+  result := stUndefined;
+  FillZero(sid);
+  if account = '' then
+    exit;
+  nsid := SizeOf(sid);
+  ndom := SizeOf(dom) shr 1; // in TCHARs
+  use := ord(stUndefined);
+  if LookupAccountNameW(Utf8ToWin32PWideChar(system, s),
+       Utf8ToWin32PWideChar(account, a), @sid, nsid, @dom, ndom, use) then
+  begin
+    Win32PWideCharToUtf8(@dom, domain);
+    if use <= byte(high(TSidType)) then
+      result := TSidType(use);
+  end;
+  s.Done;
+  a.Done;
+end;
+
+function LookupName(const system, account: RawUtf8; domain: PRawUtf8;
+  st: PSidType): RawUtf8;
+var
+  sid: TSid;
+  dom: RawUtf8;
+  t: TSidType;
+begin
+  t := LookupName(system, account, dom, sid);
+  if domain <> nil then
+    domain^ := dom;
+  if st <> nil then
+    st^ := t;
+  SidToText(@sid, result);
+end;
+
+function WinComputerName(fmt: TComputerNameFormat): RawUtf8;
+var
+  n: TByteToWideChar;
+  s: cardinal;
+begin
+  s := SizeOf(n);
+  if GetComputerNameExW(ord(fmt), @n, s) then
+    Win32PWideCharToUtf8(@n, result)
+  else
+    FastAssignNew(result);
+end;
+
+type
+  TGetExtendedName = function(NameFormat: DWord; lpNameBuffer: PWideChar;
+    var nSize: DWord): BOOL; stdcall;
+const
+  ENF: array[TExtendedNameFormat] of byte = (1, 2, 3, 6, 6, 7, 8, 10, 12, 13, 14);
+
+procedure _GetExtendedName(call: TGetExtendedName; fmt, max: TExtendedNameFormat;
+  out name: RawUtf8);
+var
+  tmp: TByteToWideChar;
+  siz: cardinal;
+  namelen: PtrInt;
+begin
+  siz := SizeOf(tmp);
+  if (fmt > max) or
+     not call(ENF[fmt], @tmp, siz) and
+     (tmp[0] = #0) then
+    exit;
+  Win32PWideCharToUtf8(@tmp, name);
+  namelen := length(name);
+  if (namelen > 30) and
+     (fmt = enfUuid) and
+     (name[1] = '{') and
+     (name[namelen] = '}') then
+    name := copy(name, 2, namelen - 2); // trim { } GUID format into plain UUID
+end;
+
+function WinComputerName(fmt: TExtendedNameFormat): RawUtf8;
+begin
+  _GetExtendedName(@GetComputerObjectNameW, fmt, enfDnsDomain, result);
+end;
+
+function WinUserName(fmt: TExtendedNameFormat): RawUtf8;
+begin
+  _GetExtendedName(@GetUserNameExW, fmt, high(fmt), result);
+end;
+
 function LookupToken(tok: THandle; out name, domain: RawUtf8;
   const server: RawUtf8): boolean;
 var
@@ -5292,6 +8147,68 @@ begin
     result := '';
 end;
 
+var // WinJoinStatus(server='') thread-safe cache for the current computer
+  win_safe: TLightLock;
+  win_join: TJoinStatus;
+  win_joined: RawUtf8;
+
+function NetGetJoinInformation(lpServer: PWideChar; var lpNameBuffer: PWideChar;
+  var BufferType: DWord): Dword;
+    stdcall; external netapi32;
+
+function WinJoinStatus(const server: RawUtf8; name: PRawUtf8): TJoinStatus;
+var
+  s: TSynTempBuffer;
+  n: PWideChar;
+  typ: cardinal;
+begin
+  if server = '' then
+  begin
+    result := win_join;
+    if result <> jsUnknown then
+    begin
+      if name <> nil then
+        name^ := win_joined;
+      exit;
+    end;
+  end;
+  result := jsUnknown;
+  typ := 0;
+  n := nil;
+  if NetGetJoinInformation(Utf8ToWin32PWideChar(server, s), n, typ) = NERR_Success then
+  begin
+    if typ <= byte(high(TJoinStatus)) then
+      result := TJoinStatus(typ);
+    if name <> nil then
+      Win32PWideCharToUtf8(n, name^)
+    else if server = '' then
+    begin
+      win_safe.Lock;
+      Win32PWideCharToUtf8(n, win_joined);
+      win_safe.UnLock;
+    end;
+    NetApiBufferFree(n);
+  end;
+  s.Done;
+  if server <> '' then
+    exit;
+  win_safe.Lock;
+  if name <> nil then
+    win_joined := name^;
+  if result = jsUnknown then
+    win_join := jsUnjoined
+  else
+    win_join := result;
+  win_safe.UnLock;
+end;
+
+function GetNamedSecurityInfoW(pObjectName: PWideChar; ObjectType,
+  SecurityInfo: cardinal; ppsidOwner, ppsidGroup, ppDacl, ppSacl: pointer;
+  var ppSecurityDescriptor: PSECURITY_DESCRIPTOR): DWord; stdcall; external advapi32;
+
+function SetNamedSecurityInfoW(pObjectName: PWideChar; ObjectType,
+  SecurityInfo: cardinal; psidOwner, psidGroup: pointer;
+  pDacl, pSacl: pointer): DWord; stdcall; external advapi32;
 
 function GetSystemSecurityDescriptor(const fn: TFileName;
   out dest: TSecurityDescriptor; info: TSecurityDescriptorInfos;
@@ -5366,6 +8283,13 @@ begin
   if not result then
     SetLastError(bak); // so that WinLastError / RaiseLastError would work
 end;
+
+
+initialization
+
+finalization
+  if CryptProv <> nil then // used as fallback on XP
+    CryptoApi.ReleaseContext(CryptProv, 0);
 
 {$endif OSWINDOWS}
 

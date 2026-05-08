@@ -48,6 +48,7 @@ function Main_Restart: boolean;
 var
   slshutdown: boolean;
   started: TDateTime;
+  mainthread_started: TDateTime;
   glStartupGhostKillDone: boolean = False;
 
 implementation
@@ -58,7 +59,8 @@ uses
   mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, tasklogin, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
   StrUtils, news, dbhandler, mormot.db.raw.sqlite3, mormot.db.sql.sqlite3, ZPlainMySqlDriver, mormot.db.sql.zeos, mormot.db.core, irccommands.prebot,
-  taskautodirlist, slcriticalsection2, mormot.core.unicode;
+  taskautodirlist, slcriticalsection2, mormot.core.unicode, mormot.core.base, slapi, slapi.services.impl,
+  IdGlobal, ZClasses, FLRE, RegExpr;
 
 {$I slftp.inc}
 
@@ -281,6 +283,8 @@ begin
   Initglobalskiplist;
   console_addline('Admin', 'Init Autodirlist', True);
   AutoDirlistInit;
+  console_addline('Admin', 'Init REST API', True);
+  ApiInit;
 
   queue_fire := config.readInteger('queue', 'queue_fire', 900);
   queueclean_interval := config.ReadInteger('queue', 'queueclean_interval', 1800);
@@ -351,15 +355,16 @@ begin
     end;
   end;
 
-  // number of tasks in queue shown in console
+  // number of tasks in queue shown in console + update system status peaks
   if MilliSecondsBetween(Now, QueueStatUpdateDateTime) > queue_stat_interval then
   begin
     try
       QueueStatAll;
+      UpdateSystemStatusPeaks;
     except
       on e: Exception do
       begin
-        Debug(dpError, section, '[EXCEPTION] Main_Iter(QueueClean): %s', [e.Message]);
+        Debug(dpError, section, '[EXCEPTION] Main_Iter(QueueStat): %s', [e.Message]);
       end;
     end;
   end;
@@ -453,15 +458,37 @@ begin
 end;
 
 procedure Main_Run;
+var
+  fLibVersion: String;
 begin
   Debug(dpError, section, '%s started', [GetFullVersionString]);
-  Debug(dpMessage, section, Format('OpenSSL version: %s', [GetOpenSSLVersion]));
-  Debug(dpMessage, section, Format('SQLite3 version: %s', [sqlite3.Version]));
-  {$IFNDEF MSWINDOWS}
-    Debug(dpMessage, section, Format('ncurses version: %s', [Ncurses_Version]));
+  {$IFDEF FPC}
+  fLibVersion := 'FPC version: ' + {$I %FPCVERSION%};
+  {$ELSE}
+  fLibVersion := 'Delphi version: ' + FloatToStr(CompilerVersion);
   {$ENDIF}
+  console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
+  fLibVersion := Format('OpenSSL version: %s', [GetOpenSSLVersion]);
+  console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
+  fLibVersion := Format('SQLite3 version: %s', [UTF8ToString(sqlite3.VersionText)]);
+  console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
+  {$IFNDEF MSWINDOWS}
+  fLibVersion := Format('ncurses version: %s', [Ncurses_Version]);
+  console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
+  {$ENDIF}
+  fLibVersion := Format('mORMot2 version: %s', [SYNOPSE_FRAMEWORK_VERSION]);
+  console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
+  fLibVersion := Format('Indy10 version: %s', [gsIdVersion]);
+  console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
+  fLibVersion := Format('ZeosLib version: %s', [ZEOS_VERSION]);
+  console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
+  fLibVersion := Format('FLRE version: %s', [FLREVersionString]);
+  console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
+  fLibVersion := Format('TRegExpr version: %d.%d', [TRegExpr.VersionMajor, TRegExpr.VersionMinor]);
+  console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
 
   started := Now();
+  mainthread_started := Now();
 
   // Decrypt sites.dat
   console_addline('Admin', 'Decrypt sites.dat', True);
@@ -516,10 +543,10 @@ begin
   kb_Start();
   console_addline('Admin', 'Start Indexer', True);
   indexerStart;
-  console_addline('Admin', 'Start Sites', True);
-  SitesStart;
   console_addline('Admin', 'Start IRC', True);
   IrcStart();
+  console_addline('Admin', 'Start Sites', True);
+  SitesStart;
   console_addline('Admin', 'Start Precatcher', True);
   PrecatcherStart();
   //  EPrecatcherStart();
@@ -528,6 +555,8 @@ begin
   slshutdown := False;
   console_addline('Admin', 'Start Queue', True);
   QueueStart();
+  console_addline('Admin', 'Start REST API', True);
+  ApiStart;
 end;
 
 procedure Main_Stop;
@@ -598,6 +627,7 @@ begin
   NewsUnInit;
   AutodirlistUninit;
   DirlistUnInit;
+  ApiUninit;
   SlCriticalSection2Uninit;
 
   // TSQLite3LibraryDynamic

@@ -55,8 +55,6 @@ interface
 
 {$I ZDbc.inc}
 
-{$IFNDEF DISABLE_INTERBASE_AND_FIREBIRD}
-
 uses
   {$IFDEF MORMOT2}
   mormot.db.core, mormot.core.datetime, mormot.core.text, mormot.core.base,
@@ -74,6 +72,36 @@ uses
   ZDbcResultSet, ZDbcStatement, ZExceptions;
 
 type
+  /// <author>EgonHugeist</author>
+  /// <summary>Implements a specialized cached resolver for Interbase/Firebird.</summary>
+  TZInterbaseFirebirdCachedResolver = class(TZGenerateSQLCachedResolver)
+  private
+    FInsertReturningFields: TStrings;
+    FHasAutoIncrementColumns, FHasWritableAutoIncrementColumns: Boolean;
+    FReturningPairs: TZIndexPairList;
+  public
+    constructor Create(const Statement: IZStatement; const Metadata: IZResultSetMetadata);
+    destructor Destroy; override;
+  public
+    /// <summary>Forms an INSERT statements.</summary>
+    /// <param>"NewRowAccessor" an accessor object to new column values.</param>
+    /// <returns>the composed insert SQL.</returns>
+    function FormInsertStatement(NewRowAccessor: TZRowAccessor): SQLString; override;
+    /// <author>Michael Seeger</author>
+    /// <summary>Forms a SELECT statements to calculate default values.</summary>
+    /// <param>"RowAccessor" an accessor object to column values.</param>
+    /// <param>"ColumnsLookup" an TZIndexPairList which holds the NULL columns.</param>
+    /// <returns>the composed SELECT SQL.</returns>
+    function FormCalculateStatement(const RowAccessor: TZRowAccessor;
+      const ColumnsLookup: TZIndexPairList): string; override;
+    procedure PostUpdates(const Sender: IZCachedResultSet; UpdateType: TZRowUpdateType;
+      const OldRowAccessor, NewRowAccessor: TZRowAccessor); override;
+    procedure UpdateAutoIncrementFields(const Sender: IZCachedResultSet; UpdateType: TZRowUpdateType;
+      const OldRowAccessor, NewRowAccessor: TZRowAccessor; const Resolver: IZCachedResolver); override;
+  end;
+
+{$IFNDEF DISABLE_INTERBASE_AND_FIREBIRD}
+
   /// <summary>Implements Interbase or Firebird Database Driver</summary>
   TZInterbaseFirebirdDriver = class(TZAbstractDriver)
   public
@@ -548,34 +576,6 @@ type
   End;
 
   /// <author>EgonHugeist</author>
-  /// <summary>Implements a specialized cached resolver for Interbase/Firebird.</summary>
-  TZInterbaseFirebirdCachedResolver = class(TZGenerateSQLCachedResolver)
-  private
-    FInsertReturningFields: TStrings;
-    FHasAutoIncrementColumns, FHasWritableAutoIncrementColumns: Boolean;
-    FReturningPairs: TZIndexPairList;
-  public
-    constructor Create(const Statement: IZStatement; const Metadata: IZResultSetMetadata);
-    destructor Destroy; override;
-  public
-    /// <summary>Forms an INSERT statements.</summary>
-    /// <param>"NewRowAccessor" an accessor object to new column values.</param>
-    /// <returns>the composed insert SQL.</returns>
-    function FormInsertStatement(NewRowAccessor: TZRowAccessor): SQLString; override;
-    /// <author>Michael Seeger</author>
-    /// <summary>Forms a SELECT statements to calculate default values.</summary>
-    /// <param>"RowAccessor" an accessor object to column values.</param>
-    /// <param>"ColumnsLookup" an TZIndexPairList which holds the NULL columns.</param>
-    /// <returns>the composed SELECT SQL.</returns>
-    function FormCalculateStatement(const RowAccessor: TZRowAccessor;
-      const ColumnsLookup: TZIndexPairList): string; override;
-    procedure PostUpdates(const Sender: IZCachedResultSet; UpdateType: TZRowUpdateType;
-      const OldRowAccessor, NewRowAccessor: TZRowAccessor); override;
-    procedure UpdateAutoIncrementFields(const Sender: IZCachedResultSet; UpdateType: TZRowUpdateType;
-      const OldRowAccessor, NewRowAccessor: TZRowAccessor; const Resolver: IZCachedResolver); override;
-  end;
-
-  /// <author>EgonHugeist</author>
   /// <summary>Implements a specialized cached resolver for Firebird 2+.</summary>
   TZFirebird2upCachedResolver = class(TZInterbaseFirebirdCachedResolver)
   public
@@ -599,7 +599,7 @@ type
     sqldata: Pointer; //points to data in our buffer
     sqlind: PISC_SHORT; //null indicator, nil if not nullable
     sqltype: Cardinal;
-    sqlsubtype: Cardinal;
+    sqlsubtype: Integer;
     sqlscale: Integer;
   public
     function GetPCharFromTextVar(out Len: NativeUInt): PAnsiChar; {$IFDEF WITH_INLINE}inline;{$ENDIF}
@@ -936,7 +936,6 @@ type
     procedure SetPWideChar(Index: Cardinal; Value: PWideChar; Len: LengthInt);
   protected
     FInParamDescripors: PZInterbaseFirebirdParamArray;
-    FBatchStmts: array[Boolean] of TZIB_FBStmt;
     FDB_CP_ID: Word;
     FStatementType: TZIbSqlStatementType;
     FOutMessageCount, FInMessageCount, FMemPerRow: Cardinal;
@@ -946,6 +945,7 @@ type
     FCodePageArray: TWordDynArray;
     FByteBuffer: PByteBuffer;
     FOrgTypeList: TZIBFBOrgSqlTypeAndScaleList;
+    FBatchStmts: array[Boolean] of TZIB_FBStmt;
     procedure ExecuteBatchDml; virtual;
     function SplittQuery(const SQL: SQLString): RawByteString;
     function GetExecuteBlockString(RemainingArrayRows: Integer;
@@ -1403,12 +1403,179 @@ const
 
 {$ENDIF DISABLE_INTERBASE_AND_FIREBIRD}
 implementation
-{$IFNDEF DISABLE_INTERBASE_AND_FIREBIRD}
+
+{ TZInterbaseFirebirdCachedResolver }
 
 uses ZSysUtils, ZFastCode, ZEncoding, ZMessages, ZVariant,
   ZInterbaseToken, ZInterbaseAnalyser, ZSelectSchema,
   ZDbcMetadata, ZDbcProperties,
   ZDbcInterbaseFirebirdMetadata;
+
+constructor TZInterbaseFirebirdCachedResolver.Create(const Statement: IZStatement; const Metadata: IZResultSetMetadata);
+var
+  Fields: string;
+begin
+  inherited;
+  Fields := Statement.GetParameters.Values[DSProps_InsertReturningFields];
+  if Fields <> '' then
+    FInsertReturningFields := ExtractFields(Fields, [';', ',']);
+  FReturningPairs := TZIndexPairList.Create;
+end;
+
+destructor TZInterbaseFirebirdCachedResolver.Destroy;
+begin
+  inherited;
+  FreeAndNil(FInsertReturningFields);
+  FreeAndNil(FReturningPairs);
+end;
+
+function TZInterbaseFirebirdCachedResolver.FormCalculateStatement(
+  const RowAccessor: TZRowAccessor; const ColumnsLookup: TZIndexPairList): string;
+// --> ms, 30/10/2005
+var
+   iPos: Integer;
+begin
+  Result := inherited FormCalculateStatement(RowAccessor, ColumnsLookup);
+  if Result <> '' then begin
+    iPos := ZFastCode.pos('FROM', uppercase(Result));
+    if iPos > 0
+    then Result := copy(Result, 1, iPos+3) + ' RDB$DATABASE'
+    else Result := Result + ' FROM RDB$DATABASE';
+  end;
+// <-- ms
+end;
+
+function TZInterbaseFirebirdCachedResolver.FormInsertStatement(
+  NewRowAccessor: TZRowAccessor): SQLString;
+var
+  I, ColumnIndex: Integer;
+  Tmp: SQLString;
+  SQLWriter: TZSQLStringWriter;
+  {$IF DECLARED(DSProps_InsertReturningFields)}
+  Fields: TStrings;
+  {$IFEND}
+begin
+  I := MetaData.GetColumnCount;
+  SQLWriter := TZSQLStringWriter.Create(512+(I shl 5));
+  {$IF DECLARED(DSProps_InsertReturningFields)}
+  if FInsertReturningFields <> nil then begin
+    Fields := TStringList.Create;
+    Fields.Assign(FInsertReturningFields);
+  end else Fields := nil;
+  {$IFEND}
+  Result := 'INSERT INTO ';
+  try
+    Tmp := DefineTableName;
+    SQLWriter.AddText(Tmp, Result);
+    SQLWriter.AddChar(' ', Result);
+    SQLWriter.AddChar('(', Result);
+    if (FInsertStatements.Count > 0) and FHasWritableAutoIncrementColumns then
+      FInsertColumns.Clear;
+    if (FInsertColumns.Count = 0) then
+      FillInsertColumnsPairList(NewRowAccessor);
+    if (FInsertColumns.Count = 0) and not
+       {test for generated always cols }
+       ((Metadata.GetColumnCount > 0) and Metadata.IsAutoIncrement(FirstDbcIndex)) then begin
+      Result := '';
+      Exit;
+    end;
+    for I := 0 to FInsertColumns.Count-1 do begin
+      ColumnIndex := PZIndexPair(FInsertColumns[i])^.ColumnIndex;
+      Tmp := Metadata.GetColumnName(ColumnIndex);
+      Tmp := IdentifierConverter.Quote(Tmp, iqColumn);
+      SQLWriter.AddText(Tmp, Result);
+      SQLWriter.AddChar(',', Result);
+    end;
+    SQLWriter.ReplaceOrAddLastChar(',', ')', Result);
+    SQLWriter.AddText(' VALUES (', Result);
+    for I := 0 to FInsertColumns.Count - 1 do begin
+      SQLWriter.AddChar('?', Result);
+      SQLWriter.AddChar(',', Result);
+    end;
+    SQLWriter.ReplaceOrAddLastChar(',', ')', Result);
+    FReturningPairs.Clear;
+    for i := FirstDbcIndex to MetaData.GetColumnCount{$IFDEF GENERIC_INDEX}-1{$ENDIF} do
+      if Metadata.IsAutoIncrement(I) then begin
+        FHasAutoIncrementColumns := True;
+        if Metadata.IsWritable(I) then begin
+          FHasWritableAutoIncrementColumns := True;
+          if not NewRowAccessor.IsNull(I) then
+            Continue;
+        end;
+        if FReturningPairs.Count = 0 then
+          SQLWriter.AddText(' RETURNING ', Result);
+        FReturningPairs.Add(I, FReturningPairs.Count{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
+        Tmp := Metadata.GetColumnName(I);
+        {$IF DECLARED(DSProps_InsertReturningFields)}
+        if (Fields <> nil) then begin
+          ColumnIndex := Fields.IndexOf(Tmp);
+          if ColumnIndex > -1 then
+            Fields.Delete(ColumnIndex); { avoid duplicates }
+        end;
+        {$IFEND}
+        Tmp := IdentifierConverter.Quote(Tmp, iqColumn);
+        SQLWriter.AddText(Tmp, Result);
+        SQLWriter.AddChar(',', Result);
+      end;
+    {$IF DECLARED(DSProps_InsertReturningFields)}
+    if (Fields <> nil) and (Fields.Count > 0) then begin
+      if FReturningPairs.Count = 0 then
+        SQLWriter.AddText(' RETURNING ', Result);
+      for I := 0 to Fields.Count - 1 do begin
+        Tmp := Fields[I];
+        ColumnIndex := MetaData.FindColumn(Tmp);
+        if ColumnIndex = InvalidDbcIndex then
+          raise CreateColumnWasNotFoundException(Tmp);
+        FReturningPairs.Add(ColumnIndex, FReturningPairs.Count{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
+        Tmp := IdentifierConverter.Quote(Tmp, iqColumn);
+        SQLWriter.AddText(Tmp, Result);
+        SQLWriter.AddChar(',', Result);
+      end;
+    end;
+    {$IFEND}
+    SQLWriter.CancelLastComma(Result);
+    SQLWriter.Finalize(Result);
+  finally
+    FreeAndNil(SQLWriter);
+    {$IF DECLARED(DSProps_InsertReturningFields)}
+    FreeAndNil(Fields);
+    {$IFEND}
+  end;
+end;
+
+procedure TZInterbaseFirebirdCachedResolver.PostUpdates(const Sender: IZCachedResultSet;
+  UpdateType: TZRowUpdateType; const OldRowAccessor, NewRowAccessor: TZRowAccessor);
+begin
+  inherited PostUpdates(Sender, UpdateType, OldRowAccessor, NewRowAccessor);
+  if (UpdateType = utInserted) then begin
+    if (FReturningPairs.Count >0) then
+      UpdateAutoIncrementFields(Sender, UpdateType, OldRowAccessor, NewRowAccessor, Self);
+    if FHasWritableAutoIncrementColumns then
+      InsertStatement := nil;
+  end;
+end;
+
+{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "?" not used} {$ENDIF}
+procedure TZInterbaseFirebirdCachedResolver.UpdateAutoIncrementFields(
+  const Sender: IZCachedResultSet; UpdateType: TZRowUpdateType; const
+  OldRowAccessor, NewRowAccessor: TZRowAccessor; const Resolver: IZCachedResolver);
+var
+  I: Integer;
+  RS: IZResultSet;
+begin
+  RS := InsertStatement.GetResultSet;
+  if (RS <> nil) then try
+    if RS.Next then
+      for i := 0 to FReturningPairs.Count -1 do with PZIndexPair(FReturningPairs[I])^ do
+        NewRowAccessor.SetValue(SrcOrDestIndex, RS.GetValue(ColumnIndex));
+  finally
+    RS.Close; { Without Close RS keeps circular ref to Statement causing mem leak }
+    RS := nil;
+  end;
+end;
+{$IFDEF FPC} {$POP} {$ENDIF}
+
+{$IFNDEF DISABLE_INTERBASE_AND_FIREBIRD}
 
 { TZInterbaseFirebirdDriver }
 
@@ -2713,173 +2880,6 @@ begin
   end else
     inherited SetColumnTypeFromGetColumnsRS(ColumnInfo, TableColumns);
 end;
-
-{ TZInterbaseFirebirdCachedResolver }
-
-constructor TZInterbaseFirebirdCachedResolver.Create(const Statement: IZStatement; const Metadata: IZResultSetMetadata);
-var
-  Fields: string;
-begin
-  inherited;
-  Fields := Statement.GetParameters.Values[DSProps_InsertReturningFields];
-  if Fields <> '' then
-    FInsertReturningFields := ExtractFields(Fields, [';', ',']);
-  FReturningPairs := TZIndexPairList.Create;
-end;
-
-destructor TZInterbaseFirebirdCachedResolver.Destroy;
-begin
-  inherited;
-  FreeAndNil(FInsertReturningFields);
-  FreeAndNil(FReturningPairs);
-end;
-
-function TZInterbaseFirebirdCachedResolver.FormCalculateStatement(
-  const RowAccessor: TZRowAccessor; const ColumnsLookup: TZIndexPairList): string;
-// --> ms, 30/10/2005
-var
-   iPos: Integer;
-begin
-  Result := inherited FormCalculateStatement(RowAccessor, ColumnsLookup);
-  if Result <> '' then begin
-    iPos := ZFastCode.pos('FROM', uppercase(Result));
-    if iPos > 0
-    then Result := copy(Result, 1, iPos+3) + ' RDB$DATABASE'
-    else Result := Result + ' FROM RDB$DATABASE';
-  end;
-// <-- ms
-end;
-
-function TZInterbaseFirebirdCachedResolver.FormInsertStatement(
-  NewRowAccessor: TZRowAccessor): SQLString;
-var
-  I, ColumnIndex: Integer;
-  Tmp: SQLString;
-  SQLWriter: TZSQLStringWriter;
-  {$IF DECLARED(DSProps_InsertReturningFields)}
-  Fields: TStrings;
-  {$IFEND}
-begin
-  I := MetaData.GetColumnCount;
-  SQLWriter := TZSQLStringWriter.Create(512+(I shl 5));
-  {$IF DECLARED(DSProps_InsertReturningFields)}
-  if FInsertReturningFields <> nil then begin
-    Fields := TStringList.Create;
-    Fields.Assign(FInsertReturningFields);
-  end else Fields := nil;
-  {$IFEND}
-  Result := 'INSERT INTO ';
-  try
-    Tmp := DefineTableName;
-    SQLWriter.AddText(Tmp, Result);
-    SQLWriter.AddChar(' ', Result);
-    SQLWriter.AddChar('(', Result);
-    if (FInsertStatements.Count > 0) and FHasWritableAutoIncrementColumns then
-      FInsertColumns.Clear;
-    if (FInsertColumns.Count = 0) then
-      FillInsertColumnsPairList(NewRowAccessor);
-    if (FInsertColumns.Count = 0) and not
-       {test for generated always cols }
-       ((Metadata.GetColumnCount > 0) and Metadata.IsAutoIncrement(FirstDbcIndex)) then begin
-      Result := '';
-      Exit;
-    end;
-    for I := 0 to FInsertColumns.Count-1 do begin
-      ColumnIndex := PZIndexPair(FInsertColumns[i])^.ColumnIndex;
-      Tmp := Metadata.GetColumnName(ColumnIndex);
-      Tmp := IdentifierConverter.Quote(Tmp, iqColumn);
-      SQLWriter.AddText(Tmp, Result);
-      SQLWriter.AddChar(',', Result);
-    end;
-    SQLWriter.ReplaceOrAddLastChar(',', ')', Result);
-    SQLWriter.AddText(' VALUES (', Result);
-    for I := 0 to FInsertColumns.Count - 1 do begin
-      SQLWriter.AddChar('?', Result);
-      SQLWriter.AddChar(',', Result);
-    end;
-    SQLWriter.ReplaceOrAddLastChar(',', ')', Result);
-    FReturningPairs.Clear;
-    for i := FirstDbcIndex to MetaData.GetColumnCount{$IFDEF GENERIC_INDEX}-1{$ENDIF} do
-      if Metadata.IsAutoIncrement(I) then begin
-        FHasAutoIncrementColumns := True;
-        if Metadata.IsWritable(I) then begin
-          FHasWritableAutoIncrementColumns := True;
-          if not NewRowAccessor.IsNull(I) then
-            Continue;
-        end;
-        if FReturningPairs.Count = 0 then
-          SQLWriter.AddText(' RETURNING ', Result);
-        FReturningPairs.Add(I, FReturningPairs.Count{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-        Tmp := Metadata.GetColumnName(I);
-        {$IF DECLARED(DSProps_InsertReturningFields)}
-        if (Fields <> nil) then begin
-          ColumnIndex := Fields.IndexOf(Tmp);
-          if ColumnIndex > -1 then
-            Fields.Delete(ColumnIndex); { avoid duplicates }
-        end;
-        {$IFEND}
-        Tmp := IdentifierConverter.Quote(Tmp, iqColumn);
-        SQLWriter.AddText(Tmp, Result);
-        SQLWriter.AddChar(',', Result);
-      end;
-    {$IF DECLARED(DSProps_InsertReturningFields)}
-    if (Fields <> nil) and (Fields.Count > 0) then begin
-      if FReturningPairs.Count = 0 then
-        SQLWriter.AddText(' RETURNING ', Result);
-      for I := 0 to Fields.Count - 1 do begin
-        Tmp := Fields[I];
-        ColumnIndex := MetaData.FindColumn(Tmp);
-        if ColumnIndex = InvalidDbcIndex then
-          raise CreateColumnWasNotFoundException(Tmp);
-        FReturningPairs.Add(ColumnIndex, FReturningPairs.Count{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
-        Tmp := IdentifierConverter.Quote(Tmp, iqColumn);
-        SQLWriter.AddText(Tmp, Result);
-        SQLWriter.AddChar(',', Result);
-      end;
-    end;
-    {$IFEND}
-    SQLWriter.CancelLastComma(Result);
-    SQLWriter.Finalize(Result);
-  finally
-    FreeAndNil(SQLWriter);
-    {$IF DECLARED(DSProps_InsertReturningFields)}
-    FreeAndNil(Fields);
-    {$IFEND}
-  end;
-end;
-
-procedure TZInterbaseFirebirdCachedResolver.PostUpdates(const Sender: IZCachedResultSet;
-  UpdateType: TZRowUpdateType; const OldRowAccessor, NewRowAccessor: TZRowAccessor);
-begin
-  inherited PostUpdates(Sender, UpdateType, OldRowAccessor, NewRowAccessor);
-  if (UpdateType = utInserted) then begin
-    if (FReturningPairs.Count >0) then
-      UpdateAutoIncrementFields(Sender, UpdateType, OldRowAccessor, NewRowAccessor, Self);
-    if FHasWritableAutoIncrementColumns then
-      InsertStatement := nil;
-  end;
-end;
-
-{$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "?" not used} {$ENDIF}
-procedure TZInterbaseFirebirdCachedResolver.UpdateAutoIncrementFields(
-  const Sender: IZCachedResultSet; UpdateType: TZRowUpdateType; const
-  OldRowAccessor, NewRowAccessor: TZRowAccessor; const Resolver: IZCachedResolver);
-var
-  I: Integer;
-  RS: IZResultSet;
-begin
-  RS := InsertStatement.GetResultSet;
-  if (RS <> nil) then try
-    if RS.Next then
-      for i := 0 to FReturningPairs.Count -1 do with PZIndexPair(FReturningPairs[I])^ do
-        NewRowAccessor.SetValue(SrcOrDestIndex, RS.GetValue(ColumnIndex));
-  finally
-    RS.Close; { Without Close RS keeps circular ref to Statement causing mem leak }
-    RS := nil;
-  end;
-end;
-{$IFDEF FPC} {$POP} {$ENDIF}
-
 
 { TZFirebird2upCachedResolver }
 
@@ -4707,7 +4707,7 @@ begin
       // statment limits http://www.firebirdfaq.org/faq197/
       if Connection.GetHostVersion >= 3000000 //FBVersion => 3
       then ParamIndex := 10*1024*1024 //since FB3
-      else ParamIndex := 32*1024;
+      else ParamIndex := 16*1024;
       ParamIndex := ParamIndex - LBlockLen;
       If FReturningFound then
         ParamIndex := ParamIndex - 9;///Length(cRETURNING);

@@ -34,6 +34,8 @@ uses
   mormot.core.data,
   mormot.core.variants,
   mormot.core.json,
+  mormot.core.search,
+  mormot.core.fmt,
   mormot.crypt.secure,
   mormot.core.rtti,
   mormot.core.log,
@@ -1257,6 +1259,27 @@ type
   // of available classes (see e.g. SynDBExplorer or sample 16)
   TSqlDBConnectionPropertiesClass = class of TSqlDBConnectionProperties;
 
+  /// define TSqlDBConnectionProperties internal flags
+  TSqlDBConnectionPropertiesFlag = (
+    cpfUseCache,
+    cpfStoreVoidStringAsNull,
+    cpfLogSqlStatementOnException,
+    cpfRollbackOnDisconnect,
+    cpfReconnectAfterConnectionError,
+    cpfConnectionTimeOutBackground,
+    cpfEnsureColumnNameUnique,
+    cpfFilterTableViewSchemaName,
+    cpfNoBlobBindArray,
+    cpfIsThreadSafe,
+    cpfVariantStringAsWideString,
+    cpfDeleteConnectionInOwnThread,
+    cpfArrayParamsAsBinary,
+    cpfSQliteUseMormotCollations,
+    cpfProxyHandleConnection);
+  /// store TSqlDBConnectionProperties internal flags
+  // - exposed as boolean properties for mORMot 1 and existing code compatibility
+  TSqlDBConnectionPropertiesFlags = set of TSqlDBConnectionPropertiesFlag;
+
   /// abstract class used to set Database-related properties
   // - handle e.g. the Database server location and connection parameters (like
   // UserID and password)
@@ -1266,32 +1289,28 @@ type
   // from TSqlDBConnectionThreadSafe to maintain one connection per thread
   TSqlDBConnectionProperties = class
   protected
+    fMainConnectionSafe: TLightLock; // topmost to ensure aarch64 alignment
+    fSharedTransactionsSafe: TLightLock;
+    fConnectionPoolSafe: TLightLock; // for fConnectionPool[TSynLog.ThreadIndex]
+    fMainConnection: TSqlDBConnection;
+    fDbms: TSqlDBDefinition;
+    fBatchSendingAbilities: TSqlDBStatementCRUDs;
+    fDateTimeFirstChar: AnsiChar;
+    fFlags: TSqlDBConnectionPropertiesFlags;
+    fBatchMaxSentAtOnce: integer;
+    fLoggedSqlMaxSize: integer;
+    fConnectionTimeOutSecs: integer; // maps ConnectionTimeOutMinutes as secs
+    fStatementMaxMemory: PtrInt;
+    fEngineName: RawUtf8;
     fServerName: RawUtf8;
     fDatabaseName: RawUtf8;
     fPassWord: SpiUtf8;
     fUserID: RawUtf8;
     fForcedSchemaName: RawUtf8;
-    fMainConnection: TSqlDBConnection;
-    fSharedTransactionsSafe: TLightLock; // topmost to ensure aarch64 alignment
-    fBatchMaxSentAtOnce: integer;
-    fLoggedSqlMaxSize: integer;
-    fConnectionTimeOutTicks: Int64;
-    fOnBatchInsert: TOnBatchInsert;
-    fDbms: TSqlDBDefinition;
-    fBatchSendingAbilities: TSqlDBStatementCRUDs;
-    fUseCache, fStoreVoidStringAsNull, fLogSqlStatementOnException,
-    fRollbackOnDisconnect, fReconnectAfterConnectionError,
-    fEnsureColumnNameUnique, fFilterTableViewSchemaName,
-    fNoBlobBindArray, fIsThreadSafe: boolean;
-    {$ifndef UNICODE}
-    fVariantWideString: boolean;
-    {$endif UNICODE}
-    fDateTimeFirstChar: AnsiChar;
-    fStatementMaxMemory: Int64;
     fSqlGetServerTimestamp: RawUtf8;
-    fEngineName: RawUtf8;
     fOnProcess: TOnSqlDBProcess;
     fOnStatementInfo: TOnSqlDBInfo;
+    fOnBatchInsert: TOnBatchInsert;
     fStatementCacheReplicates: integer;
     fSqlCreateFieldMax: cardinal;
     fSqlCreateField: TSqlDBFieldTypeDefinition;
@@ -1301,9 +1320,13 @@ type
     fOnTableCreate: TOnTableCreate;
     fOnTableAddColumn: TOnTableAddColumn;
     fOnTableCreateMultiIndex: TOnTableCreateMultiIndex;
-    fMainConnectionLock: TOSLightLock;
+    procedure SetFlag(const flag: TSqlDBConnectionPropertiesFlag; const value: boolean);
+      {$ifdef HASINLINE}inline;{$endif}
+    function GetFlag(const flag: TSqlDBConnectionPropertiesFlag): boolean;
+      {$ifdef HASINLINE} inline; {$endif}
     procedure SetConnectionTimeOutMinutes(minutes: cardinal);
     function GetConnectionTimeOutMinutes: cardinal;
+    function FindDatabaseNameField(Up: PAnsiChar): RawUtf8;
     // this default implementation just returns the fDbms value or dDefault
     // (never returns dUnknwown)
     function GetDbms: TSqlDBDefinition; virtual;
@@ -1436,7 +1459,8 @@ type
     // - you could use TSqlDBConnectionPropertiesDescription.CreateFromFile()
     // later on to instantiate the proper TSqlDBConnectionProperties class
     // - you can specify a custom Key, if the default is not enough for you
-    procedure DefinitionToFile(const aJsonFile: TFileName; Key: cardinal = 0);
+    procedure DefinitionToFile(const aJsonFile: TFileName; Key: cardinal = 0;
+      Fmt: TTextWriterJsonFormat = jsonHumanReadable);
     /// create a new TSqlDBConnectionProperties instance from the stored values
     class function CreateFrom(
       aDefinition: TSynConnectionDefinition): TSqlDBConnectionProperties; virtual;
@@ -1462,36 +1486,37 @@ type
     /// get a thread-safe connection
     // - this default implementation will return the MainConnection shared
     // instance, so the provider should be thread-safe by itself
-    // - TSqlDBConnectionPropertiesThreadSafe will implement a per-thread
-    // connection pool, via an internal TSqlDBConnection pool, per thread
-    // if necessary (e.g. for OleDB, which expect one TOleDBConnection instance
-    // per thread)
+    // - TSqlDBConnectionPropertiesThreadSafe in tmThreadPool mode will implement
+    // a per-thread connection pool for efficient process with proper re-use
     function ThreadSafeConnection: TSqlDBConnection; virtual;
     /// release all existing connections
     // - can be called e.g. after a DB connection problem, to purge the
     // connection pool, and allow automatic reconnection
-    // - is called automatically if ConnectionTimeOutMinutes property is set
     // - warning: no connection shall still be used on the background (e.g. in
     // multi-threaded applications), or some unexpected border effects may occur
     procedure ClearConnectionPool; virtual;
-    /// specify a maximum period of inactivity after which all connections will
-    // be flushed and recreated, to avoid potential broken connections issues
+    /// specify a maximum period of inactivity after which any connection will
+    // be flushed and recreated, to avoid potential database issues
+    // - is 0 by default, and rely on the database to gracefully reconnect
     // - in practice, recreating the connections after a while is safe and
-    // won't slow done the process - on the contrary, it may help reducing the
+    // won't slow down the process - on the contrary, it may help reducing the
     // consumpted resources, and stabilize long running n-Tier servers
-    // - ThreadSafeConnection method will check for the last activity on this
-    // TSqlDBConnectionProperties instance, then call ClearConnectionPool
-    // to release all active connections if the idle time elapsed was too long
-    // - warning: no connection shall still be used on the background (e.g. in
-    // multi-threaded applications), or some unexpected issues may occur - for
-    // instance, ensure that your mORMot ORM server runs all its statements in
-    // blocking mode for both read and write:
-    // ! aServer.AcquireExecutionMode[execOrmGet] := am***;
-    // ! aServer.AcquireExecutionMode[execOrmWrite] := am***;
-    // here, safe blocking am*** modes are any mode but amUnlocked, i.e. either
-    // amLocked, amBackgroundThread or amMainThread
+    // - ThreadSafeConnection method will check for the last activity on each
+    // TSqlDBConnection, and release any deprecated instances in their own thread
+    // - ConnectionTimeOutBackground=true would make a global periodic search
+    // and release, but could make the whole process thread-unsafe
     property ConnectionTimeOutMinutes: cardinal
       read GetConnectionTimeOutMinutes write SetConnectionTimeOutMinutes;
+    /// force deprecation check of all connections
+    // - by default (false), each thread will check for ConnectionTimeOutMinutes
+    // idle connections, and recreate a new one for safety
+    // - set true so at most that every 32 seconds, NewThreadSafeStatement will
+    // check for deprecated connections in its all internal list and relase them
+    // - warning: this could lead to issues, especially in multi-threaded
+    // applications, and require e.g. amLocked/amBackgroundThread/amMainThread
+    // mode for TRestServer.AcquireExecutionMode[execOrmGet/execOrmWrite]
+    property ConnectionTimeOutBackground: boolean
+      index cpfConnectionTimeOutBackground read GetFlag write SetFlag;
     /// intercept connection errors at statement preparation and try to reconnect
     // - i.e. detect TSqlDBConnection.LastErrorWasAboutConnection in
     // TSqlDBConnection.NewStatementPrepared
@@ -1499,10 +1524,11 @@ type
     // multi-threaded applications), or some unexpected issues may occur - see
     // AcquireExecutionMode[] recommendations in ConnectionTimeOutMinutes
     property ReconnectAfterConnectionError: boolean
-      read fReconnectAfterConnectionError write fReconnectAfterConnectionError;
+      index cpfReconnectAfterConnectionError read GetFlag write SetFlag;
     /// create a new thread-safe statement
-    // - this method will call ThreadSafeConnection.NewStatement
+    // - this method just redirects to ThreadSafeConnection.NewStatement
     function NewThreadSafeStatement: TSqlDBStatement;
+      {$ifdef HASINLINE} inline; {$endif}
     /// create a new thread-safe statement from an internal cache (if any)
     // - will call ThreadSafeConnection.NewStatementPrepared
     // - this method should return a prepared statement instance on success
@@ -1746,7 +1772,9 @@ type
     function SqlLimitClause(
       AStmt: TSelectStatement): TSqlDBDefinitionLimitClause; virtual;
     /// determine if the SQL statement can be cached
-    // - used by TSqlDBConnection.NewStatementPrepared() for handling cache
+    // - used by TSqlDBConnection.NewStatementPrepared() for handling its cache
+    // of prepared statements (here we don't speak about caching results)
+    // - this virtual method redirects to IsCacheableDML() by default
     function IsCacheable(P: PUtf8Char): boolean; virtual;
     /// check if a primary key has already an index
     // - can specify if it is ascending only, which is not the case for Firebird
@@ -1849,8 +1877,8 @@ type
     property LoggedSqlMaxSize: integer
       read fLoggedSqlMaxSize write fLoggedSqlMaxSize;
     /// allow to log the SQL statement when any low-level ESqlDBException is raised
-    property LogSqlStatementOnException: boolean read
-      fLogSqlStatementOnException write fLogSqlStatementOnException;
+    property LogSqlStatementOnException: boolean
+      index cpfLogSqlStatementOnException read GetFlag write SetFlag;
     /// an optional Schema name to be used for SqlGetField() instead of UserID
     // - by default, UserID will be used as schema name, if none is specified
     // (i.e. if table name is not set as SCHEMA.TABLE)
@@ -1862,7 +1890,7 @@ type
     /// if GetTableNames/GetViewNames should only return the table names
     // starting with 'ForcedSchemaName.' prefix
     property FilterTableViewSchemaName: boolean
-      read fFilterTableViewSchemaName write fFilterTableViewSchemaName;
+      index cpfFilterTableViewSchemaName read GetFlag write SetFlag;
     /// TRUE if an internal cache of SQL statement should be used
     // - cache will be accessed for NewStatementPrepared() method only, by
     // returning ISqlDBStatement interface instances
@@ -1871,12 +1899,12 @@ type
     // - will cache only statements containing ? parameters or a SELECT with no
     // WHERE clause within
     property UseCache: boolean
-      read fUseCache write fUseCache;
+      index cpfUseCache read GetFlag write SetFlag;
     /// maximum bytes allowed for FetchAllToJSON/FetchAllToBinary methods
     // - if a result set exceeds this limit, an ESQLDBException is raised
     // - default is 512 shl 20, i.e. 512MB which is very high
     // - avoid unexpected OutOfMemory errors when incorrect statement is run
-    property StatementMaxMemory: Int64
+    property StatementMaxMemory: PtrInt
       read fStatementMaxMemory write fStatementMaxMemory;
     /// if UseCache is true, how many statement replicates can be generated
     // if the cached ISqlDBStatement is already used
@@ -1896,7 +1924,7 @@ type
     // is roll-backed before disconnection
     // - is set to TRUE by default
     property RollbackOnDisconnect: boolean
-      read fRollbackOnDisconnect write fRollbackOnDisconnect;
+      index cpfRollbackOnDisconnect read GetFlag write SetFlag;
     /// by default, result column names won't be checked for name unicity
     // - it is up to your SQL statement to return genuine columns
     // - ColumName() lookup will use O(1) brute force, so you should rather
@@ -1905,13 +1933,13 @@ type
     // names will be hashed for unicity (so will be slower at execution),
     // but will allow faster ColumnName() lookup
     property EnsureColumnNameUnique: boolean
-      read fEnsureColumnNameUnique write fEnsureColumnNameUnique;
+      index cpfEnsureColumnNameUnique read GetFlag write SetFlag;
     /// defines if '' string values are to be stored as SQL null
     // - by default, '' will be stored as ''
     // - but some DB engines (e.g. Jet or MS SQL) does not allow by default to
     // store '' values, but expect NULL to be stored instead
     property StoreVoidStringAsNull: boolean
-       read fStoreVoidStringAsNull write fStoreVoidStringAsNull;
+      index cpfStoreVoidStringAsNull read GetFlag write SetFlag;
     /// customize the ISO-8601 text format expected by the database provider
     // - is 'T' by default, as expected by the ISO-8601 standard
     // - will be changed e.g. for PostgreSQL, which expects ' ' instead
@@ -1921,7 +1949,7 @@ type
     /// defines if the engine does not support BindArray(ftBlob)
     // - only set for TSqlDBPostgresConnectionProperties by now
     property NoBlobBindArray: boolean
-      read fNoBlobBindArray write fNoBlobBindArray;
+      index cpfNoBlobBindArray read GetFlag write SetFlag;
     {$ifndef UNICODE}
     /// set to true to force all variant conversion to WideString instead of
     // the default faster AnsiString, for pre-Unicode version of Delphi
@@ -1941,7 +1969,7 @@ type
     // - if you want a RawUtf8 varString (as used e.g. within TDocVariantData),
     // use ISqlDBStatement.ColumnVariant/ColumnToVariant() with ForceUtf8=true
     property VariantStringAsWideString: boolean
-      read fVariantWideString write fVariantWideString;
+      index cpfVariantStringAsWideString read GetFlag write SetFlag;
     {$endif UNICODE}
     /// SQL statements what will be executed for each new connection, as typical
     // usage scenarios examples:
@@ -1965,17 +1993,18 @@ type
     fErrorMessage: RawUtf8;
     fServerTimestampOffset: TDateTime;
     fCacheSafe: TOSLightLock; // protect fCache - warning: not reentrant!
-    fCache: TRawUtf8List; // statements cache
+    fCache: TRawUtf8List;     // statements cache
     fCacheLast: RawUtf8;
     fCacheLastIndex: integer;
     fTotalConnectionCount: integer;
     fInternalProcessActive: integer;
     fTransactionCount: integer;
-    fLastAccessTicks: Int64;
+    fLastAccessTickSec: integer; // from GetTickSec - for IsOutdated()
+    fRollbackOnDisconnect: boolean;
     fOnProcess: TOnSqlDBProcess;
     fOwned: TObjectDynArray;
-    fRollbackOnDisconnect: boolean;
-    function IsOutdated(tix: Int64): boolean; // do not make virtual nor inline
+    function IsOutdated(secs: integer): boolean;
+      {$ifdef HASINLINE} inline; {$endif}
     function GetInTransaction: boolean; virtual;
     function GetServerTimestamp: TTimeLog;
     function GetServerDateTime: TDateTime; virtual;
@@ -2131,6 +2160,17 @@ type
     scOnClient,
     scOnServer);
 
+  /// define all possible TSqlDBStatement internal flags
+  TSqlDBStatementFlag = (
+    dsfStripSemicolon,
+    dsfExpectResults,
+    dsfForceBlobAsNull,
+    dsfForceDateWithMS,
+    dsfShouldLogSQL);
+  /// store TSqlDBStatement internal flags
+  // - exposed as boolean properties for mORMot 1 and existing code compatibility
+  TSqlDBStatementFlags = set of TSqlDBStatementFlag;
+
   /// generic abstract class to implement a prepared SQL query
   // - inherited classes should implement the DB-specific connection in its
   // overridden methods, especially Bind*(), Prepare(), ExecutePrepared, Step()
@@ -2142,18 +2182,19 @@ type
     fColumnCount: integer;
     fTotalRowsRetrieved: integer;
     fCurrentRow: integer;
-    fStripSemicolon: boolean;
-    fExpectResults: boolean;
-    fForceBlobAsNull: boolean;
-    fForceDateWithMS: boolean;
     fDbms: TSqlDBDefinition;
+    fFlags: TSqlDBStatementFlags;
+    fCache: TSqlDBStatementCache;
     fSqlLogLevel: TSynLogLevel;
     fSql: RawUtf8;
-    fCache: TSqlDBStatementCache;
     fSqlLogLog: TSynLog;
     fSqlWithInlinedParams: RawUtf8;
     fSqlLogTimer: TPrecisionTimer;
     fSqlPrepared: RawUtf8;
+    procedure SetFlag(const flag: TSqlDBStatementFlag; const value: boolean);
+      {$ifdef HASINLINE}inline;{$endif}
+    function GetFlag(const flag: TSqlDBStatementFlag): boolean;
+      {$ifdef HASINLINE} inline; {$endif}
     function GetSqlCurrent: RawUtf8;
     function GetSqlWithInlinedParams: RawUtf8;
     procedure ComputeSqlWithInlinedParams;
@@ -2189,6 +2230,8 @@ type
     function DoSqlLogBegin(Log: TSynLogFamily; Level: TSynLogLevel): TSynLog;
     function DoSqlLogEnd(Msg: PShortString): Int64;
     {$endif SYNDB_SILENCE}
+    property fExpectResults: boolean // internal compatibility wrapper
+      index dsfExpectResults read GetFlag write SetFlag;
   public
     /// create a statement instance
     constructor Create(aConnection: TSqlDBConnection); virtual;
@@ -2725,7 +2768,7 @@ type
     // - expectation may vary, depending on the SQL statement and the engine
     // - default is true
     property StripSemicolon: boolean
-      read fStripSemicolon write fStripSemicolon;
+      index dsfStripSemicolon read GetFlag write SetFlag;
   end;
 
 
@@ -2736,12 +2779,13 @@ function ToText(c: TSqlDBStatementCache): ShortString; overload;
 
 type
   /// abstract connection created from TSqlDBConnectionProperties
-  // - this overridden class will defined an hidden thread ID, to ensure
-  // that one connection will be create per thread
+  // - we will rely on efficient TSynLog.ThreadIndex round-robin slot numbers
+  // to properly implement thread-safety and connection reuse with no TThreadID
   // - e.g. OleDB, ODBC and Oracle connections will inherit from this class
   TSqlDBConnectionThreadSafe = class(TSqlDBConnection)
-  protected
-    fThreadID: TThreadID;
+  public
+    /// finalize this connection, and remove it from any internal pool
+    destructor Destroy; override;
   end;
 
   /// threading modes set to TSqlDBConnectionPropertiesThreadSafe.ThreadingMode
@@ -2753,16 +2797,20 @@ type
     tmThreadPool,
     tmMainConnection);
 
-  /// connection properties which will implement an internal Thread-Safe
-  // connection pool
+  /// connection properties with an internal Thread-Safe connection pool
+  // - will use TSynLog.ThreadIndex to maintain the internal list of active
+  // connections, with proper deprecation and TSynLog.NotifyThreadEnded support
+  // - initial implementation used an explicit and confusing EndCurrentThread
+  // which is not needed any more since is part of TSynLog.NotifyThreadEnded,
+  // and allows efficient reuse between short-living threads
   TSqlDBConnectionPropertiesThreadSafe = class(TSqlDBConnectionProperties)
   protected
-    fConnectionPool: TSynObjectListLightLocked;
-    fConnectionPoolDeprecatedTix: cardinal;
+    fConnectionPool: array of TSqlDBConnectionThreadSafe;
+    fConnectionPoolMin, fConnectionPoolMax, fConnectionPoolCount: integer;
+    fConnectionPoolDeprecatedTix32: integer;
     fThreadingMode: TSqlDBConnectionPropertiesThreadSafeThreadingMode;
-    fDeleteConnectionInOwnThread: boolean;
-    /// returns -1 if none was defined yet
-    function GetLockedPerThreadIndex: PtrInt;
+    procedure DeleteDeprecated(secs: integer);
+    procedure RemoveFromPool(conn: TSqlDBConnectionThreadSafe);
     /// overridden method to properly handle multi-thread
     function GetMainConnection: TSqlDBConnection; override;
   public
@@ -2772,8 +2820,9 @@ type
     /// release related memory, and all per-thread connections
     destructor Destroy; override;
     /// get a thread-safe connection
-    // - this overridden implementation will define a per-thread TSqlDBConnection
-    // connection pool, via an internal  pool
+    // - tmThreadPool will use its internal fConnectionPool[TSynLog.ThreadIndex]
+    // but requires TSynLog.NotifyThreadEnded to be eventually called (which is
+    // the case when used with our mormot.rest.* and mormot.threads.* units)
     function ThreadSafeConnection: TSqlDBConnection; override;
     /// release all existing connections
     // - this overridden implementation will release all per-thread
@@ -2781,28 +2830,9 @@ type
     // - warning: no connection shall still be used on the background (e.g. in
     // multi-threaded applications), or some unexpected border effects may occur
     procedure ClearConnectionPool; override;
-    /// you can call this method just before a thread is finished to ensure
-    // that the associated Connection will be released
-    // - could be used e.g. in a try...finally block inside a TThread.Execute
-    // overridden method
-    // - could be used e.g. to call CoUnInitialize from thread in which
-    // CoInitialize was made, for instance via a method defined as such:
-    // ! procedure TMyServer.OnHttpThreadTerminate(Sender: TObject);
-    // ! begin
-    // !   fMyConnectionProps.EndCurrentThread;
-    // ! end;
-    // - this method shall be called from the thread about to be terminated: e.g.
-    // if you call it from the main thread, it may fail to release resources
-    // - see also the DeleteConnectionInOwnThread property
-    // - within the mORMot server, mormot.orm.sql unit will call this method
-    // for every terminating thread created for TRestServerNamedPipeResponse
-    // or TRestHttpServer multi-thread process
-    procedure EndCurrentThread; virtual;
-    /// set this property if you want to disable the per-thread connection pool
-    // - to be used e.g. in database embedded mode (SQLite3/FireBird), when
+    /// use this property if you want to disable the tmThreadPool default mode
+    // - could be set e.g. in database embedded mode (SQLite3/FireBird), when
     // multiple connections may break stability and decrease performance
-    // - see TSqlDBConnectionPropertiesThreadSafeThreadingMode for the
-    // possible values
     property ThreadingMode: TSqlDBConnectionPropertiesThreadSafeThreadingMode
       read fThreadingMode write fThreadingMode;
     /// by default, deprecated connections after ConnectionTimeOutMinutes will
@@ -2812,7 +2842,10 @@ type
     // some non-threadsafe database providers may require to free the connection
     // in the very same thread which created it - see also EndCurrentThread
     property DeleteConnectionInOwnThread: boolean
-      read fDeleteConnectionInOwnThread write fDeleteConnectionInOwnThread;
+      index cpfDeleteConnectionInOwnThread read GetFlag write SetFlag;
+    /// how many TSqlDBConnectionThreadSafe are currently in tmThreadPool mode
+    property ConnectionPoolCount: integer
+      read fConnectionPoolCount;
   end;
 
   /// a structure used to store a standard binding parameter
@@ -3089,9 +3122,6 @@ begin
     result := copy(TableName, j, maxInt);
 end;
 
-const
-  SQL_KEYWORDS_BY2: array[0..19] of AnsiChar = 'ASATBYIFINISOFONORTO';
-
 function ReplaceParamsByNames(const aSql: RawUtf8; var aNewSql: RawUtf8;
   aStripSemicolon: boolean): integer;
 var
@@ -3148,15 +3178,14 @@ begin
           if c[1] = 'Z' then
           begin
             if c[2] = 'Z' then
-              raise ESqlDBException.CreateU(
+              ESqlDBException.RaiseU(
                 'Only up to 656 parameters are possible in :AA to :ZZ range');
             c[1] := 'A';
             inc(c[2]);
           end
           else
             inc(c[1]);
-        until WordScanIndex(@SQL_KEYWORDS_BY2, length(SQL_KEYWORDS_BY2) shr 1,
-                PWord(@c[1])^) < 0;
+        until not IsSqlReservedByTwo(@c[1]);
         inc(result);
         inc(i); // jump '?'
       until i = L;
@@ -3380,7 +3409,7 @@ begin
   result := false;
   if Json = nil then
     exit;
-  p.InitParser(Json, nil, [], nil, nil, nil);
+  p.InitParser(Json);
   if not p.ParseArray then
     exit;
   n := JsonArrayCount(p.Json); // prefetch input and compute dest length
@@ -3470,14 +3499,12 @@ constructor TSqlDBConnectionProperties.Create(const aServerName, aDatabaseName,
 var
   db: TSqlDBDefinition;
 begin
-  fMainConnectionLock.Init; // mandatory for TOSLightLock
   fServerName := aServerName;
   fDatabaseName := aDatabaseName;
   fUserID := aUserID;
   fPassWord := aPassWord;
   fEngineName := EngineName;
-  fRollbackOnDisconnect := true; // enabled by default
-  fUseCache := true;
+  fFlags := fFlags + [cpfRollbackOnDisconnect, cpfUseCache];
   fLoggedSqlMaxSize := 2048; // log up to 2KB of inlined SQL by default
   fStatementMaxMemory := 512 shl 20; // fetch to JSON/Binary up to 512MB
   SetInternalProperties; // virtual method used to override default parameters
@@ -3502,7 +3529,7 @@ begin
   case db of
     dMSSQL,
     dJet:
-      fStoreVoidStringAsNull := true;
+      StoreVoidStringAsNull := true;
   end;
   if byte(fBatchSendingAbilities) = 0 then // if not already handled by driver
     case db of
@@ -3536,7 +3563,6 @@ begin
   fMainConnection.Free;
   FillZero(fPassword);
   inherited;
-  fMainConnectionLock.Done; // mandatory for TOSLightLock
 end;
 
 function TSqlDBConnectionProperties.Execute(const aSql: RawUtf8;
@@ -3610,8 +3636,11 @@ end;
 
 function TSqlDBConnectionProperties.PrepareInlined(const SqlFormat: RawUtf8;
   const Args: array of const; ExpectResults: boolean): ISqlDBStatement;
+var
+  sql: RawUtf8;
 begin
-  result := PrepareInlined(FormatUtf8(SqlFormat, Args), ExpectResults);
+  FormatUtf8(SqlFormat, Args, sql);
+  result := PrepareInlined(sql, ExpectResults);
 end;
 
 function TSqlDBConnectionProperties.ExecuteInlined(const aSql: RawUtf8;
@@ -3631,42 +3660,66 @@ end;
 
 function TSqlDBConnectionProperties.ExecuteInlined(const SqlFormat: RawUtf8;
   const Args: array of const; ExpectResults: boolean): ISqlDBRows;
+var
+  sql: RawUtf8;
 begin
-  result := ExecuteInlined(FormatUtf8(SqlFormat, Args), ExpectResults);
+  FormatUtf8(SqlFormat, Args, sql);
+  result := ExecuteInlined(sql, ExpectResults);
+end;
+
+procedure TSqlDBConnectionProperties.SetFlag(
+  const flag: TSqlDBConnectionPropertiesFlag; const value: boolean);
+begin
+  if value then
+    include(fFlags, flag)
+  else
+    exclude(fFlags, flag);
+end;
+
+function TSqlDBConnectionProperties.GetFlag(
+  const flag: TSqlDBConnectionPropertiesFlag): boolean;
+begin
+  result := flag in fFlags;
 end;
 
 procedure TSqlDBConnectionProperties.SetConnectionTimeOutMinutes(minutes: cardinal);
 begin
-  fConnectionTimeOutTicks := minutes * MilliSecsPerMin;
+  fConnectionTimeOutSecs := minutes * SecsPerMin;
 end;
 
 function TSqlDBConnectionProperties.GetConnectionTimeOutMinutes: cardinal;
 begin
-  result := fConnectionTimeOutTicks div MilliSecsPerMin;
+  result := fConnectionTimeOutSecs div SecsPerMin;
+end;
+
+function TSqlDBConnectionProperties.FindDatabaseNameField(Up: PAnsiChar): RawUtf8;
+begin
+  result := FindIniNameValueU(StringReplaceAll(fDatabaseName, ';', #10), Up);
 end;
 
 function TSqlDBConnectionProperties.GetMainConnection: TSqlDBConnection;
 var
-  tix: Int64;
+  secs: integer;
 begin
-  tix := fConnectionTimeOutTicks;
-  if tix <> 0 then
-    tix := GetTickCount64;
-  fMainConnectionLock.Lock;
+  secs := 0;
+  if fConnectionTimeOutSecs <> 0 then
+    secs := GetTickSec;
+  fMainConnectionSafe.Lock;
   result := fMainConnection;
   if (result = nil) or
-     ((tix <> 0) and
-      result.IsOutdated(tix)) then
-  begin
+     ((secs <> 0) and // recreate after ConnectionTimeOutMinutes idle
+      result.IsOutdated(secs)) then
     try
       FreeAndNilSafe(fMainConnection);
-      result := NewConnection; // fast enough method
+      fMainConnection := NewConnection; // fast enough method
+      result := fMainConnection;
     except
       result := nil;
     end;
-    fMainConnection := result;
-  end;
-  fMainConnectionLock.UnLock;
+  if (result <> nil) and
+     (secs <> 0) then
+    result.fLastAccessTickSec := secs;
+  fMainConnectionSafe.UnLock;
 end;
 
 function TSqlDBConnectionProperties.{%H-}NewConnection: TSqlDBConnection;
@@ -3681,9 +3734,9 @@ end;
 
 procedure TSqlDBConnectionProperties.ClearConnectionPool;
 begin
-  fMainConnectionLock.Lock;
+  fMainConnectionSafe.Lock;
   FreeAndNilSafe(fMainConnection); // contains its own try..finally
-  fMainConnectionLock.UnLock;
+  fMainConnectionSafe.UnLock;
 end;
 
 function TSqlDBConnectionProperties.NewThreadSafeStatement: TSqlDBStatement;
@@ -3701,9 +3754,11 @@ end;
 function TSqlDBConnectionProperties.NewThreadSafeStatementPrepared(
   const SqlFormat: RawUtf8; const Args: array of const; ExpectResults,
   RaiseExceptionOnError: boolean): ISqlDBStatement;
+var
+  sql: RawUtf8;
 begin
-  result := NewThreadSafeStatementPrepared(FormatUtf8(SqlFormat, Args),
-    ExpectResults, RaiseExceptionOnError);
+  FormatUtf8(SqlFormat, Args, sql);
+  result := NewThreadSafeStatementPrepared(sql, ExpectResults, RaiseExceptionOnError);
 end;
 
 function TSqlDBConnectionProperties.SharedTransaction(SessionID: cardinal;
@@ -3819,70 +3874,10 @@ begin
     Owner := fForcedSchemaName;
 end;
 
-const
-  _CACHEABLE: array[0..15] of PAnsiChar = (
-    'SELECT ',
-    // following SQL commands are not cacheable (at least on Sqlite3/PostgreSQL)
-    'CREATE ',
-    'ALTER ',
-    'DROP ',
-    'TRUNCATE ',
-    'REINDEX ',
-    'ATTACH ',
-    'VACUUM ',
-    'ANALYZE ',
-    'COPY ',
-    'GRANT ',
-    'REVOKE ',
-    'LISTEN ',
-    'LOAD ',
-    'MOVE ',
-    nil);
-  _LASTCACHEABLE = 0; // following items in _CACHEABLE[] should not be cached
-
 function TSqlDBConnectionProperties.IsCacheable(P: PUtf8Char): boolean;
-var
-  c: PtrInt;
-  selectWithNoParamOrWhere: boolean;
 begin
-  // cacheable if with ? parameter or SELECT without WHERE clause
-  if (P <> nil) and
-     fUseCache then
-  begin
-    while P^ in [#1..' '] do
-      inc(P);
-    c := IdemPPChar(P, @_CACHEABLE);
-    selectWithNoParamOrWhere := c = 0;
-    if c <= _LASTCACHEABLE then // CREATE,ALTER,... and later are not cacheable
-    begin
-      result := true; // exit as cacheable if any ? parameter is found
-      while P^ <> #0 do
-      begin
-        case P^ of
-          '"':
-            begin
-              // ignore chars within quotes
-              repeat
-                inc(P)
-              until P^ in [#0, '"']; // double quotes will reuse this loop
-              if P^ = #0 then
-                break;
-            end;
-        ' ':
-          if selectWithNoParamOrWhere and
-             (P[1] in ['w', 'W']) and
-             IdemPChar(P + 2, 'HERE ') then
-            selectWithNoParamOrWhere := false; // SELECT with WHERE
-        '?':
-          exit; // we could cache statements with parameters for sure
-        end;
-        inc(P);
-      end;
-    end;
-    result := selectWithNoParamOrWhere;
-  end
-  else
-    result := false;
+  result := (cpfUseCache in fFlags) and
+            IsCacheableDML(P);
 end;
 
 function TSqlDBConnectionProperties.IsPrimaryKeyIndexed(
@@ -3914,34 +3909,29 @@ end;
 class function TSqlDBConnectionProperties.GetFieldDefinition(
   const Column: TSqlDBColumnDefine): RawUtf8;
 begin
-  with Column do
-  begin
-    FormatUtf8('% [%', [ColumnName, ColumnTypeNative], result);
-    if (ColumnLength <> 0) or
-       (Column.ColumnPrecision <> 0) or
-       (Column.ColumnScale <> 0) then
-      result := FormatUtf8('% % % %]',
-        [result, ColumnLength, ColumnPrecision, ColumnScale])
-    else
-      AppendShortToUtf8(']', result);
-    if ColumnIndexed then
-      AppendShortToUtf8(' *', result);
-  end;
+  FormatUtf8('% [%', [Column.ColumnName, Column.ColumnTypeNative], result);
+  if (Column.ColumnLength <> 0) or
+     (Column.ColumnPrecision <> 0) or
+     (Column.ColumnScale <> 0) then
+    result := FormatUtf8('% % % %]',
+      [result, Column.ColumnLength, Column.ColumnPrecision, Column.ColumnScale])
+  else
+    AppendShortToUtf8(']', result);
+  if Column.ColumnIndexed then
+    AppendShortToUtf8(' *', result);
 end;
 
 class function TSqlDBConnectionProperties.GetFieldORMDefinition(
   const Column: TSqlDBColumnDefine): RawUtf8;
 begin
   // 'Name: RawUtf8 index 20 read fName write fName;';
-  with Column do
-  begin
-    FormatUtf8('property %: %',
-      [ColumnName, SqlDBFIELDTYPE_TO_DELPHITYPE[ColumnType]], result);
-    if (ColumnType = ftUtf8) and
-       (ColumnLength > 0) then
-      result := FormatUtf8('% index %', [result, ColumnLength]);
-    result := FormatUtf8('% read f% write f%;', [result, ColumnName, ColumnName]);
-  end;
+  FormatUtf8('property %: %',
+    [Column.ColumnName, SqlDBFIELDTYPE_TO_DELPHITYPE[Column.ColumnType]], result);
+  if (Column.ColumnType = ftUtf8) and
+     (Column.ColumnLength > 0) then
+    result := FormatUtf8('% index %', [result, Column.ColumnLength]);
+  result := FormatUtf8('% read f% write f%;',
+    [result, Column.ColumnName, Column.ColumnName]);
 end;
 
 var
@@ -3966,6 +3956,7 @@ const
     'sql_small_result,sqlexception,ssl,starting,straight_join,terminated,text,tinyblob,' +
     'tinyint,tinytext,trigger,undo,unlock,unsigned,use,utc_date,utc_time,utc_timestamp,' +
     'varbinary,varcharacter,while,x509,xor,year_month,zerofillaccessible';
+
   /// CSV of the known reserved keywords per database engine, in alphabetic order
   DB_KEYWORDS_CSV: array[TSqlDBDefinition] of PUtf8Char = (
     // dUnknown
@@ -3992,11 +3983,11 @@ const
     'timestamp,timezone_hour,timezone_minute,to,trailing,transaction,translate,' +
     'translation,trim,true,union,unique,unknown,update,upper,usage,user,using,value,values,' +
     'varchar,varying,view,when,whenever,where,with,work,write,year,zone',
-  // dOracle specific keywords (in addition to dDefault)
+    // dOracle specific keywords (in addition to dDefault)
     'access,audit,cluster,comment,compress,exclusive,file,identified,increment,initial,' +
     'lock,long,maxextents,minus,mode,noaudit,nocompress,nowait,number,offline,online,' +
     'pctfree',
-  // dMSSQL specific keywords (in addition to dDefault)
+    // dMSSQL specific keywords (in addition to dDefault)
     'admin,after,aggregate,alias,array,asensitive,asymmetric,atomic,backup,before,binary,' +
     'blob,boolean,breadth,break,browse,bulk,call,called,cardinality,checkpoint,class,clob,' +
     'clustered,collect,completion,compute,condition,constructor,contains,containstable,' +
@@ -4026,17 +4017,15 @@ const
     'xmlattributes,xmlbinary,xmlcast,xmlcomment,xmlconcat,xmldocument,xmlelement,' +
     'xmlexists,xmlforest,xmliterate,xmlnamespaces,xmlparse,xmlpi,xmlquery,xmlserialize,' +
     'xmltable,xmltext,xmlvalidate',
-  // dJet specific keywords (in addition to dDefault)
+    // dJet specific keywords (in addition to dDefault)
     'longtext,memo,money,note,number,oleobject,owneraccess,parameters,percent,pivot,short,' +
     'single,singlefloat,stdev,stdevp,string,tableid,text,top,transform,unsignedbyte,var,' +
     'varbinary,varp,yesno',
-  // dMySQL specific keywords (in addition to dDefault)
+    // dMySQL specific keywords (in addition to dDefault)
      MYSQL_KEYWORDS_CSV,
-  // dSQLite keywords (dDefault is not added to this list)
-    'abort,after,and,attach,before,cluster,conflict,copy,database,delete,delimiters,detach,' +
-    'each,explain,fail,from,glob,ignore,insert,instead,isnull,limit,not,notnull,offset,or,' +
-    'pragma,raise,replace,row,select,statement,temp,trigger,vacuum,where',
-  // dFirebird specific keywords (in addition to dDefault)
+    // dSQLite keywords will use IsSqliteReserved() from mormot.db.core
+    '',
+    // dFirebird specific keywords (in addition to dDefault)
     'active,after,ascending,base_name,before,blob,cache,check_point_length,computed,' +
     'conditional,containing,cstring,currency,database,debug,descending,deterministic,do,' +
     'entry_point,exit,file,filter,function,gdscode,gen_id,generator,' +
@@ -4046,7 +4035,7 @@ const
     'raw_partitions,rdb$db_key,record_version,reserv,reserving,retain,return,' +
     'returning_values,returns,segment,shadow,shared,singular,snapshot,sort,stability,' +
     'start,starting,starts,statistics,sub_type,suspend,trigger,type,variable,wait,while',
-  // dNexusDB specific keywords (in addition to dDefault)
+    // dNexusDB specific keywords (in addition to dDefault)
     'abs,achar,assert,astring,autoinc,blob,block,blocksize,bool,boolean,byte,bytearray,' +
     'ceiling,chr,datetime,dword,empty,exp,floor,grow,growsize,ignore,image,initial,' +
     'initialsize,kana,largeint,locale,log,money,nullstring,nvarchar,percent,power,rand,' +
@@ -4072,7 +4061,7 @@ const
     'unencrypted,unlisten,until,vacuum,valid,validator,verbose,version,volatile,' +
     'whitespace,without,xml,xmlattributes,xmlconcat,xmlelement,xmlforest,xmlparse,xmlpi,' +
     'xmlroot,xmlserialize,yes',
-  // dDB2 specific keywords (in addition to dDefault)
+    // dDB2 specific keywords (in addition to dDefault)
     'activate,document,dssize,dynamic,each,editproc,elseif,enable,encoding,encryption,' +
     'ending,erase,every,excluding,exclusive,exit,explain,fenced,fieldproc,file,final,free,' +
     'function,general,generated,graphic,handler,hash,hashed_value,hint,hold,hours,if,' +
@@ -4117,14 +4106,19 @@ class function TSqlDBConnectionProperties.IsSqlKeyword(aDB: TSqlDBDefinition;
 var
   db: TSqlDBDefinition;
 begin
+  // use SQLite3 function using https://sqlite.org/lang_keywords.html
+  if aDB = dSQLite then
+  begin
+    result := IsSqliteReserved(aWord);
+    exit;
+  end;
   // prepare the keywords arrays from the per-DB CSV references
   if DB_KEYWORDS[dDefault] = nil then
     for db := low(DB_KEYWORDS) to high(DB_KEYWORDS) do
       CsvToRawUtf8DynArray(DB_KEYWORDS_CSV[db], DB_KEYWORDS[db]);
   // search using fast binary lookup in the alphabetic ordered arrays
   aWord := TrimU(LowerCase(aWord));
-  if (aDB = dSQLite) or
-     (FastFindPUtf8CharSorted(pointer(DB_KEYWORDS[dDefault]),
+  if (FastFindPUtf8CharSorted(pointer(DB_KEYWORDS[dDefault]),
        high(DB_KEYWORDS[dDefault]), pointer(aWord)) < 0) then
     if aDB <= dDefault then
       result := false
@@ -4776,66 +4770,17 @@ end;
 const
   COL_DECIMAL = 18; // change it if you update PCHARS[] below before 'DECIMAL'
   COL_NUMERIC = COL_DECIMAL + 1;
-  COL_NAMES: array[0..57] of PAnsiChar = (
-    'TEXT COLLATE ISO8601', // should be before plain 'TEXT'
-    'TEXT',
-    'CHAR',
-    'NCHAR',
-    'VARCHAR',
-    'NVARCHAR',
-    'CLOB',
-    'NCLOB',
-    'DBCLOB',
-    'BIT',
-    'INT',
-    'BIGINT',
-    'DOUBLE',
-    'NUMBER',
-    'FLOAT',
-    'REAL',
-    'DECFLOAT',
-    'CURR',
-    'DECIMAL',  // warning: see COL_DECIMAL above in synch with this item
-    'NUMERIC',  // warning: see COL_NUMERIC above in synch with this item
-    'BLOB SUB_TYPE 1',
-    'BLOB',
-    'DATE',
-    'SMALLDATE',
-    'TIME',
-    'TINYINT',
-    'BOOL',
-    'SMALLINT',
-    'MEDIUMINT',
-    'SERIAL',
-    'YEAR',
-    'TINYTEXT',
-    'MEDIUMTEXT',
-    'LONGTEXT',
-    'NTEXT',
-    'XML',
-    'ENUM',
-    'SET',
-    'UNIQUEIDENTIFIER',
-    'MONEY',
-    'SMALLMONEY',
-    'NUM',
-    'VARRAW',
-    'RAW',
-    'LONG RAW',
-    'LONG VARRAW',
-    'TINYBLOB',
-    'MEDIUMBLOB',
-    'BYTEA',
-    'VARBIN',
-    'IMAGE',
-    'LONGBLOB',
-    'BINARY',
-    'VARBINARY',
-    'GRAPHIC',
-    'VARGRAPHIC',
-    'NULL',
-    nil);
-  COL_TYPES: array[-1 .. high(COL_NAMES) - 1] of TSqlDBFieldType = (
+  COL_NAMES =       // in efficient IdemPCharSep() format
+    'TEXT COLLATE ISO8601|' + // should be before plain 'TEXT'
+    'TEXT|CHAR|NCHAR|VARCHAR|NVARCHAR|CLOB|NCLOB|DBCLOB|BIT|INT|BIGINT|DOUBLE|' +
+    'NUMBER|FLOAT|REAL|DECFLOAT|CURR|DECIMAL|' +  // see COL_DECIMAL above
+    'NUMERIC|' +  // see COL_NUMERIC above
+    'BLOB SUB_TYPE 1|BLOB|DATE|SMALLDATE|TIME|TINYINT|BOOL|SMALLINT|MEDIUMINT|' +
+    'SERIAL|YEAR|TINYTEXT|MEDIUMTEXT|LONGTEXT|NTEXT|XML|ENUM|SET|' +
+    'UNIQUEIDENTIFIER|MONEY|SMALLMONEY|NUM|VARRAW|RAW|LONG RAW|LONG VARRAW|' +
+    'TINYBLOB|MEDIUMBLOB|BYTEA|VARBIN|IMAGE|LONGBLOB|BINARY|VARBINARY|GRAPHIC|' +
+    'VARGRAPHIC|NULL|';
+  COL_TYPES: array[-1 .. 56] of TSqlDBFieldType = (
     ftUnknown,
     ftDate,      // 'TEXT COLLATE ISO8601'
     ftUtf8,      // 'TEXT'
@@ -4903,7 +4848,7 @@ function TSqlDBConnectionProperties.ColumnTypeNativeToDB(
     ndx: PtrInt;
   begin
     //assert(StrComp(COL_NAMES[COL_DECIMAL],'DECIMAL')=0);
-    ndx := IdemPPChar(pointer(aNativeType), @COL_NAMES);
+    ndx := IdemPCharSep(pointer(aNativeType), COL_NAMES);
     if (aScale = 0) and
        ((ndx = COL_DECIMAL) or
         (ndx = COL_NUMERIC)) then
@@ -5241,21 +5186,19 @@ begin
   // see more complete list in feature request [f024266c0839]
   case fDbms of
     dOracle:
-      result := IdemPCharArray(PosErrorNumber(aMessage, '-'),
-        ['00028', '01012', '01017', '01033', '01089', '02396', '03113', '03114',
-        '03135', '12152', '12154', '12157', '12514', '12520', '12537', '12545',
-        '12560', '12571']) >= 0;
+      result := IdemPCharSep(PosErrorNumber(aMessage, '-'),
+        '00028|01012|01017|01033|01089|02396|03113|03114|03135|12152|12154|' +
+        '12157|12514|12520|12537|12545|12560|12571|') >= 0;
     dInformix:
       // error codes based on {IBM INFORMIX ODBC DRIVER} on wrong data connection
-      result := IdemPCharArray(PosErrorNumber(aMessage, '-'),
-        ['329', '761', '902', '908', '930', '931', '951', '11017', '23101',
-         '23104', '25567', '25582', '27002']) >= 0;
+      result := IdemPCharSep(PosErrorNumber(aMessage, '-'),
+        '329|761|902|908|930|931|951|11017|23101|23104|25567|25582|27002|') >= 0;
     dMSSQL:
       // error codes based on {SQL Server Native Client 11.0} tested with wrong
       // data connection using general error codes because MS SQL SERVER has
       // multiple error codes in the error message
-      result := IdemPCharArray(PosErrorNumber(aMessage, '['),
-        ['08001', '08S01', '08007', '28000', '42000']) >= 0;
+      result := IdemPCharSep(PosErrorNumber(aMessage, '['),
+        '08001|08S01|08007|28000|42000|') >= 0;
     dMySQL,
     dMariaDB:
       result := (PosEx('Lost connection to', aMessage) > 0) or
@@ -5280,7 +5223,7 @@ var
   var
     f, r, p, len: PtrInt;
     W: TTextWriter;
-    tmp: TTextWriterStackBuffer;
+    tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
   begin
     if (fDbms <> dFireBird) and
        (rowcount = prevrowcount) then
@@ -5635,7 +5578,7 @@ begin
     result := ''
   else
     Join(['select ', FieldsFromList(aFields, aExcludeTypes),
-      ' from ', SqlTableName(aTableName)], result);
+          ' from ', SqlTableName(aTableName)], result);
 end;
 
 {$ifdef ISDELPHI20062007}
@@ -5737,9 +5680,9 @@ begin
 end;
 
 procedure TSqlDBConnectionProperties.DefinitionToFile(
-  const aJsonFile: TFileName; Key: cardinal);
+  const aJsonFile: TFileName; Key: cardinal; Fmt: TTextWriterJsonFormat);
 begin
-  FileFromString(JsonReformat(DefinitionToJson(Key)), aJsonFile);
+  FileFromString(JsonReformat(DefinitionToJson(Key), Fmt), aJsonFile);
 end;
 
 class function TSqlDBConnectionProperties.ClassFrom(
@@ -5760,13 +5703,16 @@ class function TSqlDBConnectionProperties.CreateFrom(
   aDefinition: TSynConnectionDefinition): TSqlDBConnectionProperties;
 var
   c: TSqlDBConnectionPropertiesClass;
+  pwd: SpiUtf8;
 begin
   c := ClassFrom(aDefinition);
   if c = nil then
     ESqlDBException.RaiseUtf8('%.CreateFrom: unknown % class - please ' +
       'add a reference to its implementation unit', [self, aDefinition.Kind]);
+  aDefinition.GetPasswordSafe(pwd);
   result := c.Create(aDefinition.ServerName, aDefinition.DatabaseName,
-    aDefinition.User, aDefinition.PassWordPlain);
+    aDefinition.User, pwd);
+  FillZero(pwd); // anti-forensic
 end;
 
 class function TSqlDBConnectionProperties.CreateFromJson(
@@ -5785,11 +5731,26 @@ end;
 class function TSqlDBConnectionProperties.CreateFromFile(
   const aJsonFile: TFileName; aKey: cardinal): TSqlDBConnectionProperties;
 begin
-  result := CreateFromJson(RawUtf8FromFile(aJsonFile), aKey);
+  result := CreateFromJson(JsonNormalizeFromFile(aJsonFile), aKey);
 end;
 
 
 { TSqlDBStatement }
+
+procedure TSqlDBStatement.SetFlag(
+  const flag: TSqlDBStatementFlag; const value: boolean);
+begin
+  if value then
+    include(fFlags, flag)
+  else
+    exclude(fFlags, flag);
+end;
+
+function TSqlDBStatement.GetFlag(const flag: TSqlDBStatementFlag): boolean;
+begin
+  result := flag in fFlags;
+end;
+
 
 procedure TSqlDBStatement.Bind(Param: integer; const Data: TSqlVar;
   IO: TSqlDBParamInOutType);
@@ -5867,12 +5828,13 @@ begin
 end;
 
 function VariantIsBlob(const V: variant): boolean;
+var
+  vd: TVarData absolute V;
 begin
-  with TVarData(V) do
-    result := (VType = varNull) or
-              ((VType = varString) and
-               (VString <> nil) and
-               (PCardinal(VString)^ and $ffffff = JSON_BASE64_MAGIC_C));
+  result := (cardinal(vd.VType) = varNull) or
+            ((cardinal(vd.VType) = varString) and
+             (vd.VString <> nil) and
+             (PCardinal(vd.VString)^ and $ffffff = JSON_BASE64_MAGIC_C));
 end;
 
 procedure TSqlDBStatement.Bind(const Params: array of const;
@@ -5894,13 +5856,13 @@ var
           c := PInteger(p^.VAnsiString)^ and $00ffffff;
           if c = JSON_BASE64_MAGIC_C then
           begin
-            Base64ToBin(p^.VPChar + 3, length(RawUtf8(p^.VAnsiString)) - 3,
+            Base64ToBin(p^.VPChar + 3, PStrLen(p^.VPChar - _STRLEN)^ - 3,
               RawByteString(tmp));
             BindBlob(arg, tmp, IO);
           end
           else if c = JSON_SQLDATE_MAGIC_C then
             BindDateTime(arg, Iso8601ToDateTimePUtf8Char(
-              PUtf8Char(p^.VAnsiString) + 3, length(RawUtf8(p^.VAnsiString)) - 3))
+              PUtf8Char(p^.VAnsiString) + 3, PStrLen(p^.VPChar - _STRLEN)^ - 3))
           else
           begin
             AnyAnsiToUtf8Var(RawByteString(p^.VAnsiString), tmp);
@@ -5948,77 +5910,77 @@ procedure TSqlDBStatement.BindVariant(Param: integer; const Data: Variant;
   DataIsBlob: boolean; IO: TSqlDBParamInOutType);
 var
   I64: Int64Rec;
+  vd: TVarData absolute Data;
 begin
-  with TVarData(Data) do
-    case VType of
-      varEmpty,
-      varNull:
-        BindNull(Param, IO);
-      varBoolean:
-        if VBoolean then
-          Bind(Param, 1, IO)
-        else
-          Bind(Param, 0, IO);
-      varByte:
-        Bind(Param, VInteger, IO);
-      varSmallint:
-        Bind(Param, VSmallInt, IO);
-      varShortInt:
-        Bind(Param, VShortInt, IO);
-      varWord:
-        Bind(Param, VWord, IO);
-      varLongWord:
-        begin
-          I64.Lo := VLongWord;
-          I64.Hi := 0;
-          Bind(Param, Int64(I64), IO);
-        end;
-      varInteger:
-        Bind(Param, VInteger, IO);
-      varInt64,
-      varWord64:
-        Bind(Param, VInt64, IO);
-      varSingle:
-        Bind(Param, VSingle, IO);
-      varDouble:
-        Bind(Param, VDouble, IO);
-      varDate:
-        BindDateTime(Param, VDate, IO);
-      varCurrency:
-        BindCurrency(Param, VCurrency, IO);
-      varOleStr:
-        // handle special case if was bound explicitly as WideString
-        BindTextW(Param, WideString(VAny), IO);
-      {$ifdef HASVARUSTRING}
-      varUString:
-        if DataIsBlob then
-          ESqlDBException.RaiseUtf8(
-            '%.BindVariant: BLOB should not be UnicodeString', [self])
-        else
-          BindTextU(Param, UnicodeStringToUtf8(UnicodeString(VAny)), IO);
-      {$endif HASVARUSTRING}
-      varString:
-        if DataIsBlob then
-          if (VAny <> nil) and
-             (PInteger(VAny)^ and $00ffffff = JSON_BASE64_MAGIC_C) then
-            // recognized as Base64 encoded text
-            BindBlob(Param, Base64ToBin(PAnsiChar(VAny) + 3,
-              length(RawByteString(VAny)) - 3))
-          else
-            // no conversion if was set via TQuery.AsBlob property e.g.
-            BindBlob(Param, RawByteString(VAny), IO)
-        else
-          // direct bind of AnsiString as UTF-8 value
-          BindTextU(Param, AnyAnsiToUtf8(RawByteString(VAny)), IO);
-    else
-      if VType = varVariantByRef then
-        BindVariant(Param, PVariant(VPointer)^, DataIsBlob, IO)
-      else if VType = varOleStrByRef then
-        BindTextW(Param, PWideString(VAny)^, IO)
+  case cardinal(vd.VType) of
+    varEmpty,
+    varNull:
+      BindNull(Param, IO);
+    varBoolean:
+      if vd.VBoolean then
+        Bind(Param, 1, IO)
       else
-        // also use TEXT for any non native VType parameter
-        BindTextU(Param, VariantToUtf8(Data), IO);
-    end;
+        Bind(Param, 0, IO);
+    varByte:
+      Bind(Param, vd.VInteger, IO);
+    varSmallint:
+      Bind(Param, vd.VSmallInt, IO);
+    varShortInt:
+      Bind(Param, vd.VShortInt, IO);
+    varWord:
+      Bind(Param, vd.VWord, IO);
+    varLongWord:
+      begin
+        I64.Lo := vd.VLongWord;
+        I64.Hi := 0;
+        Bind(Param, Int64(I64), IO);
+      end;
+    varInteger:
+      Bind(Param, vd.VInteger, IO);
+    varInt64,
+    varWord64:
+      Bind(Param, vd.VInt64, IO);
+    varSingle:
+      Bind(Param, vd.VSingle, IO);
+    varDouble:
+      Bind(Param, vd.VDouble, IO);
+    varDate:
+      BindDateTime(Param, vd.VDate, IO);
+    varCurrency:
+      BindCurrency(Param, vd.VCurrency, IO);
+    varOleStr:
+      // handle special case if was bound explicitly as WideString
+      BindTextW(Param, WideString(vd.VAny), IO);
+    {$ifdef HASVARUSTRING}
+    varUString:
+      if DataIsBlob then
+        ESqlDBException.RaiseUtf8(
+          '%.BindVariant: BLOB should not be UnicodeString', [self])
+      else
+        BindTextU(Param, UnicodeStringToUtf8(UnicodeString(vd.VAny)), IO);
+    {$endif HASVARUSTRING}
+    varString:
+      if DataIsBlob then
+        if (vd.VAny <> nil) and
+           (PInteger(vd.VAny)^ and $00ffffff = JSON_BASE64_MAGIC_C) then
+          // recognized as Base64 encoded text
+          BindBlob(Param, Base64ToBin(PAnsiChar(vd.VAny) + 3,
+                                      PStrLen(PAnsiChar(vd.VAny) - _STRLEN)^ - 3))
+        else
+          // no conversion if was set via TQuery.AsBlob property e.g.
+          BindBlob(Param, RawByteString(vd.VAny), IO)
+      else
+        // direct bind of AnsiString as UTF-8 value
+        BindTextU(Param, AnyAnsiToUtf8(RawByteString(vd.VAny)), IO);
+  else
+    if cardinal(vd.VType) = varVariantByRef then
+      BindVariant(Param, PVariant(vd.VPointer)^, DataIsBlob, IO)
+    else if cardinal(vd.VType) = varOleStrByRef then
+      BindTextW(Param, PWideString(vd.VAny)^, IO)
+    else
+      // also use TEXT for any non native VType parameter
+      BindTextU(Param, VariantToUtf8(Data), IO);
+  end;
 end;
 
 procedure TSqlDBStatement.BindArray(Param: integer; ParamType: TSqlDBFieldType;
@@ -6082,29 +6044,29 @@ end;
 
 function TSqlDBStatement.GetForceBlobAsNull: boolean;
 begin
-  result := fForceBlobAsNull;
+  result := GetFlag(dsfForceBlobAsNull);
 end;
 
 procedure TSqlDBStatement.SetForceBlobAsNull(value: boolean);
 begin
-  fForceBlobAsNull := value;
+  SetFlag(dsfForceBlobAsNull, value);
 end;
 
 function TSqlDBStatement.GetForceDateWithMS: boolean;
 begin
-  result := fForceDateWithMS;
+  result := GetFlag(dsfForceDateWithMS);
 end;
 
 procedure TSqlDBStatement.SetForceDateWithMS(value: boolean);
 begin
-  fForceDateWithMS := value;
+  SetFlag(dsfForceDateWithMS, value);
 end;
 
 constructor TSqlDBStatement.Create(aConnection: TSqlDBConnection);
 begin
   inherited Create;
   fConnection := aConnection;
-  fStripSemicolon := true;
+  SetFlag(dsfStripSemicolon, true);
   if aConnection <> nil then
     fDbms := aConnection.fProperties.GetDbms;
 end;
@@ -6150,78 +6112,76 @@ function TSqlDBStatement.ColumnToVariant(Col: integer;
 var
   tmp: RawByteString;
   V: TSqlVar;
+  d: TSynVarData absolute Value;
 begin
   ColumnToSqlVar(Col, V, tmp);
   result := V.VType;
   VarClear(Value);
-  with TVarData(Value) do
-  begin
-    VType := MAP_FIELDTYPE2VARTYPE[result];
-    case result of
-      ftNull:
-        ; // do nothing
-      ftInt64:
-        VInt64 := V.VInt64;
-      ftDouble:
-        VDouble := V.VDouble;
-      ftDate:
-        VDate := V.VDateTime;
-      ftCurrency:
-        VCurrency := V.VCurrency;
-      ftBlob: // as varString
+  d.VType := MAP_FIELDTYPE2VARTYPE[result];
+  case result of
+    ftNull:
+      ; // do nothing
+    ftInt64:
+      d.VInt64 := V.VInt64;
+    ftDouble:
+      d.VDouble := V.VDouble;
+    ftDate:
+      d.VDate := V.VDateTime;
+    ftCurrency:
+      d.VCurrency := V.VCurrency;
+    ftBlob: // as varString
+      begin
+        d.VAny := nil; // avoid GPF below
+        if V.VBlob <> nil then
+          if V.VBlob = pointer(tmp) then
+            RawByteString(d.VAny) := tmp // increment RefCount
+          else
+            FastSetRawByteString(RawByteString(d.VAny), V.VBlob, V.VBlobLen);
+      end;
+    ftUtf8: // VType is varSynUnicode
+      begin
+        d.VAny := nil; // avoid GPF below
+        if V.VText = nil then
+          d.VType := varString // avoid obscure "Invalid variant type" in FPC
+        else if ForceUtf8 then
         begin
-          VAny := nil; // avoid GPF below
-          if V.VBlob <> nil then
-            if V.VBlob = pointer(tmp) then
-              RawByteString(VAny) := tmp // increment RefCount
-            else
-              FastSetRawByteString(RawByteString(VAny), V.VBlob, V.VBlobLen);
-        end;
-      ftUtf8: // VType is varSynUnicode
-        begin
-          VAny := nil; // avoid GPF below
-          if V.VText = nil then
-            VType := varString // avoid obscure "Invalid variant type" in FPC
-          else if ForceUtf8 then
+          d.VType := varString;
+          if V.VText = pointer(tmp) then
           begin
-            VType := varString;
-            if V.VText = pointer(tmp) then
-            begin
-              FakeCodePage(tmp, CP_UTF8);
-              VAny := pointer(tmp); // direct assign with no refcount
-              pointer(tmp) := nil;
-            end
-            else
-              FastSetString(RawUtf8(VAny), V.VText, StrLen(V.VText));
+            FakeCodePage(tmp, CP_UTF8);
+            d.VAny := pointer(tmp); // direct assign with no refcount
+            pointer(tmp) := nil;
           end
           else
+            FastSetString(RawUtf8(d.VAny), V.VText, StrLen(V.VText));
+        end
+        else
+        begin
+          if V.VText = pointer(tmp) then
+            V.VBlobLen := length(tmp)
+          else
+            V.VBlobLen := StrLen(V.VText);
+          {$ifndef UNICODE}
+          if (fConnection <> nil) and
+             not fConnection.Properties.VariantStringAsWideString then
           begin
-            if V.VText = pointer(tmp) then
-              V.VBlobLen := length(tmp)
+            d.VType := varString;
+            if (V.VText = pointer(tmp)) and
+               ((Unicode_CodePage = CP_UTF8) or
+                IsAnsiCompatible(tmp)) then
+              RawByteString(d.VAny) := tmp
             else
-              V.VBlobLen := StrLen(V.VText);
-            {$ifndef UNICODE}
-            if (fConnection <> nil) and
-               not fConnection.Properties.VariantStringAsWideString then
-            begin
-              VType := varString;
-              if (V.VText = pointer(tmp)) and
-                 ((Unicode_CodePage = CP_UTF8) or
-                  IsAnsiCompatible(tmp)) then
-                RawByteString(VAny) := tmp
-              else
-                CurrentAnsiConvert.Utf8BufferToAnsi(
-                  V.VText, V.VBlobLen, RawByteString(VAny));
-            end
-            else
-            {$endif UNICODE}
-              Utf8ToSynUnicode(V.VText, V.VBlobLen, SynUnicode(VAny));
-          end;
+              CurrentAnsiConvert.Utf8BufferToAnsi(
+                V.VText, V.VBlobLen, RawByteString(d.VAny));
+          end
+          else
+          {$endif UNICODE}
+            Utf8ToSynUnicode(V.VText, V.VBlobLen, SynUnicode(d.VAny));
         end;
-    else
-      ESqlDBException.RaiseUtf8(
-        '%.ColumnToVariant: Invalid ColumnType(%)=%', [self, Col, ord(result)]);
-    end;
+      end;
+  else
+    ESqlDBException.RaiseUtf8(
+      '%.ColumnToVariant: Invalid ColumnType(%)=%', [self, Col, ord(result)]);
   end;
 end;
 
@@ -6285,7 +6245,7 @@ begin
         Value.VText := pointer(Temp);
       end;
     ftBlob:
-      if fForceBlobAsNull then
+      if dsfForceBlobAsNull in fFlags then
       begin
         Value.VBlob := nil;
         Value.VBlobLen := 0;
@@ -6320,7 +6280,7 @@ begin // default implementation (never called in practice)
       ftDate:
         begin
           W.Add('"');
-          W.AddDateTime(ColumnDateTime(col), fForceDateWithMS);
+          W.AddDateTime(ColumnDateTime(col), dsfForceDateWithMS in fFlags);
           W.Add('"');
         end;
       ftUtf8:
@@ -6333,7 +6293,7 @@ begin // default implementation (never called in practice)
           W.Add('"');
         end;
       ftBlob:
-        if fForceBlobAsNull then
+        if dsfForceBlobAsNull in fFlags then
           W.AddNull
         else
         begin
@@ -6386,7 +6346,7 @@ end;
 function TSqlDBStatement.StepAsJson(SeekFirst: boolean): RawUtf8;
 var
   w: TJsonWriter;
-  tmp: TTextWriterStackBuffer;
+  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
 begin
   w := TJsonWriter.CreateOwnedStream(tmp);
   try
@@ -6411,7 +6371,7 @@ begin
     ColumnToJson(col, W);
     W.AddComma;
   end;
-  W.CancelLastComma('}');
+  W.ReplaceLastComma('}');
 end;
 
 procedure TSqlDBStatement.Execute(const aSql: RawUtf8; ExpectResults: boolean);
@@ -6430,8 +6390,8 @@ function TSqlDBStatement.FetchAllToJson(Json: TStream; Expanded: boolean): PtrIn
 var
   W: TResultsWriter;
   col: integer;
-  maxmem: PtrUInt;
-  tmp: TTextWriterStackBuffer;
+  maxmem: PtrInt;
+  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
 begin
   result := 0;
   W := TResultsWriter.Create(Json, Expanded, false, nil, 0, @tmp);
@@ -6483,13 +6443,13 @@ end;
 function TSqlDBStatement.FetchAllToCsvValues(Dest: TStream; Tab: boolean;
   CommaSep: AnsiChar; AddBOM: boolean): PtrInt;
 const
-  NULL: array[boolean] of string[7] = (
+  NULL: array[boolean] of TShort7 = (
     '"null"', 'null');
-  BLOB: array[boolean] of string[7] = (
+  BLOB: array[boolean] of TShort7 = (
     '"blob"', 'blob');
 var
   F, FMax: integer;
-  maxmem: PtrUInt;
+  maxmem: PtrInt;
   W: TJsonWriter;
   tmp: RawByteString;
   V: TSqlVar;
@@ -6499,7 +6459,7 @@ begin
      (self = nil) or
      (ColumnCount = 0) then
     exit;
-  fForceBlobAsNull := true;
+  SetForceBlobAsNull(true);
   if Tab then
     CommaSep := #9;
   FMax := ColumnCount - 1;
@@ -6656,12 +6616,12 @@ function TSqlDBStatement.FetchAllToBinary(Dest: TStream; MaxRowCount: cardinal;
 var
   f, fmax, fieldsize, nullrowlast: integer;
   startpos: Int64;
-  maxmem: PtrUInt;
+  maxmem: PtrInt;
   W: TBufferWriter;
   ft: TSqlDBFieldType;
   coltypes: TSqlDBFieldTypeDynArray;
   nullbits: TByteDynArray;
-  tmp: TTextWriterStackBuffer;
+  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
 begin
   result := 0;
   maxmem := Connection.Properties.StatementMaxMemory;
@@ -6792,8 +6752,11 @@ end;
 
 procedure TSqlDBStatement.Execute(const SqlFormat: RawUtf8;
   ExpectResults: boolean; const Args, Params: array of const);
+var
+  sql: RawUtf8;
 begin
-  Execute(FormatUtf8(SqlFormat, Args), ExpectResults, Params);
+  FormatUtf8(SqlFormat, Args, sql);
+  Execute(sql, ExpectResults, Params);
 end;
 
 function TSqlDBStatement.UpdateCount: integer;
@@ -6950,7 +6913,7 @@ begin
   begin
     if Msg = nil then
     begin
-      if not fExpectResults then
+      if not (dsfExpectResults in fFlags) then
       begin
         AppendShort(' wr=', tmp);
         AppendShortCardinal(UpdateCount, tmp);
@@ -7100,32 +7063,32 @@ procedure TSqlDBStatement.AddParamValueAsText(Param: integer; Dest: TJsonWriter;
   MaxCharCount: integer);
 var
   v: variant;
+  vd: TVarData absolute v;
   ft: TSqlDBFieldType;
 begin
   ft := ParamToVariant(Param, v, false);
-  with TVarData(v) do
-    case cardinal(VType) of
-      varString:
-        if ft = ftBlob then
-          Dest.AddU(length(RawByteString(VString)))
-        else
-          Dest.AddQuotedStr(
-            VString, length(RawByteString(VString)), '''', MaxCharCount);
-      varOleStr:
-        Dest.AddQuotedStrW(
-          VString, length(WideString(VString)), '''', MaxCharCount);
-      {$ifdef HASVARUSTRING}
-      varUString:
-        Dest.AddQuotedStrW(
-          VString, length(UnicodeString(VString)), '''', MaxCharCount);
-      {$endif HASVARUSTRING}
-    else
-      if (ft = ftDate) and
-         (cardinal(VType) in [varDouble, varDate]) then
-        Dest.AddDateTime(vdate)
+  case cardinal(vd.VType) of
+    varString:
+      if ft = ftBlob then
+        Dest.AddU(length(RawByteString(vd.VPointer))) // only add binary length
       else
-        Dest.AddVariant(v);
-    end;
+        Dest.AddQuotedStr(
+          vd.VString, length(RawByteString(vd.VPointer)), '''', MaxCharCount);
+    varOleStr:
+      Dest.AddQuotedStrW(
+        vd.VString, length(WideString(vd.VPointer)), '''', MaxCharCount);
+    {$ifdef HASVARUSTRING}
+    varUString:
+      Dest.AddQuotedStrW(
+        vd.VString, length(UnicodeString(vd.VPointer)), '''', MaxCharCount);
+    {$endif HASVARUSTRING}
+  else
+    if (ft = ftDate) and
+       (cardinal(vd.VType) in [varDouble, varDate]) then
+      Dest.AddDateTime(vd.VDate)
+    else
+      Dest.AddVariant(v);
+  end;
 end;
 
 var
@@ -7136,11 +7099,8 @@ begin
   if SqlDBRowVariantType = nil then
     SqlDBRowVariantType := SynRegisterCustomVariantType(TSqlDBRowVariantType);
   VarClear(result);
-  with TVarData(result) do
-  begin
-    VType := SqlDBRowVariantType.VarType;
-    VPointer := self;
-  end;
+  TSynVarData(result).VType := SqlDBRowVariantType.VarType;
+  TSynVarData(result).VAny  := self;
 end;
 
 procedure TSqlDBStatement.RowDocVariant(out aDocument: variant;
@@ -7189,8 +7149,8 @@ end;
 procedure TSqlDBStatement.ExecutePrepared;
 begin
   if (fConnection <> nil) and
-     (fConnection.fProperties.fConnectionTimeOutTicks <> 0) then
-    fConnection.fLastAccessTicks := GetTickCount64;
+     (fConnection.fProperties.fConnectionTimeOutSecs <> 0) then
+    fConnection.fLastAccessTickSec := GetTickSec;
   // a do-nothing default method
 end;
 
@@ -7296,7 +7256,7 @@ end;
 procedure TSqlDBConnection.CheckConnection;
 begin
   if self = nil then
-    raise ESqlDBException.CreateU('TSqlDBConnection(nil).CheckConnection');
+    ESqlDBException.RaiseU('TSqlDBConnection(nil).CheckConnection');
   if not Connected then
     ESqlDBException.RaiseUtf8('% on %/% should be connected',
       [self, Properties.ServerName, Properties.DataBaseName]);
@@ -7406,7 +7366,7 @@ end;
 function TSqlDBConnection.GetThreadOwned(aClass: TClass): pointer;
 begin
   if (self = nil) or
-     not fProperties.fIsThreadSafe then
+     not (cpfIsThreadSafe in fProperties.fFlags) then
     result := nil
   else
   begin
@@ -7419,33 +7379,21 @@ end;
 function TSqlDBConnection.SetThreadOwned(aObject: TObject): pointer;
 begin
   if (self = nil) or
-     not fProperties.fIsThreadSafe then
+     not (cpfIsThreadSafe in fProperties.fFlags) then
     ESqlDBException.RaiseUtf8('Unsupported %.SetThreadOwned', [self]);
   result := aObject;
   if result <> nil then
     PtrArrayAdd(fOwned, aObject);
 end;
 
-function TSqlDBConnection.IsOutdated(tix: Int64): boolean;
-label
-  old;
-begin
-  if (self = nil) or
-     (fProperties.fConnectionTimeOutTicks = 0) then
-    result := false
-  else if fLastAccessTicks < 0 then
-    // connection release was forced by ClearConnectionPool
-    goto old
-  else if (fLastAccessTicks = 0) or
-          (tix - fLastAccessTicks < fProperties.fConnectionTimeOutTicks) then
-  begin
-    // brand new connection, or active enough connection
-    fLastAccessTicks := tix;
-    result := false;
-  end
-  else
-    // notify connection is clearly outdated
-old:result := true;
+function TSqlDBConnection.IsOutdated(secs: integer): boolean;
+var
+  last: integer;
+begin // caller ensured self <> nil and secs <> 0 and timeout <> 0
+  last := fLastAccessTickSec;
+  result := (last < 0) or       // -1 = deprecated by ClearConnectionPool
+            ((last <> 0) and    //  0 = new connection
+             (secs - last >= fProperties.fConnectionTimeOutSecs)); // too idle
 end;
 
 function TSqlDBConnection.GetInTransaction: boolean;
@@ -7544,7 +7492,7 @@ var
         {$endif SYNDB_SILENCE}
         stmt.Free;
         result := nil;
-        StringToUtf8(E.Message, fErrorMessage);
+        ExceptionUtf8(E, fErrorMessage);
         fErrorException := PPointer(E)^;
         if doraise then
           raise;
@@ -7663,7 +7611,7 @@ begin
             (fErrorException <> nil) then
       // propagate error not related to connection (e.g. SQL syntax error)
       if fErrorException.InheritsFrom(ESynException) then
-        raise ECoreDBException.CreateU(fErrorMessage)
+        ECoreDBException.RaiseU(fErrorMessage)
       else
         raise fErrorException.Create(Utf8ToString(fErrorMessage));
   end
@@ -7819,101 +7767,34 @@ end;
 
 { ************ Parent Classes for Thread-Safe and Parametrized Connections }
 
-{ TSqlDBConnectionPropertiesThreadSafe }
+{ TSqlDBConnectionThreadSafe }
 
-procedure TSqlDBConnectionPropertiesThreadSafe.ClearConnectionPool;
-var
-  i: PtrInt;
+destructor TSqlDBConnectionThreadSafe.Destroy;
 begin
-  fConnectionPool.Safe.WriteLock;
-  try
-    if fDeleteConnectionInOwnThread then
-    begin
-      // mark all connections as deprecated - Delete() will be done later on, in
-      // the proper thread (some providers may require to keep the same thread)
-      if fMainConnection <> nil then
-        fMainConnection.fLastAccessTicks := -1; // force IsOutdated()=true
-      for i := 0 to fConnectionPool.Count - 1 do
-        TSqlDBConnectionThreadSafe(fConnectionPool.List[i]).
-          fLastAccessTicks := -1;
-    end
-    else
-    begin
-      // we can delete all existing connections now
-      fMainConnectionLock.Lock;
-      FreeAndNilSafe(fMainConnection);
-      fMainConnectionLock.UnLock;
-      fConnectionPool.ClearFromLast; // to use FreeAndNilSafe
-    end;
-    fConnectionPoolDeprecatedTix := 0; // trigger ThreadSafeConnection() release
-  finally
-    fConnectionPool.Safe.WriteUnLock;
-  end;
+  if fProperties <> nil then
+    (fProperties as TSqlDBConnectionPropertiesThreadSafe).RemoveFromPool(self);
+  inherited Destroy;
 end;
+
+
+{ TSqlDBConnectionPropertiesThreadSafe }
 
 constructor TSqlDBConnectionPropertiesThreadSafe.Create(
   const aServerName, aDatabaseName, aUserID, aPassWord: RawUtf8);
 begin
-  fIsThreadSafe := true;
-  fConnectionPool := TSynObjectListLightLocked.Create;
+  include(fFlags, cpfIsThreadSafe);
+  fConnectionPoolMax := -1;
   inherited Create(aServerName, aDatabaseName, aUserID, aPassWord);
 end;
 
-threadvar // do not publish for compilation within Delphi packages
-  PerThreadConnectionIndex: integer; // for GetLockedPerThreadIndex O(1) lookup
-
-function TSqlDBConnectionPropertiesThreadSafe.GetLockedPerThreadIndex: PtrInt;
-var
-  id: TThreadID;
-  conn: ^TSqlDBConnectionThreadSafe;
-begin
-  // caller made fConnectionPool.Safe.ReadOnlyLock or WriteLock
-  if self <> nil then
-  begin
-    // we just search for the TThreadID and won't check for IsOutdated()
-    id := GetCurrentThreadId;
-    // most of the time, we have the index in the threadvar
-    result := PerThreadConnectionIndex;
-    if (PtrUInt(result) < PtrUInt(fConnectionPool.Count)) and
-       (TSqlDBConnectionThreadSafe(fConnectionPool.List[result]).
-         fThreadID = id) then
-        exit;
-    // search for this TThreadID connection (should almost never happen)
-    conn := pointer(fConnectionPool.List);
-    for result := 0 to fConnectionPool.Count - 1 do
-      if conn^.fThreadID = id then
-      begin
-        PerThreadConnectionIndex := result;
-        exit;
-      end
-      else
-        inc(conn);
-  end;
-  result := -1;
-end;
-
 destructor TSqlDBConnectionPropertiesThreadSafe.Destroy;
-begin
-  inherited Destroy; // do MainConnection.Free
-  fConnectionPool.Free;
-end;
-
-procedure TSqlDBConnectionPropertiesThreadSafe.EndCurrentThread;
 var
-  i: integer;
+  i: PtrInt;
 begin
-  fConnectionPool.Safe.WriteLock;
-  try
-    // do nothing if this thread has no active connection
-    i := GetLockedPerThreadIndex;
-    if i >= 0 then
-    begin
-      fConnectionPool.Delete(i); // release thread's TSqlDBConnection instance
-      PerThreadConnectionIndex := -1;
-    end;
-  finally
-    fConnectionPool.Safe.WriteUnLock;
-  end;
+  for i := fConnectionPoolMin to fConnectionPoolMax do
+    if fConnectionPool[i] <> nil then
+      FreeAndNilSafe(fConnectionPool[i]);
+  inherited Destroy; // do MainConnection.Free
 end;
 
 function TSqlDBConnectionPropertiesThreadSafe.GetMainConnection: TSqlDBConnection;
@@ -7921,71 +7802,159 @@ begin
   result := ThreadSafeConnection;
 end;
 
-function TSqlDBConnectionPropertiesThreadSafe.ThreadSafeConnection: TSqlDBConnection;
+procedure TSqlDBConnectionPropertiesThreadSafe.ClearConnectionPool;
 var
   i: PtrInt;
-  tix: Int64;
-  tix32: cardinal;
+  delete: TObjectDynArray; // outside non-reentrant lock
+  deletecount: integer;
+  log: ISynLog;
+begin
+  SynDBLog.EnterLocal(log, self, 'ClearConnectionPool');
+  if DeleteConnectionInOwnThread then
+  begin
+    // mark all connections as deprecated - Destroy will be done later on, in
+    // the proper thread (some providers may require to keep the same thread)
+    fMainConnectionSafe.Lock;
+    if fMainConnection <> nil then
+      fMainConnection.fLastAccessTickSec := -1; // force IsOutdated()=true
+    fMainConnectionSafe.UnLock;
+    fConnectionPoolSafe.Lock;
+    try
+      for i := fConnectionPoolMin to fConnectionPoolMax do
+        if fConnectionPool[i] <> nil then
+          fConnectionPool[i].fLastAccessTickSec := -1;
+    finally
+      fConnectionPoolSafe.UnLock;
+    end;
+    fConnectionPoolDeprecatedTix32 := 0; // trigger DeleteDeprecated()
+  end
+  else
+  begin
+    // we can delete all existing connections now
+    inherited ClearConnectionPool; // FreeAndNilSafe(fMainConnection)
+    deletecount := 0;
+    fConnectionPoolSafe.Lock;
+    try
+      for i := fConnectionPoolMin to fConnectionPoolMax do
+        if fConnectionPool[i] <> nil then
+          ObjArrayAddCount(delete, fConnectionPool[i], deletecount);
+    finally
+      fConnectionPoolSafe.UnLock;
+    end;
+    if deletecount = 0 then
+      exit;
+    if Assigned(log) then
+      log.Log(sllTrace, 'ClearConnectionPool: frompool=%', [deletecount], self);
+    ObjArrayClear(delete, {continueonexc=}true, @deletecount);
+  end;
+end;
+
+procedure TSqlDBConnectionPropertiesThreadSafe.RemoveFromPool(
+  conn: TSqlDBConnectionThreadSafe);
+var
+  i: PtrInt;
+begin // called from TSqlDBConnectionThreadSafe.Destroy
+  fConnectionPoolSafe.Lock;
+  try
+    for i := fConnectionPoolMin to fConnectionPoolMax do
+      if fConnectionPool[i] = conn then
+      begin
+        fConnectionPool[i] := nil;
+        dec(fConnectionPoolCount);
+        if fConnectionPoolCount = 0 then
+        begin
+          fConnectionPoolMin := 0; // reset range
+          fConnectionPoolMax := -1;
+        end;
+        break;
+      end;
+  finally
+    fConnectionPoolSafe.UnLock;
+  end;
+end;
+
+procedure TSqlDBConnectionPropertiesThreadSafe.DeleteDeprecated(secs: integer);
+var
+  i: PtrInt;
+  delete: TObjectDynArray; // outside non-reentrant lock
+  deletecount: integer;
+  log: ISynLog;
+begin // called at most every 32 seconds - ensured timeout <> 0 and secs <> 0
+  if fConnectionPoolCount = 0 then
+    exit;
+  deletecount := 0;
+  fConnectionPoolSafe.Lock;
+  try
+    for i := fConnectionPoolMin to fConnectionPoolMax do
+      if (fConnectionPool[i] <> nil) and
+         fConnectionPool[i].IsOutdated(secs) then
+        ObjArrayAddCount(delete, fConnectionPool[i], deletecount);
+  finally
+    fConnectionPoolSafe.UnLock;
+  end;
+  if deletecount = 0 then
+    exit;
+  SynDBLog.EnterLocal(log, 'DeleteDeprecated=%', [deletecount], self);
+  ObjArrayClear(delete, {continueonexc=}true, @deletecount);
+end;
+
+function TSqlDBConnectionPropertiesThreadSafe.ThreadSafeConnection: TSqlDBConnection;
+var
+  secs: integer;
+  ndx: PtrInt;
 begin
   case fThreadingMode of
     tmThreadPool:
       begin
-        // first delete any deprecated connection(s) - every 16 seconds
-        tix := fConnectionTimeOutTicks;
-        if tix <> 0 then
+        // first delete any deprecated connection(s) - check every 32 seconds
+        secs := 0;
+        if fConnectionTimeOutSecs <> 0 then
         begin
-          tix := GetTickCount64;
-          if not fDeleteConnectionInOwnThread then
+          secs := GetTickSec;
+          if ConnectionTimeOutBackground and // disabled by default
+             (not (cpfDeleteConnectionInOwnThread in fFlags)) and
+             (fConnectionPoolDeprecatedTix32 <> secs shr 5) then
           begin
-            tix32 := tix shr 14; // search every 16.384 seconds
-            if fConnectionPoolDeprecatedTix <> tix32 then
-            begin
-              fConnectionPoolDeprecatedTix := tix32;
-              fConnectionPool.Safe.WriteLock;
-              try
-                i := 0;
-                while i < fConnectionPool.Count do
-                  if TSqlDBConnectionThreadSafe(fConnectionPool.List[i]).
-                        IsOutdated(tix) then
-                    fConnectionPool.Delete(i)
-                  else
-                    inc(i);
-              finally
-                fConnectionPool.Safe.WriteUnLock;
-              end;
-            end;
+            fConnectionPoolDeprecatedTix32 := secs shr 5;
+            DeleteDeprecated(secs);
           end;
         end;
         // search for an existing connection
         result := nil;
-        fConnectionPool.Safe.ReadLock; // concurrent non blocking search
-        i := GetLockedPerThreadIndex;
-        if i >= 0 then
-          result := fConnectionPool.List[i];
-        fConnectionPool.Safe.ReadUnLock;
-        // is this connection not deprecated?
+        ndx := TSynLog.ThreadIndex; // efficient slots thread list with reuse
+        fConnectionPoolSafe.Lock;
+        if (ndx >= fConnectionPoolMin) and
+           (ndx <= fConnectionPoolMax) then
+          result := fConnectionPool[ndx]; // O(1) lookup
+        fConnectionPoolSafe.UnLock;
+        // is this connection deprecated?
         if result <> nil then
-          if (result.fLastAccessTicks < 0) or // from ClearConnectionPool
-             ((tix <> 0) and
-              result.IsOutdated(tix)) then
-            // make fConnectionPool.Delete to release this old instance
-            EndCurrentThread
+          if (result.fLastAccessTickSec < 0) or // from ClearConnectionPool
+             ((secs <> 0) and
+              result.IsOutdated(secs)) then
+            FreeAndNilSafe(result) // release this deprecated idle connection
           else
-            // we found a valid connection for this TThreadID
-            exit;
+          begin
+            if secs <> 0 then
+              result.fLastAccessTickSec := secs; // mark for IsOutDated()
+            exit; // valid connection for this thread
+          end;
         // we need to (re)create a new connection for this thread
         result := NewConnection; // run outside of the lock (even if fast)
-        (result as TSqlDBConnectionThreadSafe).fThreadID := GetCurrentThreadId;
-        fConnectionPool.Safe.WriteLock;
-        try
-          i := fConnectionPool.Add(result)
-        finally
-          fConnectionPool.Safe.WriteUnLock;
-        end;
-        PerThreadConnectionIndex := i; // store in a threadvar for O(1) lookup
+        // store in fConnectionPool[] internal list
+        fConnectionPoolSafe.Lock;
+        if ndx < fConnectionPoolMin then
+          fConnectionPoolMin := ndx;
+        if ndx > fConnectionPoolMax then
+          fConnectionPoolMax := ndx;
+        if ndx >= length(fConnectionPool) then
+          SetLength(fConnectionPool, ndx + 32);
+        fConnectionPool[ndx] := TSqlDBConnectionThreadSafe(result);
+        inc(fConnectionPoolCount);
+        fConnectionPoolSafe.UnLock;
       end;
     tmMainConnection:
-      result := inherited GetMainConnection; // has its own TOSLightLock
+      result := inherited GetMainConnection; // has its own TLightLock
   else
     result := nil;
   end;
@@ -7998,7 +7967,7 @@ function TSqlDBStatementWithParams.CheckParam(Param: integer;
   NewType: TSqlDBFieldType; IO: TSqlDBParamInOutType): PSqlDBParam;
 begin
   if self = nil then
-    raise ESqlDBException.CreateU('TSqlDBStatementWithParams(nil).Bind');
+    ESqlDBException.RaiseU('TSqlDBStatementWithParams(nil).Bind');
   if Param > fParamCount then
     fParam.Count := Param; // resize fParams[] dynamic array if necessary
   result := @fParams[Param - 1];
@@ -8140,7 +8109,7 @@ begin
         ftCurrency:
           Value := PCurrency(@VInt64)^;
         ftDate:
-          Value := PDateTime(@VInt64)^;
+          Value := unaligned(PDateTime(@VInt64)^);
         ftUtf8:
           RawUtf8ToVariant(RawUtf8(VData), Value);
         ftBlob:
@@ -8226,7 +8195,7 @@ begin
       begin
         // not only replace 'T'->timeseparator, but force expanded format
         dt := Iso8601ToDateTime(p^.VArray[i]);
-        DateTimeToIso8601Var(dt, {expanded=}true, {ms=}fForceDateWithMS,
+        DateTimeToIso8601Var(dt, {expanded=}true, dsfForceDateWithMS in fFlags,
           Connection.Properties.DateTimeFirstChar, '''', p^.VArray[i]);
       end;
   fParamsArrayCount := ValuesCount;
@@ -8240,7 +8209,8 @@ begin
   // default implementation is to convert JSON values into SQL values
   p := CheckParam(Param, ParamType, paramIn, 0);
   if not JsonArrayToBoundArray(pointer(JsonArray), ParamType,
-     Connection.Properties.DateTimeFirstChar, fForceDateWithMS, p^.VArray) or
+     Connection.Properties.DateTimeFirstChar, dsfForceDateWithMS in fFlags,
+     p^.VArray) or
     (length(p^.VArray) <> ValuesCount) then
     BindArray(Param, ParamType, nil, 0); // raise exception
   p^.VInt64 := ValuesCount;
@@ -8434,7 +8404,7 @@ begin
     ColumnToJson(col, W);
     W.AddComma;
   end;
-  W.CancelLastComma('}');
+  W.ReplaceLastComma('}');
 end;
 
 procedure TSqlDBStatementWithParamsAndColumns.ClearColumns;

@@ -21,7 +21,7 @@ type
 
 function renameCheck(const pattern, i, len: integer; const rls: String): boolean;
 function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String;
-  dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
+  dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0; aDetectedTick: Int64 = 0): integer;
 function FindReleaseInKbList(const rls: String): String;
 
 { Finds a release in latest KB list
@@ -46,6 +46,12 @@ function FindSectionHandler(const section: String): TCRelease;
 { Returns the number of items in the KB
       @returns(The number of items in the KB) }
 function GetKBCount: integer;
+
+{ @abstract(Returns a reference to the KB list for direct read access - caller must hold KB lock) }
+function GetKBList: TStringList;
+
+{ @abstract(Returns a reference to the KB lock for thread-safe access) }
+function GetKBLock: TSlCriticalSection2;
 
 { Lists all KB entries to IRC which match the given section
       @param(section The section to show the KB entries of.)
@@ -74,7 +80,7 @@ uses
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
-  globalskipunit, irccommandsunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  globalskipunit, irccommandsunit, slapi.issueshook, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   rsections = 'kb';
@@ -111,6 +117,16 @@ function GetKBCount: integer;
 begin
   // access to Count is thread safe, so no lock required
   Result := kb_list.Count;
+end;
+
+function GetKBList: TStringList;
+begin
+  Result := kb_list;
+end;
+
+function GetKBLock: TSlCriticalSection2;
+begin
+  Result := kb_lock;
 end;
 
 function FindSectionHandler(const section: String): TCRelease;
@@ -178,7 +194,7 @@ begin
   Result := False;
 end;
 
-function kb_AddB(const netname, channel, sitename, section, genre: String; event: TKBEventType; rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
+function kb_AddB(const netname, channel, sitename, section, genre: String; event: TKBEventType; rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0; aDetectedTick: Int64 = 0): integer;
 var
   i, j, len: integer;
   r: TRelease;
@@ -192,6 +208,19 @@ var
   dlt: TPazoDirlistTask;
   l: TLoginTask;
   fPretimeLookupTask: TPazoPretimeLookupTask;
+
+  function IsUDPEnabled: Boolean;
+  var
+    rawEnable: String;
+    udpIp: String;
+    udpPort: Integer;
+  begin
+    rawEnable := Trim(config.ReadString('UDPConfig', 'EnableUDP', 'False'));
+    udpIp := Trim(config.ReadString('UDPConfig', 'IP', ''));
+    udpPort := config.ReadInteger('UDPConfig', 'Port', 0);
+    Result := (SameText(rawEnable, 'True') or SameText(rawEnable, '1')) and
+      (udpIp <> '') and (udpPort >= 1) and (udpPort <= 65535);
+  end;
 
   { Removes the oldest knowledge base entries }
   procedure KbListsCleanUp;
@@ -411,6 +440,8 @@ begin
       if (event = kbeNUKE) then
       begin
         // nuking an old rls not in kb
+        IssueLog('NUKE', section, rls, sitename, 'not in kb', KBEventTypeToString(event),
+          'NUKE|' + sitename + '|' + rls);
         irc_Addstats(Format('<c4>[NUKE]</c> %s %s @ %s (not in kb)',
           [section, rls, '<b>' + sitename + '</b>']));
         exit;
@@ -419,8 +450,9 @@ begin
       if (event = kbeCOMPLETE) then
       begin
         // complet an old rls not in kb
-        irc_Addstats(Format('<c7>[COMPLETE]</c> %s %s @ %s (not in kb)',
-          [section, rls, '<b>' + sitename + '</b>']));
+        if not IsUDPEnabled then
+          irc_Addstats(Format('<c7>[COMPLETE]</c> %s %s @ %s (not in kb)',
+            [section, rls, '<b>' + sitename + '</b>']));
         exit;
       end;
 
@@ -634,7 +666,12 @@ begin
 
         if ((sitename <> getAdminSiteName) and (not s.PermDown) and (s.WorkingStatus in [sstUnknown, sstUp])) then
         begin
-          irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, KBEventTypeToString(event)]));
+          if (p.rls.section <> '') and (s.sectiondir[p.rls.section] = '') then
+          begin
+            irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, KBEventTypeToString(event)]));
+            IssueLog('MISSING_SECTION', p.rls.section, p.rls.rlsname, sitename, '', KBEventTypeToString(event),
+              'MISSING_SECTION|' + sitename + '|' + p.rls.section, 300);
+          end;
         end;
       end;
 
@@ -655,8 +692,18 @@ begin
     end;
 
     s := FindSiteByName(netname, psource.Name);
-    if ((s <> nil) and (not (s.WorkingStatus in [sstUnknown, sstUp]))) then
+    if ((s <> nil) and (not p.IsUDPEnabled) and (not (s.WorkingStatus in [sstUnknown, sstUp]))) then
       exit;
+
+    if (s <> nil) and (sitename <> getAdminSiteName) and (not s.PermDown) and (s.WorkingStatus in [sstUnknown, sstUp]) then
+    begin
+      if (p.rls.section <> '') and (s.sectiondir[p.rls.section] = '') then
+      begin
+        irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, KBEventTypeToString(event)]));
+        IssueLog('MISSING_SECTION', p.rls.section, p.rls.rlsname, sitename, '', KBEventTypeToString(event),
+          'MISSING_SECTION|' + sitename + '|' + p.rls.section, 300);
+      end;
+    end;
 
     psource.ircevent := True;
 
@@ -689,6 +736,8 @@ begin
     if (event = kbeNUKE) then
     begin
       psource.Status := rssNuked;
+      IssueLog('NUKE', p.rls.section, p.rls.rlsname, psource.Name, '', KBEventTypeToString(event),
+        'NUKE|' + psource.Name + '|' + p.rls.rlsname);
       irc_Addstats(Format('<c4>[NUKE]</c> %s %s @ <b>%s</b>',
         [section, rls, sitename]));
       try
@@ -728,11 +777,15 @@ begin
     begin
       if (rule_result = raDrop) and (spamcfg.ReadBool('kb', 'skip_rls', True)) then
       begin
+        IssueLog('SKIP', p.rls.section, p.rls.rlsname, psource.Name, psource.reason, KBEventTypeToString(event),
+          'SKIP|' + psource.Name + '|' + p.rls.rlsname);
         irc_Addstats(Format('<c5>[SKIP]</c> : %s %s @ %s "%s" (%s)',
           [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, KBEventTypeToString(event)]));
       end
       else if (rule_result = raDontmatch) and (spamcfg.ReadBool('kb', 'dont_match_rls', True)) then
       begin
+        IssueLog('DONT_MATCH', p.rls.section, p.rls.rlsname, psource.Name, psource.reason, KBEventTypeToString(event),
+          'DONT_MATCH|' + psource.Name + '|' + p.rls.rlsname);
         irc_Addstats(Format('<c5>[DONT MATCH]</c> : %s %s @ %s "%s" (%s)',
           [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, KBEventTypeToString(event)]));
       end;
@@ -794,66 +847,69 @@ begin
 
   // status changed
   ss := p.RoutesText;
-  if ss <> '' then
-  begin
+  if (ss <> '') and (not p.IsUDPEnabled) then
     irc_SendROUTEINFOS(ss);
-  end;
 
   if (psource <> nil) and (psource.Status = rssNotAllowed) then
   begin
     psource.Status := rssNotAllowedButItsThere;
   end;
 
-  // now add dirlist
+  // now add dirlist (skip when UDP is enabled)
   try
     if (event in [kbeNEWDIR, kbePRE, kbeSPREAD, kbeADDPRE, kbeUPDATE]) then
     begin
-      for i := p.PazoSitesList.Count - 1 downto 0 do
+      if not p.IsUDPEnabled then
       begin
-        try
-          if i < 0 then
+        for i := p.PazoSitesList.Count - 1 downto 0 do
+        begin
+          try
+            if i < 0 then
+              Break;
+          except
             Break;
-        except
-          Break;
-        end;
-        try
-          ps := TPazoSite(p.PazoSitesList[i]);
-
-          // dirlist not available
-          if ps.dirlist = nil then
-          begin
-            Debug(dpError, section, 'ERROR: ps.dirlist = nil');
-            Continue;
           end;
+          try
+            ps := TPazoSite(p.PazoSitesList[i]);
 
-          // dirlist task already added
-          if (ps.dirlist.dirlistadded) and (event <> kbeUPDATE) then
-            Continue;
+            // dirlist not available
+            if ps.dirlist = nil then
+            begin
+              Debug(dpError, section, 'ERROR: ps.dirlist = nil');
+              Continue;
+            end;
 
-          // Source site is PRE site for this group
-          if ps.status in [rssShouldPre, rssRealPre] then
-          begin
-            r.PredOnAnySite := True;
-            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
-            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
-            ps.dirlist.dirlistadded := True;
-            AddTask(dlt, true);
-          end;
+            // dirlist task already added or failed
+            if (ps.dirlist.error) then
+              Continue;
+            if (ps.dirlist.dirlistadded) and (event <> kbeUPDATE) then
+              Continue;
 
-          // Source site is _not_ a PRE site for this group
-          if ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete] then
-          begin
-            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
-            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
-            ps.dirlist.dirlistadded := True;
-            AddTask(dlt, true);
-          end;
+            // Source site is PRE site for this group
+            if ps.status in [rssShouldPre, rssRealPre] then
+            begin
+              r.PredOnAnySite := True;
+              dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
+              irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
+              ps.dirlist.dirlistadded := True;
+              AddTask(dlt, true);
+            end;
 
-        except
-          on E: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] kb_Add add dirlist iterate: %s', [e.Message]));
-            continue;
+            // Source site is _not_ a PRE site for this group
+            if ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete] then
+            begin
+              dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
+              irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
+              ps.dirlist.dirlistadded := True;
+              AddTask(dlt, true);
+            end;
+
+          except
+            on E: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] kb_Add add dirlist iterate: %s', [e.Message]));
+              continue;
+            end;
           end;
         end;
       end;
@@ -871,7 +927,7 @@ begin
     integer(forceFire)]);
 end;
 
-function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
+function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0; aDetectedTick: Int64 = 0): integer;
 begin
   Result := 0;
   if (Trim(sitename) = '') then
