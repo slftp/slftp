@@ -3,7 +3,10 @@ unit slcriticalsection2;
 interface
 
 uses
-  SyncObjs, Generics.Collections, sltimer, Generics.Defaults, mormot.core.os;
+  SyncObjs, Generics.Collections, sltimer, Generics.Defaults, mormot.core.os
+  {$IFNDEF FPC}
+  , Winapi.Windows
+  {$ENDIF};
 
 {
   TslCriticalSection
