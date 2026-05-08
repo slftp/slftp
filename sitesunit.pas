@@ -2102,6 +2102,8 @@ var
 
 begin
   Result := False;
+  lastResponse := '';
+  lastResponseCode := 0;
 
   if (self.site.Name = getAdminSiteName) then
   begin
