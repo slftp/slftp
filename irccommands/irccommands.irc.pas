@@ -45,7 +45,11 @@ var
   th: TMyIrcThread;
 begin
   irc_addtext(Netname, Channel, GetFullVersionString);
+  {$IFDEF FPC}
   irc_addtext(Netname, Channel, 'FPC: ' + {$I %FPCVERSION%} + ' | mORMot2: ' + SYNOPSE_FRAMEWORK_VERSION + ' | OpenSSL: ' + GetOpenSSLShortVersion);
+  {$ELSE}
+  irc_addtext(Netname, Channel, 'Delphi: ' + FloatToStr(CompilerVersion) + ' | mORMot2: ' + SYNOPSE_FRAMEWORK_VERSION + ' | OpenSSL: ' + GetOpenSSLShortVersion);
+  {$ENDIF}
   irc_addtext(Netname, Channel, 'SQLite3: ' + UTF8ToString(sqlite3.VersionText) + ' | Indy10: ' + gsIdVersion + ' | ZeosLib: ' + ZEOS_VERSION);
   irc_addtext(Netname, Channel, 'FLRE: ' + FLREVersionString + ' | TRegExpr: ' + IntToStr(TRegExpr.VersionMajor) + '.' + IntToStr(TRegExpr.VersionMinor));
 
