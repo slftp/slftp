@@ -1381,6 +1381,18 @@ begin
   fDBName := Trim(config.ReadString(section, 'database', 'tvinfos.db'));
   tvinfoSQLite3DBCon := CreateSQLite3DbConn(fDBName, '');
 
+  // Initialize mORMot2 ORM for TV info
+  glTVInfoModel := TSQLModel.Create([TSQLTVInfo, TSQLTVSeries]);
+  try
+    glTVInfoDb := CreateORMSQLite3DB(glTVInfoModel, fDBName, '');
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] dbTVInfoStart ORM init failed: %s', [e.Message]));
+      FreeAndNil(glTVInfoModel);
+    end;
+  end;
+
   {* db version code *}
   fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
   try
@@ -1506,6 +1518,15 @@ begin
   if Assigned(LastAddtvmazeIDs) then
   begin
     FreeAndNil(LastAddtvmazeIDs);
+  end;
+
+  if Assigned(glTVInfoDb) then
+  begin
+    FreeAndNil(glTVInfoDb);
+  end;
+  if Assigned(glTVInfoModel) then
+  begin
+    glTVInfoModel.Free;
   end;
 end;
 
