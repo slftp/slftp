@@ -929,12 +929,12 @@ begin
         if ((i1IsImage) and (not i2IsImage)) then
           case image_files_priority of
             1 : Result := -1;
-            2 : Result := 1;
+            2, 3 : Result := 1;
           end
         else if ((not i1IsImage) and (i2IsImage)) then
           case image_files_priority of
             1 : Result := 1;
-            2 : Result := -1;
+            2, 3 : Result := -1;
           end;
 
         //Debug(dpSpam, section, '_DirListSorter (image): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
@@ -949,12 +949,12 @@ begin
         if ((i1IsVideo) and (not i2IsVideo)) then
           case video_files_priority of
             1 : Result := -1;
-            2 : Result := 1;
+            2, 3 : Result := 1;
           end
         else if ((not i1IsVideo) and (i2IsVideo)) then
           case video_files_priority of
             1 : Result := 1;
-            2 : Result := -1;
+            2, 3 : Result := -1;
           end;
 
         //Debug(dpSpam, section, '_DirListSorter (video): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
@@ -1669,8 +1669,10 @@ var
   i: Integer;
   de: TDirListEntry;
 begin
-  allCdNumbers := '';
-  biggestcd := 0;
+
+  allCdNumbers := '';
+
+  biggestcd := 0;
 
   // find the biggest CD
   for de in entries.Values do
@@ -1714,11 +1716,11 @@ begin
   uid_lock := TCriticalSection.Create;
 
   image_files_priority := config.ReadInteger('queue', 'image_files_priority', 2);
-  if not (image_files_priority in [0..2]) then
+  if not (image_files_priority in [0..3]) then
     image_files_priority := 2;
 
   video_files_priority := config.ReadInteger('queue', 'video_files_priority', 2);
-  if not (video_files_priority in [0..2]) then
+  if not (video_files_priority in [0..3]) then
     video_files_priority := 2;
 end;
 
