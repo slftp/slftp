@@ -234,12 +234,19 @@ var
 begin
   Result := 0;
   if rls = '' then
+  begin
     irc_adderror('No Releasename as parameter!');
+    Exit;
+  end;
 
+  fTmpOrmAddPreDb := nil;
   if ((dbaddpre_mode = apmSQLITE) OR (dbaddpre_mode = apmMemory)) then
     fTmpOrmAddPreDb := ORMAddPreDBSqLite;
   if (dbaddpre_mode = apmMYSQL) then
     fTmpOrmAddPreDb := ORMAddPreDBMysql;
+
+  if not Assigned(fTmpOrmAddPreDb) then
+    Exit;
 
   fAddPreRec := TSQLAddPreRecord.CreateAndFillPrepare(fTmpOrmAddPreDb.Orm, 'rlz = ?',[], [rls]);
   try
@@ -250,10 +257,10 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] ReadPretimeOverSQLITE: %s', [e.Message]));
-      exit;
+      Debug(dpError, section, Format('[EXCEPTION] ReadPretime: %s', [e.Message]));
     end;
   end;
+  fAddPreRec.Free;
 end;
 
 function getPretime(const rlz: String): TPretimeResult;
@@ -398,21 +405,28 @@ begin
   case dbaddpre_mode of
     apmMemory, apmSQLITE, apmMYSQL:
       begin
-        fAddPreRec := TSQLAddPreRecord.CreateAndFillPrepare(fTmpOrmAddPreDb.Orm, 'rlz = ?', [rls], 'ID');
-        if not fAddPreRec.FillOne then
-        begin
-          fAddPreRec.rlz := StringToUTF8(rls);
-          fAddPreRec.section := StringToUTF8(rls_section);
-          fAddPreRec.ts := DateTimeToUnix(Now(), False);
-          fAddPreRec.source := StringToUTF8(Source);
+        if not Assigned(fTmpOrmAddPreDb) then
+          Exit;
 
-          if fTmpOrmAddPreDb.Add(fAddPreRec, True, False) = 0 then
+        fAddPreRec := TSQLAddPreRecord.CreateAndFillPrepare(fTmpOrmAddPreDb.Orm, 'rlz = ?', [rls], 'ID');
+        try
+          if not fAddPreRec.FillOne then
           begin
-            Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (sqlite) values: %s %s %s', [rls, rls_section, Source]));
-            exit;
+            fAddPreRec.rlz := StringToUTF8(rls);
+            fAddPreRec.section := StringToUTF8(rls_section);
+            fAddPreRec.ts := DateTimeToUnix(Now(), False);
+            fAddPreRec.source := StringToUTF8(Source);
+
+            if fTmpOrmAddPreDb.Add(fAddPreRec, True, False) = 0 then
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz: values: %s %s %s', [rls, rls_section, Source]));
+              Exit;
+            end;
           end;
+        finally
+          fAddPreRec.Free;
+        end;
       end;
-    end;
   end;
 
   // db cleanup currently only for in-memory DB
@@ -447,10 +461,17 @@ end;
 function dbaddpre_GetCount: integer;
 begin
   Result := 0;
-  if ((dbaddpre_mode = apmSQLITE) or (dbaddpre_plm1 = plmSQLITE) or (dbaddpre_plm2 = plmSQLITE)) then
-    Result := ORMAddPreDBSqLite.TableRowCount(TSQLAddPreRecord)
-  else
-    Result := ORMAddPreDBMySQL.TableRowCount(TSQLAddPreRecord);
+  if ((dbaddpre_mode = apmSQLITE) or (dbaddpre_mode = apmMemory) or
+      (dbaddpre_plm1 = plmSQLITE) or (dbaddpre_plm2 = plmSQLITE)) then
+  begin
+    if Assigned(ORMAddPreDBSqLite) then
+      Result := ORMAddPreDBSqLite.TableRowCount(TSQLAddPreRecord);
+  end
+  else if (dbaddpre_mode = apmMYSQL) then
+  begin
+    if Assigned(ORMAddPreDBMySQL) then
+      Result := ORMAddPreDBMySQL.TableRowCount(TSQLAddPreRecord);
+  end;
 end;
 
 function dbaddpre_GetPreduration(const rlz_pretime: Int64): String;
@@ -642,26 +663,19 @@ end;
 
 function AddPreDbAlive: boolean;
 begin
-  if ((dbaddpre_mode = apmSQLITE) or (dbaddpre_plm1 = plmSQLITE) or (dbaddpre_plm2 = plmSQLITE)) then
+  Result := False;
+
+  if ((dbaddpre_mode = apmSQLITE) or (dbaddpre_mode = apmMemory) or
+      (dbaddpre_plm1 = plmSQLITE) or (dbaddpre_plm2 = plmSQLITE)) then
   begin
-    if not assigned(ORMAddPreDBSqLite) then
-    begin
-      Result := false;
-      exit
-    end
-    else
-      Result := true;
+    Result := Assigned(ORMAddPreDBSqLite);
+    Exit;
   end;
 
   if (dbaddpre_mode = apmMySQL) then
   begin
-    if not assigned(ORMAddPreDBMysql) then
-    begin
-      Result := false;
-      exit
-    end
-    else
-      Result := true;
+    Result := Assigned(ORMAddPreDBMysql);
+    Exit;
   end;
 end;
 
@@ -677,6 +691,10 @@ begin
   if Assigned(ORMAddPreDBMySQL) then
   begin
     FreeAndNil(ORMAddPreDBMySQL);
+  end;
+  if Assigned(ORMAddPreModel) then
+  begin
+    FreeAndNil(ORMAddPreModel);
   end;
   Debug(dpSpam, section, 'Uninit2');
 end;

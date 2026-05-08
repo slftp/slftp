@@ -108,8 +108,7 @@ begin
 end;
 
 function CreateORMMysqlConnection(const aORMSQLModel: TSQLModel; const aDatabaseName, fLibName, aHostName, aUserName, aPassword, aPort: String): TRestClientDb;
-var fOrmDb: TSQLRestServerDB;
-    fOrmClientDb: TRestClientDb;
+var fOrmClientDb: TRestClientDb;
     Model: TOrmModel;
 begin
   // create connection

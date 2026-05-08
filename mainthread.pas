@@ -82,7 +82,7 @@ end;
 
 function Main_Init: String;
 var
-  fSSLErrorMsg, fError, fHost, fPort, fUser, fPass, fDbName, fDBMS, fLibName: String;
+  fSSLErrorMsg, fError: String;
 begin
   Result := '';
   fSSLErrorMsg := '';
