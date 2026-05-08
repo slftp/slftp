@@ -6,6 +6,9 @@ interface
 
 uses
   Classes, kb.releaseinfo, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections, IniFiles, sfv, slcriticalsection2,
+  {$IFNDEF FPC}
+  Winapi.Windows,
+  {$ENDIF}
   routeconfig;
 
 type
