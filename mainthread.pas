@@ -312,15 +312,16 @@ begin
   if (not glStartupGhostKillDone) and (SecondsBetween(Now, started) >= 15) then
   begin
     glStartupGhostKillDone := True;
-    if config.ReadBool('sites', 'kill_ghosts_on_startup', True) then
+    if config.ReadBool('sites', 'kill_ghosts_on_startup', False) then
     begin
       Debug(dpMessage, section, 'Startup: Triggering automatic ghost kill for all sites...');
+      irc_addAdmin('Startup: Triggering automatic ghost kill for all sites...');
       for i := 0 to sites.Count - 1 do
       begin
         fSite := TSite(sites.Items[i]);
-        if (fSite.Name <> getAdminSiteName) then
+        if (fSite.Name <> getAdminSiteName) and not fSite.PermDown and not(fSite.WorkingStatus in [sstMarkedAsDownByUser, sstDown]) then
         begin
-          Debug(dpMessage, section, 'Startup: Adding ghost kill task for site %s', [fSite.Name]);
+          Debug(dpSpam, section, 'Startup: Adding ghost kill task for site %s', [fSite.Name]);
           AddTask(TLoginTask.Create('', '', fSite.Name, True, False));
           fSite.QueueFire;
         end;

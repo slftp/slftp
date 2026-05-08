@@ -1286,7 +1286,7 @@ begin
     exit;
   end;
 
-  if 1 = Pos('PING :', s) then
+  if 1 = Pos('PING ', s) then
     IrcPing(Copy(s, 6, 1000))
   else {// MODES=} if ((registered = False) and ((0 <> Pos(' 266 ', s)) or (0 <> Pos(' 376 ', s)) or (0 <> Pos(' 422 ', s)))) then
     registered := True

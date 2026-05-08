@@ -629,8 +629,8 @@ begin
 end;
 
 procedure QueueEpisodeBulkBackfill(const aTVMazeID: String);
-var
-  fTask: TPazoTVEpisodeBulkBackfillTask;
+//var
+//  fTask: TPazoTVEpisodeBulkBackfillTask;
 begin
   if aTVMazeID = '' then
     Exit;
@@ -638,16 +638,17 @@ begin
   if not AcquireEpisodeBackfillSlot(aTVMazeID) then
     Exit;
 
-  try
-    fTask := TPazoTVEpisodeBulkBackfillTask.Create(aTVMazeID);
-    AddTask(fTask);
-  except
-    on e: Exception do
-    begin
-      ReleaseEpisodeBackfillSlot(aTVMazeID);
-      Debug(dpError, section, Format('[EXCEPTION] QueueEpisodeBulkBackfill(%s): %s', [aTVMazeID, e.Message]));
-    end;
-  end;
+  // TODO: TPazoTVEpisodeBulkBackfillTask is not defined anywhere in the codebase
+  //try
+  //  fTask := TPazoTVEpisodeBulkBackfillTask.Create(aTVMazeID);
+  //  AddTask(fTask);
+  //except
+  //  on e: Exception do
+  //  begin
+  //    ReleaseEpisodeBackfillSlot(aTVMazeID);
+  //    Debug(dpError, section, Format('[EXCEPTION] QueueEpisodeBulkBackfill(%s): %s', [aTVMazeID, e.Message]));
+  //  end;
+  //end;
 end;
 
 function ExecuteEpisodeBulkBackfill(const aTVMazeID: String): Integer;

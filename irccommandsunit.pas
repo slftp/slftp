@@ -51,7 +51,7 @@ const
     'section' {, 'preurl', 'mysql'});
 
   { Declarations of all IRC commands as @link(TIrcCommand) records }
-  ircCommandsArray: array[1..225] of TIrcCommand = (
+  ircCommandsArray: array[1..224] of TIrcCommand = (
     (cmd: 'GENERAL'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$general'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'general'),
@@ -125,7 +125,7 @@ const
     (cmd: 'WORK'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$work'),
     (cmd: 'dirlist'; hnd: IrcDirlist; minparams: 2; maxparams: 3; hlpgrp: 'work'),
     (cmd: 'autodirlist'; hnd: IrcAutoDirlist; minparams: 1; maxparams: - 1; hlpgrp: 'work'),
-    (cmd: 'newdirlistreadd'; hnd: IrcNewdirlistReadd; minparams: 0; maxparams: 2; hlpgrp: 'work'),
+    // (cmd: 'newdirlistreadd'; hnd: IrcNewdirlistReadd; minparams: 0; maxparams: 2; hlpgrp: 'work'),  // TODO: IrcNewdirlistReadd is not defined
     (cmd: 'latest'; hnd: IrcLatest; minparams: 2; maxparams: 3; hlpgrp: 'work'),
     (cmd: 'spread'; hnd: IrcSpread; minparams: 2; maxparams: 3; hlpgrp: 'work'),
     (cmd: 'transfer'; hnd: IrcTransfer; minparams: 5; maxparams: 5; hlpgrp: 'work'),
