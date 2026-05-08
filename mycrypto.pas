@@ -21,7 +21,13 @@ implementation
 
 uses
   SysUtils, delphiblowfish, configunit, debugunit, Math, mystrings,
-  mormot.lib.openssl11, DynLibs, slcriticalsection2;
+  mormot.lib.openssl11,
+  {$IFDEF FPC}
+  DynLibs,
+  {$ELSE}
+  Winapi.Windows,
+  {$ENDIF}
+  slcriticalsection2;
 
 const
   section = 'crypto';

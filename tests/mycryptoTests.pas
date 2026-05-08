@@ -26,7 +26,13 @@ type
 implementation
 
 uses
-  SysUtils, DynLibs, mormot.lib.openssl11, mycrypto;
+  SysUtils,
+  {$IFDEF FPC}
+  DynLibs,
+  {$ELSE}
+  Winapi.Windows,
+  {$ENDIF}
+  mormot.lib.openssl11, mycrypto;
 
 { --- Decrypt helper (mirrors cbftp Crypto::decrypt) ----------------------- }
 
