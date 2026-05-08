@@ -241,6 +241,7 @@ type
     fSpeedFromCS: TslRWLock; //< RWLock - GetSpeed_From called per route lookup, UpdateSpeedFromCache only on site reload
     fSpeedFromCache: TList<TSpeedFromRouteInfo>;
     fFreeSlotsCS: TSlCriticalSection2;
+    fWorkingStatusCS: TSlCriticalSection2;
     FSettingsCacheDict: TVariantCache; //< Cache for site-settings in the sites.dat to avoid the sites.dat bottleneck (lock)
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
@@ -251,6 +252,7 @@ type
 
     function Software: TSiteSW;
 
+    function GetWorkingStatus: TSiteStatus;
     procedure SetWorking(const Value: TSiteStatus);
 
     function GetMaxDn: integer;
@@ -629,7 +631,7 @@ type
     property swVersion: String read GetSwVersion write SetSwVersion; //< FTPd software version
     property features: TSiteFeatures read fFeatures write fFeatures;
     property noannounce: boolean read GetNoannounce write SetNoAnnounce;
-    property WorkingStatus: TSiteStatus read FWorkingStatus write SetWorking; //< indicates current site status, see @link(TSiteStatus)
+    property WorkingStatus: TSiteStatus read GetWorkingStatus write SetWorking; //< indicates current site status, see @link(TSiteStatus)
     property max_dn: integer read GetMaxDn write SetMaxDn;
     property max_pre_dn: integer read GetMaxPreDn write SetMaxPreDn;
     property max_up: integer read GetMaxUp write SetMaxUp;
@@ -3185,6 +3187,7 @@ begin
   self.fSpeedFromCS := TslRWLock.Create('SpeedFromCS_' + Name);
   self.fSpeedFromCache := nil;
   self.fFreeSlotsCS := TSlCriticalSection2.Create('FreeSlotsCS_' + Name);
+  self.fWorkingStatusCS := TSlCriticalSection2.Create('WorkingStatusCS_' + Name);
   FSettingsCacheDict := TVariantCache.Create;
 
 
@@ -3380,6 +3383,7 @@ begin
   fSpeedFromCS.Free;
   FreeAndNil(fSpeedFromCache);
   fFreeSlotsCS.Free;
+  fWorkingStatusCS.Free;
   FSettingsCacheDict.Free;
   Debug(dpSpam, section, 'Site %s destroy end', [Name]);
   inherited;
@@ -3431,50 +3435,62 @@ end;
 
 procedure TSite.PrintSiteStatusToIRC;
 begin
-  case FWorkingStatus of
+  case GetWorkingStatus of
     sstUp: irc_addadmin(Format('<%s>SITE <b>%s</b> IS UP</c>', [globals.SiteColorOnline, Name]));
     sstDown, sstMarkedAsDownByUser: irc_addadmin(Format('<%s>SITE <b>%s</b> IS DOWN</c>', [globals.SiteColorOffline, Name]));
     sstTempDown: irc_addadmin(Format('<%s>SITE <b>%s</b> IS TEMPDOWN</c>', [globals.SiteColorOffline, Name]));
   end;
 end;
 
+function TSite.GetWorkingStatus: TSiteStatus;
+begin
+  fWorkingStatusCS.Enter('GetWorkingStatus');
+  try
+    Result := FWorkingStatus;
+  finally
+    fWorkingStatusCS.Leave;
+  end;
+end;
+
 procedure TSite.SetWorking(const Value: TSiteStatus);
 begin
-  if Value <> FWorkingStatus then
-  begin
-
-    //if the site is already perm down or set down by user, never set temp down because then some
-    //idle or login task could set the site up again which we clearly do not want
-    if (Value = sstTempDown) and (FWorkingStatus in [sstDown, sstMarkedAsDownByUser]) then
-      exit;
-
-    FWorkingStatus := Value;
-
-    if Name = getAdminSiteName then
+  fWorkingStatusCS.Enter('SetWorking');
+  try
+    if Value <> FWorkingStatus then
     begin
-      Exit;
-    end;
 
-    PrintSiteStatusToIRC;
+      //if the site is already perm down or set down by user, never set temp down because then some
+      //idle or login task could set the site up again which we clearly do not want
+      if (Value = sstTempDown) and (FWorkingStatus in [sstDown, sstMarkedAsDownByUser]) then
+        exit;
 
-    case Value of
-      sstUp:
-        begin
-          if UseForNfoDownload = ufnAutoDisabled then
-            UseForNfoDownload := ufnEnabled;
+      FWorkingStatus := Value;
 
-          if AutoNukeInterval <> 0 then
-            AutoNuke;
-          if AutoIndexInterval <> 0 then
-            AutoIndex;
-          //if s.RCString('autologin','-1') <> '-1' then
-          if AutoBncTestInterval <> 0 then
-            AutoBnctest;
-          if AutoRulesStatus <> 0 then
-            AutoRules;
-          if AutoDirlistInterval <> 0 then
-            AutoDirlist;
-        end;
+      if Name = getAdminSiteName then
+      begin
+        Exit;
+      end;
+
+      PrintSiteStatusToIRC;
+
+      case Value of
+        sstUp:
+          begin
+            if UseForNfoDownload = ufnAutoDisabled then
+              UseForNfoDownload := ufnEnabled;
+
+            if AutoNukeInterval <> 0 then
+              AutoNuke;
+            if AutoIndexInterval <> 0 then
+              AutoIndex;
+            //if s.RCString('autologin','-1') <> '-1' then
+            if AutoBncTestInterval <> 0 then
+              AutoBnctest;
+            if AutoRulesStatus <> 0 then
+              AutoRules;
+            if AutoDirlistInterval <> 0 then
+              AutoDirlist;
+          end;
       sstDown, sstMarkedAsDownByUser:
         begin
           // removeing all tasks for the site
@@ -3497,6 +3513,9 @@ begin
     end;
 
     SiteStat;
+    end;
+  finally
+    fWorkingStatusCS.Leave;
   end;
 end;
 
