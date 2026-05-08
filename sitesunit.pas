@@ -203,7 +203,7 @@ type
   { @abstract(Object which holds all the site informations) }
   TSite = class
   private
-    FWorkingStatus: TSiteStatus;
+    FWorkingStatus: Integer; //< stored as Integer for lock-free atomic reads/writes
     fFeatures: TSiteFeatures;
     foutofannounce: TDateTime;
     fkreditz: TDateTime;
@@ -241,7 +241,7 @@ type
     fSpeedFromCS: TslRWLock; //< RWLock - GetSpeed_From called per route lookup, UpdateSpeedFromCache only on site reload
     fSpeedFromCache: TList<TSpeedFromRouteInfo>;
     fFreeSlotsCS: TSlCriticalSection2;
-    fWorkingStatusCS: TSlCriticalSection2;
+    fWorkingStatusEffectsLock: TSlCriticalSection2; //< serializes side-effects in SetWorking (Auto*, PrintSiteStatusToIRC, etc.)
     FSettingsCacheDict: TVariantCache; //< Cache for site-settings in the sites.dat to avoid the sites.dat bottleneck (lock)
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
@@ -3187,7 +3187,7 @@ begin
   self.fSpeedFromCS := TslRWLock.Create('SpeedFromCS_' + Name);
   self.fSpeedFromCache := nil;
   self.fFreeSlotsCS := TSlCriticalSection2.Create('FreeSlotsCS_' + Name);
-  self.fWorkingStatusCS := TSlCriticalSection2.Create('WorkingStatusCS_' + Name);
+  self.fWorkingStatusEffectsLock := TSlCriticalSection2.Create('WorkingStatusEffectsLock_' + Name);
   FSettingsCacheDict := TVariantCache.Create;
 
 
@@ -3383,7 +3383,7 @@ begin
   fSpeedFromCS.Free;
   FreeAndNil(fSpeedFromCache);
   fFreeSlotsCS.Free;
-  fWorkingStatusCS.Free;
+  fWorkingStatusEffectsLock.Free;
   FSettingsCacheDict.Free;
   Debug(dpSpam, section, 'Site %s destroy end', [Name]);
   inherited;
@@ -3444,67 +3444,82 @@ end;
 
 function TSite.GetWorkingStatus: TSiteStatus;
 begin
-  fWorkingStatusCS.Enter('GetWorkingStatus');
-  try
-    Result := FWorkingStatus;
-  finally
-    fWorkingStatusCS.Leave;
-  end;
+  // Aligned 32-bit reads are atomic on x86/x64; no lock needed.
+  Result := TSiteStatus(FWorkingStatus);
 end;
 
 procedure TSite.SetWorking(const Value: TSiteStatus);
+var
+  fOldValue, fNewValue: Integer;
 begin
-  fWorkingStatusCS.Enter('SetWorking');
-  try
-    if Value <> FWorkingStatus then
-    begin
+  fNewValue := Ord(Value);
 
-      //if the site is already perm down or set down by user, never set temp down because then some
-      //idle or login task could set the site up again which we clearly do not want
-      if (Value = sstTempDown) and (FWorkingStatus in [sstDown, sstMarkedAsDownByUser]) then
-        exit;
+  // Fast path: no change needed
+  if TSiteStatus(FWorkingStatus) = Value then
+    Exit;
 
-      FWorkingStatus := Value;
-
-      if Name = getAdminSiteName then
-      begin
+  // Atomically update FWorkingStatus with CAS loop.
+  // For TempDown we guard against overwriting permanent-down states.
+  if Value = sstTempDown then
+  begin
+    repeat
+      fOldValue := FWorkingStatus;
+      if TSiteStatus(fOldValue) in [sstDown, sstMarkedAsDownByUser] then
         Exit;
-      end;
+    until InterlockedCompareExchange(FWorkingStatus, fNewValue, fOldValue) = fOldValue;
+  end
+  else
+  begin
+    repeat
+      fOldValue := FWorkingStatus;
+    until InterlockedCompareExchange(FWorkingStatus, fNewValue, fOldValue) = fOldValue;
+  end;
 
-      PrintSiteStatusToIRC;
+  // If another thread won the race with the same value, skip side effects.
+  if fOldValue = fNewValue then
+    Exit;
 
-      case Value of
-        sstUp:
-          begin
-            if UseForNfoDownload = ufnAutoDisabled then
-              UseForNfoDownload := ufnEnabled;
+  // Side effects are serialized so they never run concurrently for the same site,
+  // but GetWorkingStatus remains completely lock-free.
+  fWorkingStatusEffectsLock.Enter('SetWorkingEffects');
+  try
+    // Re-verify: another thread may have changed the value again.
+    if FWorkingStatus <> fNewValue then
+      Exit;
 
-            if AutoNukeInterval <> 0 then
-              AutoNuke;
-            if AutoIndexInterval <> 0 then
-              AutoIndex;
-            //if s.RCString('autologin','-1') <> '-1' then
-            if AutoBncTestInterval <> 0 then
-              AutoBnctest;
-            if AutoRulesStatus <> 0 then
-              AutoRules;
-            if AutoDirlistInterval <> 0 then
-              AutoDirlist;
-          end;
+    if Name = getAdminSiteName then
+      Exit;
+
+    PrintSiteStatusToIRC;
+
+    case Value of
+      sstUp:
+        begin
+          if UseForNfoDownload = ufnAutoDisabled then
+            UseForNfoDownload := ufnEnabled;
+
+          if AutoNukeInterval <> 0 then
+            AutoNuke;
+          if AutoIndexInterval <> 0 then
+            AutoIndex;
+          if AutoBncTestInterval <> 0 then
+            AutoBnctest;
+          if AutoRulesStatus <> 0 then
+            AutoRules;
+          if AutoDirlistInterval <> 0 then
+            AutoDirlist;
+        end;
       sstDown, sstMarkedAsDownByUser:
         begin
-          // removeing all tasks for the site
           RemoveAutoIndex;
           RemoveAutoBnctest;
           RemoveAutoRules;
           RemoveAutoNuke;
           RemoveAutoDirlist;
-
           QueueEmpty(Name);
         end;
       sstTempDown:
         begin
-          // just temp down, removeing all tasks except autobnctest
           RemoveAutoIndex;
           RemoveAutoRules;
           RemoveAutoNuke;
@@ -3513,9 +3528,8 @@ begin
     end;
 
     SiteStat;
-    end;
   finally
-    fWorkingStatusCS.Leave;
+    fWorkingStatusEffectsLock.Leave;
   end;
 end;
 
