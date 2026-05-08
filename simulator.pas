@@ -6,10 +6,7 @@ unit simulator;
 interface
 
 uses
-  Classes, kb.releaseinfo, pazo, Generics.Collections, taskpretime
-  {$IFNDEF FPC}
-  , Winapi.Windows
-  {$ENDIF};
+  Classes, kb.releaseinfo, pazo, Generics.Collections, taskpretime;
 
 type
   { @abstract(Result of a site simulation)
