@@ -694,6 +694,13 @@ begin
             if ((dstdl.HasNFO) and (de.IsNFO)) then
               Continue;
 
+            // skip if a transfer is already in progress to this destination for this file
+            if dst.HasActiveTransfer(dir + '/' + de.filename) then
+            begin
+              Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Skipping %s, transfer already active', [fd, Name, dst.Name, de.filename]);
+              Continue;
+            end;
+
             // Create the race task
             Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding RACE task on %s %s', [fd, Name, dst.Name, dst.Name, de.filename]);
             pr := TPazoRaceTask.Create(netname, channel, Name, dst.Name, pazo, dstdl, dir, de.filename, de.filesize, dstrank);
