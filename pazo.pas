@@ -1165,6 +1165,28 @@ begin
   end;
 end;
 
+//compare function to sort PazoSitesList by site rank (highest rank first)
+function _ComparePazoSitesByRank({$IFDEF FPC}constref{$ELSE}const{$ENDIF} Left, Right: TPazoSite): Integer;
+var
+  fLeftSite, fRightSite: TSite;
+  fLeftRank, fRightRank: Integer;
+begin
+  fLeftSite := FindSiteByName('', Left.Name);
+  fRightSite := FindSiteByName('', Right.Name);
+
+  if fLeftSite <> nil then
+    fLeftRank := fLeftSite.GetRank(Left.pazo.rls.section)
+  else
+    fLeftRank := 0;
+
+  if fRightSite <> nil then
+    fRightRank := fRightSite.GetRank(Right.pazo.rls.section)
+  else
+    fRightRank := 0;
+
+  Result := TComparer<Integer>.Default.Compare(fRightRank, fLeftRank); //descending
+end;
+
 function TPazo.AddSites: boolean;
 begin
   Result := AddSites(False);
@@ -1237,6 +1259,11 @@ begin
 
     Result := True;
   end;
+
+  // Sort sites by rank descending (fastest first) so dirlists and race tasks
+  // are created for high-ranked sites before low-ranked ones
+  if PazoSitesList.Count > 1 then
+    PazoSitesList.Sort(TComparer<TPazoSite>.Construct(_ComparePazoSitesByRank));
 end;
 
 function TPazo.PFileSize(const aDir, aFilename: String): Int64;
