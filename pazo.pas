@@ -735,7 +735,9 @@ begin
             if pr = nil then
               Debug(dpError, section, 'CRITICAL LOG: pr (TPazoRaceTask) is nil right before AddTask!')
             else if pr.mainpazo = nil then
-              Debug(dpError, section, 'CRITICAL LOG: pr.mainpazo is nil right before AddTask!');
+              Debug(dpError, section, 'CRITICAL LOG: pr.mainpazo is nil right before AddTask!')
+            else if pr.ssite1 = nil then
+              Debug(dpError, section, 'CRITICAL LOG: pr.ssite1 is nil right before AddTask! (file: %s)', [pr.filename]);
 
             // finally we can add the task
             try
