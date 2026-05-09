@@ -410,6 +410,12 @@ function _IsLowPriorityRaceTask(const aTask: TPazoRaceTask): Boolean;
 begin
   Result := False;
 
+  if aTask = nil then
+  begin
+    Debug(dpError, section, '_IsLowPriorityRaceTask called with nil task');
+    exit;
+  end;
+
   if (aTask.IsSample) and (sample_dirs_priority = 3) then
   begin
     Result := True;
@@ -443,11 +449,20 @@ var
 begin
   Result := False;
 
+  if aTasks = nil then
+  begin
+    Debug(dpError, section, '_HasWaitingNonLowPriorityTasks called with nil list');
+    exit;
+  end;
+
   for i := 0 to aTasks.Count - 1 do
   begin
     fTask := TTask(aTasks.Items[i]);
     if fTask = nil then
+    begin
+      Debug(dpError, section, '_HasWaitingNonLowPriorityTasks: task at index %d is nil', [i]);
       Continue;
+    end;
 
     // Skip tasks that are already running or done
     if ((fTask.slot1 <> nil) or (fTask.slot2 <> nil) or fTask.ready or fTask.readyerror) then
