@@ -1869,7 +1869,7 @@ begin
                     begin
                       if SecondsBetween(Now, fLastLowPriorityLogTime) >= 60 then
                       begin
-                        Debug(dpError, section, 'Low-priority tasks blocked on %s (important tasks waiting)', [fSiteName]);
+                        Debug(dpMessage, section, 'Low-priority tasks blocked on %s (important tasks waiting)', [fSiteName]);
                         fLastLowPriorityLogTime := Now;
                       end;
                       Continue;
