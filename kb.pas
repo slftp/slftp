@@ -467,6 +467,7 @@ begin
         // no fakecheck needed, it's a pre from one of our sites
         r := rc.Create(rls, section, False, DateTimeToUnix(Now(), False));
         irc_SendAddPre(format('%s %s %s', [addpreechocmd, rls, section]));
+        irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s PRE triggered by <b>%s</b> (src: %s)', [section, rls, sitename, KBEventTypeToString(event)]));
         if TPretimeLookupMOde(taskpretime_mode) = plmSQLITE then
         begin
           try
@@ -515,20 +516,21 @@ begin
       end;
 
       // announce event on admin chan
+      Debug(dpError, rsections, '[KBADD-TRACE] event=%s rls=%s site=%s section=%s', [KBEventTypeToString(event), rls, sitename, section]);
       if (event = kbeADDPRE) then
       begin
         if spamcfg.ReadBool('kb', 'new_rls', True) then
-          irc_Addstats(Format('<c3>[ADDPRE]</c> %s %s @ <b>%s</b>', [section, rls, channel]));
+          irc_Addstats(Format('<c3>[ADDPRE]</c> %s %s @ <b>%s</b> (IRC)', [section, rls, channel]));
       end
       else if (event = kbePRE) then
       begin
         if spamcfg.ReadBool('kb', 'pre_rls', True) then
-          irc_Addstats(Format('<c9>[<b>PRE</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
+          irc_Addstats(Format('<c9>[<b>PRE</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b> (IRC)', [section, rls, sitename]));
       end
       else if (event = kbeSPREAD) then
       begin
         if spamcfg.ReadBool('kb', 'spread_rls', True) then
-          irc_Addstats(Format('<c9>[<b>SPREAD</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
+          irc_Addstats(Format('<c9>[<b>SPREAD</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b> (FTP)', [section, rls, sitename]));
       end
       else
       begin
@@ -537,12 +539,12 @@ begin
           if TPretimeLookupMOde(taskpretime_mode) = plmNone then
           begin
             if spamcfg.ReadBool('kb', 'new_rls', True) then
-              irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b>', [section, rls, sitename]));
+              irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (FTP)', [section, rls, sitename]));
           end
           else
           begin
             if spamcfg.ReadBool('kb', 'new_rls', True) then
-              irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<c7><b>Not found in PreDB</b></c>)', [section, rls, sitename]));
+              irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<c7><b>Not found in PreDB</b></c>) (FTP)', [section, rls, sitename]));
 
             if GlTaskPretimeReaddAttempts > 0 then
             begin
@@ -555,7 +557,7 @@ begin
         else
         begin
           if spamcfg.ReadBool('kb', 'new_rls', True) then
-            irc_Addstats(Format('<c3>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<b>%s</b>) (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, p.sl.sectionname, dbaddpre_GetPreduration(r.pretime), r.PretimeSource]));
+            irc_Addstats(Format('<c3>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<b>%s</b>) (<c3><b>%s ago</b></c>) (%s) (FTP)', [section, rls, sitename, p.sl.sectionname, dbaddpre_GetPreduration(r.pretime), r.PretimeSource]));
         end;
       end;
     end
@@ -564,7 +566,7 @@ begin
       if (event = kbePRE) then
       begin
         if spamcfg.ReadBool('kb', 'pre_rls', True) then
-          irc_Addstats(Format('<c9>[<b>PRE</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
+          irc_Addstats(Format('<c9>[<b>PRE</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b> (IRC)', [section, rls, sitename]));
       end;
 
       // meg kell tudni mi valtozott //you need to know what's changed
@@ -890,7 +892,7 @@ begin
             begin
               r.PredOnAnySite := True;
               dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
-              irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
+              irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from %s @ <b>%s</b>', [section, rls, ps.Name, KBEventTypeToString(event), sitename]));
               ps.dirlist.dirlistadded := True;
               AddTask(dlt, true);
             end;
@@ -899,7 +901,7 @@ begin
             if ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete] then
             begin
               dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
-              irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
+              irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from %s @ <b>%s</b>', [section, rls, ps.Name, KBEventTypeToString(event), sitename]));
               ps.dirlist.dirlistadded := True;
               AddTask(dlt, true);
             end;

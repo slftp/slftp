@@ -620,7 +620,7 @@ begin
     try
       if announce_event then
       begin
-        irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[%s]</c> %s %s @ <b>%s</b>', [event, section, rls, sitename]));
+        irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[%s|IRC]</c> %s %s @ <b>%s</b> (catchadd)', [event, section, rls, sitename]));
       end;
       kb_Add('', '', sitename, section, genre, kb_event, rls, '', False, False, 0, aDetectedTick);
     except
