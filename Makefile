@@ -91,7 +91,7 @@ test:	FORCE
 
 clean:
 	@find . -name "*.ppu" -type f -delete
-	@find . \( -path "./libs/mORMot2/static" \) -prune -o -name "*.o" -type f -exec rm {} +
+	@find . \( -path "./libs/mORMot2/static" \) -prune -o -name "*.o" -type f -exec rm -f {} +
 	@rm -f slftp *.exe
 	$(MAKE) cleanuptestdir
 
