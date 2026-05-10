@@ -532,6 +532,22 @@ begin
       exit;
     end;
 
+    if s2.UploadCooldownActive then
+    begin
+      if not fBusyDestinations.ContainsKey(s2) then
+        fBusyDestinations.Add(s2, 0);
+      Debug(dpSpam, section, '[TRANSFER COOLDOWN] Destination site %s: upload cooldown active, skipping %s',
+        [s2.Name, t.FullName]);
+      exit;
+    end;
+
+    if s1.DownloadCooldownActive then
+    begin
+      Debug(dpSpam, section, '[TRANSFER COOLDOWN] Source site %s: download cooldown active, skipping %s',
+        [s1.Name, t.FullName]);
+      exit;
+    end;
+
     if fBusyDestinations.ContainsKey(s2) then
     begin
       Debug(dpSpam, section, 'Destination site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
@@ -926,6 +942,7 @@ begin
     q := TQuitTask.Create('', '', s.site.Name);
     q.slot1 := s;
     q.slot1name := s.Name;
+    q.assigned := Now();
     s.todotask := q;
     AddTask(q);
     s.Fire;
@@ -954,6 +971,7 @@ begin
     ti := TIdleTask.Create('', '', s.site.Name);
     ti.slot1 := s;
     ti.slot1name := s.Name;
+    ti.assigned := Now();
     s.todotask := ti;
     AddTask(ti);
     s.Fire;
@@ -1023,6 +1041,7 @@ var
   fTask: TTask;
   tpr, i_tpr: TPazoRaceTask;
   tpd, i_tpd: TPazoDirlistTask;
+  //tpsfv, i_tpsfv: TPazoSiteSfvTask;
   tpm, i_tpm: TPazoMkdirTask;
   tpl, i_tpl: TLoginTask;
   fListIndex: Integer;
@@ -1150,6 +1169,10 @@ begin
     end;
     exit;
   end;
+
+  // SFV duplicate tasks are by design: CreateReattemptTask recreates
+  // when another site is downloading the SFV. IsReadyToBeExecuted
+  // already gates slot assignment (skips when SFV loaded or download running).
 end;
 
 function TQueueThread.TaskAlreadyInQueue(t: TTask): boolean;
@@ -1451,10 +1474,19 @@ begin
                 if TSiteSlot(t.slot1).todotask = t then
                 begin
                   fSlotsToRebuild.Add(TSiteSlot(t.slot1));
+                  // Do NOT clear slot1/slot2 here: the slot thread is still executing
+                  // fCurrentTask (= t) inside TSiteSlot.Execute. Clearing slot1 now would
+                  // allow RemoveReady to free the task while the slot thread is still using
+                  // it -> use-after-free -> AV. The slot thread's cleanup sets
+                  // fCurrentTask.slot1 := nil after Execute() returns. RebuildSlot signals
+                  // shouldquit=True so the FTP operation aborts quickly.
+                end
+                else
+                begin
+                  // Slot has already moved on (todotask != t); safe to clear immediately.
+                  t.slot1 := nil;
+                  t.slot2 := nil;
                 end;
-
-                t.slot1 := nil;
-                t.slot2 := nil;
               end;
             end;
           end;
@@ -1626,7 +1658,6 @@ var
   s:    TSiteSlot;
   ss:   String;
   ts:   TSite;
-  fBusyDestinationsTmp: TDictionary<TObject, integer>;
   fNextTaskStartAt: TDateTime;
   fWaitTimerTimeout: Cardinal;
   bTasksMoved: Boolean;
@@ -1650,8 +1681,10 @@ begin
 
     ss := '';
     ts := TSite(fSite);
-    fBusyDestinationsTmp := fBusyDestinations;
-    fBusyDestinations := TDictionary<TObject, integer>.Create;
+    if fBusyDestinations <> nil then
+      fBusyDestinations.Clear
+    else
+      fBusyDestinations := TDictionary<TObject, integer>.Create;
     fNextTaskStartAt := MaxDateTime;
     bTasksMoved := False;
     //Debug(dpSpam, section, 'Queue Iteration begin (%s) [%d tasks]', [ts.Name, tasks.Count]);
@@ -1680,50 +1713,71 @@ begin
         if bTasksMoved then
           tasks.Sort(@QueueSorter);
 
-        for fListIndex := 0 to 1 do
-        begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for i := fList.Count - 1 downto 0 do
+        // Acquire lock once for the entire RemoveReady pass instead of per-task
+        ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
+        try
+          for fListIndex := 0 to 1 do
           begin
-            if i < 0 then
-              Break;
-
-            fTask := TTask(fList.items[i]);
-
-          if fTask = nil then
-            Continue;
-
-          try
-            if (((fTask.ready) or (fTask.readyerror)) and (fTask.slot1 = nil)) then
+            if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+            for i := fList.Count - 1 downto 0 do
             begin
-              ss := fTask.uidtext;
-              if fTask.IsNotifyTask then
-                TaskReady(fTask);
+              if i < 0 then
+                Break;
 
-              if (fTask.ClassType = TPazoRaceTask) then
-              begin
-                with TPazoRaceTask(fTask) do
-                if (dst <> nil) then
-                begin
-                  dst.event.SetEvent;
-                end;
-              end;
-              ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
-              try
-                fList.Remove(fTask);
-              finally
-                ts.ReleaseSlotsAssignmentLock;
-              end;
-              Console_QueueDel(ss);
-            end;
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady): %s', [e.Message]));
+              fTask := TTask(fList.items[i]);
+
+            if fTask = nil then
               Continue;
+
+            try
+              if (((fTask.ready) or (fTask.readyerror)) and (fTask.slot1 = nil)) then
+              begin
+                ss := fTask.uidtext;
+                if fTask.IsNotifyTask then
+                  TaskReady(fTask);
+
+                if (fTask.ClassType = TPazoRaceTask) then
+                begin
+                  with TPazoRaceTask(fTask) do
+                  if (dst <> nil) then
+                  begin
+                    try
+                      dst.event.SetEvent;
+                    except
+                      on e: Exception do
+                        Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady SetEvent): %s [%s]', [e.Message, ss]));
+                    end;
+                  end;
+                end;
+                try
+                  fList.Remove(fTask);
+                except
+                  on e: Exception do
+                  begin
+                    // Destructor raised — item may still be in list in a partially-freed
+                    // state. Remove it by index to prevent repeated AV on future passes.
+                    Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady Remove): %s [%s]', [e.Message, ss]));
+                    try
+                      fList.OwnsObjects := False;
+                      fList.Remove(fTask);
+                    finally
+                      fList.OwnsObjects := True;
+                    end;
+                  end;
+                end;
+                Console_QueueDel(ss);
+              end;
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady): %s', [e.Message]));
+                Continue;
+              end;
             end;
           end;
-        end;
+          end;
+        finally
+          ts.ReleaseSlotsAssignmentLock;
         end;
 
         ts.AcquireSlotsAssignmentLock('Queue iterate');
@@ -1767,7 +1821,6 @@ begin
         end;
       finally
         main_lock.Leave;
-        fBusyDestinationsTmp.Free;
       end;
 
       QueueStat;
@@ -1972,6 +2025,44 @@ begin
             try
               t.ready := True;
               Debug(dpError, section, Format('QueueClean: Remove Unassigned : %s', [t.Fullname]));
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, section,
+                  Format('[EXCEPTION] QueueClean: Exception Remove Unassigned : %s', [e.Message]));
+                Break;
+              end;
+            end;
+            // Tasks created by AddIdleTask/AddQuitTask have slot1 set directly
+            // but assigned stays 0. The removal loop requires slot1=nil to remove a
+            // ready task, so without this cleanup the task is stuck in the queue forever
+            // and s.todotask keeps pointing to the dead task, blocking new idle tasks.
+            if t.slot1 <> nil then
+            begin
+              ts.AcquireSlotsAssignmentLock('QueueClean1 unassigned');
+              try
+                if TSiteSlot(t.slot1).todotask = t then
+                begin
+                  // Slot still holds a reference to this task — it may be actively
+                  // executing it. Clear todotask to unblock slot assignment for new
+                  // tasks, but do NOT clear slot1: the slot thread will clear it in
+                  // its own post-execute cleanup after Execute() returns. Clearing
+                  // slot1 here makes the task eligible for removal (ready+slot1=nil)
+                  // while the slot thread still holds fCurrentTask pointing to it,
+                  // causing a use-after-free crash in the removal loop.
+                  TSiteSlot(t.slot1).todotask := nil;
+                end
+                else
+                begin
+                  // Slot has moved on (todotask != this task). Safe to clear slot1
+                  // because the slot thread no longer accesses this task via fCurrentTask.
+                  t.slot1 := nil;
+                  t.slot1name := '';
+                end;
+              finally
+                ts.ReleaseSlotsAssignmentLock;
+              end;
+            end;
 
               // Reset dirlistadded so a new dirlist task can be created when slots
               // become available. Without this reset, the pazo site would never get
@@ -2086,6 +2177,19 @@ begin
             try
               Debug(dpSpam, section, Format('[QUEUECLEAN] Clean race task : %s', [t.Fullname]));
               Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Fullname]));
+
+              // Signal the destination WAITTASK to unblock its slot thread,
+              // same as RemoveReady does when collecting a completed RACE task.
+              if (TPazoRaceTask(t).dst <> nil) then
+              begin
+                try
+                  TPazoRaceTask(t).dst.event.SetEvent;
+                except
+                  on e: Exception do
+                    Debug(dpError, section, Format('[EXCEPTION] QueueClean race: signal dst event : %s', [e.Message]));
+                end;
+              end;
+
               tasks.Remove(t);
             except
               on e: Exception do
@@ -2106,27 +2210,17 @@ begin
 
         if (t.ClassType = TWaitTask) then
         begin
-          with TWaitTask(t) do
-            event.SetEvent;
+          ss := t.UidText;
+          Debug(dpSpam, section, Format('[QUEUECLEAN] Clean wait task : %s', [t.Fullname]));
 
-          try
-            //t := NIL;
-            ss := t.UidText;
-            Debug(dpSpam, section, Format('[QUEUECLEAN] Clean wait task : %s', [t.Fullname]));
-            ts.AcquireSlotsAssignmentLock('QueueClean wait');
-            try
-              Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Fullname]));
-              tasks.Remove(t);
-            finally
-              ts.ReleaseSlotsAssignmentLock;
-            end;
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section,
-                Format('[EXCEPTION] QueueClean: Exception Remove : %s', [e.Message]));
-            end;
-          end;
+          // Wake up the blocking slot thread so it can complete Execute normally.
+          // Do NOT call tasks.Remove here: TWaitTask.Execute blocks in event.WaitFor,
+          // so calling tasks.Remove would free the task object while the slot thread
+          // is still executing it (use-after-free / AV).
+          // The slot thread sets ready := True when Execute returns, clears slot1 in
+          // its cleanup block, and RemoveReady will collect the task on the next pass.
+          TWaitTask(t).event.SetEvent;
+
           Inc(tkill_race);
 
           Console_QueueDel(ss);
