@@ -516,7 +516,7 @@ begin
       end;
 
       // announce event on admin chan
-      Debug(dpError, rsections, '[KBADD-TRACE] event=%s rls=%s site=%s section=%s', [KBEventTypeToString(event), rls, sitename, section]);
+      Debug(dpError, rsections, '[KBADD-TRACE] event=%s rls=%s site=%s section=%s netname=%s channel=%s source=%s', [KBEventTypeToString(event), rls, sitename, section, netname, channel, IfThen(netname <> '', 'IRC', 'INTERNAL')]);
       if (event = kbeADDPRE) then
       begin
         if spamcfg.ReadBool('kb', 'new_rls', True) then
