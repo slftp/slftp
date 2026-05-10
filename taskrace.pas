@@ -1318,7 +1318,7 @@ var
     end
     else
     begin
-      irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+      irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, lastResponse]);
     end;
   end;
 
@@ -1730,7 +1730,7 @@ begin
           if (0 <> Pos('Accept timed out', lastResponse)) then
           begin
             Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain;
           end;
         end;
@@ -1798,7 +1798,7 @@ begin
           //therefore don't try to send that file again
           if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
           begin
-            irc_Adderror(Format('<c4>[NOT ALLOWED]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
+            irc_Adderror(Format('<c4>[NOT ALLOWED]</c> %s : %d %s', [tname, lastResponseCode, lastResponse]));
           end;
           readyerror := True;
           ps2.SetFileError(netname, channel, dir, filename);
@@ -1819,7 +1819,7 @@ begin
         421:
         begin
           //421 - Service not available, closing control connection. This may be a reply to any command if the service knows it must shut down.
-          irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+          irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, lastResponse]);
           Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
           sdst.QuitAndRelogin('TPazoRaceTask');
           goto TryAgain;
@@ -1830,13 +1830,13 @@ begin
           if (0 < Pos('transfer aborted', lastResponse)) then
           begin
             //try again
-            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain;
           end;
         end;
       end;
 
-      irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+      irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, lastResponse]);
       Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
       readyerror := True;
       mainpazo.errorreason := 'PRET STOR failed on ' + site2;
@@ -1906,7 +1906,7 @@ begin
           //COMPLETE MSG: 421 Timeout (10 seconds): closing control connection.
           if (0 < Pos('Timeout', lastResponse)) then
           begin
-            irc_Adderror(fPassiveSlot.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [fPassiveSlot.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(fPassiveSlot.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [fPassiveSlot.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain; //just try again, should hopefully resolve this issue
           end;
         end;
@@ -1919,7 +1919,7 @@ begin
           //COMPLETE MSG: 425 Can't open data connection.
           if ((0 <> Pos('t open passive connection', lastResponse)) OR (0 <> Pos('t open data connection', lastResponse))) then
           begin
-            irc_Adderror(fPassiveSlot.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [fPassiveSlot.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(fPassiveSlot.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [fPassiveSlot.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain;
           end;
         end;
@@ -1932,7 +1932,7 @@ begin
           //COMPLETE MSG: 426 Sendfile error: Broken pipe.
           if ((0 <> Pos('Data connection', lastResponse)) OR (0 <> Pos('Sendfile error', lastResponse))) then
           begin
-            irc_Adderror(fPassiveSlot.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [fPassiveSlot.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(fPassiveSlot.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [fPassiveSlot.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain;
           end;
         end;
@@ -1953,7 +1953,7 @@ begin
           //COMPLETE MSG: 450 No data connection available
           if (0 <> Pos('No data connection available', lastResponse)) then
           begin
-            irc_Adderror(Format('<c4>[No data connection available]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
+            irc_Adderror(Format('<c4>[No data connection available]</c> %s : %d %s', [tname, lastResponseCode, lastResponse]));
             mainpazo.errorreason := 'No data connection available';
             readyerror := True;
             fPassiveSlot.QuitAndRelogin('TPazoRaceTask');
@@ -1980,7 +1980,7 @@ begin
           //500 Unsupported command during transfer.
           if (0 <> Pos('Unsupported command', lastResponse)) then
           begin
-            irc_Adderror(fPassiveSlot.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [fPassiveSlot.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(fPassiveSlot.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [fPassiveSlot.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain;
           end;
         end;
@@ -2022,7 +2022,7 @@ begin
 
 
     Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-    irc_Adderror(fPassiveSlot.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [fPassiveSlot.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+    irc_Adderror(fPassiveSlot.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [fPassiveSlot.Name, tname, lastResponseCode, lastResponse]);
     readyerror := True;
     mainpazo.errorreason := 'PASV/CPSV failed on ' + fPassiveSlot.site.Name;
     Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2058,7 +2058,7 @@ begin
 
   if ((lastResponseCode < 100) Or (lastResponseCode >= 300)) then
   begin
-    irc_Adderror(fPassiveSlot.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [fActiveSlot.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+    irc_Adderror(fPassiveSlot.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [fActiveSlot.Name, tname, lastResponseCode, lastResponse]);
     goto TryAgain;
   end;
 
@@ -2162,7 +2162,7 @@ begin
           //COMPLETE MSG: 421 Connection closing
           if (0 < Pos('Connection closing', lastResponse)) then
           begin
-            irc_Adderror(Format('<c4>[Connection closing]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
+            irc_Adderror(Format('<c4>[Connection closing]</c> %s : %d %s', [tname, lastResponseCode, lastResponse]));
             ssrc.QuitAndRelogin('TPazoRaceTask');
             sdst.QuitAndRelogin('TPazoRaceTask');
             goto TryAgain;
@@ -2171,7 +2171,7 @@ begin
           //COMPLETE MSG: 421 Timeout (90 seconds): closing control connection.
           if (0 < Pos('closing control connection', lastResponse)) then
           begin
-            irc_Adderror(Format('<c4>[Connection closing]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
+            irc_Adderror(Format('<c4>[Connection closing]</c> %s : %d %s', [tname, lastResponseCode, lastResponse]));
             sdst.QuitAndRelogin('TPazoRaceTask');
             goto TryAgain;
           end;
@@ -2181,7 +2181,7 @@ begin
         begin
           if (0 < Pos('Connection refused', lastResponse)) then
           begin
-            irc_Adderror(Format('<c4>[REFUSED]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
+            irc_Adderror(Format('<c4>[REFUSED]</c> %s : %d %s', [tname, lastResponseCode, lastResponse]));
             ssrc.QuitAndRelogin('TPazoRaceTask');
             sdst.QuitAndRelogin('TPazoRaceTask');
             goto TryAgain;
@@ -2191,7 +2191,7 @@ begin
           if (0 < Pos('Can''t open data connection', lastResponse)) then
           begin
             if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
-              irc_Adderror(Format('<c4>[Can''t open data connection]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
+              irc_Adderror(Format('<c4>[Can''t open data connection]</c> %s : %d %s', [tname, lastResponseCode, lastResponse]));
 
             sdst.DestroySocketAndRelogin('TPazoRaceTask');
             mainpazo.errorreason := 'Can''t open data connection';
@@ -2218,7 +2218,7 @@ begin
         begin
           if (0 < Pos('Broken pipe', lastResponse)) then
           begin
-            irc_Adderror(Format('<c4>[Broken pipe]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
+            irc_Adderror(Format('<c4>[Broken pipe]</c> %s : %d %s', [tname, lastResponseCode, lastResponse]));
             ssrc.QuitAndRelogin('TPazoRaceTask');
             sdst.QuitAndRelogin('TPazoRaceTask');
             goto TryAgain;
@@ -2227,7 +2227,7 @@ begin
           //426 Sendfile error: Connection reset by peer.
           if (0 < Pos('Connection reset by peer', lastResponse)) then
           begin
-            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, lastResponse]);
             //just retry
             goto TryAgain;
           end;
@@ -2246,7 +2246,7 @@ begin
           begin   //530 .. not allowed in this file name
             if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
             begin
-              irc_Adderror(Format('<c4>[NOT ALLOWED]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
+              irc_Adderror(Format('<c4>[NOT ALLOWED]</c> %s : %d %s', [tname, lastResponseCode, lastResponse]));
             end;
             readyerror := True;
             ps2.SetFileError(netname, channel, dir, filename);
@@ -2273,7 +2273,7 @@ begin
           begin
             //try again and hopefully it'll work then. Else try to disable SSL/sslfxp and try again. Or setdown with reason of some SSL problem (maybe too old SSL version)
             //maybe relogin needed because response says something about disconnect!
-            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain;
           end;
         end;
@@ -2345,7 +2345,7 @@ begin
           //COMPLETE MSG: 450 No data connection available
           if (0 <> Pos('No data connection available', lastResponse)) then
           begin
-            irc_Adderror(Format('<c4>[No data connection available]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
+            irc_Adderror(Format('<c4>[No data connection available]</c> %s : %d %s', [tname, lastResponseCode, lastResponse]));
             mainpazo.errorreason := 'No data connection available';
             readyerror := True;
             sdst.QuitAndRelogin('TPazoRaceTask');
@@ -2370,7 +2370,7 @@ begin
             //therefore don't try to send that file again
             if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
             begin
-              irc_Adderror(Format('<c4>[NOT ALLOWED]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
+              irc_Adderror(Format('<c4>[NOT ALLOWED]</c> %s : %d %s', [tname, lastResponseCode, lastResponse]));
             end;
             readyerror := True;
             ps2.SetFileError(netname, channel, dir, filename);
@@ -2403,7 +2403,7 @@ begin
           //550 Requested action not taken. File unavailable (e.g., file not found, no access)
           if (0 < Pos('File unavailable', lastResponse)) then
           begin
-            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, lastResponse]);
             readyerror := True;
             exit;
           end;
@@ -2413,7 +2413,7 @@ begin
           if ((0 < Pos('Unsupported command', lastResponse))
             OR (0 < Pos('No text', lastResponse))) then
           begin
-            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, lastResponse]);
             //just retry
             goto TryAgain;
           end;
@@ -2474,16 +2474,16 @@ begin
           //COMPLETE MSG: 540 Command execution failed
           if (0 < Pos('Command execution failed', lastResponse)) then
           begin
-            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain;
           end;
         end;
       end;
 
       Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-      irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+      irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, lastResponse]);
 
-      mainpazo.errorreason := Format('Unhandled error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+      mainpazo.errorreason := Format('Unhandled error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, lastResponseCode, lastResponse]);
       sdst.DestroySocketAndRelogin('TPazoRaceTask');
       readyerror := True;
       Debug(dpMessage, c_section, '<- ' + tname);
@@ -2528,7 +2528,7 @@ begin
           if (0 < Pos('Timeout', lastResponse)) then
           begin
             //try again or just exit, because timeout -> bad routing, offline?
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain;
           end;
         end;
@@ -2899,7 +2899,7 @@ begin
           if (0 < Pos('Timeout', lastResponse)) then
           begin
             //try again or just exit, because timeout -> bad routing, offline?
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain;
           end;
         end;
@@ -2928,7 +2928,7 @@ begin
         if ((0 < Pos('Sendfile error', lastResponse)) OR (0 < Pos('Broken pipe', lastResponse))) then
         begin
           //try again
-          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, lastResponse]);
           goto TryAgain;
         end;
 
@@ -2982,7 +2982,7 @@ begin
         if (0 < Pos('Slow transfer', lastResponse)) then
         begin
           //try again, TODO: if failed again maybe lowering route or remove it (banned IP block?)
-          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, lastResponse]);
           goto TryAgain;
         end;
 
@@ -3005,7 +3005,7 @@ begin
           (0 < Pos('Timeout while sending data', lastResponse))) then
         begin
           //try again
-          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+          irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, lastResponse]);
           goto TryAgain;
         end;
       end;
@@ -3019,7 +3019,7 @@ begin
           begin
             //try again and hopefully it'll work then. Else try to disable SSL/sslfxp and try again. Or setdown with reason of some SSL problem (maybe too old SSL version)
             //maybe relogin needed because response says something about disconnect!
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain;
           end;
         end;
@@ -3031,7 +3031,7 @@ begin
           if (0 < Pos('No text', lastResponse)) then
           begin
             //try again and hopefully it'll work then.
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain;
           end;
         end;
@@ -3044,7 +3044,7 @@ begin
             ssrc.site.sslfxp := srNeeded;
             if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
             begin
-              irc_Adderror(ssrc.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+              irc_Adderror(ssrc.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, lastResponse]);
             end;
             goto TryAgain;
           end;
@@ -3056,7 +3056,7 @@ begin
           if (0 < Pos('ASSERT', lastResponse)) then
           begin
             //try again (maybe will help) or setdown site - some ftpd problem..
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain;
           end;
         end;
@@ -3067,7 +3067,7 @@ begin
           if (0 < Pos('Error on input', lastResponse)) then
           begin
             //try again (maybe will help) or setdown site - some ftpd problem..
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain;
           end;
         end;
@@ -3075,7 +3075,7 @@ begin
 
 
     Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-    irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+    irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, lastResponse]);
 
     mainpazo.errorreason := 'ssrc WAIT: Unhandled error response';
     readyerror := True;
@@ -3102,7 +3102,7 @@ begin
         if (0 < Pos('Timeout', lastResponse)) then
         begin
           //try again or just exit, because timeout -> bad routing, offline?
-          irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+          irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, lastResponse]);
           goto TryAgain;
         end;
       end;
@@ -3133,7 +3133,7 @@ begin
           begin
             //try again, maybe lower routing from srcsite to dstsite
             Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain;
           end;
 
@@ -3142,7 +3142,7 @@ begin
           if ((0 < Pos('Read timed out', lastResponse)) OR (0 < Pos('Transfer failed', lastResponse))) then
           begin
             //try again
-            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain;
           end;
 
@@ -3151,7 +3151,7 @@ begin
           if ((0 < Pos('Socket closed', lastResponse)) OR (0 < Pos('Socket is closed', lastResponse))) then
           begin
             //try again, maybe lower routing if happens again
-            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain;
           end;
 
@@ -3160,7 +3160,7 @@ begin
           if ((0 < Pos('transfer aborted', lastResponse)) OR (0 < Pos('Transfer was aborted', lastResponse))) then
           begin
             //try again
-            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain;
           end;
 
@@ -3171,7 +3171,7 @@ begin
             (0 < Pos('Data Connection', lastResponse))) then
           begin
             //try again
-            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain;
           end;
         end;
@@ -3209,7 +3209,7 @@ begin
           begin
             //try again and hopefully it'll work then. Else try to disable SSL/sslfxp and try again. Or setdown with reason of some SSL problem (maybe too old SSL version)
             //maybe relogin needed because response says something about disconnect!
-            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain;
           end;
         end;
@@ -3221,7 +3221,7 @@ begin
           //COMPLETE MSG: 450 net.sf.drftpd.NoAvailableSlaveException: Requested Transfer Unavailable
           if (0 < Pos('Requested Transfer Unavailable', lastResponse)) then
           begin
-            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain;
           end;
         end;
@@ -3240,7 +3240,7 @@ begin
           //COMPLETE MSG: 452 Transfer terminated by external program
           if (0 < Pos('Transfer terminated by external program', lastResponse)) then
           begin
-            irc_Adderror(sdst.todotask, '<c4>[TRANSFER TERMINATED] slowkick?</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            irc_Adderror(sdst.todotask, '<c4>[TRANSFER TERMINATED] slowkick?</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, lastResponse]);
             readyerror := True;
             exit;
           end;
@@ -3252,7 +3252,7 @@ begin
           //COMPLETE MSG: 500 Unsupported command during transfer.
           if (0 < Pos('Unsupported command during transfer', lastResponse)) then
           begin
-            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+            irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, lastResponse]);
             goto TryAgain;
           end;
         end;
@@ -3265,7 +3265,7 @@ begin
             sdst.site.sslfxp := srNeeded;
             if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
             begin
-              irc_Adderror(sdst.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s, %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+              irc_Adderror(sdst.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s, %s %d %s', [sdst.Name, tname, lastResponseCode, lastResponse]);
             end;
             goto TryAgain;
           end;
@@ -3301,7 +3301,7 @@ begin
 
           if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
           begin
-            irc_Adderror(Format('<c4>[NOT ALLOWED]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
+            irc_Adderror(Format('<c4>[NOT ALLOWED]</c> %s : %d %s', [tname, lastResponseCode, lastResponse]));
           end;
 
           readyerror := True;
@@ -3311,7 +3311,7 @@ begin
       end;
 
     Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-    irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+    irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, lastResponse]);
 
     mainpazo.errorreason := 'sdst WAIT: Unhandled error response';
     readyerror := True;
