@@ -783,6 +783,7 @@ function GetPendingRaceTaskCountForDestination(const aDestinationSiteName: Strin
 var
   sitesdat: TEncIniFile = nil; //< the inifile @link(encinifile.TEncIniFile) object for sites.dat
   sites: Contnrs.TObjectList = nil; //< holds a list of all @link(TSite) objects
+  glSitesInitialized: Boolean = False; //< guards against IRC threads accessing sites during SitesStart
 
 implementation
 
@@ -1347,6 +1348,7 @@ end;
 
 function FindSiteByName(const aNetname, aSitename: String): TSite;
 begin
+  Result := nil;
   sitesDict.TryGetValue(aSitename, Result);
 end;
 
@@ -1468,6 +1470,7 @@ begin
   // sort sites alphabetical
   sites.Sort(@CompareSiteNamesForAlphabeticalOrder);
 
+  glSitesInitialized := True;
   debug(dpSpam, section, 'SitesStart end');
 end;
 

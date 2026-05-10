@@ -1533,15 +1533,18 @@ begin
     end;
   end;
 
-  for i := 0 to sites.Count - 1 do
+  if glSitesInitialized then
   begin
-    s := sites[i] as TSite;
-    if ((s.RCString('ircnet', '') = netname) and (not s.siteinvited) and (not s.PermDown) and (s.UseAutoInvite)) then
+    for i := 0 to sites.Count - 1 do
     begin
-      debug(dpSpam, section, '%s: Trying to issue SITE INVITE to join chans as %s', [netname, FCurrentIrcNick]);
-      s.siteinvited := True;
-      r := TRawTask.Create('', '', s.name, '', 'SITE INVITE ' + FCurrentIrcNick);
-      AddTask(r, true);
+      s := sites[i] as TSite;
+      if ((s.RCString('ircnet', '') = netname) and (not s.siteinvited) and (not s.PermDown) and (s.UseAutoInvite)) then
+      begin
+        debug(dpSpam, section, '%s: Trying to issue SITE INVITE to join chans as %s', [netname, FCurrentIrcNick]);
+        s.siteinvited := True;
+        r := TRawTask.Create('', '', s.name, '', 'SITE INVITE ' + FCurrentIrcNick);
+        AddTask(r, true);
+      end;
     end;
   end;
 
@@ -1688,6 +1691,8 @@ var
   s: TSite;
   i: Integer;
 begin
+  if not glSitesInitialized then
+    Exit;
   for i := 0 to sites.Count - 1 do
   begin
     s := TSite(sites[i]);
