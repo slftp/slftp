@@ -1250,7 +1250,7 @@ begin
         fNeedSort := True; // mark queue as needing sorting
       end;
 
-      step := 'Race slot checks';
+
       try
         if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted and (TSite(fSite).freeslots > 0)) then
         begin
