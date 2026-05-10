@@ -37,6 +37,7 @@ uses
   {$ELSE}
     GUITestRunner,
   {$ENDIF}
+  mormot.db.raw.sqlite3.static,
   Classes, SysUtils,
   mrdohutils,
   slftpUnitTestsSetup,
@@ -70,6 +71,7 @@ uses
   sltimerTests,
   ruleconditions.tvTests,
   mycryptoTests,
+  statsunitTests,
   mormot.db.raw.sqlite3.static,
   mormot.db.sql.sqlite3;
 
