@@ -700,10 +700,9 @@ begin
   if Assigned(ORMAddPreDBSqLite) then
   begin
     // Checkpoint WAL to merge changes back into main database and truncate WAL file
-    if Assigned(addpreSQLite3DBCon) then
-      addpreSQLite3DBCon.MainSQLite3DB.Execute('PRAGMA wal_checkpoint(TRUNCATE)');
+    if Assigned(ORMAddPreDBSqLite) then
+      ORMAddPreDBSqLite.DB.Execute('PRAGMA wal_checkpoint(TRUNCATE)');
     FreeAndNil(ORMAddPreDBSqLite);
-    FreeAndNil(addpreSQLite3DBCon);
   end;
   if Assigned(ORMAddPreDBMySQL) then
   begin
