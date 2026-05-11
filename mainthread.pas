@@ -496,10 +496,10 @@ begin
   kb_Start();
   console_addline('Admin', 'Start Indexer', True);
   indexerStart;
-  console_addline('Admin', 'Start IRC', True);
-  IrcStart();
   console_addline('Admin', 'Start Sites', True);
   SitesStart;
+  console_addline('Admin', 'Start IRC', True);
+  IrcStart();
   console_addline('Admin', 'Start Precatcher', True);
   PrecatcherStart();
   //  EPrecatcherStart();
