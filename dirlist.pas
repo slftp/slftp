@@ -1726,6 +1726,7 @@ end;
 
 procedure DirlistUnInit;
 begin
+  DirlistHelperCleanup;
   uid_lock.Free
 end;
 
