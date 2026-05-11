@@ -228,7 +228,7 @@ var
 implementation
 
 uses
-  SysUtils, DateUtils, StrUtils, debugunit, mystrings, Math, RegExpr, irc, configunit, mrdohutils, console, IdGlobal, dirlist.helpers, Generics.Defaults;
+  SysUtils, DateUtils, StrUtils, debugunit, mystrings, Math, irc, configunit, mrdohutils, console, IdGlobal, dirlist.helpers, Generics.Defaults;
 
 const
   section = 'dirlist';
@@ -1044,43 +1044,31 @@ begin
 end;
 
 function TDirListEntry.RecognizeDirTypeFromDirname(const aDirname: String): TDirType;
-var
-  r: TRegExpr;
 begin
   Result := IsUnknown;
 
-  r := TRegExpr.Create;
-  r.ModifierI := True;
-  try
-    r.Expression := '^sample$';
-    if r.Exec(aDirname) then
-    begin
-      Result := IsSample;
-      exit;
-    end;
+  if SameText(aDirname, 'sample') then
+  begin
+    Result := IsSample;
+    exit;
+  end;
 
-    r.Expression := '^proof$';
-    if r.Exec(aDirname) then
-    begin
-      Result := IsProof;
-      exit;
-    end;
+  if SameText(aDirname, 'proof') then
+  begin
+    Result := IsProof;
+    exit;
+  end;
 
-    r.Expression := '^(sub|subs)$';
-    if r.Exec(aDirname) then
-    begin
-      Result := IsSubs;
-      exit;
-    end;
+  if SameText(aDirname, 'sub') or SameText(aDirname, 'subs') then
+  begin
+    Result := IsSubs;
+    exit;
+  end;
 
-    r.Expression := '^(cover|covers)$';
-    if r.Exec(aDirname) then
-    begin
-      Result := IsCovers;
-      exit;
-    end;
-  finally
-    r.Free;
+  if SameText(aDirname, 'cover') or SameText(aDirname, 'covers') then
+  begin
+    Result := IsCovers;
+    exit;
   end;
 end;
 
@@ -1659,8 +1647,10 @@ var
   i: Integer;
   de: TDirListEntry;
 begin
-  allCdNumbers := '';
-  biggestcd := 0;
+
+  allCdNumbers := '';
+
+  biggestcd := 0;
 
   // find the biggest CD
   for de in entries.Values do
