@@ -746,6 +746,11 @@ begin
             except
               on e: Exception do
               begin
+                try
+                  Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj (AddTask(pr)) src:%s dst:%s file:%s pr_addr:%p ssite1:%p ssite2:%p site1:%s site2:%s', [
+                    Self.Name, dst.Name, de.filename, Pointer(pr), pr.ssite1, pr.ssite2, pr.site1, pr.site2]));
+                except
+                end;
                 DebugException(dpError, section, 'TPazoSite.Tuzelj (AddTask(pr))', e);
                 Break;
               end;

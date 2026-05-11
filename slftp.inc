@@ -1,6 +1,6 @@
 const
   SL_VERSION: string = '1.5.11b1';
-  SL_REV: string = '';
+  SL_REV: string = 'dfea04d3';
   HELP_VERSION: string = '0.5.10';
 
   (* libraries *)
