@@ -3,20 +3,22 @@ unit slmasks;
 interface
 
 uses
-  SyncObjs, DelphiMasks, RegExpr;
+  SyncObjs, DelphiMasks, RegExpr, FLRE;
 
 type
   {
-    @abstract(Inbuilt Mask/Regex class with automatic handling of concurrent access)
+    @abstract(Inbuilt Mask/Regex class)
+    Uses TMask for simple wildcard patterns and TFLRE for regex patterns.
+    TFLRE is thread-safe (uses per-thread local storage internally),
+    so no external locking is required.
   }
   TslMask = class
   private
-    FLock: TCriticalSection; //< lock to avoid concurrent access
-    FMask: String; //< actual mask used for @link(dm) or @link(rm)
-    dm: TMask; //< simple mask
-    rm: TRegExpr; //< regex mask
+    FMask: String; //< actual mask used for @link(dm) or @link(flm)
+    dm: TMask; //< simple mask (DelphiMasks)
+    flm: TFLRE; //< FLRE regex mask (thread-safe)
   public
-    { Create an object which uses TMask or TRegExpr internally for matching. Regex is identified by use of '/<regex>/' with optional 'i' for case-insensitivity at the end.
+    { Create an object which uses TMask or TFLRE internally for matching. Regex is identified by use of '/<regex>/' with optional 'i' for case-insensitivity at the end.
       @param(aMask String which is used to create the appropriate mask/regex) }
     constructor Create(const aMask: String);
     { Free the object and all it's internal data }
@@ -42,6 +44,8 @@ const
 constructor TslMask.Create(const aMask: String);
 var
   fLen: Integer;
+  fPattern: String;
+  fFlags: TFLREFlags;
 begin
   FMask := aMask;
   fLen := Length(aMask);
@@ -51,36 +55,26 @@ begin
 
   if ((aMask[1] = '/') and (aMask[fLen] = '/')) then
   begin
-    rm := TRegExpr.Create;
-    rm.ModifierI := False;
-    rm.Expression := Copy(aMask, 2, fLen-2);
+    fPattern := Copy(aMask, 2, fLen-2);
+    flm := TFLRE.Create(RawByteString(fPattern), TFLREFlags([]));
   end
   else
   if ((aMask[1] = '/') and (aMask[fLen-1] = '/') and (aMask[fLen] = 'i')) then
   begin
-    rm := TRegExpr.Create;
-    rm.ModifierI := True;
-    rm.Expression := Copy(aMask, 2, fLen-3);
+    fPattern := Copy(aMask, 2, fLen-3);
+    flm := TFLRE.Create(RawByteString(fPattern), TFLREFlags([FLRE.rfIGNORECASE]));
   end
   else
     dm := TMask.Create(aMask);
-
-  FLock := TCriticalSection.Create;
 end;
 
 destructor TslMask.Destroy;
 begin
   if Assigned(dm) then
-  begin
     FreeAndNil(dm);
-  end;
 
-  if Assigned(rm) then
-  begin
-    FreeAndNil(rm);
-  end;
-
-  FLock.Free;
+  if Assigned(flm) then
+    FreeAndNil(flm);
 
   inherited;
 end;
@@ -89,21 +83,20 @@ function TslMask.Matches(const aInput: String): Boolean;
 begin
   Result := False;
 
-  FLock.Enter;
-  try
-    if Assigned(dm) then
-      Result := dm.Matches(aInput)
-    else if Assigned(rm) then
-    begin
-      try
-        Result := rm.Exec(aInput)
-      except
-        on e: Exception do
-          Debug(dpError, ssection, 'RegExpr Exception in TslMask.Matches: %s %s', [mask, e.Message]);
-      end;
+  if Assigned(dm) then
+  begin
+    // TMask.Matches is read-only, no lock needed
+    Result := dm.Matches(aInput);
+  end
+  else if Assigned(flm) then
+  begin
+    // TFLRE is thread-safe (uses per-thread local storage)
+    try
+      Result := flm.Find(RawByteString(aInput)) <> 0;
+    except
+      on e: Exception do
+        Debug(dpError, ssection, 'FLRE Exception in TslMask.Matches: %s %s', [mask, e.Message]);
     end;
-  finally
-    FLock.Leave;
   end;
 end;
 
