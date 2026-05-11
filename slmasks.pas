@@ -11,10 +11,10 @@ type
   }
   TslMask = class
   private
-    FLock: TCriticalSection; //< lock to avoid concurrent access for TRegExpr (not thread-safe)
+    FLock: TCriticalSection; //< lock to avoid concurrent access
     FMask: String; //< actual mask used for @link(dm) or @link(rm)
-    dm: TMask; //< simple mask (thread-safe, no lock needed)
-    rm: TRegExpr; //< regex mask (NOT thread-safe, needs lock around Exec)
+    dm: TMask; //< simple mask
+    rm: TRegExpr; //< regex mask
   public
     { Create an object which uses TMask or TRegExpr internally for matching. Regex is identified by use of '/<regex>/' with optional 'i' for case-insensitivity at the end.
       @param(aMask String which is used to create the appropriate mask/regex) }
@@ -54,7 +54,6 @@ begin
     rm := TRegExpr.Create;
     rm.ModifierI := False;
     rm.Expression := Copy(aMask, 2, fLen-2);
-    FLock := TCriticalSection.Create;
   end
   else
   if ((aMask[1] = '/') and (aMask[fLen-1] = '/') and (aMask[fLen] = 'i')) then
@@ -62,10 +61,11 @@ begin
     rm := TRegExpr.Create;
     rm.ModifierI := True;
     rm.Expression := Copy(aMask, 2, fLen-3);
-    FLock := TCriticalSection.Create;
   end
   else
     dm := TMask.Create(aMask);
+
+  FLock := TCriticalSection.Create;
 end;
 
 destructor TslMask.Destroy;
@@ -80,8 +80,7 @@ begin
     FreeAndNil(rm);
   end;
 
-  if Assigned(FLock) then
-    FLock.Free;
+  FLock.Free;
 
   inherited;
 end;
@@ -90,30 +89,21 @@ function TslMask.Matches(const aInput: String): Boolean;
 begin
   Result := False;
 
-  // TMask is thread-safe for read-only matching → no lock needed
-  if Assigned(dm) then
-  begin
-    Result := dm.Matches(aInput);
-    exit;
-  end;
-
-  // TRegExpr is NOT thread-safe: Exec() writes internal state (InputString,
-  // MatchPos, MatchLen, parser position, backtracking stack). If two threads
-  // call Exec() on the same TRegExpr instance concurrently, they corrupt each
-  // other's internal state → wrong results or AVs.
-  if Assigned(rm) then
-  begin
-    FLock.Enter;
-    try
+  FLock.Enter;
+  try
+    if Assigned(dm) then
+      Result := dm.Matches(aInput)
+    else if Assigned(rm) then
+    begin
       try
         Result := rm.Exec(aInput)
       except
         on e: Exception do
           Debug(dpError, ssection, 'RegExpr Exception in TslMask.Matches: %s %s', [mask, e.Message]);
       end;
-    finally
-      FLock.Leave;
     end;
+  finally
+    FLock.Leave;
   end;
 end;
 
