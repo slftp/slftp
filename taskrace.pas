@@ -3580,7 +3580,12 @@ begin
     on e: Exception do
     begin
       Result := 'RACE';
-      Debug(dpError, c_section, Format('[EXCEPTION] TPazoRaceTask.Name SlotInfo: %s', [e.Message]));
+      try
+        Debug(dpError, c_section, Format('[EXCEPTION] TPazoRaceTask.Name SlotInfo: %s | pazo_id:%d site1:%s site2:%s filename:%s rank:%d slot1name:%s slot2name:%s', [
+          e.Message, pazo_id, site1, site2, filename, rank, slot1name, slot2name]));
+      except
+        Debug(dpError, c_section, Format('[EXCEPTION] TPazoRaceTask.Name SlotInfo: %s', [e.Message]));
+      end;
     end;
   end;
 end;

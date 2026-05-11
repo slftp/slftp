@@ -1169,6 +1169,11 @@ begin
     except
     on e: Exception do
     begin
+      try
+        Debug(dpError, section, Format('[EXCEPTION] GlobalAddTask - task_addr:%p class:%s ssite1:%p site1:%s ssite2:%p site2:%s ready:%s readyerror:%s name:%s', [
+          Pointer(t), t.ClassName, t.ssite1, t.site1, t.ssite2, t.site2, BoolToStr(t.ready, True), BoolToStr(t.readyerror, True), t.Name]));
+      except
+      end;
       DebugException(dpError, section, Format('TSite.AddTask (%s)', [t.Name]), e);
     end;
   end;
