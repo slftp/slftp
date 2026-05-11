@@ -107,6 +107,9 @@ procedure DirlistHelperInit;
 { Frees the thread vars of the current thread (call this when a thread terminates). }
 procedure CleanupDirlistThreadVars;
 
+{ Frees global resources allocated by DirlistHelperInit (call once at shutdown). }
+procedure DirlistHelperCleanup;
+
 implementation
 
 uses
@@ -115,6 +118,7 @@ uses
 
 const
   section = 'dirlist.helpers';
+  CLoadAvgCacheMs = 2000; // cache /proc/loadavg reads for 2 seconds
 
 var
   glSkiplistFilesRegex: String; //< global_skip_files regex from slftp.ini
@@ -130,6 +134,8 @@ var
   glLastLoggedLoadAdjustedValue: Integer = -1;
   glLastLoggedLoadAdjustedTime: TDateTime = 0;
   glLoadAdjustedLogLock: TSlCriticalSection2;
+  glCachedLoadAvg: Double = -1;
+  glCachedLoadAvgTime: TDateTime = 0;
 
 threadvar
   glSkiplistFilesRegexInstance: TRegExpr;
@@ -415,74 +421,93 @@ var
   fLine: String;
   fLoad1: Double;
   fFormatSettings: TFormatSettings;
+  fUseCached: Boolean;
 begin
   Result := aBaseValue;
 
   if not glNewdirDirlistReaddLoadEnabled then
     Exit;
 
-  {$I-}
-  AssignFile(f, '/proc/loadavg');
-  Reset(f);
-  if IOResult <> 0 then
-  begin
-    {$I+}
-    Exit;
-  end;
-
+  glLoadAdjustedLogLock.Enter('GetNewdirDirlistReaddLoadAdjustedValue');
   try
-    ReadLn(f, fLine);
-    if IOResult <> 0 then
-      Exit;
+    fUseCached := (glCachedLoadAvg >= 0) and
+                  (MilliSecondsBetween(Now, glCachedLoadAvgTime) < CLoadAvgCacheMs);
 
-    fLine := Trim(fLine);
-    if fLine = '' then
-      Exit;
+    if fUseCached then
+    begin
+      fLoad1 := glCachedLoadAvg;
+    end
+    else
+    begin
+      fLoad1 := -1;
 
-    // Extract first word (1min load average)
-    fLine := Copy(fLine, 1, Pos(' ', fLine) - 1);
-    if fLine = '' then
-      Exit;
+      {$I-}
+      AssignFile(f, '/proc/loadavg');
+      Reset(f);
+      if IOResult = 0 then
+      begin
+        try
+          ReadLn(f, fLine);
+          if IOResult = 0 then
+          begin
+            fLine := Trim(fLine);
+            if fLine <> '' then
+            begin
+              fLine := Copy(fLine, 1, Pos(' ', fLine) - 1);
+              if fLine <> '' then
+              begin
+                fFormatSettings := DefaultFormatSettings;
+                fFormatSettings.DecimalSeparator := '.';
 
-    fFormatSettings := DefaultFormatSettings;
-    fFormatSettings.DecimalSeparator := '.';
+                if TryStrToFloat(fLine, fLoad1, fFormatSettings) then
+                begin
+                  fLoad1 := Round(fLoad1 * 2) / 2;
+                  glCachedLoadAvg := fLoad1;
+                  glCachedLoadAvgTime := Now;
+                end;
+              end;
+            end;
+          end;
+        finally
+          CloseFile(f);
+        end;
+      end;
+      {$I+}
 
-    if not TryStrToFloat(fLine, fLoad1, fFormatSettings) then
-      Exit;
-
-    // Round load to 0.5 steps to prevent flapping on minor fluctuations
-    fLoad1 := Round(fLoad1 * 2) / 2;
+      if fLoad1 < 0 then
+      begin
+        // Read failed: fall back to stale cached value if available
+        if glCachedLoadAvg >= 0 then
+          fLoad1 := glCachedLoadAvg
+        else
+          Exit; // no cache and no file -> return base value
+      end;
+    end;
 
     if Length(glNewdirDirlistReaddLoadSteps) > 0 then
       Result := CalculateLoadAdjustedDirlistReaddWithSteps(aBaseValue, fLoad1, glNewdirDirlistReaddLoadThreshold, glNewdirDirlistReaddLoadSteps)
     else
       Result := CalculateLoadAdjustedDirlistReadd(aBaseValue, fLoad1, glNewdirDirlistReaddLoadThreshold);
 
-    glLoadAdjustedLogLock.Enter('GetNewdirDirlistReaddLoadAdjustedValue');
-    try
-      if (Result <> aBaseValue) and ((Result <> glLastLoggedLoadAdjustedValue) or (MilliSecondsBetween(Now, glLastLoggedLoadAdjustedTime) >= 5000)) then
-      begin
-        Debug(dpMessage, section, Format('Load adjustment triggered: load=%.2f threshold=%.2f base=%dms -> adjusted=%dms',
-          [fLoad1, glNewdirDirlistReaddLoadThreshold, aBaseValue, Result]));
-        glLastLoggedLoadAdjustedValue := Result;
-        glLastLoggedLoadAdjustedTime := Now;
-      end
-      else if (Result = aBaseValue) and (glLastLoggedLoadAdjustedValue <> aBaseValue) and
-              (glLastLoggedLoadAdjustedTime > 0) and
-              (MilliSecondsBetween(Now, glLastLoggedLoadAdjustedTime) >= 5000) then
-      begin
-        Debug(dpMessage, section, Format('Load adjustment cleared: load=%.2f threshold=%.2f back to base=%dms',
-          [fLoad1, glNewdirDirlistReaddLoadThreshold, aBaseValue]));
-        glLastLoggedLoadAdjustedValue := Result;
-        glLastLoggedLoadAdjustedTime := Now;
-      end;
-    finally
-      glLoadAdjustedLogLock.Leave;
+    if (Result <> aBaseValue) and ((Result <> glLastLoggedLoadAdjustedValue) or (MilliSecondsBetween(Now, glLastLoggedLoadAdjustedTime) >= 5000)) then
+    begin
+      Debug(dpMessage, section, Format('Load adjustment triggered: load=%.2f threshold=%.2f base=%dms -> adjusted=%dms',
+        [fLoad1, glNewdirDirlistReaddLoadThreshold, aBaseValue, Result]));
+      glLastLoggedLoadAdjustedValue := Result;
+      glLastLoggedLoadAdjustedTime := Now;
+    end
+    else if (Result = aBaseValue) and (glLastLoggedLoadAdjustedValue <> aBaseValue) and
+            (glLastLoggedLoadAdjustedTime > 0) and
+            (MilliSecondsBetween(Now, glLastLoggedLoadAdjustedTime) >= 5000) then
+    begin
+      Debug(dpMessage, section, Format('Load adjustment cleared: load=%.2f threshold=%.2f back to base=%dms',
+        [fLoad1, glNewdirDirlistReaddLoadThreshold, aBaseValue]));
+      glLastLoggedLoadAdjustedValue := Result;
+      glLastLoggedLoadAdjustedTime := Now;
     end;
   finally
-    CloseFile(f);
+    glLoadAdjustedLogLock.Leave;
   end;
-  {$I+}
 end;
 
 procedure CleanupDirlistThreadVars;
@@ -491,6 +516,12 @@ begin
     FreeAndNil(glSkiplistFilesRegexInstance);
   if glSkiplistDirsRegexInstance <> nil then
     FreeAndNil(glSkiplistDirsRegexInstance);
+end;
+
+procedure DirlistHelperCleanup;
+begin
+  if glLoadAdjustedLogLock <> nil then
+    FreeAndNil(glLoadAdjustedLogLock);
 end;
 
 end.
