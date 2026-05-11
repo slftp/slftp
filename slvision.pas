@@ -396,6 +396,7 @@ type
     fOnShow: TslEvent;
     fLocalConsoleTasks: TObjectList;
     fConsoleTasks: Contnrs.TObjectList;
+    fConsoleTasksPendingFree: Contnrs.TObjectList;
     fLocalConsoleToUpdate: TStringList;
     fConsoleToUpdate: TStringList;
     procedure slOnResize;
@@ -594,6 +595,7 @@ begin
 
   fLocalConsoleTasks := TObjectList.Create(True);
   fConsoleTasks      := Contnrs.TObjectList.Create(False);
+  fConsoleTasksPendingFree := Contnrs.TObjectList.Create(True);
   fLocalConsoleToUpdate := TStringList.Create();
   fConsoleToUpdate   := TStringList.Create();
   fConsoleToUpdate.Duplicates := dupIgnore;
@@ -794,6 +796,7 @@ begin
   timers.Free;
   CopyConsoleTasks;
   fConsoleTasks.Free;
+  fConsoleTasksPendingFree.Free;
   fLocalConsoleTasks.Free;
   fConsoleToUpdate.Free;
   fLocalConsoleToUpdate.Free;
@@ -1088,6 +1091,7 @@ begin
   try
     fLocalConsoleTasks.Assign(fConsoleTasks);
     fConsoleTasks.Clear;
+    fConsoleTasksPendingFree.Clear;
     fLocalConsoleToUpdate.Assign(fConsoleToUpdate);
     fConsoleToUpdate.Clear;
   except
@@ -3135,10 +3139,9 @@ begin
     begin
       if v_queue[i].ClassName = ClassName then
       begin
-        // TODO: check which call is better
-        // might depend what self.ClassName contains, assume it is TslRemoveEarlierTask
-        //TslRemoveEarlierTask(v_queue[i]).Free;
-        v_queue[i].Free;
+        // Defer free to avoid race condition with other threads accessing fConsoleTasks
+        if (slApp <> nil) then
+          slApp.fConsoleTasksPendingFree.Add(v_queue[i]);
         v_queue.Delete(i);
         exit;
       end;
