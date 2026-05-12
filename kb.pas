@@ -1503,6 +1503,7 @@ begin
       rls := rc.Create(p.rls.rlsname, p.rls.section);
       p := PazoAdd(rls);
       kb_list.AddObject('INC-' + p.rls.rlsname, p);
+      Debug(dpError, rsections, '[TIMING] RELEASE_RECOGNIZED pazo_id=%d rls=%s section=%s ts=%s', [p.pazo_id, p.rls.rlsname, p.rls.section, FormatDateTime('yyyy-mm-dd hh:nn:ss.zzz', Now)]);
     finally
       kb_lock.Leave;
     end;
@@ -1515,6 +1516,7 @@ begin
 
     for sps in sources do
     begin
+      Debug(dpError, rsections, '[TIMING] SOURCE_START pazo_id=%d source=%s rls=%s ts=%s', [p.pazo_id, sps.Name, p.rls.rlsname, FormatDateTime('yyyy-mm-dd hh:nn:ss.zzz', Now)]);
       site_allocation.Add(sps.Name, TStringList.Create);
       ssites_info := site_allocation.Items[sps.Name];
       for ps in destinations do
