@@ -462,6 +462,8 @@ begin
 
   pazo.lastTouch := Now();
 
+  Debug(dpError, section, '[TIMING] ROUTES_START pazo_id=%d source=%s rls=%s dir=%s ts=%s', [pazo.pazo_id, Name, pazo.rls.rlsname, dir, FormatDateTime('yyyy-mm-dd hh:nn:ss.zzz', Now)]);
+
   // enumerate possible destinations
   for fDestination in destinations do
   begin
