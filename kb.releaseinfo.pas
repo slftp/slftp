@@ -1289,6 +1289,7 @@ var
   end;
 
 begin
+  Debug(dpError, section, '[TIMING] TVINFO_LOOKUP_START rls=%s section=%s ts=%s', [rlsname, section, FormatDateTime('yyyy-mm-dd hh:nn:ss.zzz', Now)]);
   Result := False;
 
   aktualizalva := True;
@@ -1469,6 +1470,7 @@ var
   i, j: integer;
   imdbdata: TDbImdbData;
 begin
+  Debug(dpError, section, '[TIMING] IMDB_LOOKUP_START rls=%s section=%s ts=%s', [rlsname, section, FormatDateTime('yyyy-mm-dd hh:nn:ss.zzz', Now)]);
   Result := False;
   aktualizalva := True;
 

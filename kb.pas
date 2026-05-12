@@ -266,6 +266,8 @@ var
   end;
 
 begin
+  Debug(dpError, rsections, '[TIMING] KB_ADD_START rls=%s section=%s site=%s event=%s ts=%s', [rls, section, sitename, KBEventTypeToString(event), FormatDateTime('yyyy-mm-dd hh:nn:ss.zzz', Now)]);
+
   debug(dpSpam, rsections, '--> %s %s %s %s %s %d %d', [sitename, section, KBEventTypeToString(event), rls, cdno, integer(dontFire), integer(forceFire)]);
 
   Result := -1;
@@ -517,6 +519,7 @@ begin
               fPreTimeLookupTask := TPazoPretimeLookupTask.Create(netname, channel, getadminsitename, p, 1);
               fPreTimeLookupTask.startat := IncSecond(Now, GlTaskPretimeReaddInterval);
               AddTask(fPreTimeLookupTask);
+              Debug(dpError, rsections, '[TIMING] PRETIME_LOOKUP_START rls=%s section=%s site=%s ts=%s', [rls, section, sitename, FormatDateTime('yyyy-mm-dd hh:nn:ss.zzz', Now)]);
             end;
           end;
         end

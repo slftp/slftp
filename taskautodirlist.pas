@@ -364,6 +364,8 @@ var
   end;
 
 begin
+  Debug(dpError, section, '[TIMING] AUTODIRLIST_START site=%s specific=%s ts=%s', [site1, FSpecificRlsName, FormatDateTime('yyyy-mm-dd hh:nn:ss.zzz', Now)]);
+
   Result := False;
   s := slot;
   debugunit.Debug(dpMessage, rsections, Name);
