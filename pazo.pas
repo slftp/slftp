@@ -1643,7 +1643,7 @@ var
   fFilename: string;
   fSite: TSite;
 begin
-  Debug(dpError, section, '[TIMING] DUPE_RECOGNIZED pazo_id=%d source=%s rls=%s dir=%s ts=%s', [pazo.pazo_id, Name, pazo.rls.rlsname, aDir, FormatDateTime('yyyy-mm-dd hh:nn:ss.zzz', Now)]);
+  Debug(dpError, section, '[TIMING] DUPE_RECOGNIZED pazo_id=%d source=%s rls=%s dir=%s files=%s ts=%s', [pazo.pazo_id, Name, pazo.rls.rlsname, aDir, string.Join(',', aFilenames), FormatDateTime('yyyy-mm-dd hh:nn:ss.zzz', Now)]);
   //Debug(dpSpam, section, '--> '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, aDir, aFilename]));
   fTasksAdded := False;
   fFilesToRace := TList<TDirListEntry>.Create;
