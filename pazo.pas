@@ -1695,6 +1695,7 @@ begin
           if (not de.IsOnSite) then
           begin
             de.IsOnSite := True;
+            de.LastSeen := Now;
             if not de.skiplisted then
               fFilesToRace.Add(de);
           end;

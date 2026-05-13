@@ -34,6 +34,7 @@ type
     FDirType: TDirType; //< Indicates what kind of Directory the current dir is
     FIsOnSite: Boolean; //< @true if this entry is available on the site
     FWasOnSite: Boolean; //< Helper flag to remember if a file has been on the site before ParseDirlist reset the IsOnSite flag
+    FLastSeen: TDateTime; //< timestamp when this entry was last confirmed on site (either by dirlist or ParseDupe)
     FIsBeingUploaded: Boolean;  //< @true if this entry is a file currently being uploaded TODO: flag is only valid on glftpd, for all other ftpds it'll always be false
     FSkipListAlreadyProcessed: Boolean;  //< @true if the skiplist process has already been applied to this dirlistentry, @false otherwise.
     { Contains the index of the file type in the skiplist. For files and directories. For example when you have this in
@@ -77,6 +78,7 @@ type
     property Directory: Boolean read FDirectory;
     property DirType: TDirType read FDirType;
     property IsOnSite: Boolean read FIsOnSite write FIsOnSite;
+    property LastSeen: TDateTime read FLastSeen write FLastSeen;
     property IsBeingUploaded: Boolean read FIsBeingUploaded write FIsBeingUploaded;
     property IsNFO: Boolean read FIsNFO;
     property IsSFV: Boolean read FIsSFV;
@@ -623,7 +625,9 @@ begin
     for de in entries.Values do
     begin
       de.FWasOnSite := de.IsOnSite;
-      de.IsOnSite := False;
+      // NOTE: We no longer blindly reset IsOnSite here.
+      // Entries not in the current FTP response keep their status.
+      // Stale entries are cleaned up at the end of this method.
     end;
 
 {
@@ -799,6 +803,7 @@ begin
       de.FIsBeingUploaded := (fParsedDirlistEntry.DirMask[1] <> 'd') and ((fParsedDirlistEntry.DirMask[7] = 'x') and (fParsedDirlistEntry.DirMask[10] = 'x'));
 
       de.IsOnSite := True;
+      de.FLastSeen := Now;
     end;
 
     // entries found means the dir exists
@@ -811,6 +816,15 @@ begin
           need_mkdir := False;
           break;
         end;
+      end;
+    end;
+
+    // Cleanup: reset IsOnSite for entries not seen in the last 30 seconds
+    for de in entries.Values do
+    begin
+      if de.IsOnSite and (SecondsBetween(Now, de.FLastSeen) > 30) then
+      begin
+        de.IsOnSite := False;
       end;
     end;
 
@@ -1451,6 +1465,7 @@ begin
   self.error := False;
   subdirlist := nil;
   self.FSizeChanged := True;
+  self.FLastSeen := Now;
 
   FFilenameLowerCase := LowerCase(filename);
   FExtension := ExtractFileExt(FFilenameLowerCase);
