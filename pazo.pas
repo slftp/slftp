@@ -462,7 +462,8 @@ begin
 
   pazo.lastTouch := Now();
 
-  Debug(dpError, section, '[TIMING] ROUTES_START pazo_id=%d source=%s rls=%s dir=%s ts=%s', [pazo.pazo_id, Name, pazo.rls.rlsname, dir, FormatDateTime('yyyy-mm-dd hh:nn:ss.zzz', Now)]);
+  if (destinations <> nil) and (destinations.Count > 0) and (aDirListEntries <> nil) and (aDirListEntries.Count > 0) then
+    Debug(dpError, section, '[TIMING] ROUTES_START pazo_id=%d source=%s rls=%s dir=%s ts=%s', [pazo.pazo_id, Name, pazo.rls.rlsname, dir, FormatDateTime('yyyy-mm-dd hh:nn:ss.zzz', Now)]);
 
   // enumerate possible destinations
   for fDestination in destinations do
@@ -1642,11 +1643,11 @@ var
   fFilesToRace: TList<TDirListEntry>;
   fFilename: string;
   fSite: TSite;
+  fNewFiles: TList<String>;
 begin
-  Debug(dpError, section, '[TIMING] DUPE_RECOGNIZED pazo_id=%d source=%s rls=%s dir=%s files=%s ts=%s', [pazo.pazo_id, Name, pazo.rls.rlsname, aDir, string.Join(',', aFilenames), FormatDateTime('yyyy-mm-dd hh:nn:ss.zzz', Now)]);
-  //Debug(dpSpam, section, '--> '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, aDir, aFilename]));
   fTasksAdded := False;
   fFilesToRace := TList<TDirListEntry>.Create;
+  fNewFiles := TList<String>.Create;
   try
     try
       aDirlist.dirlist_lock.Enter('TPazoSite.ParseDupe');
@@ -1697,7 +1698,10 @@ begin
             de.IsOnSite := True;
             de.LastSeen := Now;
             if not de.skiplisted then
+            begin
               fFilesToRace.Add(de);
+              fNewFiles.Add(fFilename);
+            end;
           end;
         end;
       finally
@@ -1709,6 +1713,7 @@ begin
       //do this outside dirlist_lock to avoid deadlocks
       if fFilesToRace.Count > 0 then
       begin
+        Debug(dpError, section, '[TIMING] DUPE_RECOGNIZED pazo_id=%d source=%s rls=%s dir=%s files=%s ts=%s', [pazo.pazo_id, Name, pazo.rls.rlsname, aDir, string.Join(',', fNewFiles.ToArray), FormatDateTime('yyyy-mm-dd hh:nn:ss.zzz', Now)]);
         fTasksAdded := Tuzelj(aNetname, aChannel, aDir, fFilesToRace);
       end;
 
@@ -1730,6 +1735,7 @@ begin
     end;
   finally
     fFilesToRace.Free;
+    fNewFiles.Free;
   end;
   //Debug(dpSpam, section, '<-- '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, aDir, aFilename]));
 end;
