@@ -195,6 +195,7 @@ uses
 
 const
   section = 'irc';
+  C_MAX_IRC_QUEUE_SIZE = 1000;
 
 var
   direct_echo, admin_forward_msgs, echo_kick_events, echo_join_part_events, echo_topic_change_events, echo_nick_change_events: boolean;
@@ -233,8 +234,35 @@ var
   end;
 
   procedure _AppendToQueue(const aChannel, aMessage: String);
+  var
+    fList: TList<TIrcEchoItem>;
+    fItem: TIrcEchoItem;
+    fKey: String;
+    fI: Integer;
   begin
-    fIrcNetThread.PendingMessagesQueue.Add(TIrcEchoItem.Create(aChannel, aMessage));
+    fKey := LowerCase(aChannel + #0 + aMessage);
+
+    fList := fIrcNetThread.PendingMessagesQueue.LockList;
+    try
+      // deduplication: skip if identical message already queued
+      for fI := 0 to fList.Count - 1 do
+      begin
+        fItem := fList[fI];
+        if LowerCase(fItem.Channel + #0 + fItem.Message) = fKey then
+          Exit;
+      end;
+
+      // size limit: drop oldest when queue is full
+      while fList.Count >= C_MAX_IRC_QUEUE_SIZE do
+      begin
+        fList.First.Free;
+        fList.Delete(0);
+      end;
+
+      fList.Add(TIrcEchoItem.Create(aChannel, aMessage));
+    finally
+      fIrcNetThread.PendingMessagesQueue.UnlockList;
+    end;
   end;
 
 begin

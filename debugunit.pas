@@ -52,6 +52,7 @@ var
   glCachedDebugPriority: TDebugPriority = dpError;
   glCachedDebugCategories: string = ',verbose,';
   glFlushLines: boolean = False;
+  glLastIOErrorTime: TDateTime = 0;
 
 function _GetDebugLogFileName: String;
 begin
@@ -200,6 +201,10 @@ begin
   if (_GetDebugCategories <> ',verbose,') and (not {$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(_GetDebugCategories, section)) then
     exit;
 
+  // circuit breaker: skip logging if we recently hit an I/O error
+  if (glLastIOErrorTime > 0) and (SecondsBetween(Now, glLastIOErrorTime) < 60) then
+    exit;
+
   DateTimeToString(nowstr, 'mm-dd hh:nn:ss.zzz', Now());
   logtext := Format('%s (%s) [%-25s] %s', [nowstr, 'NA', section, msg]);
 
@@ -219,6 +224,11 @@ begin
         {$ENDIF}
       end;
     except
+      on e: EInOutError do
+      begin
+        glLastIOErrorTime := Now;
+        exit;
+      end;
       on e: Exception do
       begin
         irc_Adderror(Format('<c4>[EXCEPTION]</c> Debug: %s', [e.Message]));
@@ -232,11 +242,17 @@ end;
 
 procedure Debug(const priority: TDebugPriority; const section, FormatStr: String; const Args: array of const); overload;
 begin
+  // circuit breaker: skip logging if we recently hit an I/O error
+  if (glLastIOErrorTime > 0) and (SecondsBetween(Now, glLastIOErrorTime) < 60) then
+    exit;
+
   try
     Debug(priority, section, Format(FormatStr, Args));
   except
     on e: Exception do
     begin
+      if (glLastIOErrorTime > 0) and (SecondsBetween(Now, glLastIOErrorTime) < 60) then
+        exit;
       irc_Adderror(Format('<c4>[EXCEPTION]</c> Debug: %s', [e.Message]));
       exit;
     end;
