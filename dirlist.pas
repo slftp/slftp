@@ -747,11 +747,6 @@ begin
           end;
         end;
 
-        if ((not de.Directory) and (de.IsSFV) and (de.filesize > 0)) then
-        begin
-          sfv_status := dlSFVFound;
-        end;
-
         if (de.Directory) then
         begin
           de.subdirlist := TDirlist.Create(site_name, de, skiplist, FPazoSFV, FIsSpeedTest, FIsFromIrc);
@@ -793,6 +788,14 @@ begin
           FHasNFO := True;
         if de.IsSFV and not FHasSFV and (de.filesize > 0) then
           FHasSFV := True;
+      end;
+
+      // Update SFV status for all entries (new and existing) with valid filesize.
+      // This ensures sfv_status is updated even when an existing SFV file grows
+      // from 0 to >0 bytes without slFTP transferring it.
+      if ((not de.Directory) and (de.IsSFV) and (de.filesize > 0)) then
+      begin
+        sfv_status := dlSFVFound;
       end;
 
       // entry is a file and is being uploaded (glftpd only?)
