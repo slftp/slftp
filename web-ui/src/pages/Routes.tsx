@@ -348,12 +348,6 @@ function RoutesList({ sourceSite, quickSpeed, onRouteDeleted }: { sourceSite: st
   const handleSaveEdit = async () => {
     if (!editingRoute || editSpeed === '') return;
 
-    await setRouteMutation.mutateAsync({
-      source: sourceSite,
-      dest: editingRoute.dest,
-      speed: editSpeed as number
-    });
-
     await apiClient.post('/ApiSitesService/SetSiteRoute', {
       SourceSite: sourceSite,
       DestSite: editingRoute.dest,
