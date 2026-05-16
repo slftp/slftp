@@ -2644,6 +2644,10 @@ begin
     end;
 
     srcSite.UpdateSpeedFromCache;
+
+    if sitesdat <> nil then
+      sitesdat.UpdateFile;
+
     Result := True;
   except
     on E: Exception do
