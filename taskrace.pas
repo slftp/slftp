@@ -613,9 +613,6 @@ begin
     begin
       for fDestination in ps1.destinations do
       begin
-        if itwasadded then
-          Break;
-
         try
           ps := fDestination.PazoSite;
 
@@ -640,24 +637,20 @@ begin
               Continue;
           end;
 
-          if is_pre or (ps.dirlist.entries.Count > 0)  then
+          if is_pre or (ps.dirlist.entries.Count > 0) then
           begin
-            // do more dirlist
-            r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-            r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue(ps1, d));
+            // Create destination dirlist task for THIS destination
             r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
             r_dst.startat := IncMilliSecond(Now(), r_dst.GetDirlistReaddValue(ps, dst_d));
 
             try
-              AddTask(r);
               AddTask(r_dst);
               itwasadded := True;
-              Break;
             except
               on e: Exception do
               begin
                 Debug(dpError, c_section,
-                  Format('[EXCEPTION] TPazoDirlistTask AddTask: %s', [e.Message]));
+                  Format('[EXCEPTION] TPazoDirlistTask AddTask dst: %s', [e.Message]));
               end;
             end;
           end;
@@ -666,6 +659,22 @@ begin
           begin
             Debug(dpError, c_section,
               Format('[EXCEPTION] TPazoDirlistTask CheckDestinations: %s', [e.Message]));
+          end;
+        end;
+      end;
+
+      // If any destination needed dirlisting, also schedule a single source refresh
+      if itwasadded then
+      begin
+        r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
+        r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue(ps1, d));
+        try
+          AddTask(r);
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, c_section,
+              Format('[EXCEPTION] TPazoDirlistTask AddTask src: %s', [e.Message]));
           end;
         end;
       end;
