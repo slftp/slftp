@@ -127,10 +127,43 @@ var
   queueclean_maxrunning: Integer;
   enable_queueclean: boolean;
   queue_recycle_post_to_irc: boolean;
+  glMaxDirlistSlots: string; //< max dirlist slots config value, e.g. '1', '50%'
 
   StatsList: TObjectList<TQueueStat>;
   Queues: TObjectList<TQueueThread>;
   GlDefaultIterationWaitTimeout: Cardinal = 15 * 1000;
+
+{ Calculate max allowed dirlist slots for a site based on glMaxDirlistSlots config
+  @param(aSlotCount total slot count of the site)
+  @returns(max allowed concurrent dirlist tasks, minimum 1)
+  Supports absolute values ('1', '3') and percentages ('50%', '25%').
+  Empty config falls back to legacy behavior (aSlotCount div 2). }
+function _CalcMaxDirlistSlots(const aSlotCount: integer): integer;
+var
+  fPercentValue: integer;
+begin
+  if glMaxDirlistSlots = '' then
+  begin
+    Result := aSlotCount div 2;
+    Exit;
+  end;
+
+  if glMaxDirlistSlots[Length(glMaxDirlistSlots)] = '%' then
+  begin
+    fPercentValue := StrToIntDef(Copy(glMaxDirlistSlots, 1, Length(glMaxDirlistSlots) - 1), 50);
+    if fPercentValue <= 0 then
+      fPercentValue := 1;
+    if fPercentValue > 100 then
+      fPercentValue := 100;
+    Result := Max(Round(aSlotCount * fPercentValue / 100.0), 1);
+  end
+  else
+  begin
+    Result := StrToIntDef(glMaxDirlistSlots, aSlotCount div 2);
+    if Result < 0 then
+      Result := 0;
+  end;
+end;
 
 procedure TQueueThread.QueueFire;
 begin
@@ -908,8 +941,7 @@ begin
             end;
           end;
         end;
-        // only half of the slots for dirlist
-        if (actual_count >= s.slots.Count div 2) then
+        if (actual_count >= _CalcMaxDirlistSlots(s.slots.Count)) then
         begin
           exit;
         end;
@@ -2037,6 +2069,7 @@ begin
   queueclean_unassigned := config.ReadInteger('queue', 'queueclean_unassigned', 600);
   enable_queueclean := config.ReadBool(section, 'enable_queueclean', False);
   queue_recycle_post_to_irc := spamcfg.readbool(section, 'queue_recycle', True);
+  glMaxDirlistSlots := config.ReadString(section, 'max_dirlist_slots', '');
 
   StatsList := TObjectList<TQueueStat>.Create(True);
   Queues := TObjectList<TQueueThread>.Create(False);
