@@ -849,9 +849,12 @@ begin
     exit;
 
   // status changed
-  ss := p.RoutesText;
-  if (ss <> '') and (not p.IsUDPEnabled) then
-    irc_SendROUTEINFOS(ss);
+  if (event <> kbeNUKE) then
+  begin
+    ss := p.RoutesText;
+    if (ss <> '') and (not p.IsUDPEnabled) then
+      irc_SendROUTEINFOS(ss);
+  end;
 
   if (psource <> nil) and (psource.Status = rssNotAllowed) then
   begin
