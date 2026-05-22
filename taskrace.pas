@@ -348,6 +348,13 @@ begin
               //we're too early, mkdir is not done yet ... the site is slow?
               //continue to create a new dirlist task below
               Debug(dpMessage, c_section, 'DIRLIST: mkdir not ready: ' + tname);
+              // Prevent infinite loop for main dir when directory truly doesn't exist
+              if (dir = '') and (d <> nil) then
+              begin
+                d.error := True;
+                readyerror := True;
+                exit;
+              end;
             end
             else
             begin
@@ -403,7 +410,10 @@ begin
           else
           begin
             Debug(dpSpam, c_section, '[DIRLIST FAILED] %s: %d %s', [tname, s.lastResponseCode, s.lastResponse]);
-            goto TryAgain;
+            if (d <> nil) then
+              d.error := True;
+            readyerror := True;
+            exit;
           end;
         end;
 
