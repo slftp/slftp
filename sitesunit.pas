@@ -5243,16 +5243,6 @@ begin
   Result := fActiveLoginAttempts > 0;
 end;
 
-function TSite.GetNewdirDirlistReadd: integer;
-begin
-  Result := RCInteger('newdir_dirlist_readd', 0);
-end;
-
-procedure TSite.SetNewdirDirlistReadd(const Value: integer);
-begin
-  WCInteger('newdir_dirlist_readd', Value);
-end;
-
 
 { @abstract(Returns count of pending race tasks targeting the given destination site) }
 function GetPendingRaceTaskCountForDestination(const aDestinationSiteName: String): integer;
