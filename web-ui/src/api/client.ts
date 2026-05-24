@@ -33,22 +33,23 @@ if (import.meta.env.DEV) {
   );
 }
 
-// Set initial token
-const token = getApiToken();
-if (token) {
-  apiClient.defaults.headers.common.Authorization = `Bearer ${token}`;
-}
+// Request interceptor: inject auth token on every request
+apiClient.interceptors.request.use((config) => {
+  const token = getApiToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
 // Helper function to update token (called after login)
 export const setApiToken = (token: string) => {
   localStorage.setItem('apiToken', token);
-  apiClient.defaults.headers.common.Authorization = `Bearer ${token}`;
 };
 
 // Helper function to clear token (called on logout)
 export const clearApiToken = () => {
   localStorage.removeItem('apiToken');
-  delete apiClient.defaults.headers.common.Authorization;
 };
 
 // Helper function to check if user is authenticated
