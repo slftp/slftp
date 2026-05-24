@@ -80,7 +80,7 @@ uses
   Classes, Contnrs, StrUtils, kb, sitesunit, configunit, taskdel, DateUtils,
   SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc,
   midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news, dirlist.helpers,
-  globals, Math;
+  globals, Math, taskmetrics;
 
 const
   c_section = 'taskrace';
@@ -200,6 +200,10 @@ begin
   s := slot;
   tname := Name;
   fSubDirlistTasks := nil;
+
+  // Record dirlist start for gap tracking
+  if (ClassType = TPazoDirlistTask) then
+    GetTaskMetrics().RecordDirlistStart(pazo_id, site1, dir);
 
   if mainpazo.stopped then
   begin
@@ -671,6 +675,10 @@ begin
       end;
     end;
   end;
+
+  // Record dirlist end for gap tracking
+  if (ClassType = TPazoDirlistTask) then
+    GetTaskMetrics().RecordDirlistEnd(pazo_id, site1, dir);
 
   Debug(dpSpam, c_section, '<-- ' + tname);
 

@@ -14,11 +14,15 @@ function IrcNotes(const netname, channel, params: String): boolean;
 function IrcFindAffil(const netname, channel, params: String): boolean;
 function IrcFindCountry(const netname, channel, params: String): boolean;
 function IrcFindSection(const netname, channel, params: String): boolean;
+function IrcTaskStats(const netname, channel, params: String): boolean;
+function IrcTaskDump(const netname, channel, params: String): boolean;
+function IrcDirlistGaps(const netname, channel, params: String): boolean;
 
 implementation
 
 uses
-  SysUtils, Classes, StrUtils, Contnrs, irc, sitesunit, mystrings, globals, irccommandsunit;
+  SysUtils, Classes, StrUtils, Contnrs, Generics.Collections, irc, sitesunit, mystrings, globals,
+  irccommandsunit, taskmetrics, kb, pazo;
 
 const
   section = 'irccommands.info';
@@ -391,6 +395,155 @@ begin
 
   if (fSitesList <> '') then
     irc_addtext(Netname, Channel, 'Section <b>%s</b> added on: %s', [section, fSitesList]);
+
+  Result := True;
+end;
+
+function IrcTaskStats(const netname, channel, params: String): boolean;
+var
+  fSiteFilter: String;
+  fList: TArray<TPair<string, TTaskTimingAggregate>>;
+  fPair: TPair<string, TTaskTimingAggregate>;
+  fAvgMs: Double;
+  fAvgQWaitMs: Double;
+begin
+  Result := False;
+  fSiteFilter := UpperCase(Trim(params));
+
+  GetTaskMetrics().GetAllAggregates(fList);
+
+  if Length(fList) = 0 then
+  begin
+    irc_addtext(Netname, Channel, 'No task metrics recorded yet.');
+    Result := True;
+    Exit;
+  end;
+
+  irc_addtext(Netname, Channel, '<b>Task Timing Stats</b>');
+
+  for fPair in fList do
+  begin
+    if (fSiteFilter <> '') and (Pos(fSiteFilter, UpperCase(fPair.Key)) = 0) then
+      Continue;
+
+    if fPair.Value.Count > 0 then
+    begin
+      fAvgMs := fPair.Value.TotalMs / fPair.Value.Count;
+      fAvgQWaitMs := fPair.Value.TotalQueueWaitMs / fPair.Value.Count;
+      irc_addtext(Netname, Channel, '%s: count=%d avg=%.0fms max=%dms min=%dms qwait_avg=%.0fms qwait_max=%dms',
+        [fPair.Key, fPair.Value.Count, fAvgMs, fPair.Value.MaxMs, fPair.Value.MinMs,
+         fAvgQWaitMs, fPair.Value.MaxQueueWaitMs]);
+    end;
+  end;
+
+  Result := True;
+end;
+
+function IrcTaskDump(const netname, channel, params: String): boolean;
+var
+  fCount: Integer;
+  fEvents: TArray<TTaskTimingEvent>;
+  fEvent: TTaskTimingEvent;
+  fTypeStr: String;
+  fSite: String;
+  fDir: String;
+begin
+  Result := False;
+  fCount := StrToIntDef(Trim(params), 10);
+  if fCount > 50 then fCount := 50;
+
+  fEvents := GetTaskMetrics().GetLastEvents(fCount);
+
+  if Length(fEvents) = 0 then
+  begin
+    irc_addtext(Netname, Channel, 'No task events recorded yet.');
+    Result := True;
+    Exit;
+  end;
+
+  irc_addtext(Netname, Channel, '<b>Last %d Task Events</b>', [Length(fEvents)]);
+
+  for fEvent in fEvents do
+  begin
+    case fEvent.TaskType of
+      mttRace:    fTypeStr := 'RACE';
+      mttDirlist: fTypeStr := 'DIRLIST';
+      mttMkdir:   fTypeStr := 'MKDIR';
+      else        fTypeStr := 'OTHER';
+    end;
+
+    fSite := Trim(String(AnsiString(fEvent.Site)));
+    fDir := Trim(String(AnsiString(fEvent.Dir)));
+
+    irc_addtext(Netname, Channel, '[%s] %s pazo=%d dur=%dms qwait=%dms err=%s dir=%s',
+      [fTypeStr, fSite, fEvent.PazoID, fEvent.DurationMs, fEvent.QueueWaitMs,
+       BoolToStr(fEvent.Error, True), fDir]);
+  end;
+
+  Result := True;
+end;
+
+function IrcDirlistGaps(const netname, channel, params: String): boolean;
+var
+  fRlsName: String;
+  fPazo: TPazo;
+  fList: TArray<TPair<string, TDirlistGapTracker>>;
+  fPair: TPair<string, TDirlistGapTracker>;
+  fSite: String;
+  fDir: String;
+  fAvgGap: Double;
+  fKeyParts: TArray<String>;
+begin
+  Result := False;
+  fRlsName := Trim(params);
+
+  if fRlsName = '' then
+  begin
+    irc_addtext(Netname, Channel, 'Usage: !dirlistgaps <releasename>');
+    Exit;
+  end;
+
+  fPazo := FindPazoByRls(fRlsName);
+  if fPazo = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Release <b>%s</b> not found.', [fRlsName]);
+    Exit;
+  end;
+
+  GetTaskMetrics().GetAllGaps(fList);
+
+  if Length(fList) = 0 then
+  begin
+    irc_addtext(Netname, Channel, 'No dirlist gap data recorded yet.');
+    Result := True;
+    Exit;
+  end;
+
+  irc_addtext(Netname, Channel, '<b>Dirlist Gaps for %s</b>', [fRlsName]);
+
+  for fPair in fList do
+  begin
+    // Key format: PazoID|Site|Dir
+    fKeyParts := fPair.Key.Split(['|']);
+    if Length(fKeyParts) < 3 then Continue;
+
+    if StrToIntDef(fKeyParts[0], 0) <> fPazo.pazo_id then
+      Continue;
+
+    fSite := fKeyParts[1];
+    fDir := fKeyParts[2];
+
+    if fPair.Value.GapCount > 0 then
+    begin
+      fAvgGap := fPair.Value.TotalGapMs / fPair.Value.GapCount;
+      irc_addtext(Netname, Channel, '  %s %s: avg_gap=%.0fms max_gap=%dms min_gap=%dms count=%d',
+        [fSite, fDir, fAvgGap, fPair.Value.MaxGapMs, fPair.Value.MinGapMs, fPair.Value.GapCount]);
+    end
+    else
+    begin
+      irc_addtext(Netname, Channel, '  %s %s: no gaps recorded yet', [fSite, fDir]);
+    end;
+  end;
 
   Result := True;
 end;
