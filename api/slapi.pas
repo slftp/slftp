@@ -231,6 +231,23 @@ begin
 
   sUrlLower := LowerCase(sUrl);
 
+  // Public cbftp capability check - bypass all auth
+  if (Ctxt.Call^.Method = 'GET') and
+     ((sUrlLower = '/cbftp/enabled') or
+      (Copy(sUrlLower, 1, 15) = '/cbftp/enabled?') or
+      (sUrlLower = '/api/cbftp/enabled') or
+      (Copy(sUrlLower, 1, 19) = '/api/cbftp/enabled?')) then
+  begin
+    Ctxt.Call^.OutStatus := 200;
+    if IsCbftpEnabled then
+      Ctxt.Call^.OutBody := '{"enabled":true}'
+    else
+      Ctxt.Call^.OutBody := '{"enabled":false}';
+    Ctxt.Call^.OutHead := 'Content-Type: application/json';
+    Result := False; // Halt further processing
+    Exit;
+  end;
+
   Result := True;
 end;
 
@@ -451,15 +468,11 @@ begin
 
   sUrlLower := LowerCase(sUrl);
   isCbftpCall :=
-    ((Length(sUrlLower) >= 7) and (Copy(sUrlLower, 1, 7) = '/cbftp/')) or
-    (sUrlLower = '/cbftp') or
-    ((Length(sUrlLower) >= 11) and (Copy(sUrlLower, 1, 11) = '/api/cbftp/')) or
-    (sUrlLower = '/api/cbftp');
+    (Pos('/cbftp/', sUrlLower) = 1) or
+    (Pos('/api/cbftp/', sUrlLower) = 1);
   isCbftpEnabledEndpoint :=
-    (sUrlLower = '/cbftp/enabled') or
-    (Copy(sUrlLower, 1, 15) = '/cbftp/enabled?') or
-    (sUrlLower = '/api/cbftp/enabled') or
-    (Copy(sUrlLower, 1, 19) = '/api/cbftp/enabled?');
+    (Pos('/cbftp/enabled', sUrlLower) = 1) or
+    (Pos('/api/cbftp/enabled', sUrlLower) = 1);
   isSlotsStreamCall :=
     (sUrlLower = '/api/sites/slots/stream') or
     (Copy(sUrlLower, 1, 24) = '/api/sites/slots/stream?');
