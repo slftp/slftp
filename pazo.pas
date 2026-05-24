@@ -272,6 +272,16 @@ procedure PazoInit;
 
 function FindMostCompleteSite(pazo: TPazo): TPazoSite;
 
+type
+  TCbftpLatencyEntry = record
+    PreTime: TDateTime;
+    UdpTime: TDateTime;
+    LatencyMs: Int64;
+  end;
+
+procedure CbftpLatencyAdd(const aRelease: String; const aPreTime, aUdpTime: TDateTime; const aLatencyMs: Int64);
+function CbftpLatencyGetJson: String;
+
 implementation
 
 uses
@@ -288,6 +298,8 @@ var
   glMaxBadcrcEvents: integer; //< max number of bad crc events read from config
   glPazoPreTimeLookupMode: TPretimeLookupMode;
   glShowCompleteTimeStats: boolean;
+  GCbftpLatencyMap: TDictionary<String, TCbftpLatencyEntry>;
+  GCbftpLatencyLock: TSlCriticalSection2;
 
 function RlsStatusToString(const aStatus: TRlsSiteStatus): String;
 begin
@@ -484,6 +496,49 @@ function PazoAdd(const rls: TRelease): TPazo;
 begin
   Result := TPazo.Create(rls, local_pazo_id);
   Inc(local_pazo_id);
+end;
+
+procedure CbftpLatencyAdd(const aRelease: String; const aPreTime, aUdpTime: TDateTime; const aLatencyMs: Int64);
+var
+  fEntry: TCbftpLatencyEntry;
+begin
+  GCbftpLatencyLock.Enter('CbftpLatencyAdd');
+  try
+    fEntry.PreTime := aPreTime;
+    fEntry.UdpTime := aUdpTime;
+    fEntry.LatencyMs := aLatencyMs;
+    GCbftpLatencyMap.AddOrSetValue(aRelease, fEntry);
+  finally
+    GCbftpLatencyLock.Leave;
+  end;
+end;
+
+function CbftpLatencyGetJson: String;
+var
+  fPairs: TArray<TPair<String, TCbftpLatencyEntry>>;
+  fPair: TPair<String, TCbftpLatencyEntry>;
+  fFirst: Boolean;
+begin
+  GCbftpLatencyLock.Enter('CbftpLatencyGetJson');
+  try
+    Result := '[';
+    fFirst := True;
+    fPairs := GCbftpLatencyMap.ToArray;
+    for fPair in fPairs do
+    begin
+      if not fFirst then
+        Result := Result + ',';
+      fFirst := False;
+      Result := Result + Format('{"name":"%s","latency_ms":%d,"pre_time":"%s","udp_time":"%s"}',
+        [StringReplace(StringReplace(fPair.Key, '\', '\\', [rfReplaceAll]), '"', '\"', [rfReplaceAll]),
+         fPair.Value.LatencyMs,
+         FormatDateTime('yyyy-mm-dd hh:nn:ss.zzz', fPair.Value.PreTime),
+         FormatDateTime('yyyy-mm-dd hh:nn:ss.zzz', fPair.Value.UdpTime)]);
+    end;
+    Result := Result + ']';
+  finally
+    GCbftpLatencyLock.Leave;
+  end;
 end;
 
 procedure PazoInit;
@@ -933,6 +988,8 @@ begin
       end
       else
       begin
+        if (rls <> nil) and (rls.DetectedTick > 0) then
+          CbftpLatencyAdd(rls.rlsname, rls.DetectedUTC, Now, GetTickCount64 - rls.DetectedTick);
         if FUDPEnabled then
           irc_SendROUTEINFOS(Format('<c10>[<b>CBFTP</b>]</c> %s %s %s', [rls.section, rls.rlsname, sitelist]));
       end;
@@ -2368,5 +2425,13 @@ begin
     FActiveTransfersCS.Leave;
   end;
 end;
+
+initialization
+  GCbftpLatencyMap := TDictionary<String, TCbftpLatencyEntry>.Create;
+  GCbftpLatencyLock := TSlCriticalSection2.Create('CbftpLatency');
+
+finalization
+  GCbftpLatencyMap.Free;
+  GCbftpLatencyLock.Free;
 
 end.

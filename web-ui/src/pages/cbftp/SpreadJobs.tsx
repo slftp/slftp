@@ -13,6 +13,7 @@ import {
   abortSpreadJob,
   getSites,
   getSections,
+  getCbftpLatencies,
 } from '../../api/cbftpClient';
 import type {
   CbftpSpreadJob,
@@ -20,6 +21,7 @@ import type {
   StartSpreadJobRequest,
   ResetSpreadJobRequest,
   AbortSpreadJobRequest,
+  CbftpLatencyEntry,
 } from '../../api/cbftpClient';
 
 export function SpreadJobs() {
@@ -106,6 +108,18 @@ export function SpreadJobs() {
     queryKey: ['cbftp-sections-for-spread'],
     queryFn: () => getSections(),
   });
+
+  const { data: latencies } = useQuery<CbftpLatencyEntry[]>({
+    queryKey: ['cbftp-latencies'],
+    queryFn: () => getCbftpLatencies(),
+    refetchInterval: 30000,
+  });
+
+  const latencyByName = useMemo(() => {
+    const map = new Map<string, CbftpLatencyEntry>();
+    latencies?.forEach((item) => map.set(item.name, item));
+    return map;
+  }, [latencies]);
 
   const startMutation = useMutation({
     mutationFn: startSpreadJob,
@@ -309,11 +323,12 @@ export function SpreadJobs() {
         <Table striped highlightOnHover fz="xs" verticalSpacing={4} style={{ tableLayout: 'fixed', width: '100%' }}>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th style={{ width: '40%' }}>Name</Table.Th>
-              <Table.Th style={{ width: '15%' }}>Section</Table.Th>
-              <Table.Th style={{ width: '10%' }}>Profile</Table.Th>
-              <Table.Th style={{ width: '10%' }}>Status</Table.Th>
+              <Table.Th style={{ width: '35%' }}>Name</Table.Th>
+              <Table.Th style={{ width: '12%' }}>Section</Table.Th>
+              <Table.Th style={{ width: '8%' }}>Profile</Table.Th>
+              <Table.Th style={{ width: '8%' }}>Status</Table.Th>
               <Table.Th style={{ width: '5%' }}>Sites</Table.Th>
+              <Table.Th style={{ width: '12%' }}>Latency</Table.Th>
               <Table.Th style={{ width: '20%' }}>Actions</Table.Th>
             </Table.Tr>
           </Table.Thead>
@@ -342,6 +357,19 @@ export function SpreadJobs() {
                   </Table.Td>
                   <Table.Td>
                     <Text size="xs">{typeof details?.sites?.length === 'number' ? details.sites.length : '-'}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    {(() => {
+                      const lat = latencyByName.get(jobName);
+                      if (!lat) return <Text size="xs" c="dimmed">-</Text>;
+                      return (
+                        <Tooltip label={`PRE: ${lat.pre_time} / UDP: ${lat.udp_time}`} openDelay={400}>
+                          <Text size="xs" fw={500} c={lat.latency_ms < 1000 ? 'green' : lat.latency_ms < 5000 ? 'yellow' : 'red'}>
+                            {lat.latency_ms} ms
+                          </Text>
+                        </Tooltip>
+                      );
+                    })()}
                   </Table.Td>
                   <Table.Td style={{ whiteSpace: 'nowrap' }}>
                     <Group gap={4} wrap="nowrap">

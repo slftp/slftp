@@ -207,6 +207,7 @@ const
 
 var
   direct_echo, admin_forward_msgs, echo_kick_events, echo_join_part_events, echo_topic_change_events, echo_nick_change_events: boolean;
+  echo_timestamp_ms: boolean;
   irc_timeout, register_timeout, sleep_on_error: Integer;
 
 function FindIrcnetwork(const netname: String): TMyIrcThread;
@@ -1476,14 +1477,20 @@ end;
 procedure TMyIrcThread.IrcSendPrivMessage(const channel, plainmsg: String);
 var
   fChanSettingsObj: TIrcChannelSettings;
+  fMsg: String;
 begin
   irc_last_read := Now();
+
+  if echo_timestamp_ms then
+    fMsg := Format('[%s] %s', [FormatDateTime('hh:nn:ss.zzz', Now), plainmsg])
+  else
+    fMsg := plainmsg;
 
   if channel <> '' then
   begin
     fChanSettingsObj := FindIrcChannelSettings(netname, channel);
-    IrcWrite('PRIVMSG ' + channel + ' :' + fChanSettingsObj.EncryptMessage(plainmsg));
-    console_addline(netname + ' ' + channel, Format('[%s] <%s> %s', [FormatDateTime('hh:nn:ss', Now), FCurrentIrcNick, plainmsg]));
+    IrcWrite('PRIVMSG ' + channel + ' :' + fChanSettingsObj.EncryptMessage(fMsg));
+    console_addline(netname + ' ' + channel, Format('[%s] <%s> %s', [FormatDateTime('hh:nn:ss', Now), FCurrentIrcNick, fMsg]));
   end
   else
   begin
@@ -1857,6 +1864,7 @@ begin
   echo_join_part_events := config.ReadBool(section, 'echo_join_part_events', False);
   echo_topic_change_events := config.ReadBool(section, 'echo_topic_change_events', False);
   echo_nick_change_events := config.ReadBool(section, 'echo_nick_change_events', False);
+  echo_timestamp_ms := config.ReadBool(section, 'echo_timestamp_ms', False);
   irc_timeout := config.ReadInteger(section, 'timeout', 120);
   register_timeout := config.ReadInteger(section, 'register_timeout', 10);
   sleep_on_error := config.ReadInteger(section, 'sleep_on_error', 60);
