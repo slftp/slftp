@@ -15,7 +15,7 @@ implementation
 
 uses
   SysUtils, StrUtils, configunit, debugunit, mormot.core.unicode, mormot.core.json,
-  slcriticalsection2;
+  slcriticalsection2, pazo;
 
 const
   section = 'slapi.cbftp';
@@ -136,6 +136,15 @@ begin
       Call.OutBody := '{"enabled":true}'
     else
       Call.OutBody := '{"enabled":false}';
+    Call.OutHead := 'Content-Type: application/json';
+    Exit(True);
+  end;
+
+  // Handle /latencies endpoint - slftp internal latency data (PRE to UDP send)
+  if (Call.Method = 'GET') and (path = '/latencies') then
+  begin
+    Call.OutStatus := 200;
+    Call.OutBody := StringToUtf8(CbftpLatencyGetJson);
     Call.OutHead := 'Content-Type: application/json';
     Exit(True);
   end;

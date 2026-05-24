@@ -343,6 +343,18 @@ export const getRawCommandResult = async (id: number): Promise<RawCommandRespons
   return response.data;
 };
 
+export interface CbftpLatencyEntry {
+  name: string;
+  latency_ms: number;
+  pre_time: string;
+  udp_time: string;
+}
+
+export const getCbftpLatencies = async (): Promise<CbftpLatencyEntry[]> => {
+  const response = await cbftpClient.get<CbftpLatencyEntry[]>('/cbftp/latencies');
+  return response.data;
+};
+
 // Check if cbftp integration is enabled
 export const isCbftpEnabled = async (): Promise<boolean> => {
   try {
