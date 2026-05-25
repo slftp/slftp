@@ -197,9 +197,12 @@ var
   fDirlistStart: Int64;
   fQueueWaitMs: Int32;
   fDirlistDuration: Int32;
+  fDirlistOnlyStart: Int64;
+  fDirlistOnlyDuration: Int32;
   fReachedDirlist: Boolean;
 begin
   fDirlistStart := GetTickCount64;
+  fDirlistOnlyDuration := 0;
   fReachedDirlist := False;
   try
     numerrors := 0;
@@ -331,6 +334,7 @@ begin
   fAbsoluteDir := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
   // Trying to get the dirlist
   fReachedDirlist := True;
+  fDirlistOnlyStart := GetTickCount64;
   if not s.Dirlist(fAbsoluteDir) then
   begin
     mainpazo.errorreason := Format('Cannot get the dirlist for source dir %s on %s.', [MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir, site1]);
@@ -425,9 +429,11 @@ begin
           goto TryAgain;
         end;
     end;
+    fDirlistOnlyDuration := Integer(GetTickCount64 - fDirlistOnlyStart);
   end
   else
   begin
+    fDirlistOnlyDuration := Integer(GetTickCount64 - fDirlistOnlyStart);
     try
       itwasadded := ps1.ParseDirlist(netname, channel, dir, s.lastResponse, is_pre);
     except
@@ -718,8 +724,8 @@ begin
     end;
     // Log extreme values for debugging — helps identify why averages look wrong
     if (fDirlistDuration < 5) or (fDirlistDuration > 30000) then
-      Debug(dpError, c_section, '[DIRLIST_TIMING] %s: duration=%dms qwait=%dms readyerror=%s reached_dirlist=%s',
-        [tname, fDirlistDuration, fQueueWaitMs, BoolToStr(readyerror, True), BoolToStr(fReachedDirlist, True)]);
+      Debug(dpError, c_section, '[DIRLIST_TIMING] %s: duration=%dms dirlist_only=%dms qwait=%dms readyerror=%s reached_dirlist=%s',
+        [tname, fDirlistDuration, fDirlistOnlyDuration, fQueueWaitMs, BoolToStr(readyerror, True), BoolToStr(fReachedDirlist, True)]);
   end;
 end;
 
