@@ -325,37 +325,52 @@ procedure TCbftpEventThread.Execute;
     end;
   end;
 
-  function _ReadSseEvent(out aJson: RawUtf8): Boolean;
+  function _ReadLongPollResponse(out aJson: RawUtf8): Boolean;
   var
     line: RawUtf8;
-    data: RawUtf8;
+    contentLen: Integer;
+    body: RawUtf8;
+    buf: array[0..8191] of AnsiChar;
+    len: PtrInt;
+    totalRead: Integer;
   begin
     Result := False;
-    data := '';
+    aJson := '';
+    contentLen := 0;
+
+    // read headers to find Content-Length
     while True do
     begin
       if not _ReadLine(line) then
         Exit;
       if line = '' then
+        Break;
+      if Pos('CONTENT-LENGTH:', UpperCase(string(line))) = 1 then
       begin
-        // empty line marks end of event
-        if data <> '' then
-        begin
-          aJson := data;
-          Result := True;
-        end;
-        Exit;
-      end;
-      if Pos('data: ', line) = 1 then
-      begin
-        if data <> '' then
-          data := data + #10;
-        data := Copy(line, 7, MaxInt);
+        contentLen := StrToIntDef(Trim(Copy(string(line), 16, MaxInt)), 0);
       end;
     end;
+
+    if contentLen <= 0 then
+      Exit;
+
+    // read body
+    SetLength(body, contentLen);
+    totalRead := 0;
+    while totalRead < contentLen do
+    begin
+      len := FHttpClient.SockInRead(@buf[0], Min(SizeOf(buf), contentLen - totalRead));
+      if len <= 0 then
+        Exit;
+      Move(buf[0], body[totalRead + 1], len);
+      Inc(totalRead, len);
+    end;
+
+    aJson := body;
+    Result := True;
   end;
 
-  procedure _SendSseRequest(const aBaseUrl: RawUtf8);
+  procedure _SendLongPollRequest(const aBaseUrl: RawUtf8);
   var
     host: RawUtf8;
   begin
@@ -365,7 +380,7 @@ procedure TCbftpEventThread.Execute;
     FHttpClient.SockSendLine(['GET /events HTTP/1.1']);
     FHttpClient.SockSendLine(['Host: ' + host]);
     FHttpClient.SockSendLine(['Authorization: ' + GetAuthHeader]);
-    FHttpClient.SockSendLine(['Accept: text/event-stream']);
+    FHttpClient.SockSendLine(['Accept: application/json']);
     FHttpClient.SockSendLine(['Cache-Control: no-cache']);
     FHttpClient.SockSendCRLF;
     FHttpClient.SockSendFlush;
@@ -424,47 +439,35 @@ begin
       if (not FHttpClient.SockIsDefined) or (not FHttpClient.SockConnected) then
         FHttpClient.ConnectUri(baseUrl);
 
-      Debug(dpMessage, section, 'Connecting to cbftp SSE stream...');
-      _SendSseRequest(baseUrl);
+      Debug(dpMessage, section, 'Polling cbftp events...');
+      _SendLongPollRequest(baseUrl);
       httpStatus := _ReadHttpHeaders;
 
       if httpStatus = 200 then
       begin
         FReconnectDelay := INITIAL_RECONNECT_DELAY_MS;
-        Debug(dpMessage, section, 'cbftp SSE stream connected');
-        // read events until connection drops or stopped
-        while not Terminated do
+        if _ReadLongPollResponse(eventJson) then
         begin
-          FLock.Acquire;
-          try
-            running := FRunning;
-          finally
-            FLock.Release;
-          end;
-          if not running then
-            Break;
-
-          if _ReadSseEvent(eventJson) then
-          begin
-            FQueue.Enqueue(ParseEvent(eventJson));
-            Synchronize(ProcessEvents);
-          end
-          else
-          begin
-            // connection dropped or read error
-            Break;
-          end;
+          FQueue.Enqueue(ParseEvent(eventJson));
+          Synchronize(ProcessEvents);
+          // Long-polling: immediately make next request on success
+          Continue;
+        end
+        else
+        begin
+          Debug(dpError, section, 'Failed to read cbftp event response body');
+          FreeAndNil(FHttpClient);
         end;
       end
       else
       begin
-        Debug(dpError, section, Format('cbftp SSE connect failed: %d', [httpStatus]));
+        Debug(dpError, section, Format('cbftp events poll failed: %d', [httpStatus]));
         FreeAndNil(FHttpClient);
       end;
     except
       on E: Exception do
       begin
-        Debug(dpError, section, Format('cbftp SSE exception: %s', [E.Message]));
+        Debug(dpError, section, Format('cbftp events exception: %s', [E.Message]));
         FreeAndNil(FHttpClient);
       end;
     end;
@@ -472,8 +475,8 @@ begin
     if Terminated then
       Break;
 
-    // Exponential backoff before reconnect
-    Debug(dpMessage, section, Format('cbftp SSE reconnect in %dms', [FReconnectDelay]));
+    // Exponential backoff before reconnect on error
+    Debug(dpMessage, section, Format('cbftp events reconnect in %dms', [FReconnectDelay]));
     Sleep(FReconnectDelay);
     FReconnectDelay := Min(FReconnectDelay * 2, MAX_RECONNECT_DELAY_MS);
   end;
