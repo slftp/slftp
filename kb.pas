@@ -80,7 +80,7 @@ uses
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
-  globalskipunit, irccommandsunit, slapi.issueshook, cbftpevents, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  globalskipunit, irccommandsunit, slapi.issueshook, cbftpclient, cbftpevents, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   rsections = 'kb';
@@ -1864,8 +1864,10 @@ begin
       fPazo := FindPazoByName('', aEvent.Name);
       if fPazo <> nil then
       begin
-        // Trigger NFO processing via cbftp REST instead of FTP
-        // TODO: implement cbftp NFO download via REST API
+        if GlCbftpClient <> nil then
+        begin
+          // TODO: Download NFO via cbftp REST and process with existing rules
+        end;
       end;
     end;
 

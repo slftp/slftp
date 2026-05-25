@@ -140,6 +140,9 @@ type
 
     { Get events from cbftp (long-polling) }
     function GetEvents(const aQuery: RawUtf8 = ''): RawUtf8;
+
+    { Download a file from a site via cbftp }
+    function GetFile(const aSite, aPath: RawUtf8): RawUtf8;
   end;
 
   { Global cbftp client instance }
@@ -482,6 +485,14 @@ begin
   if aQuery <> '' then
     path := path + '?' + aQuery;
   Result := DoRequest('GET', path);
+end;
+
+function TCbftpClient.GetFile(const aSite, aPath: RawUtf8): RawUtf8;
+var
+  query: RawUtf8;
+begin
+  query := FormatUtf8('site=%&path=%', [aSite, aPath], []);
+  Result := DoRequest('GET', '/file?' + query);
 end;
 
 { Global helper functions }
