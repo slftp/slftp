@@ -51,7 +51,10 @@ type
     procedure QueueStat;
 
 public
-
+  { Phase 5b: lazy-rebuilt map of destination-site -> pending race task count.
+    Rebuilt at the start of every queue iteration under main_lock.
+    Read by TSiteSlot.Execute under main_lock to do targeted wakeups. }
+  fPendingRaceDestinations: TDictionary<String, Integer>;
 
 procedure QueueFire;
 procedure QueueStart;
@@ -103,6 +106,8 @@ var
   GlDirlistCompletedCounter: TIdThreadSafeInt32;
   GlDirlistRate: Double;
   GlDirlistRateMax: Double;
+  { Global list of all queue threads. Used by Phase 5b for targeted wakeups. }
+  Queues: TObjectList<TQueueThread>;
 
 implementation
 
@@ -130,7 +135,6 @@ var
   glMaxDirlistSlots: string; //< max dirlist slots config value, e.g. '1', '50%'
 
   StatsList: TObjectList<TQueueStat>;
-  Queues: TObjectList<TQueueThread>;
 
 { Calculate max allowed dirlist slots for a site based on glMaxDirlistSlots config
   @param(aSlotCount total slot count of the site)
@@ -554,6 +558,7 @@ begin
   queueevent := nil;
   fQueueStat := nil;
   fBusyDestinations := nil;
+  fPendingRaceDestinations := nil;
 
   inherited Create(False);
   {$IFDEF DEBUG}
@@ -574,7 +579,9 @@ begin
     Queues.Add(self);
     fSiteName := aSiteName;
     fBusyDestinations := TDictionary<TObject, integer>.Create;
+    fPendingRaceDestinations := TDictionary<String, Integer>.Create;
   except
+    FreeAndNil(fPendingRaceDestinations);
     FreeAndNil(fBusyDestinations);
     Queues.Extract(self);
     if fQueueStat <> nil then
@@ -598,6 +605,8 @@ begin
   tasks.Free;
   waiting_tasks.Free;
   queueevent.Free;
+  fBusyDestinations.Free;
+  fPendingRaceDestinations.Free;
   inherited;
 end;
 
@@ -918,29 +927,7 @@ begin
 
       if t.ClassType = TPazoDirlistTask then
       begin
-        actual_count := 0;
-        for i := 0 to s.slots.Count - 1 do
-        begin
-          try
-            if i > s.slots.Count then
-              Break;
-          except
-            Break;
-          end;
-          sst := TSiteSlot(s.slots[i]);
-          try
-          if ((sst.todotask <> nil) and (sst.todotask.ClassType = TPazoDirlistTask)) then
-          begin
-            Inc(actual_count);
-          end;
-          except
-          on e: Exception do
-            begin
-              Debug(dpError, section, '[EXCEPTION] This should not happen anymore due to locking at todotask := nil. Else I don''t know why (Remove this if the exception never happens) : %s', [e.Message]);
-            end;
-          end;
-        end;
-        if (actual_count >= _CalcMaxDirlistSlots(s.slots.Count)) then
+        if (s.fActiveDirlistCount >= _CalcMaxDirlistSlots(s.slots.Count)) then
         begin
           exit;
         end;
@@ -1810,6 +1797,23 @@ begin
     try
       main_lock.Enter('Execute');
       try
+        // Phase 5b: Rebuild pending-race-destinations map for targeted wakeups
+        fPendingRaceDestinations.Clear;
+        for fListIndex := 0 to 1 do
+        begin
+          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+          for fTask in fList do
+          begin
+            if (fTask is TPazoRaceTask) and (fTask.slot1 = nil) then
+            begin
+              if fPendingRaceDestinations.ContainsKey(TPazoRaceTask(fTask).site2) then
+                fPendingRaceDestinations[TPazoRaceTask(fTask).site2] := fPendingRaceDestinations[TPazoRaceTask(fTask).site2] + 1
+              else
+                fPendingRaceDestinations[TPazoRaceTask(fTask).site2] := 1;
+            end;
+          end;
+        end;
+
         // Move mature tasks from waiting_tasks to main tasks queue
         for i := waiting_tasks.Count - 1 downto 0 do
         begin

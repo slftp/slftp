@@ -425,6 +425,7 @@ type
     siteinvited: boolean;
 
     ffreeslots: integer;
+    fActiveDirlistCount: integer; //< Phase 6: counter of active TPazoDirlistTask slots (avoids O(n) scan)
     Name: String; //< sitename
     slots: TObjectList;
 
@@ -1574,6 +1575,7 @@ var
   fPazoSite: TPazoSite;
   fPair: TDestinationRank;
   fSite: TSite;
+  fQueueThread: TQueueThread;
 begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
   tname := 'nil';
@@ -1699,14 +1701,19 @@ begin
         begin
           site.QueueFire;
 
-          // Phase 5a: If other sites have pending race tasks targeting this site,
-          // wake them up so they can retry assignment now that a slot is free.
-          if GetPendingRaceTasksToDestination(site.Name) > 0 then
+          // Phase 5b: Wake only source sites that have pending race tasks to this
+          // destination, using the per-queue lazy-rebuilt index.
+          for fQueueThread in Queues do
           begin
-            for fSite in sites do
-            begin
-              if fSite.Name <> site.Name then
-                fSite.QueueFire;
+            fQueueThread.main_lock.Enter('Phase5b wakeup');
+            try
+              if fQueueThread.fPendingRaceDestinations.ContainsKey(site.Name) and
+                 (fQueueThread.fPendingRaceDestinations[site.Name] > 0) then
+              begin
+                fQueueThread.QueueFire;
+              end;
+            finally
+              fQueueThread.main_lock.Leave;
             end;
           end;
         end;
@@ -3159,10 +3166,14 @@ begin
   begin
     site.fFreeSlotsCS.Enter('SetTodotask');
     try
+      if (fTodotask <> nil) and (fTodotask.ClassType = TPazoDirlistTask) then
+        Dec(site.fActiveDirlistCount);
       fTodotask := Value;
       if fTodoTask <> nil then
       begin
         site.freeslots := site.freeslots - 1;
+        if fTodoTask.ClassType = TPazoDirlistTask then
+          Inc(site.fActiveDirlistCount);
       end
       else
       begin
@@ -4446,18 +4457,23 @@ var
   i: integer;
   ss: TSiteSlot;
   fs: integer;
+  fDirlistCount: integer;
 begin
   fFreeSlotsCS.Enter('RecalcFreeslots');
   try
     fs := 0;
+    fDirlistCount := 0;
     for i := 0 to slots.Count - 1 do
     begin
       ss := TSiteSlot(slots[i]);
       if ss.todotask = nil then
-        Inc(fs);
+        Inc(fs)
+      else if ss.todotask.ClassType = TPazoDirlistTask then
+        Inc(fDirlistCount);
     end;
 
     ffreeslots := fs;
+    fActiveDirlistCount := fDirlistCount;
   finally
     fFreeSlotsCS.Leave;
   end;
