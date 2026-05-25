@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, kb.releaseinfo, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections, IniFiles, sfv, slcriticalsection2,
-  routeconfig;
+  routeconfig, cbftpclient;
 
 type
   TQueueNotifyEvent = procedure(Sender: TObject; Value: integer) of object;
@@ -478,14 +478,28 @@ begin
   begin
     if (FUDPPort < 1) or (FUDPPort > 65535) then
     begin
-      Debug(dpError, section, Format('TPazo.LoadUDPConfig: invalid UDP port %d - disabling UDP', [FUDPPort]));
+      Debug(dpError, section, Format('TPazo.LoadUDPConfig: invalid cbftp port %d - disabling engine', [FUDPPort]));
       FUDPEnabled := False;
     end;
 
     if FUDPIp = '' then
     begin
-      Debug(dpError, section, 'TPazo.LoadUDPConfig: UDP IP is empty - disabling UDP');
+      Debug(dpError, section, 'TPazo.LoadUDPConfig: cbftp IP is empty - disabling engine');
       FUDPEnabled := False;
+    end;
+  end;
+
+  if FUDPEnabled then
+  begin
+    try
+      cbftpclient_Init(StringToUtf8(FUDPIp), FUDPPort, StringToUtf8(FUDPPassword));
+      Debug(dpMessage, section, Format('cbftp REST client initialized: %s:%d', [FUDPIp, FUDPPort]));
+    except
+      on E: Exception do
+      begin
+        DebugException(dpError, section, 'cbftpclient_Init failed', E);
+        FUDPEnabled := False;
+      end;
     end;
   end;
 
@@ -883,10 +897,6 @@ var
   cbftpLine: String;
   sitelist: String;
   shouldSendUDP: Boolean;
-  udpSocket: TNetSocket;
-  udpMessage: RawByteString;
-  destAddr: TNetAddr;
-  res: TNetResult;
 begin
   if rls = nil then
   begin
@@ -944,66 +954,25 @@ begin
 
   if shouldSendUDP then
   begin
-    udpMessage := StringToUtf8(FUDPPassword + ' race ' + rls.section + ' ' + rls.rlsname + ' ' + sitelist);
-
-    if FEncryptUDP then
-    begin
-      udpMessage := CbftpEncryptAES(udpMessage, StringToUtf8(FUDPPassword));
-      if udpMessage = '' then
-      begin
-        Debug(dpError, section, 'UDP AES encryption failed');
-        lastannounceroutes := '';
-        Exit;
-      end;
-    end;
-    udpSocket := nil;
+    // Use REST API instead of UDP to start spread job
     try
-      // Create UDP socket
-      udpSocket := NewRawSocket(nfIP4, nlUdp);
-      if udpSocket = nil then
+      if not cbftpclient_StartSpreadJob(rls.section, rls.rlsname, sitelist) then
       begin
-        Debug(dpError, section, 'UDP socket creation failed');
+        Debug(dpError, section, 'cbftp REST spread job start failed');
         lastannounceroutes := '';
         Exit;
       end;
 
-      // Set send timeout
-      udpSocket.SetSendTimeout(2000);
-
-      // Set destination address
-      res := destAddr.SetFrom(StringToUtf8(FUDPIp), StringToUtf8(IntToStr(FUDPPort)), nlUdp);
-      if res <> nrOK then
-      begin
-        Debug(dpError, section, 'UDP address resolution failed: %s', [ToText(res)^]);
-        lastannounceroutes := '';
-        Exit;
-      end;
-
-      // Send UDP datagram
-      res := udpSocket.SendTo(pointer(udpMessage), length(udpMessage), destAddr);
-      if res <> nrOK then
-      begin
-        Debug(dpError, section, 'UDP send failed: %s', [ToText(res)^]);
-        lastannounceroutes := '';
-      end
-      else
-      begin
-        if (rls <> nil) and (rls.DetectedTick > 0) then
-          CbftpLatencyAdd(rls.rlsname, rls.DetectedUTC, Now, GetTickCount64 - rls.DetectedTick);
-        if FUDPEnabled then
-          irc_SendROUTEINFOS(Format('<c10>[<b>CBFTP</b>]</c> %s %s %s', [rls.section, rls.rlsname, sitelist]));
-      end;
+      if (rls <> nil) and (rls.DetectedTick > 0) then
+        CbftpLatencyAdd(rls.rlsname, rls.DetectedUTC, Now, GetTickCount64 - rls.DetectedTick);
+      irc_SendROUTEINFOS(Format('<c10>[<b>CBFTP</b>]</c> %s %s %s', [rls.section, rls.rlsname, sitelist]));
     except
       on E: Exception do
       begin
-        DebugException(dpError, section, 'TPazo.RoutesText: UDP operation failed', E);
+        DebugException(dpError, section, 'TPazo.RoutesText: cbftp REST operation failed', E);
         lastannounceroutes := '';
       end;
     end;
-
-    // Cleanup
-    if udpSocket <> nil then
-      udpSocket.Close;
   end;
 end;
 

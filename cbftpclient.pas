@@ -3,7 +3,7 @@ unit cbftpclient;
 interface
 
 uses
-  Classes, SysUtils, SyncObjs, mormot.core.base, mormot.core.json, mormot.core.buffers,
+  Classes, SysUtils, SyncObjs, mormot.core.base, mormot.core.unicode, mormot.core.json, mormot.core.buffers,
   mormot.net.client, mormot.net.http;
 
 type
@@ -122,7 +122,35 @@ type
 
     { Get cbftp info (version, uptime, stats) }
     function GetInfo: RawUtf8;
+
+    { Start a spread job with explicit parameters }
+    function StartSpreadJobEx(const aSection, aRelease: RawUtf8; const aSites: array of RawUtf8): Boolean;
+
+    { Get speed stats from cbftp }
+    function GetSpeedStats: RawUtf8;
+
+    { Get completion stats from cbftp }
+    function GetCompletionStats: RawUtf8;
+
+    { Get hourly aggregate stats from cbftp }
+    function GetHourlyStats: RawUtf8;
+
+    { Get race history stats from cbftp }
+    function GetRaceStats: RawUtf8;
+
+    { Get events from cbftp (long-polling) }
+    function GetEvents(const aQuery: RawUtf8 = ''): RawUtf8;
   end;
+
+  { Global cbftp client instance }
+  var
+    GlCbftpClient: TCbftpClient;
+
+  { Initialize global cbftp client from config }
+  procedure cbftpclient_Init(const aHost: RawUtf8; aPort: Integer; const aPassword: RawUtf8);
+
+  { Start a spread job using the global client }
+  function cbftpclient_StartSpreadJob(const aSection, aRelease, aSitesCsv: String): Boolean;
 
 implementation
 
@@ -407,6 +435,83 @@ end;
 function TCbftpClient.GetInfo: RawUtf8;
 begin
   Result := DoRequest('GET', '/info');
+end;
+
+function TCbftpClient.StartSpreadJobEx(const aSection, aRelease: RawUtf8; const aSites: array of RawUtf8): Boolean;
+var
+  body: RawUtf8;
+  sitesJson: RawUtf8;
+  i: Integer;
+begin
+  sitesJson := '';
+  for i := Low(aSites) to High(aSites) do
+  begin
+    if sitesJson <> '' then
+      sitesJson := sitesJson + ',';
+    sitesJson := sitesJson + '"' + aSites[i] + '"';
+  end;
+  body := '{"section":"' + aSection + '","name":"' + aRelease + '","sites":[' + sitesJson + ']}';
+  Result := DoRequest('POST', '/spreadjobs', body) <> '';
+end;
+
+function TCbftpClient.GetSpeedStats: RawUtf8;
+begin
+  Result := DoRequest('GET', '/stats/speeds');
+end;
+
+function TCbftpClient.GetCompletionStats: RawUtf8;
+begin
+  Result := DoRequest('GET', '/stats/completion');
+end;
+
+function TCbftpClient.GetHourlyStats: RawUtf8;
+begin
+  Result := DoRequest('GET', '/stats/hourly');
+end;
+
+function TCbftpClient.GetRaceStats: RawUtf8;
+begin
+  Result := DoRequest('GET', '/stats/races');
+end;
+
+function TCbftpClient.GetEvents(const aQuery: RawUtf8): RawUtf8;
+var
+  path: RawUtf8;
+begin
+  path := '/events';
+  if aQuery <> '' then
+    path := path + '?' + aQuery;
+  Result := DoRequest('GET', path);
+end;
+
+{ Global helper functions }
+
+procedure cbftpclient_Init(const aHost: RawUtf8; aPort: Integer; const aPassword: RawUtf8);
+begin
+  FreeAndNil(GlCbftpClient);
+  GlCbftpClient := TCbftpClient.Create(aHost, aPort, aPassword);
+end;
+
+function cbftpclient_StartSpreadJob(const aSection, aRelease, aSitesCsv: String): Boolean;
+var
+  sitesArr: array of RawUtf8;
+  siteList: TStringList;
+  i: Integer;
+begin
+  Result := False;
+  if GlCbftpClient = nil then
+    Exit;
+
+  siteList := TStringList.Create;
+  try
+    siteList.CommaText := aSitesCsv;
+    SetLength(sitesArr, siteList.Count);
+    for i := 0 to siteList.Count - 1 do
+      sitesArr[i] := StringToUtf8(Trim(siteList[i]));
+    Result := GlCbftpClient.StartSpreadJobEx(StringToUtf8(aSection), StringToUtf8(aRelease), sitesArr);
+  finally
+    FreeAndNil(siteList);
+  end;
 end;
 
 end.

@@ -157,6 +157,25 @@ begin
     Exit(True);
   end;
 
+  // Handle /events endpoint - proxy to cbftp SSE events
+  if (Call.Method = 'GET') and (path = '/events') then
+  begin
+    response := client.GetEvents(query);
+    success := response <> '';
+    if success then
+    begin
+      Call.OutStatus := 200;
+      Call.OutBody := response;
+      Call.OutHead := 'Content-Type: application/json';
+    end
+    else
+    begin
+      Call.OutStatus := 204;
+      Call.OutBody := '';
+    end;
+    Exit(True);
+  end;
+
   // If cbftp is disabled, reject all other requests
   if not IsCbftpEnabled then
   begin
@@ -253,7 +272,15 @@ begin
       begin
         Delete(path, 1, 5); // Remove '/raw/'
         response := client.GetRawCommandResult(StrToIntDef(Utf8ToString(path), 0));
-      end;
+      end
+      else if path = '/stats/speeds' then
+        response := client.GetSpeedStats
+      else if path = '/stats/completion' then
+        response := client.GetCompletionStats
+      else if path = '/stats/hourly' then
+        response := client.GetHourlyStats
+      else if path = '/stats/races' then
+        response := client.GetRaceStats;
 
       success := response <> '';
     end
