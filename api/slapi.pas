@@ -233,17 +233,10 @@ begin
 
   // Public cbftp capability check - bypass all auth
   if (Ctxt.Call^.Method = 'GET') and
-     ((sUrlLower = '/cbftp/enabled') or
-      (Copy(sUrlLower, 1, 15) = '/cbftp/enabled?') or
-      (sUrlLower = '/api/cbftp/enabled') or
-      (Copy(sUrlLower, 1, 19) = '/api/cbftp/enabled?')) then
+     ((Pos('/cbftp/enabled', sUrlLower) = 1) or
+      (Pos('/api/cbftp/enabled', sUrlLower) = 1)) then
   begin
-    Ctxt.Call^.OutStatus := 200;
-    if IsCbftpEnabled then
-      Ctxt.Call^.OutBody := '{"enabled":true}'
-    else
-      Ctxt.Call^.OutBody := '{"enabled":false}';
-    Ctxt.Call^.OutHead := 'Content-Type: application/json';
+    ServeCbftpEnabledResponse(Ctxt.Call^);
     Result := False; // Halt further processing
     Exit;
   end;
