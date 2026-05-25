@@ -449,7 +449,7 @@ type
     procedure QueueSort;
     function RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
     //procedure QueueEmpty(const sitename: String);
-    procedure QueueFireInverval(const interval: integer);
+
     procedure QueueCleanInverval(const interval: integer);
     procedure RemovePazoMKDIR(const pazo_id: integer; const dir: String);
     procedure RemovePazoRace(const aPazoID: integer; const aDstSite, aDir, aFilename: String);
@@ -673,7 +673,6 @@ function ReadSites(): boolean;
 procedure SlotsFire;
 procedure SiteAutoStart;
 procedure AddTask(const t: TTask; const queueFire: boolean = false);
-procedure QueueFireInverval(const interval: integer);
 procedure QueueCleanInverval(const interval: integer);
 function RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
 procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
@@ -1120,15 +1119,6 @@ begin
   if queueFire then self.QueueFire;
 end;
 
-procedure QueueFireInverval(const interval: integer);
-var fSite: TSite;
-begin
-  for fSite in sites do
-  begin
-    fSite.QueueFireInverval(interval);
-  end;
-end;
-
 procedure QueueCleanInverval(const interval: integer);
 var fSite: TSite;
 begin
@@ -1175,19 +1165,6 @@ begin
       except
       end;
       DebugException(dpError, section, Format('TSite.AddTask (%s)', [t.Name]), e);
-    end;
-  end;
-end;
-
-procedure TSite.QueueFireInverval(const interval: integer);
-begin
-  try
-    if (fQueue <> nil) and (MilliSecondsBetween(Now, fQueue.QueueLastRun) >= interval) then
-      self.QueueFire;
-  except
-    on e: Exception do
-    begin
-      DebugException(dpError, section, Format('TSite.QueueFireInverval (%s)', [self.Name]), e);
     end;
   end;
 end;

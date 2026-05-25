@@ -131,7 +131,6 @@ var
 
   StatsList: TObjectList<TQueueStat>;
   Queues: TObjectList<TQueueThread>;
-  GlDefaultIterationWaitTimeout: Cardinal = 15 * 1000;
 
 { Calculate max allowed dirlist slots for a site based on glMaxDirlistSlots config
   @param(aSlotCount total slot count of the site)
@@ -1996,48 +1995,52 @@ begin
       end;
     end;
 
-    // if there is a task with a delayed start time, we will wait exactly that long
+    // Event-based waiting: only sleep if we have a known wakeup reason.
+    // Reasons to wake up:
+    //   1. A delayed task (startat) becomes due  -> sleep until then
+    //   2. QueueFire was called (task added / slot freed / cooldown expired)
+    //
+    // If neither applies, wait indefinitely. The 15s forced recycle is removed
+    // because it served as a safety-net for the now-removed 900ms main-thread polling.
     if fNextTaskStartAt = MaxDateTime then
-      fWaitTimerTimeout := GlDefaultIterationWaitTimeout
+    begin
+      // No delayed tasks. Wait indefinitely until QueueFire is called.
+      fWaitTimerTimeout := $FFFFFFFF;
+    end
     else
     begin
-      if fNextTaskStartAt <= Now then  // can happen ...
+      if fNextTaskStartAt <= Now then
       begin
         if ts.freeslots = 0 then
         begin
-          // no free slots, so we have to wait for a slot to become free and trigger a queue fire
-          fWaitTimerTimeout := GlDefaultIterationWaitTimeout;
+          // Task is due but no free slots. Wait indefinitely until a slot
+          // becomes free and calls QueueFire.
+          fWaitTimerTimeout := $FFFFFFFF;
         end
         else
         begin
-          // don't wait at all if the next task should already be assigned now
+          // Task should be assigned immediately; don't sleep at all
           Debug(dpSpam, section, Format('TQueueThread.Execute: skip sleep %s', [ts.Name]));
           continue;
         end;
+      end
+      else
+      begin
+        fWaitTimerTimeout := MilliSecondsBetween(Now, fNextTaskStartAt);
+        // Cap at 60s to avoid extremely long sleeps if clocks drift
+        if fWaitTimerTimeout > 60000 then
+          fWaitTimerTimeout := 60000;
       end;
-
-      fWaitTimerTimeout := MilliSecondsBetween(Now, fNextTaskStartAt);
-
-      // don't wait longer than the default wait time if that task is supposed to start later than that
-      if fWaitTimerTimeout > GlDefaultIterationWaitTimeout then
-        fWaitTimerTimeout := GlDefaultIterationWaitTimeout;
     end;
 
-    //queueevent.WaitFor($FFFFFFFF);
     case queueevent.WaitFor(fWaitTimerTimeout) of
       wrSignaled: { Event fired. Normal exit. }
       begin
         //Debug(dpSpam, section, Format('[QUEUEFIRE received : %s', [ts.Name]));
       end;
-      else { Timeout reach }
+      else { Timeout reached — either startat task or 60s safety cap }
       begin
-        if fWaitTimerTimeout = GlDefaultIterationWaitTimeout then
-        begin
-          if queue_recycle_post_to_irc then
-            irc_Adderror(Format('TQueueThread.Execute: <c2>Force Leave</c>: TQueueThread Recycle 15s (%s)', [self.fSiteName]));
-          Debug(dpMessage, section,
-            Format('TQueueThread.Execute: Force Leave: TQueueThread Recycle 15s (%s)', [self.fSiteName]));
-        end;
+        // Nothing to log here; timeout is expected for delayed tasks
       end;
     end;
   end;
