@@ -86,7 +86,7 @@ label
   ujra;
 var
   procId: TThreadID;
-  event: TEvent;
+  event: TSynEvent;
 begin
   Result := False;
   procId := GetCurrentThreadId;
@@ -107,27 +107,27 @@ ujra:
   else
   begin
     inc(ec);
-    event := TEvent.Create(nil, False, False, Format('%d-%s-%s', [ec, name, sname]));
+    event := TSynEvent.Create;
     w.Add(event);
     l.Leave;
     try
       try
-        case event.WaitFor(30 * 1000) of
-          wrSignaled : { Event fired. Normal exit. }
-          begin
-            l.Enter;
-            w.Remove(event);
-            l.Leave;
-          end;
-          else { Timeout reach }
-          begin
-            Debug(dpError, 'criticalSection', 'TslCriticalSection.Enter: Force Leave (%d) Timeout 30sec: %s (%s)', [procId, name, sname]);
-            l.Enter;
-            w.Remove(event);
-            l.Leave;
-            if w.Count > 0 then
-              TEvent(w[0]).SetEvent;
-          end;
+        if event.WaitFor(30 * 1000) then
+        begin
+          { Event fired. Normal exit. }
+          l.Enter;
+          w.Remove(event);
+          l.Leave;
+        end
+        else
+        begin
+          { Timeout reach }
+          Debug(dpError, 'criticalSection', 'TslCriticalSection.Enter: Force Leave (%d) Timeout 30sec: %s (%s)', [procId, name, sname]);
+          l.Enter;
+          w.Remove(event);
+          l.Leave;
+          if w.Count > 0 then
+            TSynEvent(w[0]).SetEvent;
         end;
       finally
         event.Free;

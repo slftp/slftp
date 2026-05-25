@@ -2,7 +2,7 @@ unit taskrace;
 
 interface
 
-uses SyncObjs, tasksunit, pazo, Generics.Collections, dirlist;
+uses SyncObjs, tasksunit, pazo, Generics.Collections, dirlist, mormot.core.os;
 
 type
   TPazoPlainTask = class(TTask) // no announce
@@ -39,7 +39,7 @@ type
 
   TWaitTask = class(TTask)
   public
-    event: TEvent;
+    event: TSynEvent;
     wait_for: String;
     destructor Destroy; override;
     constructor Create(const netname, channel, site1: String);
@@ -3619,7 +3619,7 @@ end;
 constructor TWaitTask.Create(const netname, channel, site1: String);
 begin
   inherited Create(netname, channel, site1);
-  event := TEvent.Create(nil, False, False, '');
+  event := TSynEvent.Create;
 end;
 
 destructor TWaitTask.Destroy;
