@@ -15,6 +15,7 @@ type
     cetRaceCompleted,
     cetRaceDone,
     cetSpeedSample,
+    cetNfoAvailable,
     cetHeartbeat
   );
 
@@ -268,6 +269,15 @@ begin
     Result.DstSite := dv.U['dst_site'];
     Result.SpeedMbps := dv.D['speed_mbps'];
     Result.FileSize := dv.I['file_size'];
+    Result.Timestamp := dv.I['timestamp'];
+  end
+  else if eventType = 'nfo_available' then
+  begin
+    Result.EventType := cetNfoAvailable;
+    Result.Name := dv.U['release'];
+    Result.Site := dv.U['site'];
+    Result.Section := dv.U['path'];
+    Result.FileSize := dv.I['size'];
     Result.Timestamp := dv.I['timestamp'];
   end
   else if eventType = 'heartbeat' then

@@ -1857,6 +1857,18 @@ begin
         [aEvent.SrcSite, aEvent.DstSite, aEvent.SpeedMbps, aEvent.FileSize]));
     end;
 
+    cetNfoAvailable:
+    begin
+      Debug(dpMessage, rsections, Format('[cbftp] nfo_available: %s on %s (path=%s, size=%d)',
+        [aEvent.Name, aEvent.Site, aEvent.Section, aEvent.FileSize]));
+      fPazo := FindPazoByName('', aEvent.Name);
+      if fPazo <> nil then
+      begin
+        // Trigger NFO processing via cbftp REST instead of FTP
+        // TODO: implement cbftp NFO download via REST API
+      end;
+    end;
+
     cetHeartbeat:
     begin
       Debug(dpSpam, rsections, '[cbftp] heartbeat');
