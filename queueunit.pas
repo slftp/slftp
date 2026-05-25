@@ -1566,8 +1566,10 @@ var
   fSlot: TSiteSlot;
   fListIndex: Integer;
   fList: TObjectList;
+  fSlotsRebuilt: Boolean;
 begin
   Result := False;
+  fSlotsRebuilt := False;
   fSlotsToRebuild := TList<TSiteSlot>.Create;
   try
     main_lock.Enter('RemovePazo');
@@ -1622,6 +1624,7 @@ begin
       irc_Addadmin('[SITESLOT]: Rebuild slot with stuck task: %s', [fSlot.Name]);
       try
         fSlot.site.RebuildSlot(fSlot.SlotNumber);
+        fSlotsRebuilt := True;
       except
         on E: Exception do
         begin
@@ -1637,7 +1640,10 @@ begin
       exit;
     end;
   end;
-  Result := True;
+
+  // Wake up the queue thread so it can reuse any slots that were rebuilt
+  if fSlotsRebuilt then
+    self.QueueFire;
 end;
 
 
@@ -2382,7 +2388,12 @@ begin
   end;
 
   if (tkill_unassigne > 0) or (tkill_race > 0) or (tkill_other > 0) then
+  begin
     QueueStat;
+    // Wake up the queue thread so it can reuse any slots that were freed
+    // by removing long-running assigned tasks.
+    self.QueueFire;
+  end;
 
   //Debug(dpMessage, section, 'QueueClean end %d', [tasks.Count]);
 end;
