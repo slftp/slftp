@@ -1864,7 +1864,7 @@ var
   s: TSite;
   tn: TTaskNotify;
   r: TRawTask;
-  waitRes: boolean;
+  waitRes: TWaitResult;
   fCredits, fRatio: String;
   statLine: String;
   cacheKey: string;
@@ -1932,7 +1932,7 @@ begin
       AddTask(r, True);
 
       waitRes := tn.event.WaitFor(CGetSiteCreditsTimeoutMs);
-      if not waitRes then
+      if waitRes <> wrSignaled then
       begin
         Credits.Message := 'Timed out waiting for SITE STAT';
         Result := True;
@@ -1994,7 +1994,7 @@ var
   fSite: TSite;
   fNotify: TTaskNotify;
   fTask: TRawTask;
-  fWaitRes: boolean;
+  fWaitRes: TWaitResult;
   fOutput: string;
   fResponse: string;
   fUserName: string;
@@ -2053,7 +2053,7 @@ begin
       AddTask(fTask, True);
 
       fWaitRes := fNotify.event.WaitFor(CGetSiteUserTimeoutMs);
-      if not fWaitRes then
+      if fWaitRes <> wrSignaled then
       begin
         Info.Message := 'Timed out waiting for SITE USER';
         Result := True;

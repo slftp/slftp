@@ -2,7 +2,7 @@ unit notify;
 
 interface
 
-uses Classes, syncobjs, tasksunit, Contnrs, mormot.core.os;
+uses Classes, syncobjs, tasksunit, Contnrs;
 
 type
   TSiteResponse = class
@@ -26,7 +26,7 @@ type
     tasks: TList;
     function GetTaskCount: Integer;
   public
-    event: TSynEvent;
+    event: TEvent;
     responses: TObjectList;
     constructor Create;
     destructor Destroy; override;
@@ -69,7 +69,7 @@ begin
   responses := TObjectList.Create;
   tasks := TList.Create;
   self.tnno := {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(glTaskNumber);
-  event := TSynEvent.Create;
+  event := TEvent.Create(nil, False, False, 'taskno' + IntToStr(tnno));
 end;
 
 destructor TTaskNotify.Destroy;

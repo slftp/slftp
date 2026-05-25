@@ -39,7 +39,7 @@ type
 
   TWaitTask = class(TTask)
   public
-    event: TSynEvent;
+    event: TEvent;
     wait_for: String;
     destructor Destroy; override;
     constructor Create(const netname, channel, site1: String);
@@ -3619,7 +3619,7 @@ end;
 constructor TWaitTask.Create(const netname, channel, site1: String);
 begin
   inherited Create(netname, channel, site1);
-  event := TSynEvent.Create;
+  event := TEvent.Create(nil, False, False, '');
 end;
 
 destructor TWaitTask.Destroy;

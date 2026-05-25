@@ -24,7 +24,7 @@ type
 implementation
 
 uses
-  Classes, Types, SysUtils, irc, debugunit, mormot.core.os;
+  Classes, Types, SysUtils, irc, debugunit;
 
 var
   ec: Cardinal = 0;
@@ -49,7 +49,7 @@ begin
   l.Enter;
   try
     for i := 0 to w.Count - 1 do
-      TSynEvent(w[i]).SetEvent;
+      TEvent(w[i]).SetEvent;
   finally
     l.Leave;
   end;
@@ -86,7 +86,7 @@ label
   ujra;
 var
   procId: TThreadID;
-  event: TSynEvent;
+  event: TEvent;
 begin
   Result := False;
   procId := GetCurrentThreadId;
@@ -107,27 +107,27 @@ ujra:
   else
   begin
     inc(ec);
-    event := TSynEvent.Create;
+    event := TEvent.Create(nil, False, False, Format('%d-%s-%s', [ec, name, sname]));
     w.Add(event);
     l.Leave;
     try
       try
-        if event.WaitFor(30 * 1000) then
-        begin
-          { Event fired. Normal exit. }
-          l.Enter;
-          w.Remove(event);
-          l.Leave;
-        end
-        else
-        begin
-          { Timeout reach }
-          Debug(dpError, 'criticalSection', 'TslCriticalSection.Enter: Force Leave (%d) Timeout 30sec: %s (%s)', [procId, name, sname]);
-          l.Enter;
-          w.Remove(event);
-          l.Leave;
-          if w.Count > 0 then
-            TSynEvent(w[0]).SetEvent;
+        case event.WaitFor(30 * 1000) of
+          wrSignaled : { Event fired. Normal exit. }
+          begin
+            l.Enter;
+            w.Remove(event);
+            l.Leave;
+          end;
+          else { Timeout reach }
+          begin
+            Debug(dpError, 'criticalSection', 'TslCriticalSection.Enter: Force Leave (%d) Timeout 30sec: %s (%s)', [procId, name, sname]);
+            l.Enter;
+            w.Remove(event);
+            l.Leave;
+            if w.Count > 0 then
+              TEvent(w[0]).SetEvent;
+          end;
         end;
       finally
         event.Free;
@@ -158,7 +158,7 @@ begin
           rc := 0;
           rt := 0;
           if w.Count > 0 then
-            TSynEvent(w[0]).SetEvent;
+            TEvent(w[0]).SetEvent;
         end;
       end;
     finally

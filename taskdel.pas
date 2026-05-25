@@ -3,13 +3,13 @@ unit taskdel;
 interface
 
 uses
-  SyncObjs, SysUtils, tasksunit, mormot.core.os;
+  SyncObjs, SysUtils, tasksunit;
 
 type
   TDelReleaseTask = class(TTask)
   private
     dir: String;
-    devent: TSynEvent;
+    devent: TEvent;
     function RemoveDir(slot: Pointer; const dir: String): Boolean;
   public
     constructor Create(const netname, channel, site, dir: String);
@@ -32,7 +32,7 @@ constructor TDelReleaseTask.Create(const netname, channel, site, dir: String);
 begin
   inherited Create(netname, channel, site);
   self.dir := dir;
-  devent := TSynEvent.Create;
+  devent := TEvent.Create(nil, true, false, 'DEL_' + site + '-' + dir);
 end;
 
 destructor TDelReleaseTask.Destroy;

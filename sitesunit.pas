@@ -6,7 +6,7 @@ uses
   Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
   taskrules, taskrace, queueunit, Generics.Collections, pazo, slcriticalsection2,
-  variantcache, routeconfig, StrUtils, mormot.core.os;
+  variantcache, routeconfig, StrUtils;
 
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
@@ -103,7 +103,7 @@ type
     FSlotNumber: integer; //< number of slot
     fstatus: TSlotStatus;
     fSSCNEnabled: boolean;
-    event: TSynEvent;
+    event: TEvent;
     function LoginBnc(const i: integer; kill: boolean = False): boolean;
     procedure SetOnline(Value: TSlotStatus);
 
@@ -1500,7 +1500,7 @@ begin
   self.FSlotNumber := aSlotNumber;
 
   todotask := nil;
-  event := TSynEvent.Create;
+  event := TEvent.Create(nil, False, False, Name);
   kilepve := False;
 
   aktdir := '';
@@ -1722,19 +1722,19 @@ begin
       else
       begin
         //event.WaitFor($FFFFFFFF);
-        if event.WaitFor(15 * 60 * 1000) then
-        begin
-          { Event fired. Normal exit. }
-          event.ResetEvent;
-        end
-        else
-        begin
-          { Timeout reach }
-          if siteslot_recycle then
-            irc_Adderror('TSiteSlot.Execute: <c2>Force Leave</c>:' +
+        case event.WaitFor(15 * 60 * 1000) of
+          wrSignaled: { Event fired. Normal exit. }
+            begin
+
+            end;
+        else { Timeout reach }
+          begin
+            if siteslot_recycle then
+              irc_Adderror('TSiteSlot.Execute: <c2>Force Leave</c>:' +
+                Name + ' SiteSlot Recycle 15min');
+            Debug(dpSpam, section, 'TSiteSlot.Execute: Force Leave:' +
               Name + ' SiteSlot Recycle 15min');
-          Debug(dpSpam, section, 'TSiteSlot.Execute: Force Leave:' +
-            Name + ' SiteSlot Recycle 15min');
+          end;
         end;
       end;
 
