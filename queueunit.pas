@@ -608,6 +608,11 @@ destructor TQueueThread.Destroy;
 begin
   if Queues <> nil then
     Queues.Extract(self);
+  if (fQueueStat <> nil) and (StatsList <> nil) then
+  begin
+    StatsList.Remove(fQueueStat);
+    FreeAndNil(fQueueStat);
+  end;
   main_lock.Free;
   tasks.Free;
   waiting_tasks.Free;
@@ -2152,7 +2157,7 @@ end;
 procedure QueueUninit;
 begin
   FreeAndNil(GlDirlistCompletedCounter);
-  StatsList.Free;
+  FreeAndNil(StatsList);
   FreeAndNil(Queues);
 end;
 
@@ -2186,44 +2191,54 @@ begin
   tkill_race      := 0;
   tkill_other     := 0;
 
+  // Check old unassigne task
+  main_lock.Enter('QueueClean1');
   try
-    // Check old unassigne task
-    main_lock.Enter('QueueClean1');
     for fListIndex := 0 to 1 do
     begin
       if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-      for t in fList do
+      for i := fList.Count - 1 downto 0 do
       begin
-      try
-        ss := t.UidText;
-        if ((t.assigned = 0) and not t.dontremove and ((t.startat = 0) or (t.startat <= queue_last_run)) and
-          (SecondsBetween(t.created, Now()) >= queueclean_unassigned)) then
-        begin
-          try
-            t.ready := True;
-            Debug(dpError, section, Format('QueueClean: Remove Unassigned : %s', [t.Fullname]));
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section,
-                Format('[EXCEPTION] QueueClean: Exception Remove Unassigned : %s', [e.Message]));
-              Break;
-            end;
-          end;
-          Inc(tkill_unassigne);
-
-          Console_QueueDel(ss);
-          Debug(dpSpam, section, Format('[QUEUECLEAN] Clean unassigned task : %s', [t.Fullname]));
-        end;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section,
-          Format('[EXCEPTION] QueueClean Clean unassigned: Exception : %s', [e.Message]));
+        try
+          if i < 0 then
+            Break;
+        except
           Break;
         end;
+        t := TTask(fList[i]);
+        try
+          ss := t.UidText;
+          if ((t.assigned = 0) and not t.dontremove and ((t.startat = 0) or (t.startat <= queue_last_run)) and
+            (SecondsBetween(t.created, Now()) >= queueclean_unassigned)) then
+          begin
+            try
+              t.ready := True;
+              Debug(dpError, section, Format('QueueClean: Remove Unassigned : %s', [t.Fullname]));
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, section,
+                  Format('[EXCEPTION] QueueClean: Exception Remove Unassigned : %s', [e.Message]));
+                Break;
+              end;
+            end;
+            Inc(tkill_unassigne);
+
+            Console_QueueDel(ss);
+            Debug(dpSpam, section, Format('[QUEUECLEAN] Clean unassigned task : %s', [t.Fullname]));
+
+            // Remove the task from the list so it doesn't linger as a ghost entry
+            fList.Remove(t);
+          end;
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, section,
+              Format('[EXCEPTION] QueueClean Clean unassigned: Exception : %s', [e.Message]));
+            Break;
+          end;
+        end;
       end;
-    end;
     end;
   finally
     main_lock.Leave;
