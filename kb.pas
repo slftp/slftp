@@ -1859,6 +1859,8 @@ begin
     begin
       Debug(dpSpam, rsections, Format('[cbftp] speed %s -> %s: %.2f Mbps (file %d bytes)',
         [aEvent.SrcSite, aEvent.DstSite, aEvent.SpeedMbps, aEvent.FileSize]));
+      irc_Addstats(Format('<c7>[cbftp]</c> <b>%s</b> <c4>%s</c> -> <c9>%s</c> @ <c3>%.2f</c> Mbps (%s)',
+        [aEvent.Name, aEvent.SrcSite, aEvent.DstSite, aEvent.SpeedMbps, aEvent.Filename]));
     end;
 
     cetNfoAvailable:

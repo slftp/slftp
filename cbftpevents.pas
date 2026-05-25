@@ -35,6 +35,7 @@ type
     Status: string;
     FileSize: Int64;
     Timestamp: Int64;
+    Filename: string;
   end;
 
   TCbftpEventCallback = procedure(const aEvent: TCbftpEvent);
@@ -265,8 +266,10 @@ begin
   else if eventType = 'speed_sample' then
   begin
     Result.EventType := cetSpeedSample;
+    Result.Name := dv.U['job_name'];
     Result.SrcSite := dv.U['src_site'];
     Result.DstSite := dv.U['dst_site'];
+    Result.Filename := dv.U['filename'];
     Result.SpeedMbps := dv.D['speed_mbps'];
     Result.FileSize := dv.I['file_size'];
     Result.Timestamp := dv.I['timestamp'];
