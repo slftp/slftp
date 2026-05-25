@@ -3,7 +3,7 @@ unit slcriticalsection2;
 interface
 
 uses
-  SyncObjs, Generics.Collections, sltimer, Generics.Defaults, mormot.core.os;
+  SyncObjs, Generics.Collections, sltimer, Generics.Defaults;
 
 {
   TslCriticalSection
@@ -17,7 +17,7 @@ type
   TslCriticalSection2 = class
   private
     FInternalCriticalSection: TCriticalSection;
-    FEvent: TSynEvent;
+    FEvent: TEvent;
     FLockCount: integer;
     FLockOwningThreadID: TThreadID;
     FName, FCurrentCodeSegmentName: string;
@@ -186,8 +186,7 @@ implementation
       end;
 
       FUseTimeoutLocking := True;
-      FEvent := TSynEvent.Create;
-      FEvent.SetEvent;
+      FEvent := TEvent.Create(nil, False, True, 'SLFTP_' + aName);
       FLockCount := 0;
       FLockOwningThreadID := 0;
       FCurrentCodeSegmentName := '';
@@ -285,20 +284,30 @@ implementation
         end
         else
         begin
-          if FEvent.WaitFor(aTimeoutMs) then
-          begin
-            FEvent.ResetEvent;
-            FLockOwningThreadID := GetCurrentThreadId;
-            Result := True;
-            FLockOwnerNameStack.Push(aLockOwnerName);
-          end
+          case FEvent.WaitFor(aTimeoutMs) of
+            wrSignaled:
+{$IFDEF WINDOWS}
+            wrIOCompletion:
+{$ENDIF}
+              begin
+                FLockOwningThreadID := GetCurrentThreadId;
+                Result := True;
+                FLockOwnerNameStack.Push(aLockOwnerName);
+              end;
+            wrTimeout:
+              begin
+                if aRaiseExceptionOnFail then
+                begin
+                  raise Exception.Create(Format('Unable to acquire lock ''%s'' (%s) by %s thread within %d ms. Lock is held by thread %s (%d) - %s (%s)', [FName, aLockOwnerName, IntToHex(GetCurrentThreadId, 4), aTimeoutMs, IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName, FCurrentCodeSegmentName]));
+                end;
+                Result := False;
+              end;
+            wrAbandoned:
+              raise Exception.Create(Format('Mutex abandoned when trying to lock: %s', [aLockOwnerName]));
+            wrError:
+              raise Exception.Create(Format('Error when trying to lock: %s', [aLockOwnerName]));
           else
-          begin
-            if aRaiseExceptionOnFail then
-            begin
-              raise Exception.Create(Format('Unable to acquire lock ''%s'' (%s) by %s thread within %d ms. Lock is held by thread %s (%d) - %s (%s)', [FName, aLockOwnerName, IntToHex(GetCurrentThreadId, 4), aTimeoutMs, IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName, FCurrentCodeSegmentName]));
-            end;
-            Result := False;
+            raise Exception.Create(Format('Unknown wait result when trying to lock: %s', [aLockOwnerName]));
           end;
         end;
 
