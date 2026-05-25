@@ -1100,6 +1100,7 @@ var
   fPazo: TPazo;
   fListIndex: Integer;
   fList: TObjectList;
+  fPendingCount: Integer;
 begin
   fSetDownPazo := TList<TPazo>.Create;
   try
@@ -1829,10 +1830,10 @@ begin
             begin
               if (fTask is TPazoRaceTask) and (fTask.slot1 = nil) then
               begin
-                if fPendingRaceDestinations.ContainsKey(TPazoRaceTask(fTask).site2) then
-                  fPendingRaceDestinations[TPazoRaceTask(fTask).site2] := fPendingRaceDestinations[TPazoRaceTask(fTask).site2] + 1
+                if fPendingRaceDestinations.TryGetValue(TPazoRaceTask(fTask).site2, fPendingCount) then
+                  fPendingRaceDestinations[TPazoRaceTask(fTask).site2] := fPendingCount + 1
                 else
-                  fPendingRaceDestinations[TPazoRaceTask(fTask).site2] := 1;
+                  fPendingRaceDestinations.Add(TPazoRaceTask(fTask).site2, 1);
               end;
             end;
           end;
