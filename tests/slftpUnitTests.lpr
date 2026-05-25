@@ -64,6 +64,7 @@ uses
   taskhttpimdbTests,
   slsslTests,
   sitesunitTests,
+  queueEventTests,
   precatcherTests,
   slcriticalsection2Tests,
   variantCacheTests,

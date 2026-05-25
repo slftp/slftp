@@ -101,6 +101,13 @@ procedure GetQueueTotals(out total, race, dirlist, autotasks, other: integer);
 { @abstract(Returns count of pending race tasks targeting the given destination site, across all queues) }
 function GetPendingRaceTasksToDestination(const aDestinationSiteName: String): integer;
 
+{ Calculate max allowed dirlist slots for a site based on glMaxDirlistSlots config
+  @param(aSlotCount total slot count of the site)
+  @returns(max allowed concurrent dirlist tasks, minimum 1)
+  Supports absolute values ('1', '3') and percentages ('50%', '25%').
+  Empty config falls back to legacy behavior (aSlotCount div 2). }
+function _CalcMaxDirlistSlots(const aSlotCount: integer): integer;
+
 var
   QueueStatUpdateDateTime: TDateTime;
   GlDirlistCompletedCounter: TIdThreadSafeInt32;
@@ -108,6 +115,8 @@ var
   GlDirlistRateMax: Double;
   { Global list of all queue threads. Used by Phase 5b for targeted wakeups. }
   Queues: TObjectList<TQueueThread>;
+  { max dirlist slots config value, e.g. '1', '50%' }
+  glMaxDirlistSlots: string;
 
 implementation
 
@@ -132,8 +141,6 @@ var
   queueclean_maxrunning: Integer;
   enable_queueclean: boolean;
   queue_recycle_post_to_irc: boolean;
-  glMaxDirlistSlots: string; //< max dirlist slots config value, e.g. '1', '50%'
-
   StatsList: TObjectList<TQueueStat>;
 
 { Calculate max allowed dirlist slots for a site based on glMaxDirlistSlots config
