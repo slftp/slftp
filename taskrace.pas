@@ -200,10 +200,12 @@ var
   fDirlistOnlyStart: Int64;
   fDirlistOnlyDuration: Int32;
   fReachedDirlist: Boolean;
+  fDirlistSuccess: Boolean;
 begin
   fDirlistStart := GetTickCount64;
   fDirlistOnlyDuration := 0;
   fReachedDirlist := False;
+  fDirlistSuccess := False;
   try
     numerrors := 0;
     Result := False;
@@ -434,6 +436,7 @@ begin
   else
   begin
     fDirlistOnlyDuration := Integer(GetTickCount64 - fDirlistOnlyStart);
+    fDirlistSuccess := True;
     try
       itwasadded := ps1.ParseDirlist(netname, channel, dir, s.lastResponse, is_pre);
     except
@@ -714,6 +717,18 @@ begin
     begin
       GetTaskMetrics().RecordTaskEvent(
         mttDirlistFull,
+        site1,
+        pazo_id,
+        dir,
+        fDirlistDuration,
+        fQueueWaitMs,
+        readyerror
+      );
+    end;
+    if fDirlistSuccess then
+    begin
+      GetTaskMetrics().RecordTaskEvent(
+        mttDirlistSuccess,
         site1,
         pazo_id,
         dir,
