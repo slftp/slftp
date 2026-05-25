@@ -92,6 +92,12 @@ type
 
     speed_from: TList<TSpeedFromRouteInfo>;
 
+    { cbftp engine progress tracking }
+    CbftpFilesDone: Integer;
+    CbftpFilesTotal: Integer;
+    CbftpBytesDone: Int64;
+    CbftpCompletedTime: TDateTime;
+
     property dirlistgaveup: boolean read GetDirlistGaveUp write SetDirListGaveUp; //< gets or sets a value indicating whether dirlisting have been given up for this site
     property Destinations: TList<TDestinationRank> read FDestinations; //< destination sites and ranks
     property ActiveTransferCount: Int32 read GetActiveTransferCount;
@@ -1180,32 +1186,28 @@ begin
           lastannounceconsole := s;
         end;
 
-        // display race stats on irc (skip when UDP is enabled)
-        if not IsUDPEnabled then
+        // display race stats on irc
+        s := Stats(False, False);
+        if ((lastannounceirc <> s) and (s <> '')) then
         begin
-          s := Stats(False, False);
-          if ((lastannounceirc <> s) and (s <> '')) then
-          begin
-            irc_addstats(Format('<c10>[<b>STATS</b>]</c> %s %s (%d):', [rls.section, rls.rlsname, GetCountOfCachedFiles, s]));
-            irc_AddstatsB(Stats(False, True));
-            lastannounceirc := s;
+          irc_addstats(Format('<c10>[<b>STATS</b>]</c> %s %s (%d):', [rls.section, rls.rlsname, GetCountOfCachedFiles, s]));
+          irc_AddstatsB(Stats(False, True));
+          lastannounceirc := s;
 
-            if glShowCompleteTimeStats then
+          if glShowCompleteTimeStats then
+          begin
+            s := SiteCompleteTimesStats(False);
+            if s <> '' then
             begin
-              s := SiteCompleteTimesStats(False);
-              if s <> '' then
-              begin
-                irc_addstats(Format('<c10>[<b>COMPLETE TIME AFTER ADDPRE</b>]</c> %s %s (%d):', [rls.section, rls.rlsname, GetCountOfCachedFiles]));
-                irc_addstats(s);
-              end;
+              irc_addstats(Format('<c10>[<b>COMPLETE TIME AFTER ADDPRE</b>]</c> %s %s (%d):', [rls.section, rls.rlsname, GetCountOfCachedFiles]));
+              irc_addstats(s);
             end;
           end;
         end;
       end
       else
       begin
-        if not IsUDPEnabled then
-          irc_addstats('<c10>[<b>STATS</b>]</c> Pazo Stopped.');
+        irc_addstats('<c10>[<b>STATS</b>]</c> Pazo Stopped.');
       end;
     end;
   end;
@@ -1367,21 +1369,31 @@ begin
           Continue;
         end;
 
-        if ps.DirlistGaveUpAndSentNoFiles or (ps.dirlist.CompletedTime = 0) then
+        if ps.DirlistGaveUpAndSentNoFiles or ((ps.dirlist <> nil) and (ps.dirlist.CompletedTime = 0)) then
         begin
-          Debug(dpSpam, section, Format('[TIMING DEBUG] SKIPPED: %s - Reason: GaveUp or no CompletedTime (GaveUp: %s, CompletedTime: %s)',
-            [ps.Name, BoolToStr(ps.DirlistGaveUpAndSentNoFiles, True),
-            FormatDateTime('hh:nn:ss.zzz', ps.dirlist.CompletedTime)]));
-          Continue;
+          if (ps.dirlist <> nil) then
+            Debug(dpSpam, section, Format('[TIMING DEBUG] SKIPPED: %s - Reason: GaveUp or no CompletedTime (GaveUp: %s, CompletedTime: %s)',
+              [ps.Name, BoolToStr(ps.DirlistGaveUpAndSentNoFiles, True),
+              FormatDateTime('hh:nn:ss.zzz', ps.dirlist.CompletedTime)]))
+          else if ps.CbftpCompletedTime = 0 then
+          begin
+            Debug(dpSpam, section, Format('[TIMING DEBUG] SKIPPED: %s - Reason: No cbftp completion time', [ps.Name]));
+            Continue;
+          end;
+          if ps.CbftpCompletedTime = 0 then
+            Continue;
         end;
 
         if Result <> '' then
           Result := Result + ' ';
 
-        secondsFromAddpre := MilliSecondsBetween(added, ps.dirlist.CompletedTime) / 1000.0;
+        if (ps.dirlist <> nil) then
+          secondsFromAddpre := MilliSecondsBetween(added, ps.dirlist.CompletedTime) / 1000.0
+        else
+          secondsFromAddpre := MilliSecondsBetween(added, ps.CbftpCompletedTime) / 1000.0;
 
-        Debug(dpSpam, section, Format('[TIMING DEBUG] Site: %s | ADDPRE: %s | Completed: %s | Diff: %.3fs | Status: %d',
-          [ps.Name, FormatDateTime('hh:nn:ss.zzz', added), FormatDateTime('hh:nn:ss.zzz', ps.dirlist.CompletedTime),
+        Debug(dpSpam, section, Format('[TIMING DEBUG] Site: %s | ADDPRE: %s | Diff: %.3fs | Status: %d',
+          [ps.Name, FormatDateTime('hh:nn:ss.zzz', added),
           secondsFromAddpre, Ord(ps.status)]));
 
         Result := Concat(Result, '<c9>', IntToStr(numComplete), '.</c> ', ps.Name, ' <c8>(', Format('%.3f', [secondsFromAddpre]), 's)</c>');
@@ -2079,64 +2091,78 @@ begin
 
   Result := fsname;
 
-  if ( (not (status in [rssRealPre, rssShouldPre, rssNotAllowed])) and (dirlist <> nil) ) then
+  if not (status in [rssRealPre, rssShouldPre, rssNotAllowed]) then
   begin
-    if dirlist.FilesRacedByMe(True) >= 1 then
+    if (dirlist <> nil) then
     begin
-      // we send some files
-      fsize := dirlist.SizeRacedByMe(True) / 1024;
-      RecalcSizeValueAndUnit(fsize, fsizetrigger, 1);
-
-      if not dirlist.Complete then
-        fsname := Format('<c11>%s</c>', [fsname]); //Light Blue(name); || release is incomplete (0byte files, dupefiles, etc) but we raced some files
-
-      Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, dirlist.FilesRacedByMe(True), fsize, fsizetrigger]);
-
-      // TODO: Find out why it is negative sometimes + try to fix
-      // note: seems that de.filesize is negative as this is sum up in SizeRacedByMe() and shows -1 as result
-      if fsize < 0 then
+      if dirlist.FilesRacedByMe(True) >= 1 then
       begin
-        Debug(dpError, section, Format('[NEGATIVE BYTES]: %f for %s with SizeRacedByMe(True) = %d, dirname : %s, full path : %s, CompleteDirTag : %s',
-          [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.Dirname, dirlist.FullPath, dirlist.CompleteDirTag]));
+        // we send some files
+        fsize := dirlist.SizeRacedByMe(True) / 1024;
+        RecalcSizeValueAndUnit(fsize, fsizetrigger, 1);
 
-        // get more infos about dirlist entries
-        sum := 0;
-        dirlist.dirlist_lock.Enter('TPazoSite.Stats');
-        try
-          for de in dirlist.entries.Values do
-          begin
-            try
-              if (de.RacedByMe and not de.IsAsciiFiletype) then
-                Inc(sum, de.filesize);
-              //if ((de.directory) and (de.subdirlist <> nil)) then inc(sum, de.subdirlist.SizeRacedByMe(True));
+        if not dirlist.Complete then
+          fsname := Format('<c11>%s</c>', [fsname]); //Light Blue(name); || release is incomplete (0byte files, dupefiles, etc) but we raced some files
 
-              Debug(dpError, section, Format('%s -- filename %s filesize %d byme %s IsAsciiFiletype %s (sum: %d)',
-                [fsname, de.filename, de.filesize, BoolToStr(de.RacedByMe, True), BoolToStr(de.IsAsciiFiletype, True), sum]));
-            except
-              on E: Exception do
-              begin
-                DebugException(dpError, section, 'TPazoSite.Stats', e);
-                Continue;
+        Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, dirlist.FilesRacedByMe(True), fsize, fsizetrigger]);
+
+        // TODO: Find out why it is negative sometimes + try to fix
+        // note: seems that de.filesize is negative as this is sum up in SizeRacedByMe() and shows -1 as result
+        if fsize < 0 then
+        begin
+          Debug(dpError, section, Format('[NEGATIVE BYTES]: %f for %s with SizeRacedByMe(True) = %d, dirname : %s, full path : %s, CompleteDirTag : %s',
+            [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.Dirname, dirlist.FullPath, dirlist.CompleteDirTag]));
+
+          // get more infos about dirlist entries
+          sum := 0;
+          dirlist.dirlist_lock.Enter('TPazoSite.Stats');
+          try
+            for de in dirlist.entries.Values do
+            begin
+              try
+                if (de.RacedByMe and not de.IsAsciiFiletype) then
+                  Inc(sum, de.filesize);
+                //if ((de.directory) and (de.subdirlist <> nil)) then inc(sum, de.subdirlist.SizeRacedByMe(True));
+
+                Debug(dpError, section, Format('%s -- filename %s filesize %d byme %s IsAsciiFiletype %s (sum: %d)',
+                  [fsname, de.filename, de.filesize, BoolToStr(de.RacedByMe, True), BoolToStr(de.IsAsciiFiletype, True), sum]));
+              except
+                on E: Exception do
+                begin
+                  DebugException(dpError, section, 'TPazoSite.Stats', e);
+                  Continue;
+                end;
               end;
             end;
+          finally
+            dirlist.dirlist_lock.Leave;
           end;
-        finally
-          dirlist.dirlist_lock.Leave;
-        end;
 
+        end;
+      end
+      else
+      begin
+        // we didn't send some files
+        if (destinations.Count = 0) then
+          Result := Format('<c5>%s</c>', [fsname]) //Brown(name); || not used to race from because no destination(s) added
+        else if not dirlist.Complete then
+          Result := Format('<c11>%s</c>', [fsname]) //Light Blue(name); || release is incomplete (0byte files, dupefiles, etc) but we didn't raced any files
+        else if (dirlistgaveup) then
+          Result := Format('<c13>%s</c>', [fsname]) //Pink(name); || dirlisting was stopped because there was an error (mkdir denied, out of space, etc) or race took too long
+        else
+          Result := Format('<c14>%s</c>', [fsname]); //Grey(name); || site was used but we didn't raced something
       end;
     end
-    else
+    else if pazo.IsUDPEnabled and (CbftpFilesTotal > 0) then
     begin
-      // we didn't send some files
-      if (destinations.Count = 0) then
-        Result := Format('<c5>%s</c>', [fsname]) //Brown(name); || not used to race from because no destination(s) added
-      else if not dirlist.Complete then
-        Result := Format('<c11>%s</c>', [fsname]) //Light Blue(name); || release is incomplete (0byte files, dupefiles, etc) but we didn't raced any files
-      else if (dirlistgaveup) then
-        Result := Format('<c13>%s</c>', [fsname]) //Pink(name); || dirlisting was stopped because there was an error (mkdir denied, out of space, etc) or race took too long
-      else
-        Result := Format('<c14>%s</c>', [fsname]); //Grey(name); || site was used but we didn't raced something
+      // cbftp engine mode: use cbftp progress data
+      fsize := CbftpBytesDone / 1024;
+      RecalcSizeValueAndUnit(fsize, fsizetrigger, 1);
+
+      if CbftpFilesDone < CbftpFilesTotal then
+        fsname := Format('<c11>%s</c>', [fsname]); // incomplete
+
+      Result := Format('%s-(<b>%d</b>/<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, CbftpFilesDone, CbftpFilesTotal, fsize, fsizetrigger]);
     end;
   end;
 
