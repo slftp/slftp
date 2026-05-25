@@ -49,7 +49,7 @@ begin
   l.Enter;
   try
     for i := 0 to w.Count - 1 do
-      TEvent(w[i]).SetEvent;
+      TSynEvent(w[i]).SetEvent;
   finally
     l.Leave;
   end;
@@ -158,7 +158,7 @@ begin
           rc := 0;
           rt := 0;
           if w.Count > 0 then
-            TEvent(w[0]).SetEvent;
+            TSynEvent(w[0]).SetEvent;
         end;
       end;
     finally
