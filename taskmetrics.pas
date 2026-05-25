@@ -7,7 +7,7 @@ uses
 
 type
   { @abstract(Task type identifiers for metrics classification) }
-  TMetricsTaskType = (mttRace, mttDirlist, mttMkdir, mttOther);
+  TMetricsTaskType = (mttRace, mttDirlist, mttDirlistFull, mttMkdir, mttOther);
 
   { @abstract(Single timing event stored in the ring buffer) }
   TTaskTimingEvent = packed record
@@ -113,10 +113,11 @@ function TTaskMetricsCollector.MakeAggregateKey(const aTaskType: TMetricsTaskTyp
   const aSite: String): String;
 begin
   case aTaskType of
-    mttRace:    Result := 'RACE|' + aSite;
-    mttDirlist: Result := 'DIRLIST|' + aSite;
-    mttMkdir:   Result := 'MKDIR|' + aSite;
-    mttOther:   Result := 'OTHER|' + aSite;
+    mttRace:         Result := 'RACE|' + aSite;
+    mttDirlist:      Result := 'DIRLIST|' + aSite;
+    mttDirlistFull:  Result := 'DIRLISTFULL|' + aSite;
+    mttMkdir:        Result := 'MKDIR|' + aSite;
+    mttOther:        Result := 'OTHER|' + aSite;
   end;
 end;
 

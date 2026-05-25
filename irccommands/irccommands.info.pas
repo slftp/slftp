@@ -466,10 +466,11 @@ begin
   for fEvent in fEvents do
   begin
     case fEvent.TaskType of
-      mttRace:    fTypeStr := 'RACE';
-      mttDirlist: fTypeStr := 'DIRLIST';
-      mttMkdir:   fTypeStr := 'MKDIR';
-      else        fTypeStr := 'OTHER';
+      mttRace:         fTypeStr := 'RACE';
+      mttDirlist:      fTypeStr := 'DIRLIST';
+      mttDirlistFull:  fTypeStr := 'DIRLISTFULL';
+      mttMkdir:        fTypeStr := 'MKDIR';
+      else             fTypeStr := 'OTHER';
     end;
 
     fSite := Trim(String(AnsiString(fEvent.Site)));

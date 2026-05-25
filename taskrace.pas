@@ -197,8 +197,10 @@ var
   fDirlistStart: Int64;
   fQueueWaitMs: Int32;
   fDirlistDuration: Int32;
+  fReachedDirlist: Boolean;
 begin
   fDirlistStart := GetTickCount64;
+  fReachedDirlist := False;
   try
     numerrors := 0;
     Result := False;
@@ -328,6 +330,7 @@ begin
 
   fAbsoluteDir := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
   // Trying to get the dirlist
+  fReachedDirlist := True;
   if not s.Dirlist(fAbsoluteDir) then
   begin
     mainpazo.errorreason := Format('Cannot get the dirlist for source dir %s on %s.', [MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir, site1]);
@@ -701,10 +704,22 @@ begin
       fQueueWaitMs,
       readyerror
     );
+    if fReachedDirlist then
+    begin
+      GetTaskMetrics().RecordTaskEvent(
+        mttDirlistFull,
+        site1,
+        pazo_id,
+        dir,
+        fDirlistDuration,
+        fQueueWaitMs,
+        readyerror
+      );
+    end;
     // Log extreme values for debugging — helps identify why averages look wrong
     if (fDirlistDuration < 5) or (fDirlistDuration > 30000) then
-      Debug(dpError, c_section, '[DIRLIST_TIMING] %s: duration=%dms qwait=%dms readyerror=%s',
-        [tname, fDirlistDuration, fQueueWaitMs, BoolToStr(readyerror, True)]);
+      Debug(dpError, c_section, '[DIRLIST_TIMING] %s: duration=%dms qwait=%dms readyerror=%s reached_dirlist=%s',
+        [tname, fDirlistDuration, fQueueWaitMs, BoolToStr(readyerror, True), BoolToStr(fReachedDirlist, True)]);
   end;
 end;
 
