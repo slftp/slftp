@@ -1583,13 +1583,15 @@ begin
         Debug(dpSpam, section, Format('--> %s', [Name]));
 
         try
-          // Record timing metrics for race/dirlist/mkdir tasks
+          // Record timing metrics for race/mkdir tasks (dirlist has its own
+          // precise instrumentation inside TPazoDirlistTask.Execute)
           fTaskType := mttOther;
           fPazoID := 0;
           fDir := '';
           if (todotask is TPazoTask) then
           begin
-            fTaskStart := GetTickCount64;
+            if not (todotask is TPazoDirlistTask) then
+              fTaskStart := GetTickCount64;
             fPazoID := TPazoTask(todotask).pazo_id;
 
             if (todotask is TPazoRaceTask) then
@@ -1624,8 +1626,9 @@ begin
             end;
           end;
 
-          // Record timing metrics for race/dirlist/mkdir tasks
-          if (todotask is TPazoTask) then
+          // Record timing metrics for race/mkdir tasks (dirlist has its own
+          // precise instrumentation inside TPazoDirlistTask.Execute)
+          if (todotask is TPazoTask) and not (todotask is TPazoDirlistTask) then
           begin
             GetTaskMetrics().RecordTaskEvent(
               fTaskType,

@@ -194,12 +194,17 @@ var
   ps: TPazoSite;
   fDestination: TDestinationRank;
   secondsWithNoChange, secondsSinceStart, secondsSinceCompleted: Int64;
+  fDirlistStart: Int64;
+  fQueueWaitMs: Int32;
+  fDirlistDuration: Int32;
 begin
-  numerrors := 0;
-  Result := False;
-  s := slot;
-  tname := Name;
-  fSubDirlistTasks := nil;
+  fDirlistStart := GetTickCount64;
+  try
+    numerrors := 0;
+    Result := False;
+    s := slot;
+    tname := Name;
+    fSubDirlistTasks := nil;
 
   // Record dirlist start for gap tracking
   if (ClassType = TPazoDirlistTask) then
@@ -684,6 +689,23 @@ begin
 
   Result := True;
   ready := True;
+  finally
+    fDirlistDuration := Integer(GetTickCount64 - fDirlistStart);
+    fQueueWaitMs := Integer(MilliSecondsBetween(created, assigned));
+    GetTaskMetrics().RecordTaskEvent(
+      mttDirlist,
+      site1,
+      pazo_id,
+      dir,
+      fDirlistDuration,
+      fQueueWaitMs,
+      readyerror
+    );
+    // Log extreme values for debugging — helps identify why averages look wrong
+    if (fDirlistDuration < 5) or (fDirlistDuration > 30000) then
+      Debug(dpError, c_section, '[DIRLIST_TIMING] %s: duration=%dms qwait=%dms readyerror=%s',
+        [tname, fDirlistDuration, fQueueWaitMs, BoolToStr(readyerror, True)]);
+  end;
 end;
 
 function TPazoDirlistTask.Name: String;
