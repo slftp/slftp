@@ -79,7 +79,7 @@ uses
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup, encinifile,
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
-  mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
+  mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles, mormot.core.unicode,
   globalskipunit, irccommandsunit, slapi.issueshook, cbftpclient, cbftpevents, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
@@ -1798,6 +1798,10 @@ procedure _CbftpEventHandler(const aEvent: TCbftpEvent);
 var
   fPazo: TPazo;
   fPazoSite: TPazoSite;
+  nfoData: String;
+  genre: String;
+  s: String;
+  i: Integer;
 begin
   case aEvent.EventType of
     cetRaceStarted:
@@ -1872,7 +1876,41 @@ begin
       begin
         if GlCbftpClient <> nil then
         begin
-          // TODO: Download NFO via cbftp REST and process with existing rules
+          nfoData := string(GlCbftpClient.GetFile(StringToUtf8(aEvent.Site), StringToUtf8(aEvent.Section)));
+          if nfoData <> '' then
+          begin
+            dbaddnfo_SaveNfo(aEvent.Name, aEvent.Section, nfoData);
+            // Extract genre from NFO and update release
+            genre := '';
+            i := Pos('genre', LowerCase(nfoData));
+            if i > 0 then
+            begin
+              genre := Copy(nfoData, i + 5, 100);
+              for i := 1 to Length(genre) do
+              begin
+                if CharInSet(genre[i], [#13, #10]) then
+                begin
+                  genre := Copy(genre, 1, i - 1);
+                  Break;
+                end;
+                if not CharInSet(genre[i], ['a'..'z', 'A'..'Z']) then
+                  genre[i] := ' ';
+              end;
+              while True do
+              begin
+                s := ReplaceText(genre, '  ', ' ');
+                if s = genre then Break;
+                genre := s;
+              end;
+              genre := Trim(genre);
+            end;
+            if genre <> '' then
+              kb_Add('', '', aEvent.Site, fPazo.rls.section, genre, kbeUPDATE, aEvent.Name, '');
+          end
+          else
+          begin
+            Debug(dpError, rsections, Format('[cbftp] Failed to download NFO for %s from %s', [aEvent.Name, aEvent.Site]));
+          end;
         end;
       end;
     end;
