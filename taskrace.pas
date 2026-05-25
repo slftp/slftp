@@ -3629,6 +3629,8 @@ begin
 end;
 
 function TWaitTask.Execute(slot: Pointer): boolean;
+var
+  ss: TSiteSlot;
 begin
   Result := True;
   event.WaitFor($FFFFFFFF);
@@ -3646,6 +3648,22 @@ begin
   end;
   *)
   ready := True;
+
+  // Release the slot so the queue thread can remove this wait task
+  // and reuse the slot for other tasks. Without this, finished wait
+  // tasks keep slots occupied and starve the assignment loop.
+  ss := TSiteSlot(slot);
+  if ss <> nil then
+  begin
+    ss.site.AcquireSlotsAssignmentLock('TWaitTask ready');
+    try
+      if ss.todotask = self then
+        ss.todotask := nil;
+      self.slot1 := nil;
+    finally
+      ss.site.ReleaseSlotsAssignmentLock;
+    end;
+  end;
 end;
 
 function TWaitTask.Name: String;

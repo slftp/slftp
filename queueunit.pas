@@ -1867,27 +1867,44 @@ begin
             Continue;
 
           try
-            if (((fTask.ready) or (fTask.readyerror)) and (fTask.slot1 = nil)) then
+            if ((fTask.ready) or (fTask.readyerror)) then
             begin
-              ss := fTask.uidtext;
-              if fTask.IsNotifyTask then
-                TaskReady(fTask);
-
-              if (fTask.ClassType = TPazoRaceTask) then
+              // Stuck wait tasks: they set ready=True but never freed their slot.
+              // Free the slot now so the task can be removed and the slot reused.
+              if ((fTask.slot1 <> nil) and (fTask.ClassType = TWaitTask)) then
               begin
-                with TPazoRaceTask(fTask) do
-                if (dst <> nil) then
-                begin
-                  dst.event.SetEvent;
+                ts.AcquireSlotsAssignmentLock('Queue free stuck wait task');
+                try
+                  if TSiteSlot(fTask.slot1).todotask = fTask then
+                    TSiteSlot(fTask.slot1).todotask := nil;
+                  fTask.slot1 := nil;
+                finally
+                  ts.ReleaseSlotsAssignmentLock;
                 end;
               end;
-              ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
-              try
-                fList.Remove(fTask);
-              finally
-                ts.ReleaseSlotsAssignmentLock;
+
+              if (fTask.slot1 = nil) then
+              begin
+                ss := fTask.uidtext;
+                if fTask.IsNotifyTask then
+                  TaskReady(fTask);
+
+                if (fTask.ClassType = TPazoRaceTask) then
+                begin
+                  with TPazoRaceTask(fTask) do
+                  if (dst <> nil) then
+                  begin
+                    dst.event.SetEvent;
+                  end;
+                end;
+                ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
+                try
+                  fList.Remove(fTask);
+                finally
+                  ts.ReleaseSlotsAssignmentLock;
+                end;
+                Console_QueueDel(ss);
               end;
-              Console_QueueDel(ss);
             end;
           except
             on e: Exception do
