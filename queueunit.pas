@@ -1341,7 +1341,10 @@ var
   tname: String;
   fCheckSiteSlotsSite: TSite;
   step: String;
+  fTaskAdded, fTaskAssigned: Boolean;
 begin
+  fTaskAdded := False;
+  fTaskAssigned := False;
   step := 'init';
   try
     fCheckSiteSlotsSite := nil;
@@ -1388,6 +1391,7 @@ begin
         waiting_tasks.Add(t)
       else
         tasks.Add(t);
+      fTaskAdded := True;
 
       step := 'Race slot checks';
       try
@@ -1398,6 +1402,7 @@ begin
             if ((not t.ready) and t.IsReadyToBeExecuted) then
             begin
               self.TryToAssignSlots(t);
+              fTaskAssigned := (t.assigned <> 0);
             end;
           finally
             TSite(fSite).ReleaseSlotsAssignmentLock;
@@ -1466,6 +1471,11 @@ begin
     on e: Exception do
       Debug(dpError, section, Format('[EXCEPTION] AddTaskToConsole (Step: %s): %s', [step, e.Message]));
   end;
+
+  // Event-based queue: wake up the queue thread so it can process the new task.
+  // Without this, the thread might sleep indefinitely and never assign the task.
+  if fTaskAdded and not fTaskAssigned then
+    self.QueueFire;
 end;
 
 procedure TQueueThread.RemoveRaceTasks(const pazo_id: integer; const sitename: String);
