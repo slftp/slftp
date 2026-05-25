@@ -1774,6 +1774,7 @@ var
   fBusyDestinationsTmp: TDictionary<TObject, integer>;
   fNextTaskStartAt: TDateTime;
   fWaitTimerTimeout: Cardinal;
+  fCooldownTimeout: Cardinal;
   bTasksMoved: Boolean;
   fListIndex: Integer;
   fList: TObjectList;
@@ -1998,31 +1999,24 @@ begin
     // Event-based waiting: only sleep if we have a known wakeup reason.
     // Reasons to wake up:
     //   1. A delayed task (startat) becomes due  -> sleep until then
-    //   2. QueueFire was called (task added / slot freed / cooldown expired)
+    //   2. A site cooldown expires               -> sleep until then
+    //   3. QueueFire was called (task added / slot freed)
     //
-    // If neither applies, wait indefinitely. The 15s forced recycle is removed
-    // because it served as a safety-net for the now-removed 900ms main-thread polling.
-    if fNextTaskStartAt = MaxDateTime then
-    begin
-      // No delayed tasks. Wait indefinitely until QueueFire is called.
-      fWaitTimerTimeout := $FFFFFFFF;
-    end
-    else
+    // If none apply, wait indefinitely.
+    fWaitTimerTimeout := $FFFFFFFF; // INFINITE
+
+    // Reason 1: Delayed tasks
+    if fNextTaskStartAt <> MaxDateTime then
     begin
       if fNextTaskStartAt <= Now then
       begin
-        if ts.freeslots = 0 then
-        begin
-          // Task is due but no free slots. Wait indefinitely until a slot
-          // becomes free and calls QueueFire.
-          fWaitTimerTimeout := $FFFFFFFF;
-        end
-        else
+        if ts.freeslots > 0 then
         begin
           // Task should be assigned immediately; don't sleep at all
           Debug(dpSpam, section, Format('TQueueThread.Execute: skip sleep %s', [ts.Name]));
           continue;
         end;
+        // Task is due but no free slots. Wait for other wakeup reasons.
       end
       else
       begin
@@ -2031,6 +2025,34 @@ begin
         if fWaitTimerTimeout > 60000 then
           fWaitTimerTimeout := 60000;
       end;
+    end;
+
+    // Reason 2: Cooldown expiry
+    // If the site has active cooldowns, wake up when the earliest one expires
+    // so we can retry assigning tasks that were skipped due to the cooldown.
+    if ts.MaxSimUpCooldownActive then
+    begin
+      fCooldownTimeout := ts.MaxSimUpCooldownRemainingSeconds * 1000;
+      if fCooldownTimeout < fWaitTimerTimeout then
+        fWaitTimerTimeout := fCooldownTimeout;
+    end;
+    if ts.MaxSimDownCooldownActive then
+    begin
+      fCooldownTimeout := ts.MaxSimDownCooldownRemainingSeconds * 1000;
+      if fCooldownTimeout < fWaitTimerTimeout then
+        fWaitTimerTimeout := fCooldownTimeout;
+    end;
+    if ts.LoginCooldownActive then
+    begin
+      fCooldownTimeout := ts.LoginCooldownRemainingSeconds * 1000;
+      if fCooldownTimeout < fWaitTimerTimeout then
+        fWaitTimerTimeout := fCooldownTimeout;
+    end;
+
+    if fWaitTimerTimeout = 0 then
+    begin
+      // Something is immediately ready; don't sleep at all
+      continue;
     end;
 
     case queueevent.WaitFor(fWaitTimerTimeout) of
