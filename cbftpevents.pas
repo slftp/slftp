@@ -36,7 +36,7 @@ type
     Timestamp: Int64;
   end;
 
-  TCbftpEventCallback = procedure(const aEvent: TCbftpEvent) of object;
+  TCbftpEventCallback = procedure(const aEvent: TCbftpEvent);
 
   { Thread-safe event queue for cbftp events }
   TCbftpEventQueue = class
@@ -81,10 +81,14 @@ type
 var
   GlCbftpEventThread: TCbftpEventThread = nil;
   GlCbftpEventThreadLock: TSLCriticalSection2;
+  GlCbftpEventHandler: TCbftpEventCallback;
 
 procedure CbftpEventsStart(const aHost: RawUtf8; aPort: Integer; const aPassword: RawUtf8);
 procedure CbftpEventsStop;
 function CbftpEventsRunning: Boolean;
+
+{ Register a global event handler. Will be applied to current and future event threads. }
+procedure CbftpEventsSetHandler(const aHandler: TCbftpEventCallback);
 
 implementation
 
@@ -471,6 +475,8 @@ begin
     if GlCbftpEventThread <> nil then
       Exit;
     GlCbftpEventThread := TCbftpEventThread.Create(aHost, aPort, aPassword);
+    if Assigned(GlCbftpEventHandler) then
+      GlCbftpEventThread.OnEvent := GlCbftpEventHandler;
     Debug(dpMessage, section, Format('cbftp event thread started: %s:%d', [aHost, aPort]));
   finally
     GlCbftpEventThreadLock.Leave;
@@ -497,6 +503,18 @@ begin
   GlCbftpEventThreadLock.Enter('CbftpEventsRunning');
   try
     Result := (GlCbftpEventThread <> nil) and not GlCbftpEventThread.Terminated;
+  finally
+    GlCbftpEventThreadLock.Leave;
+  end;
+end;
+
+procedure CbftpEventsSetHandler(const aHandler: TCbftpEventCallback);
+begin
+  GlCbftpEventThreadLock.Enter('CbftpEventsSetHandler');
+  try
+    GlCbftpEventHandler := aHandler;
+    if Assigned(GlCbftpEventThread) then
+      GlCbftpEventThread.OnEvent := aHandler;
   finally
     GlCbftpEventThreadLock.Leave;
   end;

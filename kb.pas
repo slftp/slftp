@@ -80,7 +80,7 @@ uses
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
-  globalskipunit, irccommandsunit, slapi.issueshook, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  globalskipunit, irccommandsunit, slapi.issueshook, cbftpevents, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   rsections = 'kb';
@@ -1371,6 +1371,8 @@ begin
   Result := True;
 end;
 
+procedure _CbftpEventHandler(const aEvent: TCbftpEvent); forward;
+
 procedure kb_Init;
 begin
   kb_last_saved := Now();
@@ -1392,6 +1394,8 @@ begin
   kb_sections := TStringList.Create;
   kb_sections.Sorted := True;
   kb_sections.Duplicates := dupIgnore;
+
+  CbftpEventsSetHandler(_CbftpEventHandler);
 
   rename_patterns := 4;
 
@@ -1786,6 +1790,77 @@ begin
     fFinishedPazos.Free;
     fFinishedRankCalcPazos.Free;
     fDeletedPazos.Free;
+  end;
+end;
+
+{ cbftp event handler }
+procedure _CbftpEventHandler(const aEvent: TCbftpEvent);
+var
+  fPazo: TPazo;
+  fPazoSite: TPazoSite;
+begin
+  case aEvent.EventType of
+    cetRaceStarted:
+    begin
+      Debug(dpMessage, rsections, Format('[cbftp] race_started: %s/%s', [aEvent.Section, aEvent.Name]));
+      fPazo := FindPazoByName(aEvent.Section, aEvent.Name);
+      if fPazo <> nil then
+      begin
+        // cbftp has taken over routing for this release
+      end;
+    end;
+
+    cetRaceProgress:
+    begin
+      fPazo := FindPazoByName('', aEvent.Name);
+      if fPazo <> nil then
+      begin
+        fPazoSite := fPazo.FindSite(aEvent.Site);
+        if fPazoSite <> nil then
+        begin
+          Debug(dpSpam, rsections, Format('[cbftp] progress %s on %s: %d/%d files, %d/%d bytes',
+            [aEvent.Name, aEvent.Site, aEvent.FilesDone, aEvent.FilesTotal,
+             aEvent.BytesDone, aEvent.BytesTotal]));
+        end;
+      end;
+    end;
+
+    cetRaceCompleted:
+    begin
+      Debug(dpMessage, rsections, Format('[cbftp] race_completed: %s on %s (%ds)',
+        [aEvent.Name, aEvent.Site, aEvent.TimeSpentSeconds]));
+      fPazo := FindPazoByName('', aEvent.Name);
+      if fPazo <> nil then
+      begin
+        fPazoSite := fPazo.FindSite(aEvent.Site);
+        if fPazoSite <> nil then
+        begin
+          fPazoSite.status := rssComplete;
+        end;
+      end;
+    end;
+
+    cetRaceDone:
+    begin
+      Debug(dpMessage, rsections, Format('[cbftp] race_done: %s status=%s',
+        [aEvent.Name, aEvent.Status]));
+      fPazo := FindPazoByName('', aEvent.Name);
+      if fPazo <> nil then
+      begin
+        // Race is fully complete on all sites
+      end;
+    end;
+
+    cetSpeedSample:
+    begin
+      Debug(dpSpam, rsections, Format('[cbftp] speed %s -> %s: %.2f Mbps (file %d bytes)',
+        [aEvent.SrcSite, aEvent.DstSite, aEvent.SpeedMbps, aEvent.FileSize]));
+    end;
+
+    cetHeartbeat:
+    begin
+      Debug(dpSpam, rsections, '[cbftp] heartbeat');
+    end;
   end;
 end;
 
