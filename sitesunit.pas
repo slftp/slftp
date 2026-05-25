@@ -1698,6 +1698,17 @@ begin
         if ((not shouldquit) and (not slshutdown)) then
         begin
           site.QueueFire;
+
+          // Phase 5a: If other sites have pending race tasks targeting this site,
+          // wake them up so they can retry assignment now that a slot is free.
+          if GetPendingRaceTasksToDestination(site.Name) > 0 then
+          begin
+            for fSite in sites do
+            begin
+              if fSite.Name <> site.Name then
+                fSite.QueueFire;
+            end;
+          end;
         end;
       end
       else
