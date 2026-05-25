@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, kb.releaseinfo, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections, IniFiles, sfv, slcriticalsection2,
-  routeconfig, cbftpclient;
+  routeconfig, cbftpclient, cbftpevents;
 
 type
   TQueueNotifyEvent = procedure(Sender: TObject; Value: integer) of object;
@@ -494,6 +494,7 @@ begin
     try
       cbftpclient_Init(StringToUtf8(FUDPIp), FUDPPort, StringToUtf8(FUDPPassword));
       Debug(dpMessage, section, Format('cbftp REST client initialized: %s:%d', [FUDPIp, FUDPPort]));
+      CbftpEventsStart(StringToUtf8(FUDPIp), FUDPPort, StringToUtf8(FUDPPassword));
     except
       on E: Exception do
       begin

@@ -38,7 +38,8 @@ implementation
 uses
   slvision, slconsole, mystrings, queueunit, debugunit, configunit, sitesunit,
   Contnrs, versioninfo, SysUtils, mainthread, Classes, irc, taskraw, slhelper,
-  kb, StrUtils, encinifile, dateutils, mrdohutils, SyncObjs, Generics.Collections
+  kb, StrUtils, encinifile, dateutils, mrdohutils, SyncObjs, Generics.Collections,
+  cbftpevents
   {$IFDEF MSWINDOWS},Windows {$ENDIF};
 
 const
