@@ -292,9 +292,9 @@ implementation
             wrSignaled:
             begin
               FLockOwningThreadID := GetCurrentThreadId;
-            Result := True;
-            FLockOwnerNameStack.Push(aLockOwnerName);
-          end
+              Result := True;
+              FLockOwnerNameStack.Push(aLockOwnerName);
+            end;
             wrTimeout:
             begin
               if aRaiseExceptionOnFail then

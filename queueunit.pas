@@ -1879,13 +1879,21 @@ begin
               // Free the slot now so the task can be removed and the slot reused.
               if ((fTask.slot1 <> nil) and (fTask.ClassType = TWaitTask)) then
               begin
-                ts.AcquireSlotsAssignmentLock('Queue free stuck wait task');
                 try
-                  if TSiteSlot(fTask.slot1).todotask = fTask then
-                    TSiteSlot(fTask.slot1).todotask := nil;
-                  fTask.slot1 := nil;
-                finally
-                  ts.ReleaseSlotsAssignmentLock;
+                  ts.AcquireSlotsAssignmentLock('Queue free stuck wait task');
+                  try
+                    if TSiteSlot(fTask.slot1).todotask = fTask then
+                      TSiteSlot(fTask.slot1).todotask := nil;
+                    fTask.slot1 := nil;
+                  finally
+                    ts.ReleaseSlotsAssignmentLock;
+                  end;
+                except
+                  on E: Exception do
+                  begin
+                    Debug(dpError, section, Format('[WARNING] RemoveReady stuck-wait cleanup failed for %s: %s — forcing slot1=nil', [fTask.Name, E.Message]));
+                    fTask.slot1 := nil;
+                  end;
                 end;
               end;
 
@@ -1897,10 +1905,15 @@ begin
 
                 if (fTask.ClassType = TPazoRaceTask) then
                 begin
-                  with TPazoRaceTask(fTask) do
-                  if (dst <> nil) then
-                  begin
-                    dst.event.SetEvent;
+                  try
+                    with TPazoRaceTask(fTask) do
+                      if (dst <> nil) then
+                        dst.event.SetEvent;
+                  except
+                    on E: Exception do
+                    begin
+                      Debug(dpError, section, Format('[WARNING] RemoveReady dst event failed for %s: %s', [fTask.Name, E.Message]));
+                    end;
                   end;
                 end;
                 ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');

@@ -4505,6 +4505,15 @@ begin
     raise Exception.Create(Format('Invalid slot number: %d for site %s', [aSlotNumber, self.Name]));
 
   fOldSiteSlot := TSiteSlot(self.slots[aSlotNumber]);
+
+  { Prevent dangling slot1 pointers: if a task still references this slot,
+    clear its slot1 before the old slot object is freed. }
+  if fOldSiteSlot.todotask <> nil then
+  begin
+    fOldSiteSlot.todotask.slot1 := nil;
+    fOldSiteSlot.todotask := nil;
+  end;
+
   self.slots[aSlotNumber] := TSiteSlot.Create(self, aSlotNumber);
   fOldSiteSlot.Free;
 end;
