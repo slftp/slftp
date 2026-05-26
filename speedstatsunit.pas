@@ -581,22 +581,31 @@ var
   i: Integer;
   s: TSpeedStat;
 begin
+  Debug(dpMessage, r_section, 'SpeedStatsStart: creating TEncStringList...');
   x := TEncStringlist.Create(passphrase);
   try
+    Debug(dpMessage, r_section, 'SpeedStatsStart: entering speedstatlock...');
     speedstatlock.Enter('SpeedStatsStart');
     try
+      Debug(dpMessage, r_section, 'SpeedStatsStart: lock acquired, loading file...');
       x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.speedstats');
+      Debug(dpMessage, r_section, Format('SpeedStatsStart: loaded %d entries', [x.Count]));
       for i := 0 to x.Count - 1 do
       begin
+        Debug(dpMessage, r_section, Format('SpeedStatsStart: processing entry %d/%d...', [i+1, x.Count]));
         s := TSpeedStat.Create(x[i]);
         SpeedStatAdd(s, True);
       end;
+      Debug(dpMessage, r_section, 'SpeedStatsStart: done processing entries');
     finally
       speedstatlock.Leave;
+      Debug(dpMessage, r_section, 'SpeedStatsStart: lock released');
     end;
   finally
     x.Free;
+    Debug(dpMessage, r_section, 'SpeedStatsStart: TEncStringList freed');
   end;
+  Debug(dpMessage, r_section, 'SpeedStatsStart: COMPLETE');
 end;
 
 { TSpeedStat }
