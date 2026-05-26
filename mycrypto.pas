@@ -21,7 +21,11 @@ implementation
 
 uses
   SysUtils, delphiblowfish, configunit, debugunit, Math, mystrings,
-  mormot.lib.openssl11, DynLibs, slcriticalsection2;
+  mormot.lib.openssl11, slcriticalsection2
+  {$IFDEF FPC}
+  , DynLibs
+  {$ENDIF}
+  ;
 
 const
   section = 'crypto';
@@ -34,6 +38,13 @@ const
   AES256_BLOCK_SIZE = 16;
   AES256_KEY_LENGTH = 32;
   AES256_IV_LENGTH = 16;
+
+{$IFNDEF FPC}
+type
+  TLibHandle = HMODULE;
+const
+  NilHandle = TLibHandle(0);
+{$ENDIF}
 
 type
   TEVP_EncryptInit_ex = function(ctx: PEVP_CIPHER_CTX; cipher: PEVP_CIPHER; eng: Pointer; key: PByte; iv: PByte): Integer; cdecl;
