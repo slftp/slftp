@@ -787,7 +787,7 @@ implementation
 uses
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
-  dirlist.helpers, tags, Generics.Defaults, taskmetrics, mormot.core.os;
+  dirlist.helpers, tags, Generics.Defaults, taskmetrics;
 
 const
   section = 'sites';
