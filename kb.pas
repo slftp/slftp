@@ -19,7 +19,7 @@ type
     destructor Destroy; override;
   end;
 
-function renameCheck(const pattern, i, len: integer; const rls: String): boolean;
+function renameCheck(const pattern, len: integer; const rls, candidate: String): boolean;
 function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String;
   dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
 function FindReleaseInKbList(const rls: String): String;
@@ -82,14 +82,17 @@ const
 var
   addpreechocmd: String;
   kb_last_saved: TDateTime;
-  kb_list: TStringList;
   kb_lock: TSLCriticalSection2;
 
-  // TODO: Using THashedStringList does fuckup cleaning because it does not have a constant index which is used to delete oldest (latest) entries
-  // but it's much faster and as we use it very often it's worth it...but maybe there is a better solution
+  { Main KB storage: section-releasename -> TPazo (O(1) lookup, replaces kb_list) }
+  kb_dict_by_key: TDictionary<string, TPazo>;
+  { Pazo ID index: pazo_id -> TPazo (O(1) lookup) }
+  kb_dict_by_id: TDictionary<integer, TPazo>;
+  { Release name -> section index (replaces kb_latest, O(1) lookup) }
+  kb_dict_by_rls: TDictionary<string, string>;
+
   kb_trimmed_rls: THashedStringList;
   kb_groupcheck_rls: THashedStringList;
-  kb_latest: THashedStringList; //< holds release and section as rls=section
   kb_skip: THashedStringList;
 
   // Config vars
@@ -110,7 +113,7 @@ var
 function GetKBCount: integer;
 begin
   // access to Count is thread safe, so no lock required
-  Result := kb_list.Count;
+  Result := kb_dict_by_key.Count;
 end;
 
 function FindSectionHandler(const section: String): TCRelease;
@@ -129,7 +132,7 @@ begin
   end;
 end;
 
-function renameCheck(const pattern, i, len: integer; const rls: String): boolean;
+function renameCheck(const pattern, len: integer; const rls, candidate: String): boolean;
 var
   ss: String;
 begin
@@ -137,7 +140,7 @@ begin
 
   // increase rename_patterns in kb_init by 1 everytime a new pattern emerges
 
-  ss := kb_latest.Names[i];
+  ss := candidate;
   if pattern = 0 then
   begin
     // Original: Point_Blank-X_History-2012-C4
@@ -192,6 +195,7 @@ var
   dlt: TPazoDirlistTask;
   l: TLoginTask;
   fPretimeLookupTask: TPazoPretimeLookupTask;
+  fRlsItem: TPair<string, string>;
 
   { Removes the oldest knowledge base entries }
   procedure KbListsCleanUp;
@@ -231,23 +235,6 @@ var
     end;
 
     try
-      i := kb_latest.Count - 1;
-      if i > 200 then
-      begin
-        while i > 150 do
-        begin
-          kb_latest.Delete(i);
-          i := kb_latest.Count - 1;
-        end;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, rsections, '[EXCEPTION] kb_AddB clean kb_latest : %s', [e.Message]);
-      end;
-    end;
-
-    try
       i := kb_skip.Count - 1;
       if i > 300 then
       begin
@@ -276,17 +263,15 @@ begin
     // deny adding of a release twice with different section
     if (section <> '') then
     begin
-      i := kb_latest.IndexOfName(rls);
-      if i <> -1 then
+      if kb_dict_by_rls.TryGetValue(rls, ss) then
       begin
-        ss := kb_latest.ValueFromIndex[i];
         if (not ss.StartsWith('PRE') and (ss <> section)) then
         begin
           if spamcfg.readbool(rsections, 'already_in_another_section', True) then
             irc_addadmin(Format('<b><c4>%s</c> @ %s </b>was caught as section %s but is already in KB with section %s', [rls, sitename, section, ss]));
           exit;
         end;
-      end
+      end;
     end;
 
     // check if rls already skiped
@@ -351,32 +336,32 @@ begin
       end;
     end;
 
-    // don't even enter the checking code if the release is already in kb_latest, because then we already handled it and it's clean
+    // don't even enter the checking code if the release is already in kb_dict_by_rls, because then we already handled it and it's clean
     // because kb_skip would've prevented kb_addb being called from kb_add
-    if (kb_latest.IndexOfName(rls) = -1) then
+    if (not kb_dict_by_rls.ContainsKey(rls)) then
     begin
       if (renamed_release_checker) then
       begin
         try
           len := Length(rls); // no need to check the release length in every loop
-          for i := 0 to kb_latest.Count - 1 do
+          for fRlsItem in kb_dict_by_rls do
           begin
             // makes no sense to run this "expensive" operation if both strings aren't equal length
             // since the current pattern shows only strings of equal length being renames of one another
-            if Length(kb_latest.Names[i]) <> len then
+            if Length(fRlsItem.Key) <> len then
               Continue;
-            if AnsiCompareText(kb_latest.Names[i], rls) <> 0 then
+            if AnsiCompareText(fRlsItem.Key, rls) <> 0 then
             begin
               // loop through the amount of different patterns, reduces code duplication
               for j := 0 to rename_patterns - 1 do
               begin
-                if renameCheck(j, i, len, rls) then
+                if renameCheck(j, len, rls, fRlsItem.Key) then
                 begin
                   if spamcfg.readbool(rsections, 'renamed_release', True) then
-                    irc_addadmin(format('<b><c4>%s</c> @ %s </b>is a rename of %s!', [rls, sitename, kb_latest.Names[i]]));
+                    irc_addadmin(format('<b><c4>%s</c> @ %s </b>is a rename of %s!', [rls, sitename, fRlsItem.Key]));
 
                   // release is brand-new but a rename of an already existing release
-                  kb_latest.Insert(0, rls + '=' + section);
+                  kb_dict_by_rls.AddOrSetValue(rls, section);
                   // gonna insert this anyway, because there are sometimes renames of renames
                   kb_skip.Insert(0, rls);
                   exit;
@@ -392,8 +377,8 @@ begin
         end;
       end;
 
-      // release is fine and brand-new, add it to kb_latest
-      kb_latest.Insert(0, rls + '=' + section);
+      // release is fine and brand-new, add it to kb_dict_by_rls
+      kb_dict_by_rls.AddOrSetValue(rls, section);
     end;
 
     // Start cleanup lists
@@ -405,8 +390,7 @@ begin
 
   kb_lock.Enter('kb_AddB_2');
   try
-    i := kb_list.IndexOf(section + '-' + rls);
-    if i = -1 then
+    if not kb_dict_by_key.TryGetValue(section + '-' + rls, p) then
     begin
       if (event = kbeNUKE) then
       begin
@@ -475,12 +459,8 @@ begin
       // need to search all sites where there is such a section ...
       p.AddSites;
 
-      kb_list.BeginUpdate;
-      try
-        kb_list.AddObject(section + '-' + rls, p);
-      finally
-        kb_list.EndUpdate;
-      end;
+      kb_dict_by_key.Add(section + '-' + rls, p);
+      kb_dict_by_id.Add(p.pazo_id, p);
 
       // announce event on admin chan
       if (event = kbeADDPRE) then
@@ -536,11 +516,10 @@ begin
       end;
 
       // meg kell tudni mi valtozott //you need to know what's changed
-      p := TPazo(kb_list.Objects[i]);
       r := p.rls;
 
       debug(dpSpam, rsections,
-        'This NEWDIR [event: %s] task was not the first one to hit kb as kb_list already contained an entry for %s in %s',
+        'This NEWDIR [event: %s] task was not the first one to hit kb as kb_dict_by_key already contained an entry for %s in %s',
         [KBEventTypeToString(event), rls, section]);
 
       if r.rlsname <> rls then
@@ -902,36 +881,29 @@ end;
 
 function FindReleaseInKbList(const rls: String): String;
 var
-  i: integer;
+  section, rlsname: string;
 begin
   Result := '';
+  // rls typically comes as '-Releasename', strip leading dash for lookup
+  rlsname := rls;
+  if rlsname.StartsWith('-') then
+    rlsname := Copy(rlsname, 2, MaxInt);
+
   kb_lock.Enter('FindReleaseInKbList ' + rls);
   try
-    for i := 0 to kb_list.Count - 1 do
-    begin
-      if AnsiContainsText(kb_list[i], rls) then
-      begin
-        Result := kb_list[i];
-        break;
-      end;
-    end;
+    if kb_dict_by_rls.TryGetValue(rlsname, section) then
+      Result := section + '-' + rlsname;
   finally
     kb_lock.Leave;
   end;
 end;
 
 function FindReleaseInLatestKBList(const aRls: String): String;
-var
-  i: integer;
 begin
   Result := '';
   kb_lock.Enter('FindReleaseInLatestKBList ' + aRls);
   try
-    i := kb_latest.IndexOfName(aRls);
-    if i <> -1 then
-    begin
-      Result := kb_latest.ValueFromIndex[i];
-    end;
+    kb_dict_by_rls.TryGetValue(aRls, Result);
   finally
     kb_lock.Leave;
   end;
@@ -939,31 +911,14 @@ end;
 
 function FindPazoByRls(const rlsname: String): TPazo;
 var
-  i: integer;
-  p: TPazo;
+  section: string;
 begin
   Result := nil;
   kb_lock.Enter('FindPazoByRls');
   try
     try
-      for i := kb_list.Count - 1 downto 0 do
-      begin
-        if i < 0 then
-          Break;
-
-        p := TPazo(kb_list.Objects[i]);
-
-        if p = nil then
-          Continue;
-
-        if p.rls = nil then
-          Continue;
-
-        if (p.rls.rlsname = rlsname) then
-        begin
-          Result := p;
-        end;
-      end;
+      if kb_dict_by_rls.TryGetValue(rlsname, section) then
+        kb_dict_by_key.TryGetValue(section + '-' + rlsname, Result);
     except
       on e: Exception do
       begin
@@ -977,29 +932,14 @@ begin
 end;
 
 function FindPazoById(const id: integer): TPazo;
-var
-  i: integer;
-  p: TPazo;
 begin
   Result := nil;
   kb_lock.Enter('FindPazoById');
   try
     try
-      for i := kb_list.Count - 1 downto 0 do
-      begin
-        if i < 0 then
-            Break;
-
-        p := TPazo(kb_list.Objects[i]);
-        if p = nil then
-          exit;
-        if p.pazo_id = id then
-        begin
-          Result := p;
-          p.lastTouch := Now();
-          exit;
-        end;
-      end;
+      if kb_dict_by_id.TryGetValue(id, Result) then
+        if Result <> nil then
+          Result.lastTouch := Now();
     except
       on E: Exception do
       begin
@@ -1013,23 +953,14 @@ begin
 end;
 
 function FindPazoByKey(const aKey: String): TPazo;
-var
-  i: integer;
 begin
   Result := nil;
   kb_lock.Enter('FindPazoByKey');
   try
     try
-      i := kb_list.IndexOf(aKey);
-      if i <> -1 then
-      begin
-        Result := TPazo(kb_list.Objects[i]);
-
+      if kb_dict_by_key.TryGetValue(aKey, Result) then
         if Result <> nil then
           Result.lastTouch := Now;
-
-        exit;
-      end;
     except
      on E: Exception do
      begin
@@ -1051,7 +982,8 @@ procedure AddPazoToKB(const aKey: String; const aPazo: TPazo);
 begin
   kb_lock.Enter('AddPazoToKB');
   try
-    kb_list.AddObject(aKey, aPazo);
+    kb_dict_by_key.AddOrSetValue(aKey, aPazo);
+    kb_dict_by_id.AddOrSetValue(aPazo.pazo_id, aPazo);
   finally
     kb_lock.Leave;
   end;
@@ -1059,18 +991,17 @@ end;
 
 procedure ListKBToIRC(const netname, channel, section: string; const hits: integer);
 var
-  db, i: integer;
+  db: integer;
   p: TPazo;
 begin
   kb_lock.Enter('ListKBToIRC');
   try
     db := 0;
-    for i := kb_list.Count - 1 downto 0 do
+    for p in kb_dict_by_key.Values do
     begin
       if (db > hits) then
         break;
 
-      p := TPazo(kb_list.Objects[i]);
       if p <> nil then
       begin
         if ((section = '') or (p.rls.section = section)) then
@@ -1134,7 +1065,9 @@ var
     p.stated := True;
     p.cleared := True;
     p.ExcludeFromIncfiller := True;
-    kb_list.AddObject(section + '-' + rlsname, p);
+    kb_dict_by_key.AddOrSetValue(section + '-' + rlsname, p);
+    kb_dict_by_id.AddOrSetValue(p.pazo_id, p);
+    kb_dict_by_rls.AddOrSetValue(rlsname, section);
   end;
 
 begin
@@ -1195,6 +1128,7 @@ var
   i: integer;
   x: TEncStringList;
   p: TPazo;
+  fKeyItem: TPair<string, TPazo>;
 
   function GetKbPazoInfoLine(p: TPazo): String;
   const
@@ -1210,11 +1144,11 @@ begin
   x := TEncStringList.Create(passphrase);
   try
     try
-      for i := 0 to kb_list.Count - 1 do
+      for fKeyItem in kb_dict_by_key do
       begin
-        p := TPazo(kb_list.Objects[i]);
-        if ((p <> nil) and (1 <> Pos('TRANSFER-', kb_list[i])) and
-          (1 <> Pos('REQUEST-', kb_list[i])) and
+        p := fKeyItem.Value;
+        if ((p <> nil) and (1 <> Pos('TRANSFER-', fKeyItem.Key)) and
+          (1 <> Pos('REQUEST-', fKeyItem.Key)) and
           (SecondsBetween(Now, p.added) < kb_keep_entries)) then
           x.Add(GetKbPazoInfoLine(p));
       end;
@@ -1247,22 +1181,21 @@ end;
 
 procedure kb_FreeList;
 var
-  i: integer;
+  p: TPazo;
 begin
-  for i := 0 to kb_list.Count - 1 do
+  for p in kb_dict_by_key.Values do
   begin
     try
-      if kb_List.Objects[i] <> nil then
-      begin
-        kb_List.Objects[i].Free;
-        kb_List.Objects[i] := nil;
-      end;
+      if p <> nil then
+        p.Free;
     except
       continue;
     end;
   end;
 
-  kb_list.Free;
+  kb_dict_by_key.Free;
+  kb_dict_by_id.Free;
+  kb_dict_by_rls.Free;
   kb_trimmed_rls.Free;
 end;
 
@@ -1319,13 +1252,12 @@ begin
 
   kb_lock := TSLCriticalSection2.Create('kb_lock');
 
+  kb_dict_by_key := TDictionary<string, TPazo>.Create;
+  kb_dict_by_id := TDictionary<integer, TPazo>.Create;
+  kb_dict_by_rls := TDictionary<string, string>.Create;
+
   kb_trimmed_rls := THashedStringList.Create;
   kb_trimmed_rls.CaseSensitive := False;
-
-  kb_list := TStringList.Create;
-  kb_list.CaseSensitive := False;
-  kb_list.Duplicates := dupIgnore;
-  kb_list.OwnsObjects := False;
 
   kb_sections := TStringList.Create;
   kb_sections.Sorted := True;
@@ -1334,7 +1266,6 @@ begin
   rename_patterns := 4;
 
   kb_groupcheck_rls := THashedStringList.Create;
-  kb_latest := THashedStringList.Create;
   kb_skip := THashedStringList.Create;
 
   trimmed_shit_checker := config.ReadBool(rsections, 'trimmed_shit_checker', True);
@@ -1362,9 +1293,11 @@ procedure kb_Uninit;
 begin
   Debug(dpSpam, rsections, 'Uninit1');
   kb_sections.Free;
-  kb_latest.Free;
   kb_skip.Free;
   kb_groupcheck_rls.Free;
+  kb_dict_by_key.Free;
+  kb_dict_by_id.Free;
+  kb_dict_by_rls.Free;
 
   KbReleaseUninit;
 
@@ -1502,7 +1435,8 @@ begin
       rc := FindSectionHandler(p.rls.section);
       rls := rc.Create(p.rls.rlsname, p.rls.section);
       p := PazoAdd(rls);
-      kb_list.AddObject('INC-' + p.rls.rlsname, p);
+      kb_dict_by_key.AddOrSetValue('INC-' + p.rls.rlsname, p);
+      kb_dict_by_id.AddOrSetValue(p.pazo_id, p);
     finally
       kb_lock.Leave;
     end;
@@ -1586,15 +1520,18 @@ end;
 
 procedure TKBThread.Execute;
 var
-  i, j: integer;
+  i: integer;
   p: TPazo;
+  fItem: TPair<string, TPazo>;
   fIncFillPazos, fFinishedPazos, fFinishedRankCalcPazos, fDeletedPazos: TList<TPazo>;
+  fDeleteKeys: TStringList;
   fIsSpecialKB, fTryToCompleteTimeReached: boolean;
 begin
   fIncFillPazos := TList<TPazo>.Create;
   fFinishedPazos := TList<TPazo>.Create;
   fFinishedRankCalcPazos := TList<TPazo>.Create;
   fDeletedPazos := TList<TPazo>.Create;
+  fDeleteKeys := TStringList.Create;
   try
     while (not slshutdown) do
     begin
@@ -1602,13 +1539,10 @@ begin
         kb_lock.Enter('Execute');
         p := nil;
         try
-          for i := kb_list.Count - 1 downto 0 do
+          for fItem in kb_dict_by_key do
           begin
-            if i < 0 then
-              Break;
-
-            p := TPazo(kb_list.Objects[i]);
-            fIsSpecialKB := kb_list[i].StartsWith('TRANSFER-') Or kb_list[i].StartsWith('REQUEST-') Or kb_list[i].StartsWith('INC-');
+            p := fItem.Value;
+            fIsSpecialKB := fItem.Key.StartsWith('TRANSFER-') Or fItem.Key.StartsWith('REQUEST-') Or fItem.Key.StartsWith('INC-');
             fTryToCompleteTimeReached := True;
 
             if enable_try_to_complete and not fIsSpecialKB then
@@ -1629,19 +1563,27 @@ begin
               end;
             end;
 
-            // finally if the pazo has been cleared and the time to keep it has been reached, delete it from the kb_list
+            // finally if the pazo has been cleared and the time to keep it has been reached, delete it from the kb dictionaries
             if p.stated and (fTryToCompleteTimeReached and not fIncFillPazos.Contains(p)) and ((kb_save_entries <= 0) Or (SecondsBetween(Now, p.added) > kb_keep_entries)) then
             begin
-              kb_list.Delete(i);
-              j := kb_latest.IndexOf(p.rls.rlsname);
-              if j <> -1 then
-              begin
-                kb_latest.Delete(j);
-              end;
+              fDeleteKeys.Add(fItem.Key);
               fDeletedPazos.Add(p);
             end;
 
           end;
+
+          // Remove collected keys after iteration to avoid modifying dictionary during enumeration
+          for i := 0 to fDeleteKeys.Count - 1 do
+          begin
+            if kb_dict_by_key.TryGetValue(fDeleteKeys[i], p) then
+            begin
+              kb_dict_by_key.Remove(fDeleteKeys[i]);
+              kb_dict_by_id.Remove(p.pazo_id);
+              if (p.rls <> nil) then
+                kb_dict_by_rls.Remove(p.rls.rlsname);
+            end;
+          end;
+          fDeleteKeys.Clear;
         finally
           kb_lock.Leave;
         end;
@@ -1724,6 +1666,7 @@ begin
     fFinishedPazos.Free;
     fFinishedRankCalcPazos.Free;
     fDeletedPazos.Free;
+    fDeleteKeys.Free;
   end;
 end;
 
