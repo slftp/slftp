@@ -503,6 +503,12 @@ begin
         FReconnectDelay := INITIAL_RECONNECT_DELAY_MS;
         if _ReadLongPollResponse(contentLen, eventJson) then
         begin
+          // cbftp returns heartbeat on timeout — wait briefly to avoid log spam
+          if (contentLen <= 2) or (Pos('"heartbeat"', string(eventJson)) > 0) then
+          begin
+            Sleep(1000);
+            Continue;
+          end;
           FQueue.Enqueue(ParseEvent(eventJson));
           Synchronize(ProcessEvents);
           // Long-polling: immediately make next request on success
