@@ -1873,62 +1873,159 @@ begin
             Continue;
 
           try
+            try
+              if fTask.ready then;
+            except
+              on E: Exception do
+              begin
+                Debug(dpError, section, Format('[AV-DEBUG] RemoveReady fTask.ready access failed for %s: %s', [fTask.Name, E.Message]));
+                Continue;
+              end;
+            end;
+
+            try
+              if fTask.readyerror then;
+            except
+              on E: Exception do
+              begin
+                Debug(dpError, section, Format('[AV-DEBUG] RemoveReady fTask.readyerror access failed for %s: %s', [fTask.Name, E.Message]));
+                Continue;
+              end;
+            end;
+
             if ((fTask.ready) or (fTask.readyerror)) then
             begin
               // Stuck wait tasks: they set ready=True but never freed their slot.
               // Free the slot now so the task can be removed and the slot reused.
-              if ((fTask.slot1 <> nil) and (fTask.ClassType = TWaitTask)) then
+              if (fTask.slot1 <> nil) then
               begin
                 try
-                  ts.AcquireSlotsAssignmentLock('Queue free stuck wait task');
-                  try
-                    if TSiteSlot(fTask.slot1).todotask = fTask then
-                      TSiteSlot(fTask.slot1).todotask := nil;
-                    fTask.slot1 := nil;
-                  finally
-                    ts.ReleaseSlotsAssignmentLock;
-                  end;
+                  if fTask.ClassType = TWaitTask then;
                 except
                   on E: Exception do
                   begin
-                    Debug(dpError, section, Format('[WARNING] RemoveReady stuck-wait cleanup failed for %s: %s — forcing slot1=nil', [fTask.Name, E.Message]));
-                    fTask.slot1 := nil;
+                    Debug(dpError, section, Format('[AV-DEBUG] RemoveReady fTask.ClassType access failed for %s: %s', [fTask.Name, E.Message]));
+                    Continue;
+                  end;
+                end;
+
+                if (fTask.ClassType = TWaitTask) then
+                begin
+                  try
+                    ts.AcquireSlotsAssignmentLock('Queue free stuck wait task');
+                    try
+                      try
+                        if TSiteSlot(fTask.slot1) <> nil then;
+                      except
+                        on E: Exception do
+                        begin
+                          Debug(dpError, section, Format('[AV-DEBUG] RemoveReady TSiteSlot(fTask.slot1) cast failed for %s: %s', [fTask.Name, E.Message]));
+                          fTask.slot1 := nil;
+                        end;
+                      end;
+
+                      try
+                        if TSiteSlot(fTask.slot1).todotask = fTask then
+                          TSiteSlot(fTask.slot1).todotask := nil;
+                      except
+                        on E: Exception do
+                        begin
+                          Debug(dpError, section, Format('[AV-DEBUG] RemoveReady todotask access failed for %s: %s', [fTask.Name, E.Message]));
+                        end;
+                      end;
+
+                      try
+                        fTask.slot1 := nil;
+                      except
+                        on E: Exception do
+                        begin
+                          Debug(dpError, section, Format('[AV-DEBUG] RemoveReady fTask.slot1 := nil failed for %s: %s', [fTask.Name, E.Message]));
+                        end;
+                      end;
+                    finally
+                      ts.ReleaseSlotsAssignmentLock;
+                    end;
+                  except
+                    on E: Exception do
+                    begin
+                      Debug(dpError, section, Format('[AV-DEBUG] RemoveReady stuck-wait cleanup outer failed for %s: %s — forcing slot1=nil', [fTask.Name, E.Message]));
+                      fTask.slot1 := nil;
+                    end;
                   end;
                 end;
               end;
 
               if (fTask.slot1 = nil) then
               begin
-                ss := fTask.uidtext;
-                if fTask.IsNotifyTask then
-                  TaskReady(fTask);
+                try
+                  ss := fTask.uidtext;
+                except
+                  on E: Exception do
+                  begin
+                    Debug(dpError, section, Format('[AV-DEBUG] RemoveReady fTask.uidtext access failed for %s: %s', [fTask.Name, E.Message]));
+                    ss := '';
+                  end;
+                end;
+
+                try
+                  if fTask.IsNotifyTask then
+                    TaskReady(fTask);
+                except
+                  on E: Exception do
+                  begin
+                    Debug(dpError, section, Format('[AV-DEBUG] RemoveReady TaskReady failed for %s: %s', [fTask.Name, E.Message]));
+                  end;
+                end;
 
                 if (fTask.ClassType = TPazoRaceTask) then
                 begin
                   try
                     with TPazoRaceTask(fTask) do
                       if (dst <> nil) then
-                        dst.event.SetEvent;
+                        try
+                          dst.event.SetEvent;
+                        except
+                          on E: Exception do
+                          begin
+                            Debug(dpError, section, Format('[AV-DEBUG] RemoveReady dst.event.SetEvent failed for %s: %s', [fTask.Name, E.Message]));
+                          end;
+                        end;
                   except
                     on E: Exception do
                     begin
-                      Debug(dpError, section, Format('[WARNING] RemoveReady dst event failed for %s: %s', [fTask.Name, E.Message]));
+                      Debug(dpError, section, Format('[AV-DEBUG] RemoveReady dst access failed for %s: %s', [fTask.Name, E.Message]));
                     end;
                   end;
                 end;
-                ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
+
                 try
-                  fList.Remove(fTask);
-                finally
-                  ts.ReleaseSlotsAssignmentLock;
+                  ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
+                  try
+                    fList.Remove(fTask);
+                  finally
+                    ts.ReleaseSlotsAssignmentLock;
+                  end;
+                except
+                  on E: Exception do
+                  begin
+                    Debug(dpError, section, Format('[AV-DEBUG] RemoveReady fList.Remove failed for %s: %s', [fTask.Name, E.Message]));
+                  end;
                 end;
-                Console_QueueDel(ss);
+
+                try
+                  Console_QueueDel(ss);
+                except
+                  on E: Exception do
+                  begin
+                    Debug(dpError, section, Format('[AV-DEBUG] RemoveReady Console_QueueDel failed for %s: %s', [fTask.Name, E.Message]));
+                  end;
+                end;
               end;
             end;
           except
             on e: Exception do
             begin
-              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady): %s', [e.Message]));
+              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady fallback): %s', [e.Message]));
               Continue;
             end;
           end;
