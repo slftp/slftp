@@ -6,7 +6,7 @@ uses
   Classes, SysUtils, SyncObjs, Generics.Collections, Math,
   mormot.core.base, mormot.core.json, mormot.core.buffers,
   mormot.net.client, mormot.net.http,
-  slcriticalsection2,
+  slcriticalsection2, slstack,
   uLkJSON;
 
 type
@@ -56,6 +56,23 @@ type
   end;
 
   { Background thread that maintains persistent connection to cbftp /events endpoint }
+  { Background thread that listens for cbftp events via UDP push }
+  TCbftpUdpEventThread = class(TThread)
+  private
+    FPort: Integer;
+    FQueue: TCbftpEventQueue;
+    FOnEvent: TCbftpEventCallback;
+    procedure ProcessEvents;
+  protected
+    procedure Execute; override;
+  public
+    constructor Create(aPort: Integer);
+    destructor Destroy; override;
+    property Queue: TCbftpEventQueue read FQueue;
+    property OnEvent: TCbftpEventCallback read FOnEvent write FOnEvent;
+  end;
+
+  { Background thread that maintains persistent connection to cbftp /events endpoint }
   TCbftpEventThread = class(TThread)
   private
     FHost: RawUtf8;
@@ -69,7 +86,6 @@ type
     FOnEvent: TCbftpEventCallback;
 
     function GetAuthHeader: RawUtf8;
-    function ParseEvent(const aJson: RawUtf8): TCbftpEvent;
     procedure ProcessEvents;
   protected
     procedure Execute; override;
@@ -83,12 +99,17 @@ type
 
 var
   GlCbftpEventThread: TCbftpEventThread = nil;
+  GlCbftpUdpEventThread: TCbftpUdpEventThread = nil;
   GlCbftpEventThreadLock: TSLCriticalSection2;
   GlCbftpEventHandler: TCbftpEventCallback;
 
 procedure CbftpEventsStart(const aHost: RawUtf8; aPort: Integer; const aPassword: RawUtf8);
 procedure CbftpEventsStop;
 function CbftpEventsRunning: Boolean;
+
+procedure CbftpUdpEventsStart(aPort: Integer);
+procedure CbftpUdpEventsStop;
+function CbftpUdpEventsRunning: Boolean;
 
 { Register a global event handler. Will be applied to current and future event threads. }
 procedure CbftpEventsSetHandler(const aHandler: TCbftpEventCallback);
@@ -209,7 +230,7 @@ begin
   Result := 'Basic ' + credentials;
 end;
 
-function TCbftpEventThread.ParseEvent(const aJson: RawUtf8): TCbftpEvent;
+function CbftpParseEvent(const aJson: RawUtf8): TCbftpEvent;
 
   function _GetStr(const aObj: TlkJSONObject; const aKey: String): String;
   var
@@ -354,6 +375,89 @@ begin
     end;
   finally
     obj.Free;
+  end;
+end;
+
+{ TCbftpUdpEventThread }
+
+constructor TCbftpUdpEventThread.Create(aPort: Integer);
+begin
+  inherited Create(False);
+  FreeOnTerminate := False;
+  FPort := aPort;
+  FQueue := TCbftpEventQueue.Create;
+end;
+
+destructor TCbftpUdpEventThread.Destroy;
+begin
+  Terminate;
+  WaitFor;
+  FreeAndNil(FQueue);
+  inherited;
+end;
+
+procedure TCbftpUdpEventThread.ProcessEvents;
+var
+  event: TCbftpEvent;
+begin
+  while FQueue.Dequeue(event) do
+  begin
+    if Assigned(FOnEvent) then
+    begin
+      try
+        FOnEvent(event);
+      except
+        on E: Exception do
+          Debug(dpError, section, Format('UDP event callback error: %s', [E.Message]));
+      end;
+    end;
+  end;
+end;
+
+procedure TCbftpUdpEventThread.Execute;
+var
+  slSock: TslSocket;
+  error: String;
+  buf: array[0..8191] of AnsiChar;
+  recvLen: Integer;
+  jsonStr: RawUtf8;
+  event: TCbftpEvent;
+begin
+  if not slGetSocket(slSock, True, error) then
+  begin
+    Debug(dpError, section, Format('UDP socket create failed: %s', [error]));
+    Exit;
+  end;
+  try
+    if not slBind(slSock, '0.0.0.0', FPort, error) then
+    begin
+      Debug(dpError, section, Format('UDP bind failed on port %d: %s', [FPort, error]));
+      Exit;
+    end;
+
+    Debug(dpMessage, section, Format('UDP event server listening on port %d', [FPort]));
+
+    while not Terminated do
+    begin
+      if not slSelect(slSock, 500, True, False, error) then
+        Continue;
+
+      recvLen := slRecv(slSock, buf, SizeOf(buf) - 1, error);
+      if recvLen <= 0 then
+        Continue;
+
+      buf[recvLen] := #0;
+      jsonStr := RawUtf8(PAnsiChar(@buf));
+
+      event := CbftpParseEvent(jsonStr);
+      if event.EventType <> cetHeartbeat then
+      begin
+        FQueue.Enqueue(event);
+        Synchronize(ProcessEvents);
+      end;
+    end;
+  finally
+    slClose(slSock);
   end;
 end;
 
@@ -509,7 +613,7 @@ begin
             Sleep(1000);
             Continue;
           end;
-          FQueue.Enqueue(ParseEvent(eventJson));
+          FQueue.Enqueue(CbftpParseEvent(eventJson));
           Synchronize(ProcessEvents);
           // Long-polling: immediately make next request on success
           Continue;
@@ -585,6 +689,46 @@ begin
   end;
 end;
 
+procedure CbftpUdpEventsStart(aPort: Integer);
+begin
+  GlCbftpEventThreadLock.Enter('CbftpUdpEventsStart');
+  try
+    if GlCbftpUdpEventThread <> nil then
+      Exit;
+    GlCbftpUdpEventThread := TCbftpUdpEventThread.Create(aPort);
+    if Assigned(GlCbftpEventHandler) then
+      GlCbftpUdpEventThread.OnEvent := GlCbftpEventHandler;
+    Debug(dpMessage, section, Format('cbftp UDP event thread started on port %d', [aPort]));
+  finally
+    GlCbftpEventThreadLock.Leave;
+  end;
+end;
+
+procedure CbftpUdpEventsStop;
+begin
+  GlCbftpEventThreadLock.Enter('CbftpUdpEventsStop');
+  try
+    if GlCbftpUdpEventThread = nil then
+      Exit;
+    GlCbftpUdpEventThread.Terminate;
+    GlCbftpUdpEventThread.WaitFor;
+    FreeAndNil(GlCbftpUdpEventThread);
+    Debug(dpMessage, section, 'cbftp UDP event thread stopped');
+  finally
+    GlCbftpEventThreadLock.Leave;
+  end;
+end;
+
+function CbftpUdpEventsRunning: Boolean;
+begin
+  GlCbftpEventThreadLock.Enter('CbftpUdpEventsRunning');
+  try
+    Result := (GlCbftpUdpEventThread <> nil) and not GlCbftpUdpEventThread.Terminated;
+  finally
+    GlCbftpEventThreadLock.Leave;
+  end;
+end;
+
 procedure CbftpEventsSetHandler(const aHandler: TCbftpEventCallback);
 begin
   GlCbftpEventThreadLock.Enter('CbftpEventsSetHandler');
@@ -592,6 +736,8 @@ begin
     GlCbftpEventHandler := aHandler;
     if Assigned(GlCbftpEventThread) then
       GlCbftpEventThread.OnEvent := aHandler;
+    if Assigned(GlCbftpUdpEventThread) then
+      GlCbftpUdpEventThread.OnEvent := aHandler;
   finally
     GlCbftpEventThreadLock.Leave;
   end;
@@ -602,6 +748,7 @@ initialization
 
 finalization
   CbftpEventsStop;
+  CbftpUdpEventsStop;
   FreeAndNil(GlCbftpEventThreadLock);
 
 end.
