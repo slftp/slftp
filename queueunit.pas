@@ -495,22 +495,6 @@ begin
       exit;
     end;
 
-    if s2.UploadCooldownActive then
-    begin
-      if not fBusyDestinations.ContainsKey(s2) then
-        fBusyDestinations.Add(s2, 0);
-      Debug(dpSpam, section, '[TRANSFER COOLDOWN] Destination site %s: upload cooldown active, skipping %s',
-        [s2.Name, t.FullName]);
-      exit;
-    end;
-
-    if s1.DownloadCooldownActive then
-    begin
-      Debug(dpSpam, section, '[TRANSFER COOLDOWN] Source site %s: download cooldown active, skipping %s',
-        [s1.Name, t.FullName]);
-      exit;
-    end;
-
     if fBusyDestinations.ContainsKey(s2) then
     begin
       Debug(dpSpam, section, 'Destination site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
@@ -1012,7 +996,7 @@ var
   fTask:    TTask;
   tpr, i_tpr: TPazoRaceTask;
   tpd, i_tpd: TPazoDirlistTask;
-  //tpsfv, i_tpsfv: TPazoSiteSfvTask;
+  tpsfv, i_tpsfv: TPazoSiteSfvTask;
   tpm, i_tpm: TPazoMkdirTask;
   tpl, i_tpl: TLoginTask;
   fListIndex: Integer;
@@ -1197,9 +1181,53 @@ begin
     exit;
   end;
 
-  // SFV duplicate tasks are by design: CreateReattemptTask recreates
-  // when another site is downloading the SFV. IsReadyToBeExecuted
-  // already gates slot assignment (skips when SFV loaded or download running).
+  if (t is TPazoSiteSfvTask) then
+  begin
+    try
+      tpsfv := TPazoSiteSfvTask(t);
+      main_lock.Enter('TaskAlreadyInQueue5');
+      try
+        for fListIndex := 0 to 1 do
+        begin
+          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+          for fTask in fList do
+          begin
+            try
+              if (fTask is TPazoSiteSfvTask) then
+              begin
+                i_tpsfv := TPazoSiteSfvTask(fTask);
+                if ((i_tpsfv.ready = False) and (i_tpsfv.readyerror = False) and
+                  (i_tpsfv.slot1 = nil) and (i_tpsfv.pazo_id = tpsfv.pazo_id) and
+                  (i_tpsfv.site1 = tpsfv.site1) and
+                  (i_tpsfv.Dir = tpsfv.Dir) and
+                  (i_tpsfv.SFVFilename = tpsfv.SFVFilename)) then
+                begin
+                  Result := True;
+                  exit;
+                end;
+              end;
+            except
+              on E: Exception do
+              begin
+                Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoSiteSfvTask (loop) : %s', [e.Message]));
+                continue;
+              end;
+            end;
+          end;
+        end;
+      finally
+        main_lock.Leave;
+      end;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoSiteSfvTask : %s', [e.Message]));
+        Result := False;
+        exit;
+      end;
+    end;
+    exit;
+  end;
 end;
 
 function TQueueThread.GetPendingRaceTasksToDestination(const aDestinationSiteName: String): integer;
