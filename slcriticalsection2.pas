@@ -3,7 +3,7 @@ unit slcriticalsection2;
 interface
 
 uses
-  SyncObjs, Generics.Collections, sltimer, Generics.Defaults, mormot.core.os;
+  SyncObjs, Generics.Collections, sltimer, Generics.Defaults;
 
 {
   TslCriticalSection
@@ -17,7 +17,7 @@ type
   TslCriticalSection2 = class
   private
     FInternalCriticalSection: TCriticalSection;
-    FEvent: TSynEvent;
+    FEvent: TEvent;
     FLockCount: integer;
     FLockOwningThreadID: TThreadID;
     FName, FCurrentCodeSegmentName: string;
@@ -190,8 +190,7 @@ implementation
       end;
 
       FUseTimeoutLocking := True;
-      FEvent := TSynEvent.Create;
-      FEvent.SetEvent; { Initially signaled — first waiter acquires immediately }
+      FEvent := TEvent.Create(nil, False, True, 'SLFTP_' + aName); { auto-reset, initially signaled }
       FLockCount := 0;
       FLockOwningThreadID := 0;
       FCurrentCodeSegmentName := '';
@@ -289,20 +288,29 @@ implementation
         end
         else
         begin
-          if FEvent.WaitFor(aTimeoutMs) then
-          begin
-            FEvent.ResetEvent;
-            FLockOwningThreadID := GetCurrentThreadId;
+          case FEvent.WaitFor(aTimeoutMs) of
+            wrSignaled:
+            begin
+              FLockOwningThreadID := GetCurrentThreadId;
             Result := True;
             FLockOwnerNameStack.Push(aLockOwnerName);
           end
-          else
-          begin
-            if aRaiseExceptionOnFail then
+            wrTimeout:
+            begin
+              if aRaiseExceptionOnFail then
             begin
               raise Exception.Create(Format('Unable to acquire lock ''%s'' (%s) by %s thread within %d ms. Lock is held by thread %s (%d) - %s (%s)', [FName, aLockOwnerName, IntToHex(GetCurrentThreadId, 4), aTimeoutMs, IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName, FCurrentCodeSegmentName]));
             end;
-            Result := False;
+              Result := False;
+            end;
+            wrError:
+            begin
+              raise Exception.Create(Format('TEvent WaitFor returned wrError for lock ''%s'' (%s)', [FName, aLockOwnerName]));
+            end;
+            wrAbandoned:
+            begin
+              raise Exception.Create(Format('TEvent WaitFor returned wrAbandoned for lock ''%s'' (%s)', [FName, aLockOwnerName]));
+            end;
           end;
         end;
 
