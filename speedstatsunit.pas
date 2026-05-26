@@ -40,7 +40,11 @@ var
 implementation
 
 uses
-  irc, sitesunit, Debugunit, mystrings, configunit, encinifile, Math, IdGlobal, slcriticalsection2, routeconfig;
+  irc, sitesunit, Debugunit, mystrings, configunit, encinifile, Math, IdGlobal, slcriticalsection2, routeconfig
+  {$IFNDEF MSWINDOWS}
+  , slconsole
+  {$ENDIF}
+  ;
 
 const
   r_section = 'speedstats';
@@ -581,31 +585,31 @@ var
   i: Integer;
   s: TSpeedStat;
 begin
-  Debug(dpMessage, r_section, 'SpeedStatsStart: creating TEncStringList...');
+  console_addline('Admin', 'SpeedStatsStart: creating TEncStringList...');
   x := TEncStringlist.Create(passphrase);
   try
-    Debug(dpMessage, r_section, 'SpeedStatsStart: entering speedstatlock...');
+    console_addline('Admin', 'SpeedStatsStart: entering speedstatlock...');
     speedstatlock.Enter('SpeedStatsStart');
     try
-      Debug(dpMessage, r_section, 'SpeedStatsStart: lock acquired, loading file...');
+      console_addline('Admin', 'SpeedStatsStart: lock acquired, loading file...');
       x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.speedstats');
-      Debug(dpMessage, r_section, Format('SpeedStatsStart: loaded %d entries', [x.Count]));
+      console_addline('Admin', Format('SpeedStatsStart: loaded %d entries', [x.Count]));
       for i := 0 to x.Count - 1 do
       begin
-        Debug(dpMessage, r_section, Format('SpeedStatsStart: processing entry %d/%d...', [i+1, x.Count]));
+        console_addline('Admin', Format('SpeedStatsStart: processing entry %d/%d...', [i+1, x.Count]));
         s := TSpeedStat.Create(x[i]);
         SpeedStatAdd(s, True);
       end;
-      Debug(dpMessage, r_section, 'SpeedStatsStart: done processing entries');
+      console_addline('Admin', 'SpeedStatsStart: done processing entries');
     finally
       speedstatlock.Leave;
-      Debug(dpMessage, r_section, 'SpeedStatsStart: lock released');
+      console_addline('Admin', 'SpeedStatsStart: lock released');
     end;
   finally
     x.Free;
-    Debug(dpMessage, r_section, 'SpeedStatsStart: TEncStringList freed');
+    console_addline('Admin', 'SpeedStatsStart: TEncStringList freed');
   end;
-  Debug(dpMessage, r_section, 'SpeedStatsStart: COMPLETE');
+  console_addline('Admin', 'SpeedStatsStart: COMPLETE');
 end;
 
 { TSpeedStat }
