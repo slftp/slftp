@@ -40,11 +40,7 @@ var
 implementation
 
 uses
-  irc, sitesunit, Debugunit, mystrings, configunit, encinifile, Math, IdGlobal, slcriticalsection2, routeconfig
-  {$IFNDEF MSWINDOWS}
-  , console
-  {$ENDIF}
-  ;
+  irc, sitesunit, Debugunit, mystrings, configunit, encinifile, Math, IdGlobal, slcriticalsection2, routeconfig;
 
 const
   r_section = 'speedstats';
@@ -585,31 +581,22 @@ var
   i: Integer;
   s: TSpeedStat;
 begin
-  console_addline('Admin', 'SpeedStatsStart: creating TEncStringList...');
   x := TEncStringlist.Create(passphrase);
   try
-    console_addline('Admin', 'SpeedStatsStart: entering speedstatlock...');
     speedstatlock.Enter('SpeedStatsStart');
     try
-      console_addline('Admin', 'SpeedStatsStart: lock acquired, loading file...');
       x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.speedstats');
-      console_addline('Admin', Format('SpeedStatsStart: loaded %d entries', [x.Count]));
       for i := 0 to x.Count - 1 do
       begin
-        console_addline('Admin', Format('SpeedStatsStart: processing entry %d/%d...', [i+1, x.Count]));
         s := TSpeedStat.Create(x[i]);
         SpeedStatAdd(s, True);
       end;
-      console_addline('Admin', 'SpeedStatsStart: done processing entries');
     finally
       speedstatlock.Leave;
-      console_addline('Admin', 'SpeedStatsStart: lock released');
     end;
   finally
     x.Free;
-    console_addline('Admin', 'SpeedStatsStart: TEncStringList freed');
   end;
-  console_addline('Admin', 'SpeedStatsStart: COMPLETE');
 end;
 
 { TSpeedStat }
