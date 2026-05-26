@@ -6,12 +6,12 @@ unit kb;
 interface
 
 uses
-  Classes, SyncObjs, slcriticalsection2, kb.releaseinfo, pazo;
+  Classes, SyncObjs, slcriticalsection2, kb.releaseinfo, pazo, mormot.core.os;
 
 type
   TKBThread = class(TThread)
   private
-    kbevent: TEvent;
+    kbevent: TSynEvent;
     function AddCompleteTransfers(pazo: Pointer): boolean;
   public
     constructor Create;
@@ -1444,7 +1444,7 @@ begin
     NameThreadForDebugging('KB', self.ThreadID);
   {$ENDIF}
   FreeOnTerminate := True;
-  kbevent := TEvent.Create(nil, False, False, 'kb');
+  kbevent := TSynEvent.Create;
 end;
 
 destructor TKBThread.Destroy;

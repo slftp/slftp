@@ -3,7 +3,7 @@ unit slcriticalsection;
 interface
 
 uses
-  SyncObjs, Contnrs;
+  SyncObjs, Contnrs, mormot.core.os;
 
 type
   TslCriticalSection = class
@@ -49,7 +49,7 @@ begin
   l.Enter;
   try
     for i := 0 to w.Count - 1 do
-      TEvent(w[i]).SetEvent;
+      TSynEvent(w[i]).SetEvent;
   finally
     l.Leave;
   end;
@@ -86,7 +86,7 @@ label
   ujra;
 var
   procId: TThreadID;
-  event: TEvent;
+  event: TSynEvent;
 begin
   Result := False;
   procId := GetCurrentThreadId;
@@ -107,26 +107,27 @@ ujra:
   else
   begin
     inc(ec);
-    event := TEvent.Create(nil, False, False, Format('%d-%s-%s', [ec, name, sname]));
+    event := TSynEvent.Create;
     w.Add(event);
     l.Leave;
     try
       try
-        case event.WaitFor(30 * 1000) of
-          wrSignaled : { Event fired. Normal exit. }
+        if event.WaitFor(30 * 1000) then
+        begin { Event fired. Normal exit. }
+          l.Enter;
+          w.Remove(event);
+          l.Leave;
+        end
+        else { Timeout reached }
+        begin
+          Debug(dpError, 'criticalSection', 'TslCriticalSection.Enter: Force Leave (%d) Timeout 30sec: %s (%s)', [procId, name, sname]);
+          l.Enter;
+          w.Remove(event);
+          l.Leave;
+          if w.Count > 0 then
           begin
-            l.Enter;
-            w.Remove(event);
-            l.Leave;
-          end;
-          else { Timeout reach }
-          begin
-            Debug(dpError, 'criticalSection', 'TslCriticalSection.Enter: Force Leave (%d) Timeout 30sec: %s (%s)', [procId, name, sname]);
-            l.Enter;
-            w.Remove(event);
-            l.Leave;
-            if w.Count > 0 then
-              TEvent(w[0]).SetEvent;
+            TSynEvent(w[0]).SetEvent;
+            TSynEvent(w[0]).ResetEvent;
           end;
         end;
       finally
@@ -158,7 +159,10 @@ begin
           rc := 0;
           rt := 0;
           if w.Count > 0 then
-            TEvent(w[0]).SetEvent;
+          begin
+            TSynEvent(w[0]).SetEvent;
+            TSynEvent(w[0]).ResetEvent;
+          end;
         end;
       end;
     finally

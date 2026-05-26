@@ -3,7 +3,7 @@ unit queueunit;
 interface
 
 uses
-  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection2, pazo, taskidle, taskquit, tasklogin, RegExpr, taskautoindex, taskrules, taskautodirlist, taskautonuke, Generics.Collections, IdThreadSafe;
+  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection2, pazo, taskidle, taskquit, tasklogin, RegExpr, taskautoindex, taskrules, taskautodirlist, taskautonuke, Generics.Collections, IdThreadSafe, mormot.core.os;
 
 
 type TQueueStat = class
@@ -33,7 +33,7 @@ type
   private
   tasks:      TObjectList;
   waiting_tasks: TObjectList;
-  queueevent: TEvent;
+  queueevent: TSynEvent;
   fSiteName: String;
   fSite: TObject;
   fBusyDestinations: TDictionary<TObject, integer>;
@@ -576,7 +576,7 @@ begin
     main_lock := TSLCriticalSection2.Create('Queue_' + aSiteName);
     tasks := TObjectList.Create(True);
     waiting_tasks := TObjectList.Create(True);
-    queueevent := TEvent.Create(nil, False, False, 'SLFTP_queue_event_' + aSiteName);
+    queueevent := TSynEvent.Create;
     queue_last_run := Now;
     queueclean_last_run := Now;
     queue_last_stat_update := Now;
@@ -2105,15 +2105,14 @@ begin
       continue;
     end;
 
-    case queueevent.WaitFor(fWaitTimerTimeout) of
-      wrSignaled: { Event fired. Normal exit. }
-      begin
-        //Debug(dpSpam, section, Format('[QUEUEFIRE received : %s', [ts.Name]));
-      end;
-      else { Timeout reached — either startat task or 60s safety cap }
-      begin
-        // Nothing to log here; timeout is expected for delayed tasks
-      end;
+    if queueevent.WaitFor(fWaitTimerTimeout) then
+    begin
+      { Event fired. Normal exit. }
+      //Debug(dpSpam, section, Format('[QUEUEFIRE received : %s', [ts.Name]));
+    end
+    else { Timeout reached — either startat task or 60s safety cap }
+    begin
+      // Nothing to log here; timeout is expected for delayed tasks
     end;
   end;
 end;
