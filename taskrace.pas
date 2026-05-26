@@ -80,7 +80,7 @@ uses
   Classes, Contnrs, StrUtils, kb, sitesunit, configunit, taskdel, DateUtils,
   SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc,
   midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news, dirlist.helpers,
-  globals, Math;
+  globals, Math, taskmetrics;
 
 const
   c_section = 'taskrace';
@@ -199,12 +199,28 @@ var
   ps: TPazoSite;
   fDestination: TDestinationRank;
   secondsWithNoChange, secondsSinceStart, secondsSinceCompleted: Int64;
+  fDirlistStart: Int64;
+  fQueueWaitMs: Int32;
+  fDirlistDuration: Int32;
+  fDirlistOnlyStart: Int64;
+  fDirlistOnlyDuration: Int32;
+  fReachedDirlist: Boolean;
+  fDirlistSuccess: Boolean;
 begin
-  numerrors := 0;
-  Result := False;
-  s := slot;
-  tname := Name;
-  fSubDirlistTasks := nil;
+  fDirlistStart := GetTickCount64;
+  fDirlistOnlyDuration := 0;
+  fReachedDirlist := False;
+  fDirlistSuccess := False;
+  try
+    numerrors := 0;
+    Result := False;
+    s := slot;
+    tname := Name;
+    fSubDirlistTasks := nil;
+
+  // Record dirlist start for gap tracking
+  if (ClassType = TPazoDirlistTask) then
+    GetTaskMetrics().RecordDirlistStart(pazo_id, site1, dir);
 
   if mainpazo.stopped then
   begin
@@ -347,6 +363,8 @@ begin
 
   fAbsoluteDir := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
   // Trying to get the dirlist
+  fReachedDirlist := True;
+  fDirlistOnlyStart := GetTickCount64;
   if not s.Dirlist(fAbsoluteDir) then
   begin
     mainpazo.errorreason := Format('Cannot get the dirlist for source dir %s on %s.', [MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir, site1]);
@@ -459,12 +477,15 @@ begin
           goto TryAgain;
         end;
     end;
+    fDirlistOnlyDuration := Integer(GetTickCount64 - fDirlistOnlyStart);
   end
   else
   begin
     if GlDirlistCompletedCounter <> nil then
       GlDirlistCompletedCounter.Increment;
 
+    fDirlistOnlyDuration := Integer(GetTickCount64 - fDirlistOnlyStart);
+    fDirlistSuccess := True;
     try
       itwasadded := ps1.ParseDirlist(netname, channel, dir, s.lastResponse, is_pre);
     except
@@ -721,10 +742,55 @@ begin
     end;
   end;
 
+  // Record dirlist end for gap tracking
+  if (ClassType = TPazoDirlistTask) then
+    GetTaskMetrics().RecordDirlistEnd(pazo_id, site1, dir);
+
   Debug(dpSpam, c_section, '<-- ' + tname);
 
   Result := True;
   ready := True;
+  finally
+    fDirlistDuration := Integer(GetTickCount64 - fDirlistStart);
+    fQueueWaitMs := Integer(MilliSecondsBetween(created, assigned));
+    GetTaskMetrics().RecordTaskEvent(
+      mttDirlist,
+      site1,
+      pazo_id,
+      dir,
+      fDirlistDuration,
+      fQueueWaitMs,
+      readyerror
+    );
+    if fReachedDirlist then
+    begin
+      GetTaskMetrics().RecordTaskEvent(
+        mttDirlistFull,
+        site1,
+        pazo_id,
+        dir,
+        fDirlistDuration,
+        fQueueWaitMs,
+        readyerror
+      );
+    end;
+    if fDirlistSuccess then
+    begin
+      GetTaskMetrics().RecordTaskEvent(
+        mttDirlistSuccess,
+        site1,
+        pazo_id,
+        dir,
+        fDirlistDuration,
+        fQueueWaitMs,
+        readyerror
+      );
+    end;
+    // Log extreme values for debugging — helps identify why averages look wrong
+    if (fDirlistDuration < 5) or (fDirlistDuration > 30000) then
+      Debug(dpError, c_section, '[DIRLIST_TIMING] %s: duration=%dms dirlist_only=%dms qwait=%dms readyerror=%s reached_dirlist=%s',
+        [tname, fDirlistDuration, fDirlistOnlyDuration, fQueueWaitMs, BoolToStr(readyerror, True), BoolToStr(fReachedDirlist, True)]);
+  end;
 end;
 
 function TPazoDirlistTask.Name: String;

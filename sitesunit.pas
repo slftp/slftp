@@ -787,7 +787,7 @@ implementation
 uses
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
-  dirlist.helpers, tags, Generics.Defaults;
+  dirlist.helpers, tags, Generics.Defaults, taskmetrics, mormot.core.os;
 
 const
   section = 'sites';
@@ -1577,6 +1577,10 @@ var
   fSite: TSite;
   fQueueThread: TQueueThread;
   fPendingCount: Integer;
+  fTaskStart: Int64;
+  fTaskType: TMetricsTaskType;
+  fPazoID: Integer;
+  fDir: String;
 begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
   tname := 'nil';
@@ -1601,6 +1605,31 @@ begin
         Debug(dpSpam, section, Format('--> %s', [Name]));
 
         try
+          // Record timing metrics for race/mkdir tasks (dirlist has its own
+          // precise instrumentation inside TPazoDirlistTask.Execute)
+          fTaskType := mttOther;
+          fPazoID := 0;
+          fDir := '';
+          if (todotask is TPazoTask) then
+          begin
+            if not (todotask is TPazoDirlistTask) then
+              fTaskStart := GetTickCount64;
+            fPazoID := TPazoTask(todotask).pazo_id;
+
+            if (todotask is TPazoRaceTask) then
+              fTaskType := mttRace
+            else if (todotask is TPazoDirlistTask) then
+            begin
+              fTaskType := mttDirlist;
+              fDir := TPazoDirlistTask(todotask).dir;
+            end
+            else if (todotask is TPazoMkdirTask) then
+            begin
+              fTaskType := mttMkdir;
+              fDir := TPazoMkdirTask(todotask).dir;
+            end;
+          end;
+
           if todotask.Execute(self) then
           begin
             LastTaskExecution := Now();
@@ -1617,6 +1646,21 @@ begin
             begin
               LastNonIdleTaskExecution := LastTaskExecution;
             end;
+          end;
+
+          // Record timing metrics for race/mkdir tasks (dirlist has its own
+          // precise instrumentation inside TPazoDirlistTask.Execute)
+          if (todotask is TPazoTask) and not (todotask is TPazoDirlistTask) then
+          begin
+            GetTaskMetrics().RecordTaskEvent(
+              fTaskType,
+              site.Name,
+              fPazoID,
+              fDir,
+              Integer(GetTickCount64 - fTaskStart),
+              Integer(MilliSecondsBetween(todotask.created, todotask.assigned)),
+              todotask.readyerror
+            );
           end;
         except
           on E: Exception do
