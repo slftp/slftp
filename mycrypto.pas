@@ -24,6 +24,8 @@ uses
   mormot.lib.openssl11, slcriticalsection2
   {$IFDEF FPC}
   , DynLibs
+  {$ELSE}
+  , Winapi.Windows
   {$ENDIF}
   ;
 
