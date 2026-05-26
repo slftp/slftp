@@ -4,9 +4,10 @@ interface
 
 uses
   Classes, SysUtils, SyncObjs, Generics.Collections, Math,
-  mormot.core.base, mormot.core.variants, mormot.core.json, mormot.core.buffers,
+  mormot.core.base, mormot.core.json, mormot.core.buffers,
   mormot.net.client, mormot.net.http,
-  slcriticalsection2;
+  slcriticalsection2,
+  uLkJSON;
 
 type
   TCbftpEventType = (
@@ -209,89 +210,150 @@ begin
 end;
 
 function TCbftpEventThread.ParseEvent(const aJson: RawUtf8): TCbftpEvent;
+
+  function _GetStr(const aObj: TlkJSONObject; const aKey: String): String;
+  var
+    f: TlkJSONbase;
+  begin
+    if aObj = nil then
+    begin
+      Result := '';
+      Exit;
+    end;
+    f := aObj.Field[aKey];
+    if (f <> nil) and (f.SelfType <> jsNull) then
+      Result := f.Value
+    else
+      Result := '';
+  end;
+
+  function _GetInt(const aObj: TlkJSONObject; const aKey: String): Int64;
+  var
+    f: TlkJSONbase;
+  begin
+    if aObj = nil then
+    begin
+      Result := 0;
+      Exit;
+    end;
+    f := aObj.Field[aKey];
+    if (f <> nil) and (f.SelfType <> jsNull) then
+      Result := StrToInt64Def(f.Value, 0)
+    else
+      Result := 0;
+  end;
+
+  function _GetDouble(const aObj: TlkJSONObject; const aKey: String): Double;
+  var
+    f: TlkJSONbase;
+  begin
+    if aObj = nil then
+    begin
+      Result := 0;
+      Exit;
+    end;
+    f := aObj.Field[aKey];
+    if (f <> nil) and (f.SelfType <> jsNull) then
+      Result := StrToFloatDef(f.Value, 0)
+    else
+      Result := 0;
+  end;
+
 var
-  doc: TDocVariantData;
-  eventType: RawUtf8;
-  data: PDocVariantData;
-  dv: TDocVariantData;
+  js: TlkJSONbase;
+  obj: TlkJSONObject;
+  eventType: String;
 begin
   FillChar(Result, SizeOf(Result), 0);
 
-  if not doc.InitJson(aJson) then
-  begin
-    Debug(dpError, section, 'Failed to parse event JSON');
-    Exit;
+  try
+    js := TlkJSON.ParseText(AnsiString(aJson));
+    if js = nil then
+    begin
+      Debug(dpError, section, 'Failed to parse event JSON');
+      Exit;
+    end;
+    if not (js is TlkJSONObject) then
+    begin
+      js.Free;
+      Debug(dpError, section, 'Event JSON is not an object');
+      Exit;
+    end;
+    obj := TlkJSONObject(js);
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('JSON parse error: %s', [E.Message]));
+      Exit;
+    end;
   end;
 
-  // cbftp >= e477d2c sends: {"event": "...", ...} (flat, no "data" wrapper)
-  // older cbftp sent:      {"type": "...", "data": {...}}
-  eventType := doc.U['event'];
-  if eventType = '' then
-    eventType := doc.U['type'];
+  try
+    // cbftp >= e477d2c sends: {"event": "...", ...} (flat, no "data" wrapper)
+    eventType := _GetStr(obj, 'event');
+    if eventType = '' then
+      eventType := _GetStr(obj, 'type');
 
-  data := doc.A_['data'];
-  if data <> nil then
-    dv := data^          // legacy format: fields inside "data"
-  else
-    dv := doc;           // new format: fields directly in root object
-
-  if eventType = 'race_started' then
-  begin
-    Result.EventType := cetRaceStarted;
-    Result.Name := dv.U['name'];
-    Result.Section := dv.U['section'];
-    Result.Timestamp := dv.I['timestamp'];
-  end
-  else if eventType = 'race_progress' then
-  begin
-    Result.EventType := cetRaceProgress;
-    Result.Name := dv.U['name'];
-    Result.Site := dv.U['site'];
-    Result.FilesTotal := dv.I['files_total'];
-    Result.FilesDone := dv.I['files_done'];
-    Result.BytesTotal := dv.I['bytes_total'];
-    Result.BytesDone := dv.I['bytes_done'];
-    Result.SpeedMbps := dv.D['speed_mbps'];
-    Result.Timestamp := dv.I['timestamp'];
-  end
-  else if eventType = 'race_completed' then
-  begin
-    Result.EventType := cetRaceCompleted;
-    Result.Name := dv.U['name'];
-    Result.Site := dv.U['site'];
-    Result.TimeSpentSeconds := dv.I['time_spent_seconds'];
-    Result.Timestamp := dv.I['timestamp'];
-  end
-  else if eventType = 'race_done' then
-  begin
-    Result.EventType := cetRaceDone;
-    Result.Name := dv.U['name'];
-    Result.Status := dv.U['status'];
-    Result.Timestamp := dv.I['timestamp'];
-  end
-  else if eventType = 'speed_sample' then
-  begin
-    Result.EventType := cetSpeedSample;
-    Result.Name := dv.U['job_name'];
-    Result.SrcSite := dv.U['src_site'];
-    Result.DstSite := dv.U['dst_site'];
-    Result.Filename := dv.U['filename'];
-    Result.SpeedMbps := dv.D['speed_mbps'];
-    Result.FileSize := dv.I['file_size'];
-    Result.Timestamp := dv.I['timestamp'];
-  end
-  else if eventType = 'nfo_available' then
-  begin
-    Result.EventType := cetNfoAvailable;
-    Result.Name := dv.U['release'];
-    Result.Site := dv.U['site'];
-    Result.Section := dv.U['path'];
-    Result.FileSize := dv.I['size'];
-    Result.Timestamp := dv.I['timestamp'];
-  end
-  else if eventType = 'heartbeat' then
-  begin
-    Result.EventType := cetHeartbeat;
+    if eventType = 'race_started' then
+    begin
+      Result.EventType := cetRaceStarted;
+      Result.Name := _GetStr(obj, 'name');
+      Result.Section := _GetStr(obj, 'section');
+      Result.Timestamp := _GetInt(obj, 'timestamp');
+    end
+    else if eventType = 'race_progress' then
+    begin
+      Result.EventType := cetRaceProgress;
+      Result.Name := _GetStr(obj, 'name');
+      Result.Site := _GetStr(obj, 'site');
+      Result.FilesTotal := _GetInt(obj, 'files_total');
+      Result.FilesDone := _GetInt(obj, 'files_done');
+      Result.BytesTotal := _GetInt(obj, 'bytes_total');
+      Result.BytesDone := _GetInt(obj, 'bytes_done');
+      Result.SpeedMbps := _GetDouble(obj, 'speed_mbps');
+      Result.Timestamp := _GetInt(obj, 'timestamp');
+    end
+    else if eventType = 'race_completed' then
+    begin
+      Result.EventType := cetRaceCompleted;
+      Result.Name := _GetStr(obj, 'name');
+      Result.Site := _GetStr(obj, 'site');
+      Result.TimeSpentSeconds := _GetInt(obj, 'time_spent_seconds');
+      Result.Timestamp := _GetInt(obj, 'timestamp');
+    end
+    else if eventType = 'race_done' then
+    begin
+      Result.EventType := cetRaceDone;
+      Result.Name := _GetStr(obj, 'name');
+      Result.Status := _GetStr(obj, 'status');
+      Result.Timestamp := _GetInt(obj, 'timestamp');
+    end
+    else if eventType = 'speed_sample' then
+    begin
+      Result.EventType := cetSpeedSample;
+      Result.Name := _GetStr(obj, 'job_name');
+      Result.SrcSite := _GetStr(obj, 'src_site');
+      Result.DstSite := _GetStr(obj, 'dst_site');
+      Result.Filename := _GetStr(obj, 'filename');
+      Result.SpeedMbps := _GetDouble(obj, 'speed_mbps');
+      Result.FileSize := _GetInt(obj, 'file_size');
+      Result.Timestamp := _GetInt(obj, 'timestamp');
+    end
+    else if eventType = 'nfo_available' then
+    begin
+      Result.EventType := cetNfoAvailable;
+      Result.Name := _GetStr(obj, 'release');
+      Result.Site := _GetStr(obj, 'site');
+      Result.Section := _GetStr(obj, 'path');
+      Result.FileSize := _GetInt(obj, 'size');
+      Result.Timestamp := _GetInt(obj, 'timestamp');
+    end
+    else if eventType = 'heartbeat' then
+    begin
+      Result.EventType := cetHeartbeat;
+    end;
+  finally
+    obj.Free;
   end;
 end;
 
