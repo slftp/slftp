@@ -21,6 +21,14 @@ type
     property Message: String read FMessage;
   end;
 
+  { @abstract(Callback type for hooking into IRC message output) }
+  TIrcLogHook = procedure(const Netname, Channel, Msg: String);
+
+var
+  { @abstract(Optional hook called for every IRC output message; used by API speed test monitoring) }
+  GlIrcLogHook: TIrcLogHook = nil;
+
+type
   TIRCChannroles = record
     Name: String;
     Description: String;
@@ -28,8 +36,8 @@ type
 
   TMyIrcThread = class(TslTCPThread)
   private
-    FSocketWriteLock: TSlCriticalSection2; //< Lock to protected the underlying write function of the socket to disallow concurrent access
-    FPendingMessagesQueue: TThreadList<TIrcEchoItem>; //< Queue of messages which still need to be send to IRC channels
+    FSocketWriteLock: TSlCriticalSection2;
+    FPendingMessagesQueue: TThreadList<TIrcEchoItem>;
 
     irc_last_read: TDateTime;
     registered: Boolean;
@@ -37,6 +45,7 @@ type
     lastservername: String;
     FCurrentIrcNick: String;
     flood: integer;
+    FConsecutiveFailures: Integer;
 
     function GetIrcSSL: Boolean;
 
@@ -189,6 +198,7 @@ const
 implementation
 
 uses
+  cbftpclient, mormot.core.unicode,
   StrUtils, {$IFDEF MSWINDOWS}Windows,{$ENDIF} debugunit, configunit, ircchansettings, irccolorunit, precatcher, console,
   socks5, versioninfo, mystrings, DateUtils, irccommandsunit, sitesunit, taskraw, queueunit, mainthread, dbaddpre,
   dbtvinfo, dbaddurl, dbaddimdb, dbaddgenre, news, irc.parse;
@@ -198,6 +208,7 @@ const
 
 var
   direct_echo, admin_forward_msgs, echo_kick_events, echo_join_part_events, echo_topic_change_events, echo_nick_change_events: boolean;
+  echo_timestamp_ms: boolean;
   irc_timeout, register_timeout, sleep_on_error: Integer;
 
 function FindIrcnetwork(const netname: String): TMyIrcThread;
@@ -238,6 +249,9 @@ var
   end;
 
 begin
+  if Assigned(GlIrcLogHook) then
+    GlIrcLogHook(netname, channel, msg);
+
   if slshutdown then
     exit;
 
@@ -596,6 +610,7 @@ begin
   irc_last_written := Now;
   shouldquit := False;
   shouldrestart := False;
+  FConsecutiveFailures := 0;
   flood := RCInt('flood', 333);
   console_add_ircwindow(aNetname);
 
@@ -1463,14 +1478,20 @@ end;
 procedure TMyIrcThread.IrcSendPrivMessage(const channel, plainmsg: String);
 var
   fChanSettingsObj: TIrcChannelSettings;
+  fMsg: String;
 begin
   irc_last_read := Now();
+
+  if echo_timestamp_ms then
+    fMsg := Format('[%s] %s', [FormatDateTime('hh:nn:ss.zzz', Now), plainmsg])
+  else
+    fMsg := plainmsg;
 
   if channel <> '' then
   begin
     fChanSettingsObj := FindIrcChannelSettings(netname, channel);
-    IrcWrite('PRIVMSG ' + channel + ' :' + fChanSettingsObj.EncryptMessage(plainmsg));
-    console_addline(netname + ' ' + channel, Format('[%s] <%s> %s', [FormatDateTime('hh:nn:ss', Now), FCurrentIrcNick, plainmsg]));
+    IrcWrite('PRIVMSG ' + channel + ' :' + fChanSettingsObj.EncryptMessage(fMsg));
+    console_addline(netname + ' ' + channel, Format('[%s] <%s> %s', [FormatDateTime('hh:nn:ss', Now), FCurrentIrcNick, fMsg]));
   end
   else
   begin
@@ -1523,12 +1544,19 @@ begin
   for i := 0 to sites.Count - 1 do
   begin
     s := sites[i] as TSite;
-    if ((s.RCString('ircnet', '') = netname) and (not s.siteinvited) and (not s.PermDown) and (s.UseAutoInvite)) then
+    if ((s.RCString('ircnet', '') = netname) and (not s.siteinvited) and (not s.PermDown or (GlCbftpClient <> nil)) and (s.UseAutoInvite)) then
     begin
       debug(dpSpam, section, '%s: Trying to issue SITE INVITE to join chans as %s', [netname, FCurrentIrcNick]);
       s.siteinvited := True;
-      r := TRawTask.Create('', '', s.name, '', 'SITE INVITE ' + FCurrentIrcNick);
-      AddTask(r, true);
+      if (GlCbftpClient <> nil) then
+      begin
+        GlCbftpClient.SendRawCommand('{"sites":["' + StringToUtf8(s.name) + '"],"command":"SITE INVITE ' + StringToUtf8(FCurrentIrcNick) + '"}');
+      end
+      else
+      begin
+        r := TRawTask.Create('', '', s.name, '', 'SITE INVITE ' + FCurrentIrcNick);
+        AddTask(r, true);
+      end;
     end;
   end;
 
@@ -1760,6 +1788,7 @@ begin
         BncCsere;
 
       status := 'offline';
+      FConsecutiveFailures := 0;
       Continue;
 
       hiba:
@@ -1769,12 +1798,25 @@ begin
       end;
       status := 'offline';
 
+      inc(FConsecutiveFailures);
       m := sleep_on_error;
+      if FConsecutiveFailures > 1 then
+      begin
+        if FConsecutiveFailures - 1 > 5 then
+          m := m * (1 shl 5)
+        else
+          m := m * (1 shl (FConsecutiveFailures - 1));
+        if m > 600 then
+          m := 600;
+      end;
       for i := 1 to m do
       begin
         if (not shouldquit) then
         begin
-          status := 'sleeping additional ' + IntToStr(m - i) + ' seconds before retrying';
+          if (FConsecutiveFailures < 10) or ((m - i) mod 60 = 0) then
+            status := 'sleeping additional ' + IntToStr(m - i) + ' seconds before retrying (' + IntToStr(FConsecutiveFailures) + ' consecutive failures)'
+          else
+            status := 'sleeping additional ' + IntToStr(m - i) + ' seconds before retrying';
           Sleep(1000);
         end;
       end;
@@ -1830,6 +1872,7 @@ begin
   echo_join_part_events := config.ReadBool(section, 'echo_join_part_events', False);
   echo_topic_change_events := config.ReadBool(section, 'echo_topic_change_events', False);
   echo_nick_change_events := config.ReadBool(section, 'echo_nick_change_events', False);
+  echo_timestamp_ms := config.ReadBool(section, 'echo_timestamp_ms', False);
   irc_timeout := config.ReadInteger(section, 'timeout', 120);
   register_timeout := config.ReadInteger(section, 'register_timeout', 10);
   sleep_on_error := config.ReadInteger(section, 'sleep_on_error', 60);
