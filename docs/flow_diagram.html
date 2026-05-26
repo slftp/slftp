@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  body { font-family: 'Segoe UI', Arial, sans-serif; margin: 20px; background: #f8f9fa; }
+  h1 { text-align: center; color: #333; margin-bottom: 30px; }
+  .diagram { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 24px; margin-bottom: 30px; }
+  .diagram h2 { color: #495057; font-size: 16px; margin-top: 0; border-bottom: 2px solid #e9ecef; padding-bottom: 8px; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({ startOnLoad: true, theme: 'base', themeVariables: {
+  primaryColor: '#e3f2fd',
+  primaryTextColor: '#1a1a1a',
+  primaryBorderColor: '#2196f3',
+  lineColor: '#666666',
+  secondaryColor: '#fff3e0',
+  tertiaryColor: '#e8f5e9',
+  fontFamily: 'Segoe UI, Arial, sans-serif',
+  fontSize: '14px'
+}});</script>
+</head>
+<body>
+<h1>slFTP Release Flow — Visualisierung</h1>
+
+<div class="diagram">
+<h2>1. Gesamtarchitektur: Von der Erkennung bis zum Complete</h2>
+<pre class="mermaid">
+flowchart TD
+    subgraph Eingang["Phase 0: Release-Erkennung"]
+        IRC["IRC Announce<br/>precatcher.pas:572"]
+        PRE["Pre-DB / !addpre<br/>dbaddpre.pas:323"]
+        AUTO["Auto-Dirlist<br/>taskautodirlist.pas:428"]
+        REQ["Request-Fill<br/>taskautodirlist.pas:79"]
+    end
+
+    subgraph Kern["Phase 1: Kern-Objekte"]
+        KB["kb_AddB<br/>kb.pas:181"]
+        PAZO["TPazo.Create<br/>pazo.pas:808"]
+        PSITE["TPazoSite.Create<br/>pazo.pas:1335"]
+        DEST["AddDestination<br/>pazo.pas:1266"]
+    end
+
+    subgraph QueueSystem["Phase 2: Queue-System"]
+        ADD["AddTask<br/>sitesunit.pas:1104"]
+        QSORT["QueueSort<br/>queueunit.pas:390"]
+        QFIRE["QueueFire<br/>queueunit.pas:116"]
+        EXEC["TQueueThread.Execute<br/>queueunit.pas:1596"]
+        ASSIGN["TryToAssignSlots<br/>queueunit.pas:710"]
+    end
+
+    subgraph Tasks["Phase 3: Task-Ausführung"]
+        DIRLIST["TPazoDirlistTask.Execute<br/>taskrace.pas:181"]
+        TUZELJ["Tuzelj<br/>pazo.pas:423"]
+        RACE["TPazoRaceTask.Execute<br/>taskrace.pas:1204"]
+        PARSEDIR["ParseDirlist<br/>pazo.pas:1479"]
+        PARSEDUPE["ParseDupe<br/>pazo.pas:1639"]
+        MKDIR["TPazoMkdirTask"]
+    end
+
+    subgraph Complete["Phase 4: Complete"]
+        DCOMP["TDirList.Complete<br/>dirlist.pas:301"]
+        MAINCOMP["Main-Dir Complete<br/>dirlist.pas:351"]
+    end
+
+    IRC --> KB
+    PRE --> KB
+    AUTO --> KB
+    REQ --> PAZO
+    KB --> PAZO
+    PAZO --> PSITE
+    PSITE --> DEST
+    PSITE --> ADD
+    ADD --> QSORT
+    QSORT --> QFIRE
+    QFIRE --> EXEC
+    EXEC --> ASSIGN
+    ASSIGN --> DIRLIST
+    ASSIGN --> RACE
+    ASSIGN --> MKDIR
+    DIRLIST --> PARSEDIR
+    PARSEDIR --> TUZELJ
+    TUZELJ --> RACE
+    TUZELJ --> MKDIR
+    TUZELJ --> DIRLIST
+    RACE --> PARSEDUPE
+    PARSEDUPE --> TUZELJ
+    DIRLIST --> DCOMP
+    DCOMP --> MAINCOMP
+
+    style IRC fill:#e3f2fd,stroke:#2196f3
+    style PRE fill:#e3f2fd,stroke:#2196f3
+    style AUTO fill:#e3f2fd,stroke:#2196f3
+    style REQ fill:#e3f2fd,stroke:#2196f3
+    style TUZELJ fill:#fff3e0,stroke:#ff9800
+    style RACE fill:#e8f5e9,stroke:#4caf50
+    style PARSEDUPE fill:#fce4ec,stroke:#e91e63
+    style MAINCOMP fill:#f3e5f5,stroke:#9c27b0
+</pre>
+</div>
+
+<div class="diagram">
+<h2>2. Queue-Routing: Wer landet in welcher Site-Queue?</h2>
+<pre class="mermaid">
+flowchart LR
+    subgraph SourceSite["Source-Site Queue<br/>(z.B. '1984')"]
+        direction TB
+        Q_SRC["TQueueThread<br/>queueunit.pas:30"]
+        RACE_TASKS["TPazoRaceTask<br/>→ jede Destination"]
+        DIR_SRC["TPazoDirlistTask<br/>(Self-Requeue)"]
+    end
+
+    subgraph DestSiteA["Dest-Site A Queue<br/>(z.B. 'SITE_A')"]
+        direction TB
+        Q_DST_A["TQueueThread"]
+        DIR_A["TPazoDirlistTask<br/>(von Tuzelj)"]
+        MKDIR_A["TPazoMkdirTask"]
+    end
+
+    subgraph DestSiteB["Dest-Site B Queue<br/>(z.B. 'SITE_B')"]
+        direction TB
+        Q_DST_B["TQueueThread"]
+        DIR_B["TPazoDirlistTask"]
+        MKDIR_B["TPazoMkdirTask"]
+    end
+
+    TUZELJ["Tuzelj<br/>pazo.pas:423"]
+
+    TUZELJ -->|"AddTask(site1=Source)"| RACE_TASKS
+    TUZELJ -->|"AddTask(site1=Source)"| DIR_SRC
+    TUZELJ -->|"AddTask(site1=DestA)"| DIR_A
+    TUZELJ -->|"AddTask(site1=DestA)"| MKDIR_A
+    TUZELJ -->|"AddTask(site1=DestB)"| DIR_B
+    TUZELJ -->|"AddTask(site1=DestB)"| MKDIR_B
+
+    style TUZELJ fill:#fff3e0,stroke:#ff9800
+    style RACE_TASKS fill:#e8f5e9,stroke:#4caf50
+    style DIR_SRC fill:#fce4ec,stroke:#e91e63
+    style DIR_A fill:#e3f2fd,stroke:#2196f3
+    style DIR_B fill:#e3f2fd,stroke:#2196f3
+</pre>
+</div>
+
+<div class="diagram">
+<h2>3. Warum die Queue nicht sauber aufteilt (3 Mechanismen)</h2>
+<pre class="mermaid">
+flowchart TD
+    A["TPazoDirlistTask.Execute<br/>taskrace.pas:181"] --> B{"Source-Dir<br/>vollständig?"}
+    B -->|Nein| C["Self-Requeue<br/>taskrace.pas:593"]
+    B -->|Ja| D["Destination-Driven Loop<br/>taskrace.pas:611"]
+    D --> E{"Erste Destination<br/>qualifiziert?"}
+    E -->|Ja| F["AddTask(Source Dirlist)<br/>+ AddTask(Dest Dirlist)"]
+    E -->|Nein| G["Nächste Destination..."]
+    F --> H["Break!<br/>Nur erste Destination"]
+    A --> I["Subdir-Scan<br/>taskrace.pas:446"]
+    I --> J{"Subdir gefunden?<br/>Sample / Subs / Proof / Covers"}
+    J -->|Ja| K["AddTask(Source Subdir Dirlist)"]
+    J -->|Nein| L["Weiter"]
+    K --> M["Clustert in Queue<br/>wegen lastTouch"]
+    C --> M
+    H --> M
+    M --> N["Source-Queue überflutet<br/>Destinations warten"]
+
+    style C fill:#ffcccc,stroke:#f44336
+    style F fill:#ffcccc,stroke:#f44336
+    style K fill:#ffcccc,stroke:#f44336
+    style N fill:#ffebee,stroke:#d32f2f
+</pre>
+</div>
+
+<div class="diagram">
+<h2>4. Lock-Landschaft & Konformität</h2>
+<pre class="mermaid">
+flowchart TD
+    subgraph PazoLocks["TPazoSite Locks"]
+        DEST_CS["destinations_cs<br/>TCriticalSection ⚠️"]
+        ACT_CS["FActiveTransfersCS<br/>TCriticalSection ⚠️"]
+    end
+
+    subgraph DirlistLocks["TDirList Locks"]
+        DL_LOCK["dirlist_lock<br/>TSlCriticalSection2 ✅"]
+    end
+
+    subgraph QueueLocks["Queue Locks"]
+        MAIN_LOCK["main_lock<br/>TSlCriticalSection2 ✅"]
+        SLOT_LOCK["TSite.AcquireSlotsAssignmentLock"]
+    end
+
+    subgraph Caller["Aufrufer"]
+        TUZ["Tuzelj"]
+        PARSE["ParseDirlist"]
+        PD["ParseDupe"]
+        QUEUE["TQueueThread.Execute"]
+    end
+
+    TUZ -->|"Liest destinations"| DEST_CS
+    TUZ -->|"Liest/Schreibt entries"| DL_LOCK
+    PARSE -->|"Liest/Schreibt entries"| DL_LOCK
+    PD -->|"Liest/Schreibt entries"| DL_LOCK
+    QUEUE -->|"Liest/Schreibt tasks"| MAIN_LOCK
+    QUEUE -->|"Weist Slots zu"| SLOT_LOCK
+
+    style DEST_CS fill:#ffcccc,stroke:#f44336
+    style ACT_CS fill:#ffcccc,stroke:#f44336
+    style DL_LOCK fill:#ccffcc,stroke:#4caf50
+    style MAIN_LOCK fill:#ccffcc,stroke:#4caf50
+</pre>
+</div>
+
+</body>
+</html>

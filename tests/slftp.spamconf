@@ -1,0 +1,64 @@
+#0 = No Announce aka Disabled
+#1 = Announce aka Enabled
+
+[taskrace]
+incomplete=1
+no_such_file_or_directory=1
+reached_max_sim_down=1
+reached_max_sim_up=1
+turn_on_sslfxp=1
+cant_open_data_connection=1
+denying_creation_of=1
+filename_not_allowed=1
+cant_create_dir=1
+permission_denied=1
+crc_error=1
+
+[kb]
+# PRE announce on STATS chan for sitepres
+pre_rls=1
+# ADDPRE, NEW announce on STATS chan
+new_rls=1
+# UPDATE announce on STATS chan for pretime
+updated_rls=1
+# SKIP announce on STATS chan when not allowed on site
+skip_rls=1
+# SPREAD announce on STATS chan for spreads
+spread_rls=1
+# DONT MATCH announce on STATS chan if rules say don't match or when site wasn't used for actual release because it was down
+dont_match_rls=1
+# rls in skipped releases list message on ADMIN chan
+skipped_release=1
+# renamed or changed case group message on ADMIN chan
+renamed_group=1
+# rename of another release message on ADMIN chan
+renamed_release=1
+# release caught as section X but is already in section X message on ADMIN chan
+already_in_another_section=1
+
+[addinfo]
+# UPDATE announce when iMDB info has been addded
+imdbupdate=1
+# UPDATE announce when TvMaze info has been addded
+tvinfoupdate=1
+
+
+[precatcher]
+# announce all successful detected events from precatcher
+announce_event=1
+# show information about global skip group releases on channel
+global_skip_group=1
+
+[queue]
+queue_recycle=1
+
+[sites]
+# LOGIN SITENAME (SITENAME/NUMBER)
+# QUIT SITENAME (SITENAME/NUMBER)
+login_logout=0
+# Suppress (SLOT SITENAME/NUMBER IS DOWN) messages
+slot_down=0
+# TSiteSlot.Execute: Force Leave:SITENAME/NUMBER SiteSlot Recycle 15min
+siteslot_recycle=0
+# announce that rules haven't changed (you need to enable autorules first)
+rules_nochange=0
