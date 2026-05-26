@@ -448,10 +448,11 @@ begin
   Debug(dpError, section, '%s started', [GetFullVersionString]);
   {$IFDEF FPC}
   fLibVersion := 'FPC version: ' + {$I %FPCVERSION%};
+  console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
   {$ELSE}
   fLibVersion := 'Delphi version';
-  {$ENDIF}
   console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
+  {$ENDIF}
   fLibVersion := Format('OpenSSL version: %s', [GetOpenSSLVersion]);
   console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
   fLibVersion := Format('SQLite3 version: %s', [UTF8ToString(sqlite3.VersionText)]);
@@ -511,36 +512,51 @@ begin
   RanksStart;
   console_addline('Admin', 'Start SpeedStats', True);
   SpeedStatsStart;
+  WriteLn('DEBUG: SpeedStatsStart returned');
   console_addline('Admin', 'Start Nuke', True);
   NukeStart;
+  WriteLn('DEBUG: NukeStart returned');
   console_addline('Admin', 'Start Midnight', True);
   MidnightStart;
+  WriteLn('DEBUG: MidnightStart returned');
   console_addline('Admin', 'Start Skiplists', True);
   SkiplistStart;
+  WriteLn('DEBUG: SkiplistStart returned');
   console_addline('Admin', 'Start Knowngroups', True);
   KnowngroupsStart;
+  WriteLn('DEBUG: KnowngroupsStart returned');
   console_addline('Admin', 'Start Rules', True);
   RulesStart();
+  WriteLn('DEBUG: RulesStart returned');
   console_addline('Admin', 'Start Fake', True);
   FakeStart();
+  WriteLn('DEBUG: FakeStart returned');
   console_addline('Admin', 'Start KB', True);
   kb_Start();
+  WriteLn('DEBUG: kb_Start returned');
   console_addline('Admin', 'Start Indexer', True);
   indexerStart;
+  WriteLn('DEBUG: indexerStart returned');
   console_addline('Admin', 'Start Sites', True);
   SitesStart;
+  WriteLn('DEBUG: SitesStart returned');
   console_addline('Admin', 'Start IRC', True);
   IrcStart();
+  WriteLn('DEBUG: IrcStart returned');
   console_addline('Admin', 'Start Precatcher', True);
   PrecatcherStart();
+  WriteLn('DEBUG: PrecatcherStart returned');
   //  EPrecatcherStart();
   console_addline('Admin', 'Start Sites Auto Tasks', True);
   SiteAutoStart;
+  WriteLn('DEBUG: SiteAutoStart returned');
   slshutdown := False;
   console_addline('Admin', 'Start Queue', True);
   QueueStart();
+  WriteLn('DEBUG: QueueStart returned');
   console_addline('Admin', 'Start REST API', True);
   ApiStart;
+  WriteLn('DEBUG: ApiStart returned');
 end;
 
 procedure Main_Stop;
