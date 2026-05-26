@@ -456,7 +456,11 @@ begin
               fLine := Copy(fLine, 1, Pos(' ', fLine) - 1);
               if fLine <> '' then
               begin
+                {$IFDEF FPC}
                 fFormatSettings := DefaultFormatSettings;
+                {$ELSE}
+                fFormatSettings := TFormatSettings.Create;
+                {$ENDIF}
                 fFormatSettings.DecimalSeparator := '.';
 
                 if TryStrToFloat(fLine, fLoad1, fFormatSettings) then
