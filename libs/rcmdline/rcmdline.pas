@@ -813,7 +813,9 @@ var
 begin
   if FPropertySortedCache = nil then begin
     FPropertySortedCache := TStringList.Create;
+    {$IFDEF FPC}
     {$IF FPC_FULLVERSION > 30100}{$DEFINE HAS_STRINGLIST_LOCALE}{$ENDIF}
+    {$ENDIF}
     {$IFNDEF FPC}{$IF CompilerVersion > 22}{$DEFINE HAS_STRINGLIST_LOCALE}{$ENDIF}{$ENDIF}
     {$ifdef HAS_STRINGLIST_LOCALE}
     FPropertySortedCache.Options:=[];
