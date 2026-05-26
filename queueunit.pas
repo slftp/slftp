@@ -1821,215 +1821,170 @@ begin
       main_lock.Enter('Execute');
       try
         // Phase 5b: Rebuild pending-race-destinations map for targeted wakeups
-        try
-          fPendingRaceDestinations.Clear;
-          for fListIndex := 0 to 1 do
+        fPendingRaceDestinations.Clear;
+        for fListIndex := 0 to 1 do
+        begin
+          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+          for fTask in fList do
           begin
-            if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-            for fTask in fList do
+            if (fTask is TPazoRaceTask) and (fTask.slot1 = nil) then
             begin
-              if (fTask is TPazoRaceTask) and (fTask.slot1 = nil) then
-              begin
-                if fPendingRaceDestinations.TryGetValue(TPazoRaceTask(fTask).site2, fPendingCount) then
-                  fPendingRaceDestinations[TPazoRaceTask(fTask).site2] := fPendingCount + 1
-                else
-                  fPendingRaceDestinations.Add(TPazoRaceTask(fTask).site2, 1);
-              end;
+              if fPendingRaceDestinations.TryGetValue(TPazoRaceTask(fTask).site2, fPendingCount) then
+                fPendingRaceDestinations[TPazoRaceTask(fTask).site2] := fPendingCount + 1
+              else
+                fPendingRaceDestinations.Add(TPazoRaceTask(fTask).site2, 1);
             end;
-          end;
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (Phase5b): %s', [e.Message]));
           end;
         end;
 
         // Move mature tasks from waiting_tasks to main tasks queue
-        try
-          for i := waiting_tasks.Count - 1 downto 0 do
+        for i := waiting_tasks.Count - 1 downto 0 do
+        begin
+          if i < 0 then Break;
+          fTask := TTask(waiting_tasks.items[i]);
+          if fTask = nil then Continue;
+          
+          if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
           begin
-            if i < 0 then Break;
-            fTask := TTask(waiting_tasks.items[i]);
-            if fTask = nil then Continue;
-            
-            if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
-            begin
-              waiting_tasks.Extract(fTask);
-              tasks.Add(fTask);
-              bTasksMoved := True;
-            end
-            else if (fTask.startat > 0) and (fTask.startat < fNextTaskStartAt) then
-            begin
-              fNextTaskStartAt := fTask.startat;
-            end;
-          end;
-        except
-          on e: Exception do
+            waiting_tasks.Extract(fTask);
+            tasks.Add(fTask);
+            bTasksMoved := True;
+          end
+          else if (fTask.startat > 0) and (fTask.startat < fNextTaskStartAt) then
           begin
-            Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (MoveMature): %s', [e.Message]));
+            fNextTaskStartAt := fTask.startat;
           end;
         end;
 
-        try
-          if bTasksMoved then
-            tasks.Sort(@QueueSorter);
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (Sort): %s', [e.Message]));
-          end;
-        end;
+        if bTasksMoved then
+          tasks.Sort(@QueueSorter);
 
-        // Remove ready tasks
-        try
-          for fListIndex := 0 to 1 do
+        for fListIndex := 0 to 1 do
+        begin
+          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+          for i := fList.Count - 1 downto 0 do
           begin
-            if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-            for i := fList.Count - 1 downto 0 do
+            if i < 0 then
+              Break;
+
+            fTask := TTask(fList.items[i]);
+
+          if fTask = nil then
+            Continue;
+
+          try
+            if ((fTask.ready) or (fTask.readyerror)) then
             begin
-              if i < 0 then
-                Break;
-
-              fTask := TTask(fList.items[i]);
-
-            if fTask = nil then
-              Continue;
-
-            try
-              if ((fTask.ready) or (fTask.readyerror)) then
+              // Stuck wait tasks: they set ready=True but never freed their slot.
+              // Free the slot now so the task can be removed and the slot reused.
+              if ((fTask.slot1 <> nil) and (fTask.ClassType = TWaitTask)) then
               begin
-                // Stuck wait tasks: they set ready=True but never freed their slot.
-                // Free the slot now so the task can be removed and the slot reused.
-                if ((fTask.slot1 <> nil) and (fTask.ClassType = TWaitTask)) then
+                ts.AcquireSlotsAssignmentLock('Queue free stuck wait task');
+                try
+                  if TSiteSlot(fTask.slot1).todotask = fTask then
+                    TSiteSlot(fTask.slot1).todotask := nil;
+                  fTask.slot1 := nil;
+                finally
+                  ts.ReleaseSlotsAssignmentLock;
+                end;
+              end;
+
+              if (fTask.slot1 = nil) then
+              begin
+                ss := fTask.uidtext;
+                if fTask.IsNotifyTask then
+                  TaskReady(fTask);
+
+                if (fTask.ClassType = TPazoRaceTask) then
                 begin
-                  ts.AcquireSlotsAssignmentLock('Queue free stuck wait task');
-                  try
-                    if TSiteSlot(fTask.slot1).todotask = fTask then
-                      TSiteSlot(fTask.slot1).todotask := nil;
-                    fTask.slot1 := nil;
-                  finally
-                    ts.ReleaseSlotsAssignmentLock;
+                  with TPazoRaceTask(fTask) do
+                  if (dst <> nil) then
+                  begin
+                    dst.event.SetEvent;
                   end;
                 end;
+                ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
+                try
+                  fList.Remove(fTask);
+                finally
+                  ts.ReleaseSlotsAssignmentLock;
+                end;
+                Console_QueueDel(ss);
+              end;
+            end;
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady): %s', [e.Message]));
+              Continue;
+            end;
+          end;
+        end;
+        end;
 
-                if (fTask.slot1 = nil) then
+        ts.AcquireSlotsAssignmentLock('Queue iterate');
+        try
+          for fTask in tasks do
+          begin
+            try
+              if ts.freeslots = 0 then
+              begin
+                //Debug(dpSpam, section, Format('No free slots on %s', [ts.Name]));
+
+                // no need to iterate the queue early if there are no free slots.
+                // when a slot becomes free, a queue fire is issued.
+                fNextTaskStartAt := MaxDateTime;
+                break;
+              end;
+
+              if ((fTask.slot1 = nil) and (fTask.slot2 = nil) and (not fTask.ready) and
+                (not fTask.readyerror)) then
+              begin
+                if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
                 begin
-                  ss := fTask.uidtext;
-                  if fTask.IsNotifyTask then
-                    TaskReady(fTask);
-
-                  if (fTask.ClassType = TPazoRaceTask) then
+                  if fTask.IsReadyToBeExecuted then
+                begin
+                  // Low-priority race tasks only get slots if no important tasks are waiting
+                  if ((fTask is TPazoRaceTask) and _IsLowPriorityRaceTask(TPazoRaceTask(fTask))) then
                   begin
-                    with TPazoRaceTask(fTask) do
-                    if (dst <> nil) then
+                    if _HasWaitingNonLowPriorityTasks(tasks, queue_last_run) then
                     begin
-                      dst.event.SetEvent;
+                      if SecondsBetween(Now, fLastLowPriorityLogTime) >= 60 then
+                      begin
+                        Debug(dpMessage, section, 'Low-priority tasks blocked on %s (important tasks waiting)', [fSiteName]);
+                        fLastLowPriorityLogTime := Now;
+                      end;
+                      Continue;
                     end;
                   end;
-                  ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
-                  try
-                    fList.Remove(fTask);
-                  finally
-                    ts.ReleaseSlotsAssignmentLock;
-                  end;
-                  Console_QueueDel(ss);
+
+                  TryToAssignSlots(fTask);
+                end;
+                end
+                else if (fTask.startat > 0) and (fTask.startat < fNextTaskStartAt) then
+                begin
+                  fNextTaskStartAt := fTask.startat;
                 end;
               end;
             except
               on e: Exception do
               begin
-                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady): %s', [e.Message]));
+                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (TryToASsignSlots) : %s', [e.Message]));
                 Continue;
               end;
             end;
           end;
-          end;
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReadyOuter): %s', [e.Message]));
-          end;
-        end;
-
-        // Assign slots
-        try
-          ts.AcquireSlotsAssignmentLock('Queue iterate');
-          try
-            for fTask in tasks do
-            begin
-              try
-                if ts.freeslots = 0 then
-                begin
-                  //Debug(dpSpam, section, Format('No free slots on %s', [ts.Name]));
-
-                  // no need to iterate the queue early if there are no free slots.
-                  // when a slot becomes free, a queue fire is issued.
-                  fNextTaskStartAt := MaxDateTime;
-                  break;
-                end;
-
-                if ((fTask.slot1 = nil) and (fTask.slot2 = nil) and (not fTask.ready) and
-                  (not fTask.readyerror)) then
-                begin
-                  if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
-                  begin
-                    if fTask.IsReadyToBeExecuted then
-                  begin
-                    // Low-priority race tasks only get slots if no important tasks are waiting
-                    if ((fTask is TPazoRaceTask) and _IsLowPriorityRaceTask(TPazoRaceTask(fTask))) then
-                    begin
-                      if _HasWaitingNonLowPriorityTasks(tasks, queue_last_run) then
-                      begin
-                        if SecondsBetween(Now, fLastLowPriorityLogTime) >= 60 then
-                        begin
-                          Debug(dpMessage, section, 'Low-priority tasks blocked on %s (important tasks waiting)', [fSiteName]);
-                          fLastLowPriorityLogTime := Now;
-                        end;
-                        Continue;
-                      end;
-                    end;
-
-                    TryToAssignSlots(fTask);
-                  end;
-                  end
-                  else if (fTask.startat > 0) and (fTask.startat < fNextTaskStartAt) then
-                  begin
-                    fNextTaskStartAt := fTask.startat;
-                  end;
-                end;
-              except
-                on e: Exception do
-                begin
-                  Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (TryToASsignSlots) : %s', [e.Message]));
-                  Continue;
-                end;
-              end;
-            end;
-          finally
-            ts.ReleaseSlotsAssignmentLock;
-          end;
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (AssignSlotsOuter): %s', [e.Message]));
-          end;
+        finally
+          ts.ReleaseSlotsAssignmentLock;
         end;
       finally
         main_lock.Leave;
         fBusyDestinationsTmp.Free;
       end;
 
-      try
-        QueueStat;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (QueueStat): %s', [e.Message]));
-        end;
-      end;
+      QueueStat;
 
       // We are looking for idle
-      try
         for s in ts.slots do
         begin
           try
@@ -2082,18 +2037,12 @@ begin
             end;
           end;
         end;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (IdleOuter): %s', [e.Message]));
-        end;
-      end;
 
       //Debug(dpSpam, section, 'Queue Iteration end (%s) [%d tasks]', [ts.Name, tasks.Count]);
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (OuterFallback): %s', [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute : %s', [e.Message]));
       end;
     end;
 
