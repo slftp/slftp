@@ -84,7 +84,11 @@ type
 
 implementation
   uses
-    SysUtils, debugunit, Classes, Math;
+    SysUtils, debugunit, Classes, Math
+    {$IFDEF MSWINDOWS}
+    , Winapi.Windows
+    {$ENDIF}
+    ;
 
   // these types are used for timer log output
   type

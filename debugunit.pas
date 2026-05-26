@@ -278,7 +278,9 @@ begin
   try
     try
       WriteLn(f, logtext);
+      {$IFDEF FPC}
       DumpExceptionBackTrace(f);
+      {$ENDIF}
       if glFlushLines then
       begin
         Flush(f);
