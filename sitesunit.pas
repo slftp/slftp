@@ -1664,9 +1664,16 @@ begin
                 end;
               end;
 
-              if (todotask.slot1 <> nil) then
-              begin
-                todotask.slot1 := nil;
+              try
+                if (todotask.slot1 <> nil) then
+                begin
+                  todotask.slot1 := nil;
+                end;
+              except
+                on E: Exception do
+                begin
+                  Debug(dpError, section, Format('[WARNING] TSiteSlot.Execute: todotask.slot1 cleanup failed (dangling pointer?): %s', [E.Message]));
+                end;
               end;
             finally
               try

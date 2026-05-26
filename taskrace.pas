@@ -3649,19 +3649,31 @@ begin
   *)
   ready := True;
 
-  // Release the slot so the queue thread can remove this wait task
-  // and reuse the slot for other tasks. Without this, finished wait
-  // tasks keep slots occupied and starve the assignment loop.
+  { Clear our slot reference FIRST, before dereferencing ss.
+    The slot may have been rebuilt (and the old object freed)
+    while we were blocked in event.WaitFor. If we touch ss
+    before clearing slot1, an AV there would leave us with
+    a dangling pointer that the queue thread later crashes on. }
+  self.slot1 := nil;
+
+  // Try to clean up the slot's todotask reference, but don't
+  // let a rebuilt/freed slot crash us.
   ss := TSiteSlot(slot);
-  if ss <> nil then
-  begin
-    ss.site.AcquireSlotsAssignmentLock('TWaitTask ready');
-    try
-      if ss.todotask = self then
-        ss.todotask := nil;
-      self.slot1 := nil;
-    finally
-      ss.site.ReleaseSlotsAssignmentLock;
+  try
+    if (ss <> nil) and (ss.site <> nil) then
+    begin
+      ss.site.AcquireSlotsAssignmentLock('TWaitTask ready');
+      try
+        if ss.todotask = self then
+          ss.todotask := nil;
+      finally
+        ss.site.ReleaseSlotsAssignmentLock;
+      end;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, c_section, Format('[WARNING] TWaitTask.Execute slot cleanup failed (slot may have been rebuilt): %s', [E.Message]));
     end;
   end;
 end;
