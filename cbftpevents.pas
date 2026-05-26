@@ -59,6 +59,7 @@ type
   { Background thread that listens for cbftp events via UDP push }
   TCbftpUdpEventThread = class(TThread)
   private
+    FBindIp: String;
     FPort: Integer;
     FQueue: TCbftpEventQueue;
     FOnEvent: TCbftpEventCallback;
@@ -66,7 +67,7 @@ type
   protected
     procedure Execute; override;
   public
-    constructor Create(aPort: Integer);
+    constructor Create(const aBindIp: String; aPort: Integer);
     destructor Destroy; override;
     property Queue: TCbftpEventQueue read FQueue;
     property OnEvent: TCbftpEventCallback read FOnEvent write FOnEvent;
@@ -107,7 +108,7 @@ procedure CbftpEventsStart(const aHost: RawUtf8; aPort: Integer; const aPassword
 procedure CbftpEventsStop;
 function CbftpEventsRunning: Boolean;
 
-procedure CbftpUdpEventsStart(aPort: Integer);
+procedure CbftpUdpEventsStart(const aBindIp: String; aPort: Integer);
 procedure CbftpUdpEventsStop;
 function CbftpUdpEventsRunning: Boolean;
 
@@ -380,10 +381,11 @@ end;
 
 { TCbftpUdpEventThread }
 
-constructor TCbftpUdpEventThread.Create(aPort: Integer);
+constructor TCbftpUdpEventThread.Create(const aBindIp: String; aPort: Integer);
 begin
   inherited Create(False);
   FreeOnTerminate := False;
+  FBindIp := aBindIp;
   FPort := aPort;
   FQueue := TCbftpEventQueue.Create;
 end;
@@ -429,7 +431,7 @@ begin
     Exit;
   end;
   try
-    if not slBind(slSock, '0.0.0.0', FPort, error) then
+    if not slBind(slSock, FBindIp, FPort, error) then
     begin
       Debug(dpError, section, Format('UDP bind failed on port %d: %s', [FPort, error]));
       Exit;
@@ -689,16 +691,16 @@ begin
   end;
 end;
 
-procedure CbftpUdpEventsStart(aPort: Integer);
+procedure CbftpUdpEventsStart(const aBindIp: String; aPort: Integer);
 begin
   GlCbftpEventThreadLock.Enter('CbftpUdpEventsStart');
   try
     if GlCbftpUdpEventThread <> nil then
       Exit;
-    GlCbftpUdpEventThread := TCbftpUdpEventThread.Create(aPort);
+    GlCbftpUdpEventThread := TCbftpUdpEventThread.Create(aBindIp, aPort);
     if Assigned(GlCbftpEventHandler) then
       GlCbftpUdpEventThread.OnEvent := GlCbftpEventHandler;
-    Debug(dpMessage, section, Format('cbftp UDP event thread started on port %d', [aPort]));
+    Debug(dpMessage, section, Format('cbftp UDP event thread started on %s:%d', [aBindIp, aPort]));
   finally
     GlCbftpEventThreadLock.Leave;
   end;

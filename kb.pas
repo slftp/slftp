@@ -1167,6 +1167,7 @@ var
   cbftpIp: String;
   cbftpApiPort: Integer;
   cbftpUdpPort: Integer;
+  cbftpUdpBindIp: String;
   cbftpPassword: String;
 
   procedure AddKbPazo(const line: String);
@@ -1226,9 +1227,12 @@ begin
         // Start UDP push listener instead of HTTP long-poll
         // Use EventPushPort if configured, otherwise default to 5697 to avoid
         // conflict with cbftp's own RemoteCommandHandler on 5696
+        cbftpUdpBindIp := Trim(config.ReadString('UDPConfig', 'EventPushBindIP', '127.0.0.1'));
+        if cbftpUdpBindIp = '' then
+          cbftpUdpBindIp := '127.0.0.1';
         cbftpUdpPort := config.ReadInteger('UDPConfig', 'EventPushPort', 5697);
-        CbftpUdpEventsStart(cbftpUdpPort);
-        Debug(dpMessage, 'kb', Format('cbftp UDP event listener started on port %d', [cbftpUdpPort]));
+        CbftpUdpEventsStart(cbftpUdpBindIp, cbftpUdpPort);
+        Debug(dpMessage, 'kb', Format('cbftp UDP event listener started on %s:%d', [cbftpUdpBindIp, cbftpUdpPort]));
       except
         on E: Exception do
           DebugException(dpError, 'kb', 'cbftp global REST client/events init failed', E);
