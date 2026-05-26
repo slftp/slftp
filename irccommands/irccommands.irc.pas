@@ -34,7 +34,8 @@ implementation
 uses
   SysUtils, Classes, StrUtils, Types, Contnrs, irc, sitesunit, ircchansettings,
   ircblowfish.ECB, ircblowfish.CBC, configunit, mainthread, mystrings, irccommandsunit,
-  versioninfo, slssl, mormot.db.raw.sqlite3, mormot.core.base, IdGlobal, ZClasses, FLRE, RegExpr;
+  versioninfo, slssl, mormot.db.raw.sqlite3, mormot.core.base, IdGlobal, ZClasses, FLRE, RegExpr,
+  cbftpclient;
 
 const
   section = 'irccommands.irc';
@@ -1034,7 +1035,7 @@ begin
         Continue;
       if Uppercase(s.Name) = getAdminSiteName then
         Continue;
-      if s.PermDown then
+      if s.PermDown and (GlCbftpClient = nil) then
         Continue;
 
       if s.IRCNick = '' then
@@ -1070,7 +1071,7 @@ begin
           begin
             if Uppercase(s.Name) = getAdminSiteName then
               Continue;
-            if s.PermDown then
+            if s.PermDown and (GlCbftpClient = nil) then
               Continue;
 
             if s.IRCNick = '' then

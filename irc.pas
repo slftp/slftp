@@ -198,6 +198,7 @@ const
 implementation
 
 uses
+  cbftpclient, mormot.core.unicode,
   StrUtils, {$IFDEF MSWINDOWS}Windows,{$ENDIF} debugunit, configunit, ircchansettings, irccolorunit, precatcher, console,
   socks5, versioninfo, mystrings, DateUtils, irccommandsunit, sitesunit, taskraw, queueunit, mainthread, dbaddpre,
   dbtvinfo, dbaddurl, dbaddimdb, dbaddgenre, news, irc.parse;
@@ -1543,12 +1544,19 @@ begin
   for i := 0 to sites.Count - 1 do
   begin
     s := sites[i] as TSite;
-    if ((s.RCString('ircnet', '') = netname) and (not s.siteinvited) and (not s.PermDown) and (s.UseAutoInvite)) then
+    if ((s.RCString('ircnet', '') = netname) and (not s.siteinvited) and (not s.PermDown or (GlCbftpClient <> nil)) and (s.UseAutoInvite)) then
     begin
       debug(dpSpam, section, '%s: Trying to issue SITE INVITE to join chans as %s', [netname, FCurrentIrcNick]);
       s.siteinvited := True;
-      r := TRawTask.Create('', '', s.name, '', 'SITE INVITE ' + FCurrentIrcNick);
-      AddTask(r, true);
+      if (GlCbftpClient <> nil) then
+      begin
+        GlCbftpClient.SendRawCommand('{"sites":["' + StringToUtf8(s.name) + '"],"command":"SITE INVITE ' + StringToUtf8(FCurrentIrcNick) + '"}');
+      end
+      else
+      begin
+        r := TRawTask.Create('', '', s.name, '', 'SITE INVITE ' + FCurrentIrcNick);
+        AddTask(r, true);
+      end;
     end;
   end;
 

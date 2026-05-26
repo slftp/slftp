@@ -1161,6 +1161,9 @@ var
   x: TEncStringlist;
   i: integer;
   last: TDateTime;
+  cbftpIp: String;
+  cbftpApiPort: Integer;
+  cbftpPassword: String;
 
   procedure AddKbPazo(const line: String);
   var
@@ -1200,6 +1203,31 @@ var
   end;
 
 begin
+  // Initialize global cbftp REST client and start events thread
+  if Assigned(config) then
+  begin
+    if SameText(Trim(config.ReadString('UDPConfig', 'EnableUDP', 'False')), 'True') or
+       SameText(Trim(config.ReadString('UDPConfig', 'EnableUDP', 'False')), '1') then
+    begin
+      try
+        cbftpIp := Trim(config.ReadString('UDPConfig', 'IP', '127.0.0.1'));
+        cbftpApiPort := config.ReadInteger('UDPConfig', 'ApiPort', 0);
+        if cbftpApiPort <= 0 then
+          cbftpApiPort := config.ReadInteger('UDPConfig', 'Port', 55477); // fallback
+        cbftpPassword := config.ReadString('UDPConfig', 'Password', '');
+
+        cbftpclient_Init(StringToUtf8(cbftpIp), cbftpApiPort, StringToUtf8(cbftpPassword));
+        Debug(dpMessage, 'kb', Format('cbftp REST client initialized globally: %s:%d', [cbftpIp, cbftpApiPort]));
+
+        CbftpEventsStart(StringToUtf8(cbftpIp), cbftpApiPort, StringToUtf8(cbftpPassword));
+        Debug(dpMessage, 'kb', 'cbftp event polling thread started globally');
+      except
+        on E: Exception do
+          DebugException(dpError, 'kb', 'cbftp global REST client/events init failed', E);
+      end;
+    end;
+  end;
+
   kb_reloadsections;
 
   // itt kell betoltenunk az slftp.kb -t

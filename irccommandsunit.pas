@@ -481,7 +481,7 @@ begin
   // cbftp mode: use REST API instead of direct FTP
   if (GlCbftpClient <> nil) then
   begin
-    response := GlCbftpClient.SendRawCommand('{"site":"' + StringToUtf8(sitename) + '","command":"' + StringToUtf8(command) + '"}');
+    response := GlCbftpClient.SendRawCommand('{"sites":["' + StringToUtf8(sitename) + '"],"command":"' + StringToUtf8(command) + '"}');
     if response <> '' then
     begin
       if doc.InitJson(response) then

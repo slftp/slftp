@@ -495,20 +495,7 @@ begin
     end;
   end;
 
-  if FUDPEnabled then
-  begin
-    try
-      cbftpclient_Init(StringToUtf8(FUDPIp), FUDPPort, StringToUtf8(FUDPPassword));
-      Debug(dpMessage, section, Format('cbftp REST client initialized: %s:%d', [FUDPIp, FUDPPort]));
-      CbftpEventsStart(StringToUtf8(FUDPIp), FUDPPort, StringToUtf8(FUDPPassword));
-    except
-      on E: Exception do
-      begin
-        DebugException(dpError, section, 'cbftpclient_Init failed', E);
-        FUDPEnabled := False;
-      end;
-    end;
-  end;
+
 
   FUDPConfigLoaded := True;
 end;
