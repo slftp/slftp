@@ -1106,7 +1106,10 @@ end;
 
 function FindPazoByName(const section, rlsname: String): TPazo;
 begin
-  Result := FindPazoByKey(section + '-' + rlsname);
+  if section = '' then
+    Result := FindPazoByRls(rlsname)
+  else
+    Result := FindPazoByKey(section + '-' + rlsname);
 end;
 
 procedure AddPazoToKB(const aKey: String; const aPazo: TPazo);
