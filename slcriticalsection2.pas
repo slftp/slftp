@@ -191,6 +191,7 @@ implementation
 
       FUseTimeoutLocking := True;
       FEvent := TSynEvent.Create;
+      FEvent.SetEvent; { Initially signaled — first waiter acquires immediately }
       FLockCount := 0;
       FLockOwningThreadID := 0;
       FCurrentCodeSegmentName := '';
