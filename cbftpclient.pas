@@ -143,6 +143,7 @@ type
 
     { Download a file from a site via cbftp }
     function GetFile(const aSite, aPath: RawUtf8): RawUtf8;
+
   end;
 
   { Global cbftp client instance }

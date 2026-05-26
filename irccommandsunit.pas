@@ -8,7 +8,7 @@ uses
   irccommands.reload, irccommands.section, irccommands.imdb, irccommands.pretime, irccommands.socks,
   irccommands.rules, irccommands.info, irccommands.precatcher, irccommands.irc, irccommands.misc,
   irccommands.stats, irccommands.prebot, irccommands.route, irccommands.site, irccommands.test,
-  irccommands.general{, irccommands.preurl, irccommands.mysql};
+  irccommands.general, cbftpclient, mormot.core.unicode, mormot.core.variants, mormot.core.base, mormot.core.text{, irccommands.preurl, irccommands.mysql};
 
 type
   { Function prototype for all IRC commands }
@@ -470,7 +470,48 @@ var
   tn: TTaskNotify;
   i: integer;
   ss: String;
+  response: RawUtf8;
+  doc: TDocVariantData;
+  successes: PDocVariantData;
+  siteResult: RawUtf8;
+  fSiteName: RawUtf8;
+  fResult: RawUtf8;
+  j: Integer;
 begin
+  // cbftp mode: use REST API instead of direct FTP
+  if (GlCbftpClient <> nil) then
+  begin
+    response := GlCbftpClient.SendRawCommand('{"site":"' + StringToUtf8(sitename) + '","command":"' + StringToUtf8(command) + '"}');
+    if response <> '' then
+    begin
+      if doc.InitJson(response) then
+      begin
+        successes := doc.A_['successes'];
+        if successes <> nil then
+        begin
+          for j := 0 to successes^.Count - 1 do
+          begin
+            fSiteName := PDocVariantData(@successes^.Values[j])^.U['name'];
+            fResult := PDocVariantData(@successes^.Values[j])^.U['result'];
+            i := 1;
+            while True do
+            begin
+              ss := SubString(string(fResult), slEOL, i);
+              if ss = '' then
+                break;
+              if AnnounceSitename then
+                irc_addtext(Netname, Channel, '<b>%s</b>: %s', [string(fSiteName), ss])
+              else
+                irc_addtext(Netname, Channel, ss);
+              Inc(i);
+            end;
+          end;
+        end;
+      end;
+    end;
+    Exit;
+  end;
+
   r := TRawTask.Create(Netname, Channel, sitename, dir, command);
   tn := AddNotify;
   tn.AddTask(r);
