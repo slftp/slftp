@@ -1877,7 +1877,7 @@ begin
     begin
       Debug(dpMessage, rsections, Format('[cbftp] race_completed: %s on %s (%ds)',
         [aEvent.Name, aEvent.Site, aEvent.TimeSpentSeconds]));
-      irc_Addstats(Format('<c7>[cbftp]</c> <c3>Completed</c>: <b>%s</b> on %s (%ds)', [aEvent.Name, aEvent.Site, aEvent.TimeSpentSeconds]));
+      irc_Addstats(Format('<c7>[cbftp]</c> <c3>Completed</c>: <b>%s</b> on %s (%.2fs)', [aEvent.Name, aEvent.Site, aEvent.TimeSpentSeconds]));
       fPazo := FindPazoByName('', aEvent.Name);
       if fPazo <> nil then
       begin
