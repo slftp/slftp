@@ -42,7 +42,7 @@ implementation
 uses
   irc, sitesunit, Debugunit, mystrings, configunit, encinifile, Math, IdGlobal, slcriticalsection2, routeconfig
   {$IFNDEF MSWINDOWS}
-  , slconsole
+  , console
   {$ENDIF}
   ;
 
