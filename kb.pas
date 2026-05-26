@@ -1837,7 +1837,7 @@ begin
   case aEvent.EventType of
     cetRaceStarted:
     begin
-      Debug(dpMessage, rsections, Format('[cbftp] race_started: %s/%s', [aEvent.Section, aEvent.Name]));
+      Debug(dpError, rsections, Format('[cbftp] race_started: %s/%s', [aEvent.Section, aEvent.Name]));
       fPazo := FindPazoByName(aEvent.Section, aEvent.Name);
       if fPazo <> nil then
       begin
@@ -1856,7 +1856,7 @@ begin
           fPazoSite.CbftpFilesDone := aEvent.FilesDone;
           fPazoSite.CbftpFilesTotal := aEvent.FilesTotal;
           fPazoSite.CbftpBytesDone := aEvent.BytesDone;
-          Debug(dpSpam, rsections, Format('[cbftp] progress %s on %s: %d/%d files, %d/%d bytes',
+          Debug(dpError, rsections, Format('[cbftp] progress %s on %s: %d/%d files, %d/%d bytes',
             [aEvent.Name, aEvent.Site, aEvent.FilesDone, aEvent.FilesTotal,
              aEvent.BytesDone, aEvent.BytesTotal]));
         end;
@@ -1865,7 +1865,7 @@ begin
 
     cetRaceCompleted:
     begin
-      Debug(dpMessage, rsections, Format('[cbftp] race_completed: %s on %s (%ds)',
+      Debug(dpError, rsections, Format('[cbftp] race_completed: %s on %s (%ds)',
         [aEvent.Name, aEvent.Site, aEvent.TimeSpentSeconds]));
       fPazo := FindPazoByName('', aEvent.Name);
       if fPazo <> nil then
@@ -1881,7 +1881,7 @@ begin
 
     cetRaceDone:
     begin
-      Debug(dpMessage, rsections, Format('[cbftp] race_done: %s status=%s',
+      Debug(dpError, rsections, Format('[cbftp] race_done: %s status=%s',
         [aEvent.Name, aEvent.Status]));
       fPazo := FindPazoByName('', aEvent.Name);
       if fPazo <> nil then
@@ -1892,7 +1892,7 @@ begin
 
     cetSpeedSample:
     begin
-      Debug(dpSpam, rsections, Format('[cbftp] speed %s -> %s: %.2f Mbps (file %d bytes)',
+      Debug(dpError, rsections, Format('[cbftp] speed %s -> %s: %.2f Mbps (file %d bytes)',
         [aEvent.SrcSite, aEvent.DstSite, aEvent.SpeedMbps, aEvent.FileSize]));
       irc_Addstats(Format('<c7>[cbftp]</c> <b>%s</b> <c4>%s</c> -> <c9>%s</c> @ <c3>%.2f</c> Mbps (%s)',
         [aEvent.Name, aEvent.SrcSite, aEvent.DstSite, aEvent.SpeedMbps, aEvent.Filename]));
@@ -1900,7 +1900,7 @@ begin
 
     cetNfoAvailable:
     begin
-      Debug(dpMessage, rsections, Format('[cbftp] nfo_available: %s on %s (path=%s, size=%d)',
+      Debug(dpError, rsections, Format('[cbftp] nfo_available: %s on %s (path=%s, size=%d)',
         [aEvent.Name, aEvent.Site, aEvent.Section, aEvent.FileSize]));
       fPazo := FindPazoByName('', aEvent.Name);
       if fPazo <> nil then
@@ -1948,7 +1948,7 @@ begin
 
     cetHeartbeat:
     begin
-      Debug(dpSpam, rsections, '[cbftp] heartbeat');
+      Debug(dpError, rsections, '[cbftp] heartbeat');
     end;
   end;
 end;

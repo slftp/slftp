@@ -748,6 +748,9 @@ ujra:
 
   if config.ReadBool('console', 'show_infos', False) then
     timers.Add( TslInfosTimer.Create(l_infos) );
+
+  // Start cbftp integration after UI is fully initialized
+  KB_start;
 end;
 
 function TMySlApp.AddIrcWindow(const netname: String): TslCommandWindow;

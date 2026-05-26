@@ -223,11 +223,17 @@ begin
     Exit;
   end;
 
-  eventType := doc.U['type'];
+  // cbftp >= e477d2c sends: {"event": "...", ...} (flat, no "data" wrapper)
+  // older cbftp sent:      {"type": "...", "data": {...}}
+  eventType := doc.U['event'];
+  if eventType = '' then
+    eventType := doc.U['type'];
+
   data := doc.A_['data'];
-  if data = nil then
-    Exit;
-  dv := data^;
+  if data <> nil then
+    dv := data^          // legacy format: fields inside "data"
+  else
+    dv := doc;           // new format: fields directly in root object
 
   if eventType = 'race_started' then
   begin
@@ -325,10 +331,8 @@ procedure TCbftpEventThread.Execute;
     end;
   end;
 
-  function _ReadLongPollResponse(out aJson: RawUtf8): Boolean;
+  function _ReadLongPollResponse(const aContentLen: Integer; out aJson: RawUtf8): Boolean;
   var
-    line: RawUtf8;
-    contentLen: Integer;
     body: RawUtf8;
     buf: array[0..8191] of AnsiChar;
     len: PtrInt;
@@ -336,30 +340,16 @@ procedure TCbftpEventThread.Execute;
   begin
     Result := False;
     aJson := '';
-    contentLen := 0;
 
-    // read headers to find Content-Length
-    while True do
-    begin
-      if not _ReadLine(line) then
-        Exit;
-      if line = '' then
-        Break;
-      if Pos('CONTENT-LENGTH:', UpperCase(string(line))) = 1 then
-      begin
-        contentLen := StrToIntDef(Trim(Copy(string(line), 16, MaxInt)), 0);
-      end;
-    end;
-
-    if contentLen <= 0 then
+    if aContentLen <= 0 then
       Exit;
 
-    // read body
-    SetLength(body, contentLen);
+    // read body directly — _ReadHttpHeaders already consumed all headers
+    SetLength(body, aContentLen);
     totalRead := 0;
-    while totalRead < contentLen do
+    while totalRead < aContentLen do
     begin
-      len := FHttpClient.SockInRead(@buf[0], Min(SizeOf(buf), contentLen - totalRead));
+      len := FHttpClient.SockInRead(@buf[0], Min(SizeOf(buf), aContentLen - totalRead));
       if len <= 0 then
         Exit;
       Move(buf[0], body[totalRead + 1], len);
@@ -386,13 +376,14 @@ procedure TCbftpEventThread.Execute;
     FHttpClient.SockSendFlush;
   end;
 
-  function _ReadHttpHeaders: Integer;
+  function _ReadHttpHeaders(out aContentLen: Integer): Integer;
   var
     line: RawUtf8;
     codeStr: RawUtf8;
     p: Integer;
   begin
     Result := 0;
+    aContentLen := 0;
     // first line: HTTP/1.1 200 OK
     if not _ReadLine(line) then
       Exit;
@@ -402,10 +393,12 @@ procedure TCbftpEventThread.Execute;
       codeStr := Copy(line, p + 1, 3);
       Result := StrToIntDef(string(codeStr), 0);
     end;
-    // skip remaining headers
+    // read remaining headers until empty line
     repeat
       if not _ReadLine(line) then
         Break;
+      if Pos('CONTENT-LENGTH:', UpperCase(string(line))) = 1 then
+        aContentLen := StrToIntDef(Trim(Copy(string(line), 16, MaxInt)), 0);
     until line = '';
   end;
 
@@ -414,6 +407,7 @@ var
   baseUrl: RawUtf8;
   eventJson: RawUtf8;
   httpStatus: Integer;
+  contentLen: Integer;
 begin
   baseUrl := FormatUtf8('https://%:%', [FHost, FPort], []);
 
@@ -439,14 +433,13 @@ begin
       if (not FHttpClient.SockIsDefined) or (not FHttpClient.SockConnected) then
         FHttpClient.ConnectUri(baseUrl);
 
-      Debug(dpMessage, section, 'Polling cbftp events...');
       _SendLongPollRequest(baseUrl);
-      httpStatus := _ReadHttpHeaders;
+      httpStatus := _ReadHttpHeaders(contentLen);
 
       if httpStatus = 200 then
       begin
         FReconnectDelay := INITIAL_RECONNECT_DELAY_MS;
-        if _ReadLongPollResponse(eventJson) then
+        if _ReadLongPollResponse(contentLen, eventJson) then
         begin
           FQueue.Enqueue(ParseEvent(eventJson));
           Synchronize(ProcessEvents);
@@ -467,7 +460,7 @@ begin
     except
       on E: Exception do
       begin
-        Debug(dpError, section, Format('cbftp events exception: %s', [E.Message]));
+        Debug(dpError, section, Format('cbftp events exception: %s | JSON=%s', [E.Message, string(eventJson)]));
         FreeAndNil(FHttpClient);
       end;
     end;
