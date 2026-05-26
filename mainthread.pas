@@ -446,7 +446,11 @@ var
   fLibVersion: String;
 begin
   Debug(dpError, section, '%s started', [GetFullVersionString]);
+  {$IFDEF FPC}
   fLibVersion := 'FPC version: ' + {$I %FPCVERSION%};
+  {$ELSE}
+  fLibVersion := 'Delphi version';
+  {$ENDIF}
   console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
   fLibVersion := Format('OpenSSL version: %s', [GetOpenSSLVersion]);
   console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
