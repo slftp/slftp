@@ -343,7 +343,8 @@ uses
   mormot.orm.base,
   mormot.db.raw.sqlite3,
   mormot.rest.sqlite3,
-  news;
+  news,
+  cbftpclient;
 
 {$I ../slftp.inc}
 
@@ -920,6 +921,7 @@ end;
 function TApiSystemServiceImpl.GetStatus(out Response: TApiSystemStatus): boolean;
 var
   i: integer;
+  v: variant;
   s: TSite;
   upCount, downCount, siteCount: integer;
   qTotal, qRace, qDir, qAuto, qOther: integer;
@@ -959,12 +961,19 @@ begin
 
           Inc(siteCount);
 
-          if s.WorkingStatus = sstUp then
-            Inc(upCount)
-          else if s.PermDown then
-            Inc(downCount)
-          else if (s.WorkingStatus = sstDown) or (s.WorkingStatus = sstMarkedAsDownByUser) then
-            Inc(downCount);
+          if GlCbftpClient <> nil then
+          begin
+            Inc(upCount);
+          end
+          else
+          begin
+            if s.WorkingStatus = sstUp then
+              Inc(upCount)
+            else if s.PermDown then
+              Inc(downCount)
+            else if (s.WorkingStatus = sstDown) or (s.WorkingStatus = sstMarkedAsDownByUser) then
+              Inc(downCount);
+          end;
 
           // Sum current active transfers (download+upload)
           activeSum := activeSum + s.num_dn + s.num_up;
@@ -979,16 +988,61 @@ begin
     Response.SitesUp := upCount;
     Response.SitesDown := downCount;
 
-    // Gather queue stats snapshot
-    QueueStatAll;
-    GetQueueTotals(qTotal, qRace, qDir, qAuto, qOther);
-    Response.QueueSize := qTotal;
-    Response.QueueSizeMax := glSystemStatusQueueSizeMax;
-    Response.ActiveTasks := qTotal;
-    Response.QueueRaceCount := qRace;
-    Response.QueueDirlistCount := qDir;
-    Response.QueueAutoCount := qAuto;
-    Response.QueueOtherCount := qOther;
+    if GlCbftpClient <> nil then
+    begin
+      try
+        v := _Json(GlCbftpClient.GetSpreadJobs);
+        if TDocVariantData(v).Kind = dvArray then
+          qRace := TDocVariantData(v).Count
+        else
+          qRace := 0;
+
+        v := _Json(GlCbftpClient.GetTransferJobs);
+        if TDocVariantData(v).Kind = dvArray then
+          qTotal := TDocVariantData(v).Count
+        else
+          qTotal := 0;
+
+        qDir := 0;
+        qAuto := 0;
+        qOther := qTotal - qRace;
+        if qOther < 0 then qOther := 0;
+
+        Response.QueueSize := qTotal;
+        Response.QueueSizeMax := glSystemStatusQueueSizeMax;
+        Response.ActiveTasks := qTotal;
+        Response.QueueRaceCount := qRace;
+        Response.QueueDirlistCount := qDir;
+        Response.QueueAutoCount := qAuto;
+        Response.QueueOtherCount := qOther;
+      except
+        on E: Exception do
+        begin
+          QueueStatAll;
+          GetQueueTotals(qTotal, qRace, qDir, qAuto, qOther);
+          Response.QueueSize := qTotal;
+          Response.QueueSizeMax := glSystemStatusQueueSizeMax;
+          Response.ActiveTasks := qTotal;
+          Response.QueueRaceCount := qRace;
+          Response.QueueDirlistCount := qDir;
+          Response.QueueAutoCount := qAuto;
+          Response.QueueOtherCount := qOther;
+        end;
+      end;
+    end
+    else
+    begin
+      // Gather queue stats snapshot
+      QueueStatAll;
+      GetQueueTotals(qTotal, qRace, qDir, qAuto, qOther);
+      Response.QueueSize := qTotal;
+      Response.QueueSizeMax := glSystemStatusQueueSizeMax;
+      Response.ActiveTasks := qTotal;
+      Response.QueueRaceCount := qRace;
+      Response.QueueDirlistCount := qDir;
+      Response.QueueAutoCount := qAuto;
+      Response.QueueOtherCount := qOther;
+    end;
 
     loadAvgAvailable := TryGetLoadAverage(currentLoadAvg1, currentLoadAvg5, currentLoadAvg15);
     Response.LoadAvgAvailable := loadAvgAvailable;
@@ -1236,14 +1290,21 @@ begin
                   Inc(allowedSites);
 
                 isPresent := False;
-                try
-                  if (ps.dirlist <> nil) then
-                    isPresent := (ps.dirlist.entries.Count > 0) or ps.dirlist.Complete;
-                except
-                  isPresent := False;
+                if GlCbftpClient <> nil then
+                begin
+                  isPresent := (ps.CbftpFilesDone > 0) or (ps.status = rssComplete);
+                end
+                else
+                begin
+                  try
+                    if (ps.dirlist <> nil) then
+                      isPresent := (ps.dirlist.entries.Count > 0) or ps.dirlist.Complete;
+                  except
+                    isPresent := False;
+                  end;
+                  if not isPresent then
+                    isPresent := ps.status in [rssRealPre, rssComplete, rssNotAllowedButItsThere];
                 end;
-                if not isPresent then
-                  isPresent := ps.status in [rssRealPre, rssComplete, rssNotAllowedButItsThere];
 
                 if isPresent then
                   Inc(presentSites);
@@ -1370,7 +1431,18 @@ begin
       Response.Stopped := p.stopped;
       Response.QueueNumber := p.queuenumber.Value;
       Response.ErrorReason := UTF8Encode(p.errorreason);
-      Response.TotalFiles := p.GetCountOfCachedFiles;
+      if GlCbftpClient <> nil then
+      begin
+        totalFiles := 0;
+        for ps in p.PazoSitesList do
+        begin
+          if (ps <> nil) and (ps.CbftpFilesTotal > totalFiles) then
+            totalFiles := ps.CbftpFilesTotal;
+        end;
+        Response.TotalFiles := totalFiles;
+      end
+      else
+        Response.TotalFiles := p.GetCountOfCachedFiles;
     except
       on E: Exception do
       begin
@@ -1397,7 +1469,20 @@ begin
 
           // Safe dirlist access
           try
-            if ps.dirlist <> nil then
+            if (GlCbftpClient <> nil) and (ps.CbftpFilesTotal > 0) then
+            begin
+              siteDetail.Complete := ps.status = rssComplete;
+              siteDetail.FileCount := ps.CbftpFilesDone;
+              siteDetail.FilesRacedByMe := ps.CbftpFilesDone;
+              siteDetail.StartedTime := 0;
+              if ps.status = rssComplete then
+                siteDetail.CompletedTime := DateTimeToUnixMSTime(ps.CbftpCompletedTime)
+              else
+                siteDetail.CompletedTime := 0;
+
+              siteDetail.Percent := (ps.CbftpFilesDone / ps.CbftpFilesTotal) * 100.0;
+            end
+            else if ps.dirlist <> nil then
             begin
               siteDetail.Complete := ps.dirlist.Complete;
               siteDetail.FileCount := ps.dirlist.entries.Count;
@@ -1435,7 +1520,10 @@ begin
             end;
           end;
 
-          siteDetail.TotalFiles := p.GetCountOfCachedFiles;
+          if (GlCbftpClient <> nil) and (ps.CbftpFilesTotal > 0) then
+            siteDetail.TotalFiles := ps.CbftpFilesTotal
+          else
+            siteDetail.TotalFiles := p.GetCountOfCachedFiles;
 
           // Status text
           case ps.status of
