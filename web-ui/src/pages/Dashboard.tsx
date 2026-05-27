@@ -287,7 +287,7 @@ export function Dashboard() {
         <StatCard
           title="Active Tasks"
           value={stats.ActiveTasks}
-          subtitle={`Race: ${stats.QueueRaceCount ?? 0} · Dir: ${stats.QueueDirlistCount ?? 0} · Auto: ${stats.QueueAutoCount ?? 0} | ${stats.DirlistPerSecond?.toFixed(1) ?? 0} dir/s (peak: ${stats.DirlistPerSecondMax?.toFixed(1) ?? 0})`}
+          subtitle={`Race: ${stats.QueueRaceCount ?? 0} · Transfer: ${stats.QueueSize ?? 0}`}
           icon={<IconActivity size="1.4rem" stroke={1.5} color="var(--text-primary)" />}
           iconColor="#9b59b6"
           iconGradient="linear-gradient(135deg, #9b59b6 0%, #e74c3c 100%)"
