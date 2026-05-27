@@ -786,10 +786,7 @@ begin
         readyerror
       );
     end;
-    // Log extreme values for debugging — helps identify why averages look wrong
-    if (fDirlistDuration < 5) or (fDirlistDuration > 30000) then
-      Debug(dpError, c_section, '[DIRLIST_TIMING] %s: duration=%dms dirlist_only=%dms qwait=%dms readyerror=%s reached_dirlist=%s',
-        [tname, fDirlistDuration, fDirlistOnlyDuration, fQueueWaitMs, BoolToStr(readyerror, True), BoolToStr(fReachedDirlist, True)]);
+    { No per-task debug logging here — metrics are recorded via GetTaskMetrics above. }
   end;
 end;
 
