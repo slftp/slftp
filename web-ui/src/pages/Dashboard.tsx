@@ -304,7 +304,7 @@ export function Dashboard() {
       </SimpleGrid>
 
       {/* Mini Stats Row */}
-      <SimpleGrid cols={{ base: 2, sm: 2, lg: 2 }} spacing="sm">
+      <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }} spacing="sm">
         {stats.LoadAvgAvailable && (
           <MiniStatCard
             title="Load Avg"
