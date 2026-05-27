@@ -229,6 +229,7 @@ export function Dashboard() {
     `${avg1.toFixed(2)}, ${avg5.toFixed(2)}, ${avg15.toFixed(2)}`;
 
   const uptimeStr = formatUptime(stats.Uptime);
+  const cbftpUptimeStr = stats.CbftpUptime ? formatUptime(stats.CbftpUptime) : '';
   const totalSites = stats.SitesCount;
   const sitesUpPct = totalSites > 0 ? (stats.SitesUp / totalSites) * 100 : 0;
   const sitesUpPctRounded = Number(sitesUpPct.toFixed(1));
@@ -268,8 +269,8 @@ export function Dashboard() {
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
         <StatCard
           title="Uptime"
-          value={uptimeStr}
-          subtitle={`Version ${stats.Version}`}
+          value={stats.CbftpUptime ? `SL: ${uptimeStr} · CB: ${cbftpUptimeStr}` : uptimeStr}
+          subtitle={stats.CbftpVersion ? `SL: ${stats.Version} | CB: ${stats.CbftpVersion}` : `Version ${stats.Version}`}
           icon={<IconClock size="1.4rem" stroke={1.5} color="var(--text-primary)" />}
           variant="gradient"
         />

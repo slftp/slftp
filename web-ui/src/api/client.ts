@@ -83,6 +83,8 @@ export interface SystemStatus {
   QueueDirlistCount: number;
   QueueAutoCount: number;
   QueueOtherCount: number;
+  CbftpVersion?: string;
+  CbftpUptime?: number;
 }
 
 export interface Bnc {

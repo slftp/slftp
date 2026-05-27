@@ -1047,7 +1047,7 @@ begin
         Response.QueueAutoCount := qAuto;
         Response.QueueOtherCount := qOther;
 
-        // Query cbftp /info to fetch live directory listing rate (dir/s)
+        // Query cbftp /info to fetch live directory listing rate (dir/s), version, and uptime
         try
           v := _Json(GlCbftpClient.GetInfo);
           if TDocVariantData(v).Kind = dvObject then
@@ -1059,6 +1059,11 @@ begin
                 GlDirlistRateMax := Response.DirlistPerSecond;
               Response.DirlistPerSecondMax := GlDirlistRateMax;
             end;
+            if TDocVariantData(v.build_info).Kind = dvObject then
+            begin
+              Response.CbftpVersion := StringToUTF8(string(v.build_info.version_tag));
+            end;
+            Response.CbftpUptime := v.uptime;
           end;
         except
           // Fallback to local
