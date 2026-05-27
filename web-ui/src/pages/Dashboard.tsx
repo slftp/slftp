@@ -305,7 +305,7 @@ export function Dashboard() {
       </SimpleGrid>
 
       {/* Mini Stats Row */}
-      <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }} spacing="sm">
+      <SimpleGrid cols={{ base: 2, sm: 2, lg: 2 }} spacing="sm">
         {stats.LoadAvgAvailable && (
           <MiniStatCard
             title="Load Avg"
@@ -322,21 +322,6 @@ export function Dashboard() {
             color="#e74c3c"
           />
         )}
-        <MiniStatCard
-          title="Queue Peak"
-          value={stats.QueueSizeMax ?? 0}
-          icon={<IconHash size="1rem" />}
-          color="#9b59b6"
-        />
-        {stats.NewdirDirlistReaddLoadEnabled && (
-          <MiniStatCard
-            title="Dirlist Readd"
-            value={`${stats.NewdirDirlistReaddEffective ?? 0}ms`}
-            icon={<IconActivity size="1rem" />}
-            color="#00ff88"
-          />
-        )}
-
       </SimpleGrid>
 
       {/* Recent Releases Table */}
