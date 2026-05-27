@@ -953,7 +953,7 @@ export function SectionDirectories() {
                       </Group>
                     </Table.Td>
                     <Table.Td>
-                      <Text size="sm" c="dimmed">{dir.date || '-'}</Text>
+                      <Text size="sm" c="dimmed">{(dir as any).date || (dir as any).last_modified || '-'}</Text>
                     </Table.Td>
                   </Table.Tr>
                 ))}

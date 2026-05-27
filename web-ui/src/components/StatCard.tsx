@@ -143,8 +143,7 @@ export function StatCard({
           {subtitle && (
             <Text 
               size="xs" 
-              truncate
-              style={{ color: 'var(--text-muted)' }}
+              style={{ color: 'var(--text-muted)', whiteSpace: 'pre-line' }}
             >
               {subtitle}
             </Text>

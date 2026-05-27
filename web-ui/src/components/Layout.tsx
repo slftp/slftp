@@ -3,8 +3,6 @@ import { useDisclosure } from '@mantine/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { 
   IconDashboard, 
-  IconServer, 
-  IconRoute, 
   IconFolders, 
   IconMessage2, 
   IconLogout, 
@@ -14,7 +12,6 @@ import {
   IconAlertTriangle, 
   IconFlask, 
   IconFolder, 
-  IconBolt, 
   IconDatabase, 
   IconHelpCircle, 
   IconTransfer,
@@ -79,9 +76,6 @@ export function Layout() {
   const navItemsBase: NavItem[] = [
     { icon: IconDashboard, label: 'Dashboard', to: '/', color: '#4318ff' },
     { icon: IconActivity, label: 'Races', to: '/races', color: '#00ff88' },
-    { icon: IconBolt, label: 'PRE', to: '/pre', color: '#ffb547' },
-    { icon: IconServer, label: 'Sites', to: '/sites', color: '#00d4ff' },
-    { icon: IconRoute, label: 'Routes', to: '/routes', color: '#7b2cbf' },
     { icon: IconFilter, label: 'Rules', to: '/rules', color: '#ff6b6b' },
     { icon: IconFolders, label: 'Sections', to: '/sections', color: '#00ff88' },
     { icon: IconFolder, label: 'Browser', to: '/browser', color: '#feca57' },

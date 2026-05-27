@@ -270,7 +270,7 @@ export function Dashboard() {
         <StatCard
           title="Uptime"
           value={stats.CbftpUptime ? `SL: ${uptimeStr} · CB: ${cbftpUptimeStr}` : uptimeStr}
-          subtitle={stats.CbftpVersion ? `SL: ${stats.Version} | CB: ${stats.CbftpVersion}` : `Version ${stats.Version}`}
+          subtitle={stats.CbftpVersion ? `SL: ${stats.Version}\nCB: ${stats.CbftpVersion}` : `Version ${stats.Version}`}
           icon={<IconClock size="1.4rem" stroke={1.5} color="var(--text-primary)" />}
           variant="gradient"
         />

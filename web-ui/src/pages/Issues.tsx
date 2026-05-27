@@ -3,8 +3,9 @@ import { IconAlertCircle, IconRefresh, IconSearch, IconPlus, IconBook, IconFolde
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiClient, fetchBrowserPath } from '../api/client';
+import { apiClient } from '../api/client';
 import type { Issue, IssuesSummary } from '../api/client';
+import { getCbftpPath, type CbftpPathEntry } from '../api/cbftpClient';
 import { notifications } from '@mantine/notifications';
 import { sortBrowserDirs, type BrowserDirSortBy, type BrowserSortDir } from '../utils/browserDates';
 
@@ -115,7 +116,6 @@ function browserSortIndicator(active: boolean, dir: BrowserSortDir) {
 }
 
 export function Issues() {
-  const BROWSER_PENDING_POLL_MS = 1000;
   const BROWSER_INITIAL_RENDER_LIMIT = 1000;
   const BROWSER_RENDER_LIMIT_STEP = 1000;
   const navigate = useNavigate();
@@ -181,17 +181,13 @@ export function Issues() {
     },
   });
 
-  const { data: browserData, isLoading: browserLoading, isRefetching: browserRefetching } = useQuery({
-    queryKey: ['issues-browser', selectedIssue?.SiteName, browserPath],
+  const { data: cbftpBrowserData, isLoading: browserLoading, isRefetching: browserRefetching, error: browserError } = useQuery({
+    queryKey: ['issues-browser-cbftp', selectedIssue?.SiteName, browserPath],
     queryFn: async () => {
-      if (!selectedIssue?.SiteName) return null;
-      return fetchBrowserPath(selectedIssue.SiteName, browserPath);
+      if (!selectedIssue?.SiteName) return [] as CbftpPathEntry[];
+      return getCbftpPath(selectedIssue.SiteName, browserPath, 60);
     },
     enabled: !!selectedIssue?.SiteName && browserOpen,
-    refetchInterval: (query) => {
-      const data = query.state.data;
-      return (data?.status === 'pending' ? BROWSER_PENDING_POLL_MS : false);
-    },
   });
 
   const { data: siteSectionsData } = useQuery({
@@ -304,9 +300,7 @@ export function Issues() {
 
   const handleBrowserRefresh = () => {
     if (!selectedIssue?.SiteName) return;
-    fetchBrowserPath(selectedIssue.SiteName, browserPath, true).then(() => {
-      queryClient.invalidateQueries({ queryKey: ['issues-browser', selectedIssue.SiteName, browserPath] });
-    });
+    queryClient.invalidateQueries({ queryKey: ['issues-browser-cbftp', selectedIssue.SiteName, browserPath] });
   };
 
   const openBrowser = () => {
@@ -322,9 +316,13 @@ export function Issues() {
   };
 
   const browserDirs = useMemo(() => {
-    const files = browserData?.files || [];
-    return sortBrowserDirs(files.filter((f) => f.is_dir || f.is_symlink), browserSortBy, browserSortDir);
-  }, [browserData, browserSortBy, browserSortDir]);
+    const files = cbftpBrowserData || [];
+    return sortBrowserDirs(
+      files.filter((f) => (f as CbftpPathEntry).type === 'DIR' || (f as CbftpPathEntry).type === 'LINK'),
+      browserSortBy,
+      browserSortDir
+    ) as CbftpPathEntry[];
+  }, [cbftpBrowserData, browserSortBy, browserSortDir]);
   const visibleBrowserDirs = useMemo(() => browserDirs.slice(0, browserRenderLimit), [browserDirs, browserRenderLimit]);
   const hasHiddenBrowserDirs = browserDirs.length > visibleBrowserDirs.length;
 
@@ -732,17 +730,17 @@ export function Issues() {
             ))}
           </Breadcrumbs>
 
-          {(browserLoading || browserRefetching || browserData?.status === 'pending') && (
+          {(browserLoading || browserRefetching) && (
             <Center h={120}><Loader size="md" /></Center>
           )}
 
-          {!browserLoading && browserData?.status === 'error' && (
+          {!browserLoading && browserError && (
             <Alert color="red" title="Browser error">
-              {browserData.message || 'Failed to load directory.'}
+              {browserError instanceof Error ? browserError.message : 'Failed to load directory.'}
             </Alert>
           )}
 
-          {!browserLoading && browserData?.status === 'ready' && (
+          {!browserLoading && !browserError && (
             <Table striped highlightOnHover withTableBorder withColumnBorders>
               <Table.Thead>
                 <Table.Tr>
@@ -778,14 +776,14 @@ export function Issues() {
                   <Table.Tr key={dir.name} style={{ cursor: 'pointer' }} onClick={() => navigateBrowserPath(`${browserPath === '/' ? '' : browserPath}/${dir.name}`)}>
                     <Table.Td>
                       <Group gap="xs">
-                        {dir.is_symlink ? <IconLink size="1rem" /> : <IconFolderOpen size="1rem" />}
-                        <Tooltip label={dir.is_symlink && dir.symlink_target ? `${dir.name} -> ${dir.symlink_target}` : dir.name} withArrow withinPortal>
+                        {dir.type === 'LINK' ? <IconLink size="1rem" /> : <IconFolderOpen size="1rem" />}
+                        <Tooltip label={dir.type === 'LINK' && dir.link_target ? `${dir.name} -> ${dir.link_target}` : dir.name} withArrow withinPortal>
                           <Text fw={600}>{dir.name}</Text>
                         </Tooltip>
                       </Group>
                     </Table.Td>
                     <Table.Td>
-                      <Text size="sm" c="dimmed">{dir.date || '-'}</Text>
+                      <Text size="sm" c="dimmed">{(dir as any).last_modified || (dir as any).date || '-'}</Text>
                     </Table.Td>
                   </Table.Tr>
                 ))}

@@ -144,6 +144,9 @@ type
     { Download a file from a site via cbftp }
     function GetFile(const aSite, aPath: RawUtf8): RawUtf8;
 
+    { List a directory on a site via cbftp }
+    function GetPath(const aSite, aPath: RawUtf8; aTimeout: Integer = 60): RawUtf8;
+
   end;
 
   { Global cbftp client instance }
@@ -494,6 +497,14 @@ var
 begin
   query := FormatUtf8('site=%&path=%', [aSite, aPath], []);
   Result := DoRequest('GET', '/file?' + query);
+end;
+
+function TCbftpClient.GetPath(const aSite, aPath: RawUtf8; aTimeout: Integer): RawUtf8;
+var
+  query: RawUtf8;
+begin
+  query := FormatUtf8('site=%&path=%&timeout=%', [aSite, aPath, aTimeout], []);
+  Result := DoRequest('GET', '/path?' + query);
 end;
 
 { Global helper functions }

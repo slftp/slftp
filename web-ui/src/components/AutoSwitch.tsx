@@ -53,7 +53,7 @@ export function AutoSwitch() {
   );
 
   return (
-    <Tooltip label="Turn Precatcher On/Off" withArrow withinPortal zIndex={999}>
+    <Tooltip label="Turn Auto On/Off" withArrow withinPortal zIndex={999}>
       <div>
         <Switch
           checked={autoStatus}

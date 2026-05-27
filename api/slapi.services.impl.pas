@@ -1052,16 +1052,19 @@ begin
           v := _Json(GlCbftpClient.GetInfo);
           if TDocVariantData(v).Kind = dvObject then
           begin
-            if TDocVariantData(v.load).Kind = dvObject then
+            if _Safe(v.load)^.Kind = dvObject then
             begin
               Response.DirlistPerSecond := v.load.file_list_refresh_rate;
               if Response.DirlistPerSecond > GlDirlistRateMax then
                 GlDirlistRateMax := Response.DirlistPerSecond;
               Response.DirlistPerSecondMax := GlDirlistRateMax;
             end;
-            if TDocVariantData(v.build_info).Kind = dvObject then
+            if _Safe(v.build_info)^.Kind = dvObject then
             begin
-              Response.CbftpVersion := StringToUTF8(string(v.build_info.version_tag));
+              if v.build_info.git_hash <> '' then
+                Response.CbftpVersion := StringToUTF8(Format('%s (git# %s)', [string(v.build_info.version_tag), string(v.build_info.git_hash)]))
+              else
+                Response.CbftpVersion := StringToUTF8(string(v.build_info.version_tag));
             end;
             Response.CbftpUptime := v.uptime;
           end;

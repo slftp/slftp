@@ -18,7 +18,50 @@ implementation
 
 uses
   SysUtils, StrUtils, configunit, debugunit, mormot.core.unicode, mormot.core.json,
-  slcriticalsection2, pazo;
+  slcriticalsection2, pazo,
+  Classes;
+
+function _QueryParam(const aUrl, aName: string): string;
+var
+  query: string;
+  pairs: TStringList;
+  i: integer;
+  eqPos: integer;
+  key: string;
+begin
+  Result := '';
+  if aName = '' then
+    Exit;
+
+  eqPos := Pos('?', aUrl);
+  if eqPos <= 0 then
+    Exit;
+
+  query := Copy(aUrl, eqPos + 1, MaxInt);
+  if query = '' then
+    Exit;
+
+  pairs := TStringList.Create;
+  try
+    pairs.StrictDelimiter := True;
+    pairs.Delimiter := '&';
+    pairs.DelimitedText := query;
+    for i := 0 to pairs.Count - 1 do
+    begin
+      eqPos := Pos('=', pairs[i]);
+      if eqPos <= 0 then
+        Continue;
+      key := LowerCase(Copy(pairs[i], 1, eqPos - 1));
+      if key = LowerCase(aName) then
+      begin
+        Result := Copy(pairs[i], eqPos + 1, MaxInt);
+        Exit;
+      end;
+    end;
+  finally
+    pairs.Free;
+  end;
+end;
 
 const
   section = 'slapi.cbftp';
@@ -280,7 +323,15 @@ begin
       else if path = '/stats/hourly' then
         response := client.GetHourlyStats
       else if path = '/stats/races' then
-        response := client.GetRaceStats;
+        response := client.GetRaceStats
+      else if path = '/path' then
+      begin
+        response := client.GetPath(
+          StringToUtf8(_QueryParam(Utf8ToString(Call.Url), 'site')),
+          StringToUtf8(_QueryParam(Utf8ToString(Call.Url), 'path')),
+          StrToIntDef(_QueryParam(Utf8ToString(Call.Url), 'timeout'), 60)
+        );
+      end;
 
       success := response <> '';
     end

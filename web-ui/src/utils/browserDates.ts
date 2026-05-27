@@ -1,9 +1,10 @@
 import type { FileEntry } from '../api/client';
+import type { CbftpPathEntry } from '../api/cbftpClient';
 
 export type BrowserDirSortBy = 'name' | 'modified';
 export type BrowserSortDir = 'asc' | 'desc';
 
-export function parseBrowserModifiedMs(entry: FileEntry): number | null {
+export function parseBrowserModifiedMs(entry: FileEntry | CbftpPathEntry): number | null {
   const record = entry as unknown as Record<string, unknown>;
   const candidates = [
     record.mtime,
@@ -11,6 +12,7 @@ export function parseBrowserModifiedMs(entry: FileEntry): number | null {
     record.modified,
     record.modified_at,
     record.date,
+    record.last_modified,
     record.time,
     record.timestamp,
   ];
@@ -68,11 +70,11 @@ export function parseBrowserModifiedMs(entry: FileEntry): number | null {
   return null;
 }
 
-export function sortBrowserDirs(
-  dirs: FileEntry[],
+export function sortBrowserDirs<T extends FileEntry | CbftpPathEntry>(
+  dirs: T[],
   sortBy: BrowserDirSortBy = 'modified',
   sortDir: BrowserSortDir = 'desc',
-): FileEntry[] {
+): T[] {
   return [...dirs].sort((a, b) => {
     let cmp = 0;
 

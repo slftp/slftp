@@ -454,6 +454,24 @@ export const getSiteCredits = async (siteName: string): Promise<SiteCreditsRespo
   }
 };
 
+// Browse /path
+export interface CbftpPathEntry {
+  name: string;
+  size: number;
+  user: string;
+  group: string;
+  type: 'DIR' | 'LINK' | 'FILE';
+  last_modified: string;
+  link_target?: string;
+}
+
+export const getCbftpPath = async (site: string, path: string, timeout: number = 60): Promise<CbftpPathEntry[]> => {
+  const response = await cbftpClient.get<CbftpPathEntry[]>('/cbftp/path', {
+    params: { site, path, timeout }
+  });
+  return response.data || [];
+};
+
 // Info
 export const getInfo = async (): Promise<CbftpInfo> => {
   const response = await cbftpClient.get('/cbftp/info');
