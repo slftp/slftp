@@ -32,7 +32,7 @@ type
     BytesTotal: Int64;
     BytesDone: Int64;
     SpeedMbps: Double;
-    TimeSpentSeconds: Integer;
+    TimeSpentSeconds: Double;
     Status: string;
     FileSize: Int64;
     Timestamp: Int64;
@@ -340,7 +340,7 @@ begin
       Result.EventType := cetRaceCompleted;
       Result.Name := _GetStr(obj, 'name');
       Result.Site := _GetStr(obj, 'site');
-      Result.TimeSpentSeconds := _GetInt(obj, 'time_spent_seconds');
+      Result.TimeSpentSeconds := _GetDouble(obj, 'time_spent_seconds');
       Result.Timestamp := _GetInt(obj, 'timestamp');
     end
     else if eventType = 'race_done' then

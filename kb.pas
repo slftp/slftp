@@ -6,7 +6,8 @@ unit kb;
 interface
 
 uses
-  Classes, SyncObjs, slcriticalsection2, kb.releaseinfo, pazo;
+  Classes, SyncObjs, slcriticalsection2, kb.releaseinfo, pazo,
+  speedstatsunit, statsunit;
 
 type
   TKBThread = class(TThread)
@@ -1875,9 +1876,9 @@ begin
 
     cetRaceCompleted:
     begin
-      Debug(dpMessage, rsections, Format('[cbftp] race_completed: %s on %s (%ds)',
+      Debug(dpMessage, rsections, Format('[cbftp] race_completed: %s on %s (%.2fs)',
         [aEvent.Name, aEvent.Site, aEvent.TimeSpentSeconds]));
-      irc_Addstats(Format('<c7>[cbftp]</c> <c3>Completed</c>: <b>%s</b> on %s (%.2fs)', [aEvent.Name, aEvent.Site, aEvent.TimeSpentSeconds]));
+      irc_Addstats(Format('<c7>[cbftp]</c> <c3>Completed</c>: <b>%s</b> on %s (%.2fs)', [aEvent.Name, aEvent.Site, aEvent.TimeSpentSeconds / 1.0]));
       fPazo := FindPazoByName('', aEvent.Name);
       if fPazo <> nil then
       begin
@@ -1898,7 +1899,13 @@ begin
       fPazo := FindPazoByName('', aEvent.Name);
       if fPazo <> nil then
       begin
-        // Race is fully complete on all sites
+        // Update ranks when cbftp race is fully complete
+        try
+          RanksProcess(fPazo);
+        except
+          on E: Exception do
+            Debug(dpError, rsections, Format('[cbftp] ranks update error: %s', [E.Message]));
+        end;
       end;
     end;
 
@@ -1908,6 +1915,17 @@ begin
         [aEvent.SrcSite, aEvent.DstSite, aEvent.SpeedMbps, aEvent.FileSize]));
       irc_Addstats(Format('<c7>[cbftp]</c> <b>%s</b> <c4>%s</c> -> <c9>%s</c> @ <c3>%.2f</c> Mbps (%s)',
         [aEvent.Name, aEvent.SrcSite, aEvent.DstSite, aEvent.SpeedMbps, aEvent.Filename]));
+      // Feed cbftp speed samples into slftp stats system
+      s := FindReleaseInLatestKBList(aEvent.Name);
+      if s = '' then
+        s := 'UNKNOWN';
+      try
+        SpeedStatAdd(aEvent.SrcSite, aEvent.DstSite, aEvent.SpeedMbps, s, aEvent.Name);
+        statsProcessRace(aEvent.SrcSite, aEvent.DstSite, s, aEvent.Name, aEvent.Filename, aEvent.FileSize);
+      except
+        on E: Exception do
+          Debug(dpError, rsections, Format('[cbftp] stats write error: %s', [E.Message]));
+      end;
     end;
 
     cetNfoAvailable:
