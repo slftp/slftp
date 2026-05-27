@@ -920,8 +920,8 @@ end;
 
 function TApiSystemServiceImpl.GetStatus(out Response: TApiSystemStatus): boolean;
 var
-  i: integer;
-  v: variant;
+  i, j: integer;
+  v, cbftpDetailedSitesObj, item: variant;
   s: TSite;
   upCount, downCount, siteCount: integer;
   qTotal, qRace, qDir, qAuto, qOther: integer;
@@ -929,6 +929,8 @@ var
   cpuLoadAvailable: boolean;
   currentLoadAvg1, currentLoadAvg5, currentLoadAvg15: Double;
   loadAvgAvailable: boolean;
+  cbftpDetailedSites: RawUtf8;
+  isSiteDisabled: boolean;
 begin
   Result := False;
   try
@@ -944,6 +946,17 @@ begin
     downCount := 0;
     siteCount := 0;
     activeSum := 0;
+
+    // Fetch detailed sites from cbftp to check disabled status
+    cbftpDetailedSites := '';
+    if GlCbftpClient <> nil then
+    begin
+      try
+        cbftpDetailedSites := GlCbftpClient.GetSites('detailed=true');
+      except
+        // Fallback gracefully
+      end;
+    end;
 
     GlApiSitesListLock.Enter('GetStatus');
     try
@@ -963,7 +976,25 @@ begin
 
           if GlCbftpClient <> nil then
           begin
-            Inc(upCount);
+            isSiteDisabled := False;
+            cbftpDetailedSitesObj := _Json(cbftpDetailedSites);
+            if TDocVariantData(cbftpDetailedSitesObj).Kind = dvArray then
+            begin
+              for j := 0 to TDocVariantData(cbftpDetailedSitesObj).Count - 1 do
+              begin
+                item := TDocVariantData(cbftpDetailedSitesObj).Values[j];
+                if SameText(string(item.name), s.Name) then
+                begin
+                  isSiteDisabled := item.disabled;
+                  Break;
+                end;
+              end;
+            end;
+
+            if isSiteDisabled then
+              Inc(downCount)
+            else
+              Inc(upCount);
           end
           else
           begin
@@ -1010,11 +1041,30 @@ begin
 
         Response.QueueSize := qTotal;
         Response.QueueSizeMax := glSystemStatusQueueSizeMax;
-        Response.ActiveTasks := qTotal;
+        Response.ActiveTasks := qRace + qTotal; // Refined: sum of active races and transfers
         Response.QueueRaceCount := qRace;
         Response.QueueDirlistCount := qDir;
         Response.QueueAutoCount := qAuto;
         Response.QueueOtherCount := qOther;
+
+        // Query cbftp /info to fetch live directory listing rate (dir/s)
+        try
+          v := _Json(GlCbftpClient.GetInfo);
+          if TDocVariantData(v).Kind = dvObject then
+          begin
+            if TDocVariantData(v.load).Kind = dvObject then
+            begin
+              Response.DirlistPerSecond := v.load.file_list_refresh_rate;
+              if Response.DirlistPerSecond > GlDirlistRateMax then
+                GlDirlistRateMax := Response.DirlistPerSecond;
+              Response.DirlistPerSecondMax := GlDirlistRateMax;
+            end;
+          end;
+        except
+          // Fallback to local
+          Response.DirlistPerSecond := GlDirlistRate;
+          Response.DirlistPerSecondMax := GlDirlistRateMax;
+        end;
       except
         on E: Exception do
         begin
