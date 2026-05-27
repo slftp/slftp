@@ -27,7 +27,6 @@ import {
   IconServer,
   IconActivity,
   IconCpu,
-  IconHash,
 } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
