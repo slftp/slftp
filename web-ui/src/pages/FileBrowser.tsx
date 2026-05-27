@@ -3,10 +3,9 @@ import { Title, Group, Button, Grid, Paper, Stack, Text, Badge, Tooltip, Menu, T
 import { IconArrowRight, IconArrowLeft, IconArrowsExchange, IconDots, IconBolt, IconFolders, IconArrowsLeftRight } from '@tabler/icons-react';
 import { FileBrowserPane } from './FileBrowserPane';
 import { apiClient } from '../api/client';
-import type { FileEntry } from '../api/client';
+import type { CbftpPathEntry } from '../api/cbftpClient';
 import { notifications } from '@mantine/notifications';
 import { useQueryClient } from '@tanstack/react-query';
-import { fetchBrowserPath } from '../api/client';
 
 export function FileBrowser() {
   const queryClient = useQueryClient();
@@ -15,8 +14,8 @@ export function FileBrowser() {
   const [rightSite, setRightSite] = useState<string | null>(null);
   const [leftPath, setLeftPath] = useState('/');
   const [rightPath, setRightPath] = useState('/');
-  const [leftSelection, setLeftSelection] = useState<FileEntry[]>([]);
-  const [rightSelection, setRightSelection] = useState<FileEntry[]>([]);
+  const [leftSelection, setLeftSelection] = useState<CbftpPathEntry[]>([]);
+  const [rightSelection, setRightSelection] = useState<CbftpPathEntry[]>([]);
   const [transferring, setTransferring] = useState(false);
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -28,10 +27,8 @@ export function FileBrowser() {
     const rs = rightSite;
     const lp = leftPath;
     const rp = rightPath;
-    if (ls) await fetchBrowserPath(ls, lp, true);
-    if (rs && activeTab === 'fxp') await fetchBrowserPath(rs, rp, true);
-    if (ls) queryClient.invalidateQueries({ queryKey: ['browser', ls, lp] });
-    if (rs && activeTab === 'fxp') queryClient.invalidateQueries({ queryKey: ['browser', rs, rp] });
+    if (ls) queryClient.invalidateQueries({ queryKey: ['browser-cbftp', ls, lp] });
+    if (rs && activeTab === 'fxp') queryClient.invalidateQueries({ queryKey: ['browser-cbftp', rs, rp] });
   };
 
   const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
@@ -88,7 +85,8 @@ export function FileBrowser() {
 
     try {
       for (const file of selection) {
-        if (file.is_dir) {
+        const isDir = file.type === 'DIR';
+        if (isDir) {
           // Use the new Release Transfer API for directories
           // This delegates recursion and transfer logic to the backend (TPazoDirlistTask)
           // similar to the !transfer IRC command.

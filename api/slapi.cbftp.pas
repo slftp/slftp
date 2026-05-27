@@ -200,25 +200,6 @@ begin
     Exit(True);
   end;
 
-  // Handle /events endpoint - proxy to cbftp SSE events
-  if (Call.Method = 'GET') and (path = '/events') then
-  begin
-    response := client.GetEvents(query);
-    success := response <> '';
-    if success then
-    begin
-      Call.OutStatus := 200;
-      Call.OutBody := response;
-      Call.OutHead := 'Content-Type: application/json';
-    end
-    else
-    begin
-      Call.OutStatus := 204;
-      Call.OutBody := '';
-    end;
-    Exit(True);
-  end;
-
   // If cbftp is disabled, reject all other requests
   if not IsCbftpEnabled then
   begin

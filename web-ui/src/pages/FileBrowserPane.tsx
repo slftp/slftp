@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiClient, fetchBrowserPath } from '../api/client';
+import { apiClient } from '../api/client';
+import { getCbftpPath, type CbftpPathEntry } from '../api/cbftpClient';
 import {
   ActionIcon,
   Alert,
@@ -33,7 +34,6 @@ import {
   IconSelector,
   IconX,
 } from '@tabler/icons-react';
-import type { BrowserResponse, FileEntry } from '../api/client';
 import { FileRow } from './FileBrowserPaneRow';
 
 type SitesListItem = { name: string };
@@ -50,14 +50,17 @@ interface FileBrowserPaneProps {
   path?: string;
   onSiteChange?: (site: string | null) => void;
   onPathChange?: (path: string) => void;
-  onSelectionChange?: (files: FileEntry[]) => void;
+  onSelectionChange?: (files: CbftpPathEntry[]) => void;
 }
 
-const BROWSER_PENDING_POLL_MS = 120;
 const INITIAL_RENDER_LIMIT = 1000;
 const RENDER_LIMIT_STEP = 1000;
 
-function _parseModifiedMs(aFile: FileEntry): number | null {
+function _isDir(f: CbftpPathEntry): boolean {
+  return f.type === 'DIR';
+}
+
+function _parseModifiedMs(aFile: CbftpPathEntry): number | null {
   const record = aFile as unknown as Record<string, unknown>;
   const candidates = [
     record.mtime,
@@ -65,6 +68,7 @@ function _parseModifiedMs(aFile: FileEntry): number | null {
     record.modified,
     record.modified_at,
     record.date,
+    record.last_modified,
     record.time,
     record.timestamp,
   ];
@@ -239,38 +243,26 @@ export function FileBrowserPane({
 
   const siteOptions = sitesData ? sitesData.map((s) => ({ value: s.name, label: s.name })) : [];
 
-  const { data: browserData, isLoading, error, isRefetching, refetch: refetchBrowser } = useQuery({
-    queryKey: ['browser', internalSite, internalPath],
-    queryFn: async (): Promise<BrowserResponse | null> => {
+  const { data: cbftpBrowserData, isLoading, error, isRefetching } = useQuery({
+    queryKey: ['browser-cbftp', internalSite, internalPath],
+    queryFn: async (): Promise<CbftpPathEntry[] | null> => {
       if (!internalSite) return null;
-      return fetchBrowserPath(internalSite, internalPath);
+      return getCbftpPath(internalSite, internalPath);
     },
     enabled: !!internalSite,
+    retry: 1,
+    staleTime: 5000,
   });
 
   useEffect(() => {
-    if (!internalSite) return;
-    if (browserData?.status !== 'pending') return;
-    if (isRefetching) return;
-
-    const timer = window.setTimeout(() => {
-      void refetchBrowser();
-    }, BROWSER_PENDING_POLL_MS);
-
-    return () => window.clearTimeout(timer);
-  }, [internalSite, browserData?.status, isRefetching, refetchBrowser]);
-
-  useEffect(() => {
-    if (!onSelectionChange || !browserData?.files) return;
-    const selectedEntries = browserData.files.filter((f) => selectedFiles.has(f.name));
+    if (!onSelectionChange || !cbftpBrowserData) return;
+    const selectedEntries = cbftpBrowserData.filter((f) => selectedFiles.has(f.name));
     onSelectionChange(selectedEntries);
-  }, [selectedFiles, browserData?.files, onSelectionChange]);
+  }, [selectedFiles, cbftpBrowserData, onSelectionChange]);
 
   const handleRefresh = () => {
     if (!internalSite) return;
-    fetchBrowserPath(internalSite, internalPath, true).then(() => {
-      queryClient.invalidateQueries({ queryKey: ['browser', internalSite, internalPath] });
-    });
+    queryClient.invalidateQueries({ queryKey: ['browser-cbftp', internalSite, internalPath] });
   };
 
   const handleUp = () => {
@@ -309,15 +301,15 @@ export function FileBrowserPane({
   const selectedCount = selectedFiles.size;
   const canNavigateUp = internalPath !== '/';
 
-  const filesRaw: FileEntry[] = browserData?.status === 'ready' && browserData.files ? browserData.files : [];
+  const filesRaw: CbftpPathEntry[] = cbftpBrowserData || [];
   const files = useMemo(() => {
     return filesRaw.filter((f) => {
-      const name = (f as unknown as { name?: unknown }).name;
+      const name = f.name;
       if (typeof name !== 'string') return false;
       if (name.trim() === '') return false;
       if (name.startsWith('.')) return false;
 
-      const size = (f as unknown as { size?: unknown }).size;
+      const size = f.size;
       if (typeof size !== 'number' || !Number.isFinite(size)) return false;
       return true;
     });
@@ -329,7 +321,9 @@ export function FileBrowserPane({
   const sortedFiles = useMemo(() => {
     const decorated = files.map((f) => ({ f, modifiedMs: _parseModifiedMs(f) }));
     decorated.sort((a, b) => {
-      if (a.f.is_dir !== b.f.is_dir) return a.f.is_dir ? -1 : 1;
+      const aIsDir = _isDir(a.f);
+      const bIsDir = _isDir(b.f);
+      if (aIsDir !== bIsDir) return aIsDir ? -1 : 1;
 
       let cmp = 0;
       if (sortBy === 'name') {
@@ -339,8 +333,8 @@ export function FileBrowserPane({
         const bu = (b.f.user || '').toString();
         cmp = au.localeCompare(bu, undefined, { sensitivity: 'base' });
       } else if (sortBy === 'size') {
-        const as = a.f.is_dir ? -1 : a.f.size;
-        const bs = b.f.is_dir ? -1 : b.f.size;
+        const as = aIsDir ? -1 : a.f.size;
+        const bs = bIsDir ? -1 : b.f.size;
         cmp = as - bs;
       } else if (sortBy === 'modified') {
         const am = a.modifiedMs;
@@ -394,7 +388,7 @@ export function FileBrowserPane({
                   variant="light"
                   size="lg"
                   onClick={handleRefresh}
-                  loading={isRefetching || (browserData?.status === 'pending')}
+                  loading={isRefetching || isLoading}
                   disabled={!internalSite}
                 >
                   <IconRefresh size="1.1rem" />
@@ -458,17 +452,16 @@ export function FileBrowserPane({
 
       {sitesError && <Alert color="red" p="xs">{(sitesError as Error).message}</Alert>}
       {error && <Alert color="red" p="xs">{(error as Error).message}</Alert>}
-      {browserData?.status === 'error' && <Alert color="red" p="xs">{browserData.message}</Alert>}
 
       <Paper withBorder radius="md" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        {(isLoading || (browserData?.status === 'pending')) ? (
+        {isLoading ? (
           <Center style={{ flex: 1 }}>
             <Stack align="center" gap="xs">
               <Loader size="md" />
               <Text size="sm" c="dimmed">Loading...</Text>
             </Stack>
           </Center>
-        ) : browserData?.status === 'ready' && browserData.files ? (
+        ) : cbftpBrowserData ? (
           <Table.ScrollContainer
             minWidth={0}
             maxHeight="100%"
@@ -624,7 +617,7 @@ export function FileBrowserPane({
             {internalSite ? `${internalSite}:${internalPath}` : '—'}
           </Text>
           <Text size="xs" c="dimmed">
-            {browserData?.status === 'ready' && browserData.files ? `${browserData.files.length} entries` : ''}
+            {cbftpBrowserData ? `${cbftpBrowserData.length} entries` : ''}
           </Text>
         </Group>
       </Paper>

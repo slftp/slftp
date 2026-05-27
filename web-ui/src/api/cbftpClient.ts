@@ -467,7 +467,8 @@ export interface CbftpPathEntry {
 
 export const getCbftpPath = async (site: string, path: string, timeout: number = 60): Promise<CbftpPathEntry[]> => {
   const response = await cbftpClient.get<CbftpPathEntry[]>('/cbftp/path', {
-    params: { site, path, timeout }
+    params: { site, path, timeout },
+    timeout: 30000, // 30s axios timeout — cbftp /path can be slow on first connect
   });
   return response.data || [];
 };

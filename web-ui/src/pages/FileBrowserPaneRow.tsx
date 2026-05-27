@@ -1,10 +1,10 @@
 import { memo } from 'react';
 import { Table, Checkbox, Group, ThemeIcon, Tooltip, Text } from '@mantine/core';
 import { IconFolder, IconFile, IconLink } from '@tabler/icons-react';
-import type { FileEntry } from '../api/client';
+import type { CbftpPathEntry } from '../api/cbftpClient';
 
 interface FileRowProps {
-  file: FileEntry;
+  file: CbftpPathEntry;
   modifiedMs: number | null;
   selected: boolean;
   onToggle: (fileName: string) => void;
@@ -49,16 +49,20 @@ export const FileRow = memo(function FileRow({
   onNavigate,
   currentPath,
 }: FileRowProps) {
+  const isDir = f.type === 'DIR';
+  const isLink = f.type === 'LINK';
+  const isNavigable = isDir || isLink;
+
   return (
     <Table.Tr
-      style={{ cursor: (f.is_dir || f.is_symlink) ? 'pointer' : 'default', userSelect: 'none' }}
+      style={{ cursor: isNavigable ? 'pointer' : 'default', userSelect: 'none' }}
       data-selected={selected || undefined}
       onClick={(e) => {
         if (e.ctrlKey || e.metaKey) {
           onToggle(f.name);
           return;
         }
-        if (f.is_dir || f.is_symlink) {
+        if (isNavigable) {
           onNavigate(currentPath + (currentPath === '/' ? '' : '/') + f.name);
         } else {
           onToggle(f.name);
@@ -75,17 +79,17 @@ export const FileRow = memo(function FileRow({
       </Table.Td>
       <Table.Td>
         <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
-          <ThemeIcon color={f.is_symlink ? 'teal' : (f.is_dir ? 'blue' : 'gray')} variant="light" size="sm">
-            {f.is_symlink ? (
+          <ThemeIcon color={isLink ? 'teal' : (isDir ? 'blue' : 'gray')} variant="light" size="sm">
+            {isLink ? (
               <IconLink size="0.8rem" />
-            ) : f.is_dir ? (
+            ) : isDir ? (
               <IconFolder size="0.8rem" />
             ) : (
               <IconFile size="0.8rem" />
             )}
           </ThemeIcon>
-          <Tooltip label={f.is_symlink && f.symlink_target ? `${f.name} -> ${f.symlink_target}` : f.name} withArrow withinPortal>
-            {f.is_dir ? (
+          <Tooltip label={isLink && f.link_target ? `${f.name} -> ${f.link_target}` : f.name} withArrow withinPortal>
+            {isDir ? (
               <Text size="sm" fw={600} truncate style={{ minWidth: 0, flex: 1 }}>
                 {f.name}
               </Text>
@@ -129,7 +133,7 @@ export const FileRow = memo(function FileRow({
       </Table.Td>
       <Table.Td>
         <Text size="sm" c="dimmed" ta="right">
-          {f.is_dir ? '—' : _formatSize(f.size)}
+          {isDir ? '—' : _formatSize(f.size)}
         </Text>
       </Table.Td>
       <Table.Td>
