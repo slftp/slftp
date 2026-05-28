@@ -37,6 +37,7 @@ type
   queue_last_run: TDateTime;
   queueclean_last_run: TDateTime;
   queue_last_stat_update: TDateTime;
+  fLastQueueSort: TDateTime;
 
     procedure TryToAssignLoginSlot(t: TLoginTask);
     procedure TryToAssignRaceSlots(t: TPazoRaceTask);
@@ -433,6 +434,7 @@ begin
     queue_last_run := Now;
     queueclean_last_run := Now;
     queue_last_stat_update := Now;
+    fLastQueueSort := Now;
     FreeOnTerminate := True;
     fQueueStat := TQueueStat.Create();
     StatsList.Add(fQueueStat);
@@ -1652,7 +1654,14 @@ begin
         end;
 
         if bTasksMoved then
-          tasks.Sort(@QueueSorter);
+        begin
+          // HOTFIX: Limit sorting frequency for large queues to prevent CPU burn
+          if (tasks.Count < 500) or (MilliSecondsBetween(fLastQueueSort, Now) > 5000) then
+          begin
+            tasks.Sort(@QueueSorter);
+            fLastQueueSort := Now;
+          end;
+        end;
 
         for fListIndex := 0 to 1 do
         begin
