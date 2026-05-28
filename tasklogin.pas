@@ -18,7 +18,7 @@ type
 implementation
 
 uses
-  sitesunit, queueunit, dateutils, SysUtils, irc, debugunit;
+  sitesunit, queueunit, dateutils, SysUtils, irc, debugunit, cbftpclient;
 
 const
   section = 'login';
@@ -39,6 +39,11 @@ var
   l: TLoginTask;
   fOriginalSlotName: string;
 begin
+  Result := True;
+  ready := True;
+  if GlCbftpClient <> nil then
+    Exit;
+
   Result := False;
   Debug(dpSpam, section, '-->' + Name);
   s := slot;

@@ -108,7 +108,7 @@ implementation
 
 uses
   SysUtils, Types, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils,
-  tasktvinfolookup, taskhttpnfo, tasksitenfo, tasksitesfv, sitesunit, dirlist;
+  tasktvinfolookup, taskhttpnfo, tasksitenfo, tasksitesfv, sitesunit, dirlist, cbftpclient;
 
 const
   section = 'queue';
@@ -1083,12 +1083,20 @@ end;
 
 function IsSlotReadyForQuitTask(const aSlot: TSiteSlot; const aQueueLastRun: TDateTime): boolean;
 begin
+  Result := False;
+  if GlCbftpClient <> nil then
+    Exit;
+
   Result := (aSlot.status = ssOnline) and ((aSlot.site.WorkingStatus in [sstMarkedAsDownByUser]) or ((aSlot.site.maxidle <> 0) and
               (MilliSecondsBetween(aQueueLastRun, aSlot.LastNonIdleTaskExecution) >= aSlot.site.maxidle * 1000)));
 end;
 
 function IsSlotReadyForIdleTask(const aSlot: TSiteSlot; const aQueueLastRun: TDateTime): boolean;
 begin
+  Result := False;
+  if GlCbftpClient <> nil then
+    Exit;
+
   Result := ((aSlot.status = ssOnline) or ((aSlot.site.WorkingStatus in [sstUp]) and
               ((aSlot.site.maxidle = 0) or (MilliSecondsBetween(aQueueLastRun, aSlot.LastNonIdleTaskExecution) < aSlot.site.maxidle * 1000))))
               and (MilliSecondsBetween(aQueueLastRun, aSlot.LastIO) > aSlot.site.idleinterval * 1000);

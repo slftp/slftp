@@ -685,6 +685,9 @@ function IrcQueueShow(const netname, channel, params: String): boolean;
 procedure QueueEmpty(const sitename: String);
 procedure QueueStart;
 
+var
+  GlSitesSyncing: Boolean = False;
+
 { Iterates through @link(sites) and compares the entries with given aSitename.
   @param(aNetname network name, use '' or 'CONSOLE' to bypass check)
   @param(aSitename sitename which is used for searching site in @link(sites))
@@ -787,7 +790,7 @@ implementation
 uses
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
-  dirlist.helpers, tags, Generics.Defaults;
+  dirlist.helpers, tags, Generics.Defaults, cbftpclient;
 
 const
   section = 'sites';
@@ -1603,6 +1606,8 @@ begin
   console_add_sitewindow(Name);
   while ((not slshutdown) and (not shouldquit)) do
   begin
+    if GlCbftpClient <> nil then
+      Sleep(100);
     try
       if status = ssOnline then
         Console_Slot_Add(Name, 'Idle...');
@@ -1621,7 +1626,12 @@ begin
         Debug(dpSpam, section, Format('--> %s', [Name]));
 
         try
-          if todotask.Execute(self) then
+          if GlCbftpClient <> nil then
+          begin
+            todotask.ready := True;
+            todotask.readyerror := True;
+          end
+          else if todotask.Execute(self) then
           begin
             LastTaskExecution := Now();
 
@@ -2400,6 +2410,10 @@ var
   host: String;
   i: integer;
 begin
+  Result := True;
+  if GlCbftpClient <> nil then
+    Exit;
+
   Result := False;
 
   i := 0;
@@ -2473,6 +2487,10 @@ var
   i: integer;
   ss: TSiteSlot;
 begin
+  Result := True;
+  if GlCbftpClient <> nil then
+    Exit;
+
   Result := False;
   Debug(dpSpam, section, 'Relogin ' + Name + ' ' + IntToStr(limit_maxrelogins));
 
@@ -2670,6 +2688,8 @@ end;
 function TSiteSlot.Send(const s: String): boolean;
 begin
   Result := False;
+  if GlCbftpClient <> nil then
+    Exit;
   try
     Console_Slot_Add(Name, s);
     console_addline(Name, s);
@@ -3451,6 +3471,8 @@ end;
 
 procedure TSite.PrintSiteStatusToIRC;
 begin
+  if GlSitesSyncing then
+    Exit;
   case FWorkingStatus of
     sstUp: irc_addadmin(Format('<%s>SITE <b>%s</b> IS UP</c>', [globals.SiteColorOnline, Name]));
     sstDown, sstMarkedAsDownByUser: irc_addadmin(Format('<%s>SITE <b>%s</b> IS DOWN</c>', [globals.SiteColorOffline, Name]));
@@ -4130,7 +4152,7 @@ procedure TSite.AutoBnctest;
 var
   t: TLoginTask;
 begin
-  if PermDown then
+  if (PermDown) or (GlCbftpClient <> nil) then
     Exit;
   t := FetchAutoBnctest;
   if t <> nil then
@@ -4894,6 +4916,11 @@ end;
 
 function TSite.GetPermDownStatus: boolean;
 begin
+  if GlCbftpClient <> nil then
+  begin
+    Result := False;
+    Exit;
+  end;
   Result := fPermDownStatus;
 end;
 

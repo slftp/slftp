@@ -17,7 +17,8 @@ type
     cetRaceDone,
     cetSpeedSample,
     cetNfoAvailable,
-    cetHeartbeat
+    cetHeartbeat,
+    cetSiteStatus
   );
 
   TCbftpEvent = record
@@ -37,6 +38,7 @@ type
     FileSize: Int64;
     Timestamp: Int64;
     Filename: string;
+    Disabled: Boolean;
   end;
 
   TCbftpEventCallback = procedure(const aEvent: TCbftpEvent);
@@ -281,6 +283,20 @@ function CbftpParseEvent(const aJson: RawUtf8): TCbftpEvent;
       Result := 0;
   end;
 
+  function _GetBool(const aObj: TlkJSONObject; const aKey: String): Boolean;
+  var
+    f: TlkJSONbase;
+  begin
+    Result := False;
+    if aObj = nil then
+      Exit;
+    f := aObj.Field[aKey];
+    if (f <> nil) and (f.SelfType <> jsNull) then
+    begin
+      Result := (f.Value = True) or (f.Value = 'true') or (f.Value = '1');
+    end;
+  end;
+
 var
   js: TlkJSONbase;
   obj: TlkJSONObject;
@@ -373,6 +389,12 @@ begin
     else if eventType = 'heartbeat' then
     begin
       Result.EventType := cetHeartbeat;
+    end
+    else if eventType = 'site_status' then
+    begin
+      Result.EventType := cetSiteStatus;
+      Result.Site := _GetStr(obj, 'name');
+      Result.Disabled := _GetBool(obj, 'disabled');
     end;
   finally
     obj.Free;

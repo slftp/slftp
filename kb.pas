@@ -81,7 +81,7 @@ uses
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles, mormot.core.unicode,
-  globalskipunit, irccommandsunit, slapi.issueshook, cbftpclient, cbftpevents, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  globalskipunit, irccommandsunit, slapi.issueshook, cbftpclient, cbftpevents, uLkJSON, Generics.Collections, Generics.Defaults {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   rsections = 'kb';
@@ -91,6 +91,7 @@ var
   kb_last_saved: TDateTime;
   kb_list: TStringList;
   kb_lock: TSLCriticalSection2;
+  GlRaceCompletions: TObjectDictionary<string, TList<TCbftpEvent>>;
 
   // TODO: Using THashedStringList does fuckup cleaning because it does not have a constant index which is used to delete oldest (latest) entries
   // but it's much faster and as we use it very often it's worth it...but maybe there is a better solution
@@ -1160,6 +1161,100 @@ end;
 
 {!--- KB Utils ---?}
 
+procedure SyncSitesFromCbftp;
+var
+  jsonStr: AnsiString;
+  js: TlkJSONbase;
+  arr: TlkJSONlist;
+  obj: TlkJSONObject;
+  i: Integer;
+  siteName: String;
+  disabled: Boolean;
+  fSite: TSite;
+  f: TlkJSONbase;
+begin
+  if GlCbftpClient = nil then
+    Exit;
+
+  GlSitesSyncing := True;
+  try
+    try
+      jsonStr := AnsiString(GlCbftpClient.GetSites('detailed=true'));
+      if jsonStr = '' then
+      begin
+        Debug(dpError, 'kb', '[cbftp] SyncSites: GetSites returned empty response');
+        Exit;
+      end;
+
+      js := TlkJSON.ParseText(jsonStr);
+      if js = nil then
+      begin
+        Debug(dpError, 'kb', '[cbftp] SyncSites: failed to parse JSON');
+        Exit;
+      end;
+
+      try
+        if js is TlkJSONlist then
+        begin
+          arr := TlkJSONlist(js);
+          for i := 0 to arr.Count - 1 do
+          begin
+            if arr.Child[i] is TlkJSONObject then
+            begin
+              obj := TlkJSONObject(arr.Child[i]);
+              
+              // Get name
+              f := obj.Field['name'];
+              if (f <> nil) and (f.SelfType <> jsNull) then
+                siteName := f.Value
+              else
+                siteName := '';
+
+              // Get disabled
+              f := obj.Field['disabled'];
+              disabled := False;
+              if (f <> nil) and (f.SelfType <> jsNull) then
+              begin
+                disabled := (f.Value = True) or (f.Value = 'true') or (f.Value = '1');
+              end;
+
+              if siteName <> '' then
+              begin
+                fSite := FindSiteByName('', siteName);
+                if fSite <> nil then
+                begin
+                  if disabled then
+                  begin
+                    if fSite.WorkingStatus <> sstMarkedAsDownByUser then
+                      fSite.WorkingStatus := sstMarkedAsDownByUser;
+                  end
+                  else
+                  begin
+                    if fSite.WorkingStatus <> sstUp then
+                      fSite.WorkingStatus := sstUp;
+                  end;
+                end;
+              end;
+            end;
+          end;
+          Debug(dpMessage, 'kb', Format('[cbftp] Successfully synchronized %d sites status from cbftp', [arr.Count]));
+        end
+        else
+        begin
+          Debug(dpError, 'kb', '[cbftp] SyncSites: expected JSON list');
+        end;
+      finally
+        js.Free;
+      end;
+    except
+      on E: Exception do
+        DebugException(dpError, 'kb', 'SyncSitesFromCbftp failed', E);
+    end;
+  finally
+    GlSitesSyncing := False;
+  end;
+end;
+
 procedure KB_start;
 var
   x: TEncStringlist;
@@ -1224,6 +1319,7 @@ begin
 
         cbftpclient_Init(StringToUtf8(cbftpIp), cbftpApiPort, StringToUtf8(cbftpPassword));
         Debug(dpMessage, 'kb', Format('cbftp REST client initialized globally: %s:%d', [cbftpIp, cbftpApiPort]));
+        SyncSitesFromCbftp;
 
         // Start UDP push listener instead of HTTP long-poll
         // Use EventPushPort if configured, otherwise default to 5697 to avoid
@@ -1423,6 +1519,7 @@ begin
   addpreechocmd := config.ReadString('dbaddpre', 'addpreechocmd', '!sitepre');
 
   kb_lock := TSLCriticalSection2.Create('kb_lock');
+  GlRaceCompletions := TObjectDictionary<string, TList<TCbftpEvent>>.Create([doOwnsValues]);
 
   kb_trimmed_rls := THashedStringList.Create;
   kb_trimmed_rls.CaseSensitive := False;
@@ -1476,6 +1573,7 @@ begin
   KbReleaseUninit;
 
   kb_lock.Free;
+  FreeAndNil(GlRaceCompletions);
 
   Debug(dpSpam, rsections, 'Uninit2');
 end;
@@ -1835,6 +1933,16 @@ begin
 end;
 
 { cbftp event handler }
+function _CompareCbftpEvents({$IFDEF FPC}constref{$ELSE}const{$ENDIF} e1, e2: TCbftpEvent): Integer;
+begin
+  if e1.TimeSpentSeconds < e2.TimeSpentSeconds then
+    Result := -1
+  else if e1.TimeSpentSeconds > e2.TimeSpentSeconds then
+    Result := 1
+  else
+    Result := 0;
+end;
+
 procedure _CbftpEventHandler(const aEvent: TCbftpEvent);
 var
   fPazo: TPazo;
@@ -1843,12 +1951,17 @@ var
   genre: String;
   s: String;
   i: Integer;
+  List: TList<TCbftpEvent>;
+  Ev: TCbftpEvent;
+  fSite: TSite;
 begin
   case aEvent.EventType of
     cetRaceStarted:
     begin
       Debug(dpMessage, rsections, Format('[cbftp] race_started: %s/%s', [aEvent.Section, aEvent.Name]));
-      irc_Addstats(Format('<c7>[cbftp]</c> Race started: <b>%s</b> (%s)', [aEvent.Name, aEvent.Section]));
+      irc_Addstats(Format('Race started: <b>%s</b> (%s)', [aEvent.Name, aEvent.Section]));
+      if GlRaceCompletions <> nil then
+        GlRaceCompletions.Remove(aEvent.Name);
       fPazo := FindPazoByName(aEvent.Section, aEvent.Name);
       if fPazo <> nil then
       begin
@@ -1878,7 +1991,6 @@ begin
     begin
       Debug(dpMessage, rsections, Format('[cbftp] race_completed: %s on %s (%.2fs)',
         [aEvent.Name, aEvent.Site, aEvent.TimeSpentSeconds]));
-      irc_Addstats(Format('<c7>[cbftp]</c> <c3>Completed</c>: <b>%s</b> on %s (%.2fs)', [aEvent.Name, aEvent.Site, aEvent.TimeSpentSeconds / 1.0]));
       fPazo := FindPazoByName('', aEvent.Name);
       if fPazo <> nil then
       begin
@@ -1889,13 +2001,34 @@ begin
           fPazoSite.CbftpCompletedTime := Now;
         end;
       end;
+      if GlRaceCompletions <> nil then
+      begin
+        if not GlRaceCompletions.TryGetValue(aEvent.Name, List) then
+        begin
+          List := TList<TCbftpEvent>.Create;
+          GlRaceCompletions.Add(aEvent.Name, List);
+        end;
+        List.Add(aEvent);
+      end;
     end;
 
     cetRaceDone:
     begin
       Debug(dpMessage, rsections, Format('[cbftp] race_done: %s status=%s',
         [aEvent.Name, aEvent.Status]));
-      irc_Addstats(Format('<c7>[cbftp]</c> <c3>Race done</c>: <b>%s</b> status=%s', [aEvent.Name, aEvent.Status]));
+      if GlRaceCompletions <> nil then
+      begin
+        if GlRaceCompletions.TryGetValue(aEvent.Name, List) then
+        begin
+          List.Sort(TComparer<TCbftpEvent>.Construct(_CompareCbftpEvents));
+          for Ev in List do
+          begin
+            irc_Addstats(Format('<c3>Completed</c>: <b>%s</b> on %s (%.2fs)', [Ev.Name, Ev.Site, Ev.TimeSpentSeconds / 1.0]));
+          end;
+          GlRaceCompletions.Remove(aEvent.Name);
+        end;
+      end;
+      irc_Addstats(Format('<c3>Race done</c>: <b>%s</b> status=%s', [aEvent.Name, aEvent.Status]));
       fPazo := FindPazoByName('', aEvent.Name);
       if fPazo <> nil then
       begin
@@ -1913,7 +2046,7 @@ begin
     begin
       Debug(dpSpam, rsections, Format('[cbftp] speed %s -> %s: %.2f Mbps (file %d bytes)',
         [aEvent.SrcSite, aEvent.DstSite, aEvent.SpeedMbps, aEvent.FileSize]));
-      irc_Addstats(Format('<c7>[cbftp]</c> <b>%s</b> <c4>%s</c> -> <c9>%s</c> @ <c3>%.2f</c> Mbps (%s)',
+      irc_Addstats(Format('<b>%s</b> <c4>%s</c> -> <c9>%s</c> @ <c3>%.2f</c> Mbps (%s)',
         [aEvent.Name, aEvent.SrcSite, aEvent.DstSite, aEvent.SpeedMbps, aEvent.Filename]));
       // Feed cbftp speed samples into slftp stats system
       s := FindReleaseInLatestKBList(aEvent.Name);
@@ -1979,6 +2112,26 @@ begin
     cetHeartbeat:
     begin
       Debug(dpSpam, rsections, '[cbftp] heartbeat');
+    end;
+
+    cetSiteStatus:
+    begin
+      Debug(dpMessage, rsections, Format('[cbftp] site_status event: %s disabled=%d',
+        [aEvent.Site, Ord(aEvent.Disabled)]));
+      fSite := FindSiteByName('', aEvent.Site);
+      if fSite <> nil then
+      begin
+        if aEvent.Disabled then
+        begin
+          if fSite.WorkingStatus <> sstMarkedAsDownByUser then
+            fSite.WorkingStatus := sstMarkedAsDownByUser;
+        end
+        else
+        begin
+          if fSite.WorkingStatus <> sstUp then
+            fSite.WorkingStatus := sstUp;
+        end;
+      end;
     end;
   end;
 end;
