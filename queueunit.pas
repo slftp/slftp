@@ -144,7 +144,7 @@ var
 begin
   if glMaxDirlistSlots = '' then
   begin
-    Result := aSlotCount div 2;
+    Result := Max(aSlotCount div 2, 1);
     Exit;
   end;
 
