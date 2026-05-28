@@ -167,8 +167,8 @@ begin
   begin
     FreeAndNil(glStatsModel);
   end;
-  glStatRaceLock.Free;
-  glStatRaceQueue.Free;
+  FreeAndNil(glStatRaceLock);
+  FreeAndNil(glStatRaceQueue);
   Debug(dpSpam, section, 'Uninit2');
 end;
 
@@ -256,10 +256,10 @@ begin
       try
         if not fStatsRec.FillOne then
         begin
-          fStatsRec.SrcSiteRec := fSrcSiteRec.AsTOrm;
-          fStatsRec.DstSiteRec := fDstSiteRec.AsTOrm;
-          fStatsRec.SectionRec := fSectionRec.AsTOrm;
-          fStatsRec.FileInfoRec := fFileInfoRec.AsTOrm;
+          fStatsRec.SrcSiteRec := fSrcSiteRec;
+          fStatsRec.DstSiteRec := fDstSiteRec;
+          fStatsRec.SectionRec := fSectionRec;
+          fStatsRec.FileInfoRec := fFileInfoRec;
 
           if glStatsDb.Add(fStatsRec, True, False) = 0 then
           begin
@@ -398,7 +398,7 @@ begin
     fFileInfoIDs.Free;
   end;
 
-  if not glStatsDb.Delete(TSQLStatsRecord, 'SrcSiteRec = ? AND DstSiteRec = ? AND FileInfoRec = ?', [0, 0, 0]) then
+  if not glStatsDb.Delete(TSQLStatsRecord, 'SrcSiteRec = ? AND DstSiteRec = ?', [0, 0]) then
   begin
     Debug(dpError, section, '[RemoveStats] Could not delete stats record!');
     exit;
@@ -613,6 +613,11 @@ begin
   else
   begin
     s := FindSiteByName('', aSitename);
+    if s = nil then
+    begin
+      irc_addtext(aNetname, aChannel, Format('Site <b>%s</b> not found.', [aSitename]));
+      exit;
+    end;
     GetTransferStats(s.Name, fSQLPeriod, fFileSizeStats);
     PrintStatsToIRC(s.Name, fSQLPeriod, fFileSizeStats);
   end;
