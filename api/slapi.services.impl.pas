@@ -924,7 +924,7 @@ var
   v, cbftpDetailedSitesObj, item: variant;
   s: TSite;
   upCount, downCount, siteCount: integer;
-  qTotal, qRace, qDir, qAuto, qOther: integer;
+  qTotal, qRace, qDir, qAuto, qOther, qRunningTransfers, qQueuedTransfers: integer;
   activeSum: integer;
   cpuLoadAvailable: boolean;
   currentLoadAvg1, currentLoadAvg5, currentLoadAvg15: Double;
@@ -1022,17 +1022,25 @@ begin
     if GlCbftpClient <> nil then
     begin
       try
-        v := _Json(GlCbftpClient.GetSpreadJobs);
+        v := _Json(GlCbftpClient.GetSpreadJobs('status=RUNNING'));
         if TDocVariantData(v).Kind = dvArray then
           qRace := TDocVariantData(v).Count
         else
           qRace := 0;
 
-        v := _Json(GlCbftpClient.GetTransferJobs);
+        v := _Json(GlCbftpClient.GetTransferJobs('status=RUNNING'));
         if TDocVariantData(v).Kind = dvArray then
-          qTotal := TDocVariantData(v).Count
+          qRunningTransfers := TDocVariantData(v).Count
         else
-          qTotal := 0;
+          qRunningTransfers := 0;
+
+        v := _Json(GlCbftpClient.GetTransferJobs('status=QUEUED'));
+        if TDocVariantData(v).Kind = dvArray then
+          qQueuedTransfers := TDocVariantData(v).Count
+        else
+          qQueuedTransfers := 0;
+
+        qTotal := qRunningTransfers + qQueuedTransfers;
 
         qDir := 0;
         qAuto := 0;
