@@ -19,7 +19,7 @@ type
 implementation
 
 uses
-  sitesunit, SysUtils, mystrings, DebugUnit;
+  sitesunit, SysUtils, mystrings, DebugUnit, cbftpclient, mormot.core.unicode;
 
 const
   section = 'raw';
@@ -37,6 +37,8 @@ function TRawTask.Execute(slot: Pointer): Boolean;
 var
   s: TSiteSlot;
   fNumErrors: Integer;
+  jsonBody: String;
+  jsonResp: String;
 
 { Moves into dir if needed, executes @link(cmd) and reads ftpd output afterwards
   @returns(@true on success, @false if a command execution failed) }
@@ -58,6 +60,33 @@ var
   end;
 
 begin
+  Result := True;
+  if GlCbftpClient <> nil then
+  begin
+    jsonBody := '{"sites":["' + StringToUtf8(site1) + '"],"command":"' + StringToUtf8(cmd) + '"';
+    if dir <> '' then
+      jsonBody := jsonBody + ',"path_section":"' + StringToUtf8(dir) + '"';
+    jsonBody := jsonBody + '}';
+
+    try
+      jsonResp := string(GlCbftpClient.SendRawCommand(StringToUtf8(jsonBody)));
+      Debug(dpMessage, section, Format('[cbftp] TRawTask executed: %s, response: %s', [Name, jsonResp]));
+      ready := True;
+      readyerror := False;
+      Result := True;
+      Exit;
+    except
+      on E: Exception do
+      begin
+        DebugException(dpError, section, Format('[cbftp] TRawTask failed: %s', [Name]), E);
+        ready := True;
+        readyerror := True;
+        Result := False;
+        Exit;
+      end;
+    end;
+  end;
+
   Result := False;
   Debug(dpMessage, section, '-->' + Name);
   s := slot;
