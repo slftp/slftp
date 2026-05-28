@@ -51,6 +51,7 @@ type
   TPazoSite = class
   private
     cds: String;
+    FSourceRank: Integer; //< cached rank of the source site (set during AddSites to avoid O(n) lookups during sort)
     FDestinations: TList<TDestinationRank>; //< destination sites and ranks
     FActiveTransfers: TDictionary<string, string>; //< stores which files have an active tranfer to this destination site. Key: filepath, Value: source site
     FActiveTransfersCS: TCriticalSection;
@@ -93,6 +94,7 @@ type
 
     property dirlistgaveup: boolean read GetDirlistGaveUp write SetDirListGaveUp; //< gets or sets a value indicating whether dirlisting have been given up for this site
     property Destinations: TList<TDestinationRank> read FDestinations; //< destination sites and ranks
+    property SourceRank: Integer read FSourceRank write FSourceRank; //< cached source site rank for O(1) sorting
     property ActiveTransferCount: Int32 read GetActiveTransferCount;
 
     function StatusRealPreOrShouldPre: boolean;  //< returns @true if its a pre or at least it should be one
@@ -1165,26 +1167,10 @@ begin
   end;
 end;
 
-//compare function to sort PazoSitesList by site rank (highest rank first)
+//compare function to sort PazoSitesList by cached site rank (highest rank first)
 function _ComparePazoSitesByRank({$IFDEF FPC}constref{$ELSE}const{$ENDIF} Left, Right: TPazoSite): Integer;
-var
-  fLeftSite, fRightSite: TSite;
-  fLeftRank, fRightRank: Integer;
 begin
-  fLeftSite := FindSiteByName('', Left.Name);
-  fRightSite := FindSiteByName('', Right.Name);
-
-  if fLeftSite <> nil then
-    fLeftRank := fLeftSite.GetRank(Left.pazo.rls.section)
-  else
-    fLeftRank := 0;
-
-  if fRightSite <> nil then
-    fRightRank := fRightSite.GetRank(Right.pazo.rls.section)
-  else
-    fRightRank := 0;
-
-  Result := TComparer<Integer>.Default.Compare(fRightRank, fLeftRank); //descending
+  Result := TComparer<Integer>.Default.Compare(Right.SourceRank, Left.SourceRank); //descending
 end;
 
 function TPazo.AddSites: boolean;
@@ -1236,6 +1222,7 @@ begin
       end;
 
       ps := TPazoSite.Create(self, s.Name, sectiondir, s);
+      ps.SourceRank := s.GetRank(rls.section);
       ps.status := rssNotAllowed;
       if not aIsSpreadJob then
       begin
