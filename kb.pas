@@ -123,8 +123,17 @@ begin
 end;
 
 function GetKBList: TStringList;
+var
+  pair: TPair<string, TPazo>;
 begin
-  Result := kb_list;
+  Result := TStringList.Create;
+  try
+    for pair in kb_dict_by_key do
+      Result.AddObject(pair.Key, pair.Value);
+  except
+    Result.Free;
+    raise;
+  end;
 end;
 
 function GetKBLock: TSlCriticalSection2;

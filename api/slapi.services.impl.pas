@@ -1295,6 +1295,8 @@ begin
       kbLock.Leave;
     end;
 
+    FreeAndNil(kbList);
+
     Response.Releases := TDocVariantData(releasesArray).ToJSON;
     Result := True;
 
