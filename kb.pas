@@ -2095,7 +2095,7 @@ begin
       else
         speed_stat := 'ZERO FILESIZE!';
 
-      siteInfo := Format(' <b>%s</b>-><b>%s</b>', [aEvent.SrcSite, aEvent.DstSite]);
+      siteInfo := Format(' <c9>[%s -> %s]</c>', [aEvent.SrcSite, aEvent.DstSite]);
       tname := Format('<c7>[RACE]</c> #%d%s : <c10><b>%s</b></c> <c7>%s</c> <c7>(%d)</c>',
         [pazoId, siteInfo, aEvent.Name, aEvent.Filename, rank]);
 
