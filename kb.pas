@@ -2013,7 +2013,7 @@ begin
         if fPazoSite <> nil then
         begin
           fPazoSite.status := rssComplete;
-          fPazoSite.CbftpCompletedTime := Now;
+          fPazoSite.CbftpCompletedTime := fPazo.added + (aEvent.TimeSpentSeconds / 86400.0);
         end;
       end;
       if GlRaceCompletions <> nil then

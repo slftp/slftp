@@ -964,7 +964,7 @@ begin
     exit;
   end;
 
-  b := FindIrcChannelSettings(netname, channel);
+  b := FindIrcChannelSettings(netname, channel, True);
   if (b = nil) then
   begin
     exit;
