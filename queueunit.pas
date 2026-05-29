@@ -2181,9 +2181,17 @@ begin
       begin
         if ts.freeslots > 0 then
         begin
-          // Task should be assigned immediately; don't sleep at all
-          Debug(dpSpam, section, Format('TQueueThread.Execute: skip sleep %s', [ts.Name]));
-          continue;
+          // HOTFIX: Prevent busy-wait with huge queues by throttling the loop
+          if tasks.Count > 500 then
+          begin
+            fWaitTimerTimeout := 10;
+          end
+          else
+          begin
+            // Task should be assigned immediately; don't sleep at all
+            Debug(dpSpam, section, Format('TQueueThread.Execute: skip sleep %s', [ts.Name]));
+            continue;
+          end;
         end;
         // Task is due but no free slots. Wait for other wakeup reasons.
       end
@@ -2573,9 +2581,13 @@ end;
 procedure TQueueThread.QueueStat;
 var
   t_race, t_dir, t_auto, t_other: integer;
+  t_race_unique, t_dir_unique: integer;
   fTask: TTask;
   fListIndex: Integer;
   fList: TObjectList;
+  fDirUniques: TDictionary<String, Integer>;
+  fRaceUniques: TDictionary<String, Integer>;
+  fDirKey, fRaceKey: String;
 begin
   if MilliSecondsBetween(queue_last_stat_update, Now) < 1000 then
     exit;
@@ -2585,42 +2597,75 @@ begin
   t_dir   := 0;
   t_auto  := 0;
   t_other := 0;
-
-  main_lock.Enter('QueueStat');
+  t_race_unique := 0;
+  t_dir_unique := 0;
+  fDirUniques := TDictionary<String, Integer>.Create;
+  fRaceUniques := TDictionary<String, Integer>.Create;
   try
-    for fListIndex := 0 to 1 do
-    begin
-      if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-      for fTask in fList do
+    main_lock.Enter('QueueStat');
+    try
+      for fListIndex := 0 to 1 do
       begin
-      try
-        if ((fTask.ClassType = TPazoRaceTask) or (fTask.ClassType = TWaitTask)) then
-          Inc(t_race)
-        else if ((fTask.ClassType = TPazoDirlistTask)) then
-          Inc(t_dir)
-        else if ((fTask.ClassType = TAutoNukeTask) or (fTask.ClassType = TAutoDirlistTask) or
-          (fTask.ClassType = TAutoIndexTask) or (fTask.ClassType = TLoginTask) or
-          (fTask.ClassType = TRulesTask)) then
-          Inc(t_auto)
-        else
-          Inc(t_other);
-      except
-      on e: Exception do
+        if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+        for fTask in fList do
         begin
-          Debug(dpError, section, Format('[EXCEPTION] TQueueThread.QueueStat : %s', [e.Message]));
-          Continue;
+        try
+          if ((fTask.ClassType = TPazoRaceTask) or (fTask.ClassType = TWaitTask)) then
+          begin
+            Inc(t_race);
+            if fTask is TPazoRaceTask then
+            begin
+              fRaceKey := Format('%d|%s|%s|%s|%s', [TPazoRaceTask(fTask).pazo_id, TPazoRaceTask(fTask).site1, TPazoRaceTask(fTask).site2, TPazoRaceTask(fTask).dir, TPazoRaceTask(fTask).filename]);
+              if not fRaceUniques.ContainsKey(fRaceKey) then
+              begin
+                fRaceUniques.Add(fRaceKey, 1);
+                Inc(t_race_unique);
+              end;
+            end;
+          end
+          else if ((fTask.ClassType = TPazoDirlistTask)) then
+          begin
+            Inc(t_dir);
+            fDirKey := Format('%d|%s|%s', [TPazoDirlistTask(fTask).pazo_id, TPazoDirlistTask(fTask).site1, TPazoDirlistTask(fTask).dir]);
+            if not fDirUniques.ContainsKey(fDirKey) then
+            begin
+              fDirUniques.Add(fDirKey, 1);
+              Inc(t_dir_unique);
+            end;
+          end
+          else if ((fTask.ClassType = TAutoNukeTask) or (fTask.ClassType = TAutoDirlistTask) or
+            (fTask.ClassType = TAutoIndexTask) or (fTask.ClassType = TLoginTask) or
+            (fTask.ClassType = TRulesTask)) then
+            Inc(t_auto)
+          else
+            Inc(t_other);
+        except
+        on e: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] TQueueThread.QueueStat : %s', [e.Message]));
+            Continue;
+          end;
+        end;
         end;
       end;
-      end;
+    finally
+      main_lock.Leave;
     end;
-  finally
-    main_lock.Leave;
-  end;
 
-  fQueueStat.FRaceTaskCount := t_race;
-  fQueueStat.FDirlistTaskCount := t_dir;
-  fQueueStat.FAutoTaskCount := t_auto;
-  fQueueStat.FOtherTaskCount := t_other;
+    // Log duplicate ratio for diagnosis
+    if (t_dir > 100) and (t_dir > t_dir_unique * 2) then
+      Debug(dpError, section, Format('[DIAGNOSE] Dir-Task duplicates detected: total=%d unique=%d ratio=%.1fx on %s', [t_dir, t_dir_unique, t_dir / t_dir_unique, fSiteName]));
+    if (t_race > 100) and (t_race > t_race_unique * 2) then
+      Debug(dpError, section, Format('[DIAGNOSE] Race-Task duplicates detected: total=%d unique=%d ratio=%.1fx on %s', [t_race, t_race_unique, t_race / t_race_unique, fSiteName]));
+
+    fQueueStat.FRaceTaskCount := t_race;
+    fQueueStat.FDirlistTaskCount := t_dir;
+    fQueueStat.FAutoTaskCount := t_auto;
+    fQueueStat.FOtherTaskCount := t_other;
+  finally
+    fDirUniques.Free;
+    fRaceUniques.Free;
+  end;
 end;
 
 procedure QueueStatAll;
