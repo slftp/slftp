@@ -2093,6 +2093,24 @@ begin
           end;
         end;
 
+        { Fallback: ensure all participating sites have a completion time.
+          If the REST call above failed, returned empty, or didn't list all
+          sites, any site still without CbftpCompletedTime gets Now.
+          Sites with rssNotAllowed are skipped. }
+        if GlCbftpClient <> nil then
+        begin
+          for pazoId := 0 to fPazo.PazoSitesList.Count - 1 do
+          begin
+            fPazoSite := TPazoSite(fPazo.PazoSitesList[pazoId]);
+            if (fPazoSite <> nil) and (fPazoSite.status <> rssNotAllowed) and (fPazoSite.CbftpCompletedTime = 0) then
+            begin
+              fPazoSite.CbftpCompletedTime := Now;
+              if fPazoSite.status = rssAllowed then
+                fPazoSite.status := rssComplete;
+            end;
+          end;
+        end;
+
         s := fPazo.Stats(False, False);
         if s <> '' then
         begin
@@ -2151,12 +2169,12 @@ begin
         fPazoSite := fPazo.FindSite(aEvent.SrcSite);
         if fPazoSite <> nil then
         begin
-          if fPazoSite.status <> rssComplete then
-          begin
-            fPazoSite.status := rssComplete;
-            if fPazoSite.CbftpCompletedTime = 0 then
-              fPazoSite.CbftpCompletedTime := Now;
-          end;
+          { NOTE: Do NOT set Source site to rssComplete here.
+            A source site may transfer many files over time.
+            It should only be marked complete by cetRaceCompleted
+            (destination finished) or cetRaceDone (overall race done).
+            Setting it here causes the site to disappear from the
+            [CBFTP] announcement list prematurely. }
         end;
       end;
 
