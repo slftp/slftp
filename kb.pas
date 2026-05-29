@@ -1991,9 +1991,11 @@ begin
         fPazoSite := fPazo.FindSite(aEvent.Site);
         if fPazoSite <> nil then
         begin
-          fPazoSite.CbftpFilesDone := aEvent.FilesDone;
+          if aEvent.FilesDone > fPazoSite.CbftpFilesDone then
+            fPazoSite.CbftpFilesDone := aEvent.FilesDone;
           fPazoSite.CbftpFilesTotal := aEvent.FilesTotal;
-          fPazoSite.CbftpBytesDone := aEvent.BytesDone;
+          if aEvent.BytesDone > fPazoSite.CbftpBytesDone then
+            fPazoSite.CbftpBytesDone := aEvent.BytesDone;
           Debug(dpSpam, rsections, Format('[cbftp] progress %s on %s: %d/%d files, %d/%d bytes',
             [aEvent.Name, aEvent.Site, aEvent.FilesDone, aEvent.FilesTotal,
              aEvent.BytesDone, aEvent.BytesTotal]));

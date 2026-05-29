@@ -1289,7 +1289,7 @@ begin
           Result := Result + ', ';
 
         if ((ps.status in [rssRealPre, rssShouldPre, rssNotAllowed]) or ps.DirlistGaveUpAndSentNoFiles or
-            ((ps.dirlist <> nil) and (ps.dirlist.CompletedTime = 0))) then
+            ((ps.dirlist <> nil) and (ps.dirlist.CompletedTime = 0) and not IsUDPEnabled)) then
           Result := Result + '"' + ps.Stats + '"'
         else
         begin
@@ -2175,7 +2175,7 @@ begin
           Result := Format('<c14>%s</c>', [fsname]); //Grey(name); || site was used but we didn't raced something
       end;
     end
-    else if pazo.IsUDPEnabled and (CbftpFilesDone > 0) then
+    else if pazo.IsUDPEnabled then
     begin
       // cbftp engine mode: use cbftp progress data
       fsize := CbftpBytesDone / 1024;
