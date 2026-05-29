@@ -2188,16 +2188,16 @@ begin
         if (aEvent.FileSize > 1024) then
         begin
           if (racebw > 1024) then
-            speed_stat := Format('<b>%f</b>mB @ <b>%f</b>mB/s', [fsize / 1024.0, racebw / 1024.0])
+            speed_stat := Format('<b>%.2f</b>mB in <b>%.2f</b>s @ <b>%.2f</b>mB/s', [fsize / 1024.0, aEvent.TimeSpentSeconds, racebw / 1024.0])
           else
-            speed_stat := Format('<b>%f</b>mB @ <b>%f</b>kB/s', [fsize / 1024.0, racebw]);
+            speed_stat := Format('<b>%.2f</b>mB in <b>%.2f</b>s @ <b>%.2f</b>kB/s', [fsize / 1024.0, aEvent.TimeSpentSeconds, racebw]);
         end
         else
         begin
           if (racebw > 1024) then
-            speed_stat := Format('<b>%f</b>kB @ <b>%f</b>mB/s', [fsize, racebw / 1024.0])
+            speed_stat := Format('<b>%.2f</b>kB in <b>%.2f</b>s @ <b>%.2f</b>mB/s', [fsize, aEvent.TimeSpentSeconds, racebw / 1024.0])
           else
-            speed_stat := Format('<b>%f</b>kB @ <b>%f</b>kB/s', [fsize, racebw]);
+            speed_stat := Format('<b>%.2f</b>kB in <b>%.2f</b>s @ <b>%.2f</b>kB/s', [fsize, aEvent.TimeSpentSeconds, racebw]);
         end;
       end
       else
