@@ -1968,6 +1968,7 @@ var
   jsIncSites: TlkJSONlist;
   siteName: String;
   fsizeDummy: Int64;
+  disabled: Boolean;
 begin
   case aEvent.EventType of
     cetRaceStarted:
@@ -2137,13 +2138,7 @@ begin
         pazoId := fPazo.pazo_id;
         if (aEvent.Filename <> '') and (aEvent.FileSize > 0) then
         begin
-          fPazo.FUniqueFileListOfRelease_cs.Enter('PRegisterFile');
-          try
-            if not fPazo.FUniqueFileListOfRelease.TryGetValue(aEvent.Filename, fsizeDummy) then
-              fPazo.FUniqueFileListOfRelease.Add(aEvent.Filename, aEvent.FileSize);
-          finally
-            fPazo.FUniqueFileListOfRelease_cs.Leave;
-          end;
+          fPazo.RegisterCbftpFile(aEvent.Filename, aEvent.FileSize);
         end;
 
         fPazoSite := fPazo.FindSite(aEvent.DstSite);

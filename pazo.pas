@@ -268,6 +268,7 @@ type
     { Returns the amount of files for the release, includes files in subdirs
       @returns(Total file count of @link(rls)) }
     function GetCountOfCachedFiles: integer;
+    procedure RegisterCbftpFile(const aFilename: String; const aFilesize: Int64);
 
     property ExcludeFromIncfiller: Boolean read FExcludeFromIncfiller write FExcludeFromIncfiller;
     property PazoSFV: TPazoSFV read FPazoSFV;
@@ -1027,6 +1028,19 @@ end;
 function TPazo.GetCountOfCachedFiles: integer;
 begin
   Result := FUniqueFileListOfRelease.Count;
+end;
+
+procedure TPazo.RegisterCbftpFile(const aFilename: String; const aFilesize: Int64);
+begin
+  if (aFilename = '') or (aFilesize <= 0) then
+    Exit;
+  FUniqueFileListOfRelease_cs.Enter('RegisterCbftpFile');
+  try
+    if not FUniqueFileListOfRelease.ContainsKey(aFilename) then
+      FUniqueFileListOfRelease.Add(aFilename, aFilesize);
+  finally
+    FUniqueFileListOfRelease_cs.Leave;
+  end;
 end;
 
 function TPazo.IsUDPEnabled: Boolean;
