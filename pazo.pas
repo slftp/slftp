@@ -1285,6 +1285,21 @@ begin
         if s.noannounce and not console then
           Continue;
 
+        // Filter out zero-transfer/nuller sites
+        if not (ps.status in [rssRealPre, rssShouldPre, rssNotAllowed]) then
+        begin
+          if IsUDPEnabled then
+          begin
+            if ps.CbftpFilesDone = 0 then
+              Continue;
+          end
+          else
+          begin
+            if (ps.dirlist <> nil) and (ps.dirlist.FilesRacedByMe(True) = 0) then
+              Continue;
+          end;
+        end;
+
         if Result <> '' then
           Result := Result + ', ';
 
@@ -1370,6 +1385,27 @@ begin
         begin
           Debug(dpSpam, section, Format('[TIMING DEBUG] SKIPPED: %s - Reason: noannounce setting', [ps.Name]));
           Continue;
+        end;
+
+        // Filter out zero-transfer/nuller sites
+        if not (ps.status in [rssRealPre, rssShouldPre, rssNotAllowed]) then
+        begin
+          if IsUDPEnabled then
+          begin
+            if ps.CbftpFilesDone = 0 then
+            begin
+              Debug(dpSpam, section, Format('[TIMING DEBUG] SKIPPED: %s - Reason: CbftpFilesDone is 0 (nuller)', [ps.Name]));
+              Continue;
+            end;
+          end
+          else
+          begin
+            if (ps.dirlist <> nil) and (ps.dirlist.FilesRacedByMe(True) = 0) then
+            begin
+              Debug(dpSpam, section, Format('[TIMING DEBUG] SKIPPED: %s - Reason: FilesRacedByMe is 0 (nuller)', [ps.Name]));
+              Continue;
+            end;
+          end;
         end;
 
         if ps.status in [rssRealPre, rssShouldPre] then
@@ -2122,7 +2158,7 @@ begin
       fsize := CbftpBytesDone / 1024;
       RecalcSizeValueAndUnit(fsize, fsizetrigger, 1);
 
-      if (CbftpFilesTotal > 0) and (CbftpFilesDone < CbftpFilesTotal) then
+      if not Complete then
         fsname := Format('<c11>%s</c>', [fsname]); // incomplete
 
       Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, CbftpFilesDone, fsize, fsizetrigger]);
@@ -2194,7 +2230,10 @@ end;
 function TPazoSite.Complete: boolean;
 begin
   // xperia test if dirlist is complete
-  Result := (status in [rssRealPre, rssComplete]) or (dirlist.Complete);
+  if pazo.IsUDPEnabled then
+    Result := (status in [rssRealPre, rssComplete])
+  else
+    Result := (status in [rssRealPre, rssComplete]) or ((dirlist <> nil) and (dirlist.Complete));
 end;
 
 function TPazoSite.Source: boolean;

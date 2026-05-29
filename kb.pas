@@ -1958,6 +1958,7 @@ var
   sectionStr: String;
   fsize: Double;
   racebw: Double;
+  timeSpent: Double;
   speed_stat: String;
   tname: String;
   siteInfo: String;
@@ -2016,6 +2017,8 @@ begin
         begin
           fPazoSite.status := rssComplete;
           fPazoSite.CbftpCompletedTime := fPazo.added + (aEvent.TimeSpentSeconds / 86400.0);
+          fPazoSite.CbftpFilesDone := aEvent.FilesDone;
+          fPazoSite.CbftpBytesDone := aEvent.BytesDone;
         end;
       end;
       if GlRaceCompletions <> nil then
@@ -2187,20 +2190,21 @@ begin
       begin
         fsize := aEvent.FileSize / 1024.0; // kB
         racebw := (aEvent.SpeedMbps / 8.0) * 1024.0; // kB/s
+        timeSpent := fsize / racebw;
 
         if (aEvent.FileSize > 1024) then
         begin
           if (racebw > 1024) then
-            speed_stat := Format('<b>%.2f</b>mB in <b>%.2f</b>s @ <b>%.2f</b>mB/s', [fsize / 1024.0, aEvent.TimeSpentSeconds, racebw / 1024.0])
+            speed_stat := Format('<b>%.2f</b>mB in <b>%.2f</b>s @ <b>%.2f</b>mB/s', [fsize / 1024.0, timeSpent, racebw / 1024.0])
           else
-            speed_stat := Format('<b>%.2f</b>mB in <b>%.2f</b>s @ <b>%.2f</b>kB/s', [fsize / 1024.0, aEvent.TimeSpentSeconds, racebw]);
+            speed_stat := Format('<b>%.2f</b>mB in <b>%.2f</b>s @ <b>%.2f</b>kB/s', [fsize / 1024.0, timeSpent, racebw]);
         end
         else
         begin
           if (racebw > 1024) then
-            speed_stat := Format('<b>%.2f</b>kB in <b>%.2f</b>s @ <b>%.2f</b>mB/s', [fsize, aEvent.TimeSpentSeconds, racebw / 1024.0])
+            speed_stat := Format('<b>%.2f</b>kB in <b>%.2f</b>s @ <b>%.2f</b>mB/s', [fsize, timeSpent, racebw / 1024.0])
           else
-            speed_stat := Format('<b>%.2f</b>kB in <b>%.2f</b>s @ <b>%.2f</b>kB/s', [fsize, aEvent.TimeSpentSeconds, racebw]);
+            speed_stat := Format('<b>%.2f</b>kB in <b>%.2f</b>s @ <b>%.2f</b>kB/s', [fsize, timeSpent, racebw]);
         end;
       end
       else

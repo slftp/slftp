@@ -357,6 +357,8 @@ begin
       Result.Name := _GetStr(obj, 'name');
       Result.Site := _GetStr(obj, 'site');
       Result.TimeSpentSeconds := _GetDouble(obj, 'time_spent_seconds');
+      Result.FilesDone := _GetInt(obj, 'files_done');
+      Result.BytesDone := _GetInt(obj, 'bytes_done');
       Result.Timestamp := _GetInt(obj, 'timestamp');
     end
     else if eventType = 'race_done' then
