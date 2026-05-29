@@ -1967,7 +1967,6 @@ begin
     cetRaceStarted:
     begin
       Debug(dpMessage, rsections, Format('[cbftp] race_started: %s/%s', [aEvent.Section, aEvent.Name]));
-      irc_Addstats(Format('<c9>[<b>RACE</b>]</c> <b>%s</b> <b>%s</b>', [aEvent.Section, aEvent.Name]));
       if GlRaceCompletions <> nil then
         GlRaceCompletions.Remove(aEvent.Name);
       fPazo := FindPazoByName(aEvent.Section, aEvent.Name);
