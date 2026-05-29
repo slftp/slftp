@@ -1954,12 +1954,14 @@ var
   List: TList<TCbftpEvent>;
   Ev: TCbftpEvent;
   fSite: TSite;
+  pazoId: Integer;
+  sectionStr: String;
 begin
   case aEvent.EventType of
     cetRaceStarted:
     begin
       Debug(dpMessage, rsections, Format('[cbftp] race_started: %s/%s', [aEvent.Section, aEvent.Name]));
-      irc_Addstats(Format('Race started: <b>%s</b> (%s)', [aEvent.Name, aEvent.Section]));
+      irc_Addstats(Format('<c9>[<b>RACE</b>]</c> <b>%s</b> <b>%s</b>', [aEvent.Section, aEvent.Name]));
       if GlRaceCompletions <> nil then
         GlRaceCompletions.Remove(aEvent.Name);
       fPazo := FindPazoByName(aEvent.Section, aEvent.Name);
@@ -2023,12 +2025,30 @@ begin
           List.Sort(TComparer<TCbftpEvent>.Construct(_CompareCbftpEvents));
           for Ev in List do
           begin
-            irc_Addstats(Format('<c3>Completed</c>: <b>%s</b> on %s (%.2fs)', [Ev.Name, Ev.Site, Ev.TimeSpentSeconds / 1.0]));
+            sectionStr := FindReleaseInLatestKBList(Ev.Name);
+            if sectionStr = '' then
+            begin
+              fPazo := FindPazoByName('', Ev.Name);
+              if (fPazo <> nil) and (fPazo.rls <> nil) then
+                sectionStr := fPazo.rls.section
+              else
+                sectionStr := 'UNKNOWN';
+            end;
+            irc_Addstats(Format('<c7>[COMPLETE]</c> %s <b>%s</b> @ <b>%s</b> (%.2fs)', [sectionStr, Ev.Name, Ev.Site, Ev.TimeSpentSeconds]));
           end;
           GlRaceCompletions.Remove(aEvent.Name);
         end;
       end;
-      irc_Addstats(Format('<c3>Race done</c>: <b>%s</b> status=%s', [aEvent.Name, aEvent.Status]));
+      sectionStr := FindReleaseInLatestKBList(aEvent.Name);
+      if sectionStr = '' then
+      begin
+        fPazo := FindPazoByName('', aEvent.Name);
+        if (fPazo <> nil) and (fPazo.rls <> nil) then
+          sectionStr := fPazo.rls.section
+        else
+          sectionStr := 'UNKNOWN';
+      end;
+      irc_Addstats(Format('<c10>[<b>STATS</b>]</c> %s <b>%s</b> : Race Done! [Status: <b>%s</b>]', [sectionStr, aEvent.Name, aEvent.Status]));
       fPazo := FindPazoByName('', aEvent.Name);
       if fPazo <> nil then
       begin
@@ -2046,8 +2066,12 @@ begin
     begin
       Debug(dpSpam, rsections, Format('[cbftp] speed %s -> %s: %.2f Mbps (file %d bytes)',
         [aEvent.SrcSite, aEvent.DstSite, aEvent.SpeedMbps, aEvent.FileSize]));
-      irc_Addstats(Format('<b>%s</b> <c4>%s</c> -> <c9>%s</c> @ <c3>%.2f</c> Mbps (%s)',
-        [aEvent.Name, aEvent.SrcSite, aEvent.DstSite, aEvent.SpeedMbps, aEvent.Filename]));
+      pazoId := 0;
+      fPazo := FindPazoByName('', aEvent.Name);
+      if fPazo <> nil then
+        pazoId := fPazo.pazo_id;
+      irc_Addstats(Format('<c7>[RACE]</c> #%d <c9>[%s -> %s]</c> : <c10><b>%s</b></c> <c7>%s</c> @ <c3>%.2f</c> Mbps',
+        [pazoId, aEvent.SrcSite, aEvent.DstSite, aEvent.Name, aEvent.Filename, aEvent.SpeedMbps]));
       // Feed cbftp speed samples into slftp stats system
       s := FindReleaseInLatestKBList(aEvent.Name);
       if s = '' then
