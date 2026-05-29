@@ -2116,6 +2116,11 @@ begin
     begin
       Debug(dpMessage, rsections, Format('[cbftp] nfo_available: %s on %s (path=%s, size=%d)',
         [aEvent.Name, aEvent.Site, aEvent.Section, aEvent.FileSize]));
+      if (last_addnfo <> nil) and (last_addnfo.IndexOf(aEvent.Name) <> -1) then
+      begin
+        Debug(dpMessage, rsections, Format('[cbftp] NFO for %s already downloaded, skipping.', [aEvent.Name]));
+        exit;
+      end;
       fPazo := FindPazoByName('', aEvent.Name);
       if fPazo <> nil then
       begin
