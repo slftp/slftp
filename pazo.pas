@@ -1289,8 +1289,7 @@ begin
           Result := Result + ', ';
 
         if ((ps.status in [rssRealPre, rssShouldPre, rssNotAllowed]) or ps.DirlistGaveUpAndSentNoFiles or
-            ((ps.dirlist <> nil) and (ps.dirlist.CompletedTime = 0)) or
-            ((ps.dirlist = nil) and (ps.CbftpCompletedTime = 0))) then
+            ((ps.dirlist <> nil) and (ps.dirlist.CompletedTime = 0))) then
           Result := Result + '"' + ps.Stats + '"'
         else
         begin
@@ -1299,15 +1298,19 @@ begin
             Result := Concat(Result, '"', IntToStr(numComplete), '. ', ps.Stats, '"');
             if ps.dirlist <> nil then
               completeTimeReference := ps.dirlist.CompletedTime
+            else if ps.CbftpCompletedTime <> 0 then
+              completeTimeReference := ps.CbftpCompletedTime
             else
-              completeTimeReference := ps.CbftpCompletedTime;
+              completeTimeReference := Now; // cbftp mode fallback
           end
           else
           begin
             if ps.dirlist <> nil then
               secondsAfter := SecondsBetween(completeTimeReference, ps.dirlist.CompletedTime)
+            else if ps.CbftpCompletedTime <> 0 then
+              secondsAfter := SecondsBetween(completeTimeReference, ps.CbftpCompletedTime)
             else
-              secondsAfter := SecondsBetween(completeTimeReference, ps.CbftpCompletedTime);
+              secondsAfter := SecondsBetween(completeTimeReference, Now); // cbftp mode fallback
 
             if secondsAfter <> 0 then
               Result := Concat(Result, '"', IntToStr(numComplete), '. ', ps.Stats, ' (+', IntToStr(secondsAfter), 's)"')
