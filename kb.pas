@@ -1967,7 +1967,7 @@ begin
     cetRaceStarted:
     begin
       Debug(dpMessage, rsections, Format('[cbftp] race_started: %s/%s', [aEvent.Section, aEvent.Name]));
-      irc_Addstats(Format('Race started: <b>%s</b> (%s)', [aEvent.Name, aEvent.Section]));
+      irc_Addstats(Format('<c9>[<b>RACE</b>]</c> <b>%s</b> <b>%s</b>', [aEvent.Section, aEvent.Name]));
       if GlRaceCompletions <> nil then
         GlRaceCompletions.Remove(aEvent.Name);
       fPazo := FindPazoByName(aEvent.Section, aEvent.Name);
@@ -1999,6 +1999,7 @@ begin
     begin
       Debug(dpMessage, rsections, Format('[cbftp] race_completed: %s on %s (%.2fs)',
         [aEvent.Name, aEvent.Site, aEvent.TimeSpentSeconds]));
+
       fPazo := FindPazoByName('', aEvent.Name);
       if fPazo <> nil then
       begin
@@ -2024,22 +2025,22 @@ begin
     begin
       Debug(dpMessage, rsections, Format('[cbftp] race_done: %s status=%s',
         [aEvent.Name, aEvent.Status]));
-      if GlRaceCompletions <> nil then
-      begin
-        if GlRaceCompletions.TryGetValue(aEvent.Name, List) then
-        begin
-          List.Sort(TComparer<TCbftpEvent>.Construct(_CompareCbftpEvents));
-          for Ev in List do
-          begin
-            irc_Addstats(Format('<c3>Completed</c>: <b>%s</b> on %s (%.2fs)', [Ev.Name, Ev.Site, Ev.TimeSpentSeconds / 1.0]));
-          end;
-          GlRaceCompletions.Remove(aEvent.Name);
-        end;
-      end;
-      irc_Addstats(Format('<c3>Race done</c>: <b>%s</b> status=%s', [aEvent.Name, aEvent.Status]));
+
       fPazo := FindPazoByName('', aEvent.Name);
       if fPazo <> nil then
       begin
+        s := fPazo.Stats(False, False);
+        if s <> '' then
+        begin
+          irc_addstats(Format('<c10>[<b>STATS</b>]</c> %s %s (%d):', [fPazo.rls.section, fPazo.rls.rlsname, fPazo.GetCountOfCachedFiles]));
+          irc_AddstatsB(fPazo.Stats(False, True));
+        end
+        else
+        begin
+          sectionStr := fPazo.rls.section;
+          irc_Addstats(Format('<c10>[<b>STATS</b>]</c> %s <b>%s</b> : Race Done! [Status: <b>%s</b>]', [sectionStr, aEvent.Name, aEvent.Status]));
+        end;
+
         // Update ranks when cbftp race is fully complete
         try
           RanksProcess(fPazo);
@@ -2047,7 +2048,17 @@ begin
           on E: Exception do
             Debug(dpError, rsections, Format('[cbftp] ranks update error: %s', [E.Message]));
         end;
+      end
+      else
+      begin
+        sectionStr := FindReleaseInLatestKBList(aEvent.Name);
+        if sectionStr = '' then
+          sectionStr := 'UNKNOWN';
+        irc_Addstats(Format('<c10>[<b>STATS</b>]</c> %s <b>%s</b> : Race Done! [Status: <b>%s</b>]', [sectionStr, aEvent.Name, aEvent.Status]));
       end;
+
+      if GlRaceCompletions <> nil then
+        GlRaceCompletions.Remove(aEvent.Name);
     end;
 
     cetSpeedSample:

@@ -1227,6 +1227,15 @@ begin
         else
           Result := CompareDateTime(pazo1.dirlist.CompletedTime, pazo2.dirlist.CompletedTime);
       end
+    else if (pazo1.CbftpCompletedTime <> 0) or (pazo2.CbftpCompletedTime <> 0) then
+      begin
+        if (pazo1.CbftpCompletedTime = 0) then
+          Result := 1
+        else if (pazo2.CbftpCompletedTime = 0) then
+          Result := -1
+        else
+          Result := CompareDateTime(pazo1.CbftpCompletedTime, pazo2.CbftpCompletedTime);
+      end
     else
       Result := 0;
   end;
@@ -1265,18 +1274,27 @@ begin
         if Result <> '' then
           Result := Result + ', ';
 
-        if ((ps.status in [rssRealPre, rssShouldPre, rssNotAllowed]) or ps.DirlistGaveUpAndSentNoFiles or (ps.dirlist.CompletedTime = 0)) then
+        if ((ps.status in [rssRealPre, rssShouldPre, rssNotAllowed]) or ps.DirlistGaveUpAndSentNoFiles or
+            ((ps.dirlist <> nil) and (ps.dirlist.CompletedTime = 0)) or
+            ((ps.dirlist = nil) and (ps.CbftpCompletedTime = 0))) then
           Result := Result + '"' + ps.Stats + '"'
         else
         begin
           if CompleteTimeReference = 0 then
           begin
             Result := Concat(Result, '"', IntToStr(numComplete), '. ', ps.Stats, '"');
-            completeTimeReference := ps.dirlist.CompletedTime;
+            if ps.dirlist <> nil then
+              completeTimeReference := ps.dirlist.CompletedTime
+            else
+              completeTimeReference := ps.CbftpCompletedTime;
           end
           else
           begin
-            secondsAfter := SecondsBetween(completeTimeReference, ps.dirlist.CompletedTime);
+            if ps.dirlist <> nil then
+              secondsAfter := SecondsBetween(completeTimeReference, ps.dirlist.CompletedTime)
+            else
+              secondsAfter := SecondsBetween(completeTimeReference, ps.CbftpCompletedTime);
+
             if secondsAfter <> 0 then
               Result := Concat(Result, '"', IntToStr(numComplete), '. ', ps.Stats, ' (+', IntToStr(secondsAfter), 's)"')
             else
