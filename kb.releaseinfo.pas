@@ -1149,19 +1149,33 @@ begin
   shot := FindMostCompleteSite(pazo);
   if shot <> nil then
   begin
-    with FindSiteByName('', shot.Name) do
-    if (WorkingStatus = sstUp) and (UseForNFOdownload = ufnEnabled) then
+    if pazo.IsUDPEnabled then
     begin
       try
-        if not pazo.IsUDPEnabled then
-          AddTask(TPazoGenreDirlistTask.Create('', '', shot.Name, pazo, 1));
+        AddTask(TPazoGenreDirlistTask.Create('', '', getAdminSiteName, pazo, 1));
+        Result := True;
       except
         on e: Exception do
         begin
-          Debug(dpError, rsections, Format('[EXCEPTION] TMP3Release.Aktualizal.AddTask: %s', [e.Message]));
+          Debug(dpError, rsections, Format('[EXCEPTION] TMP3Release.Aktualizal.AddTask(UDP): %s', [e.Message]));
         end;
       end;
-      Result := True;
+    end
+    else
+    begin
+      with FindSiteByName('', shot.Name) do
+      if (WorkingStatus = sstUp) and (UseForNFOdownload = ufnEnabled) then
+      begin
+        try
+          AddTask(TPazoGenreDirlistTask.Create('', '', shot.Name, pazo, 1));
+          Result := True;
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, rsections, Format('[EXCEPTION] TMP3Release.Aktualizal.AddTask: %s', [e.Message]));
+          end;
+        end;
+      end;
     end;
   end;
 end;
@@ -1873,11 +1887,19 @@ begin
   shot := FindMostCompleteSite(pazo);
   if shot <> nil then
   begin
-    with FindSiteByName('', shot.Name) do
-    if (WorkingStatus = sstUp) and (UseForNFOdownload = ufnEnabled) then
+    if pazo.IsUDPEnabled then
     begin
-      AddTask(TPazoMVIDTask.Create('', '', shot.Name, pazo, 1));
+      AddTask(TPazoMVIDTask.Create('', '', getAdminSiteName, pazo, 1));
       Result := True;
+    end
+    else
+    begin
+      with FindSiteByName('', shot.Name) do
+      if (WorkingStatus = sstUp) and (UseForNFOdownload = ufnEnabled) then
+      begin
+        AddTask(TPazoMVIDTask.Create('', '', shot.Name, pazo, 1));
+        Result := True;
+      end;
     end;
   end;
 end;
