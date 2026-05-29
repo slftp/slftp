@@ -1288,7 +1288,8 @@ begin
         if Result <> '' then
           Result := Result + ', ';
 
-        if ((ps.status in [rssRealPre, rssShouldPre, rssNotAllowed]) or ps.DirlistGaveUpAndSentNoFiles or
+        if ((ps.status in [rssRealPre, rssShouldPre, rssNotAllowed]) or
+            (ps.DirlistGaveUpAndSentNoFiles and not IsUDPEnabled) or
             ((ps.dirlist <> nil) and (ps.dirlist.CompletedTime = 0) and not IsUDPEnabled)) then
           Result := Result + '"' + ps.Stats + '"'
         else
