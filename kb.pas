@@ -2242,10 +2242,8 @@ begin
       begin
         if (fPazo.rls <> nil) and (
            (fPazo.rls is TIMDBRelease) or
-           (fPazo.rls is TTVRelease) or
            (fPazo.rls is TMP3Release) or
-           (fPazo.rls is TNFORelease) or
-           (fPazo.rls is TMVIDRelease)
+           (fPazo.rls is TNFORelease)
         ) then
         begin
           if GlCbftpClient <> nil then
