@@ -2106,7 +2106,10 @@ begin
             fPazoSite := TPazoSite(fPazo.PazoSitesList[pazoId]);
             if (fPazoSite <> nil) and (fPazoSite.status <> rssNotAllowed) and (fPazoSite.CbftpCompletedTime = 0) then
             begin
-              fPazoSite.CbftpCompletedTime := Now;
+              { Stagger fallback timestamps by 1s per site so STATS shows
+                meaningful +Xs deltas even when cbftp didn't send per-site
+                race_completed events. }
+              fPazoSite.CbftpCompletedTime := Now + (pazoId / 86400.0);
               if fPazoSite.status = rssAllowed then
                 fPazoSite.status := rssComplete;
             end;
