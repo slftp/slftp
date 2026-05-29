@@ -2116,7 +2116,18 @@ begin
 
   if not (status in [rssRealPre, rssShouldPre, rssNotAllowed]) then
   begin
-    if (dirlist <> nil) then
+    if pazo.IsUDPEnabled then
+    begin
+      // cbftp engine mode: use cbftp progress data (takes priority over dirlist)
+      fsize := CbftpBytesDone / 1024;
+      RecalcSizeValueAndUnit(fsize, fsizetrigger, 1);
+
+      if (CbftpFilesTotal > 0) and (CbftpFilesDone < CbftpFilesTotal) then
+        fsname := Format('<c11>%s</c>', [fsname]); // incomplete
+
+      Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, CbftpFilesDone, fsize, fsizetrigger]);
+    end
+    else if (dirlist <> nil) then
     begin
       if dirlist.FilesRacedByMe(True) >= 1 then
       begin
@@ -2175,17 +2186,6 @@ begin
         else
           Result := Format('<c14>%s</c>', [fsname]); //Grey(name); || site was used but we didn't raced something
       end;
-    end
-    else if pazo.IsUDPEnabled then
-    begin
-      // cbftp engine mode: use cbftp progress data
-      fsize := CbftpBytesDone / 1024;
-      RecalcSizeValueAndUnit(fsize, fsizetrigger, 1);
-
-      if (CbftpFilesTotal > 0) and (CbftpFilesDone < CbftpFilesTotal) then
-        fsname := Format('<c11>%s</c>', [fsname]); // incomplete
-
-      Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, CbftpFilesDone, fsize, fsizetrigger]);
     end;
   end;
 
