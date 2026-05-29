@@ -1962,6 +1962,12 @@ var
   tname: String;
   siteInfo: String;
   rank: Integer;
+  js: TlkJSONbase;
+  jsObj: TlkJSONObject;
+  jsSites: TlkJSONlist;
+  jsIncSites: TlkJSONlist;
+  siteName: String;
+  fsizeDummy: Int64;
 begin
   case aEvent.EventType of
     cetRaceStarted:
@@ -2028,6 +2034,64 @@ begin
       fPazo := FindPazoByName('', aEvent.Name);
       if fPazo <> nil then
       begin
+        if GlCbftpClient <> nil then
+        begin
+          try
+            s := string(GlCbftpClient.GetSpreadJob(StringToUtf8(aEvent.Name)));
+            if s <> '' then
+            begin
+              js := TlkJSON.ParseText(s);
+              if (js <> nil) and (js is TlkJSONObject) then
+              begin
+                jsObj := TlkJSONObject(js);
+                jsSites := TlkJSONlist(jsObj.Field['sites']);
+                jsIncSites := TlkJSONlist(jsObj.Field['sites_incomplete']);
+                if jsSites <> nil then
+                begin
+                  for i := 0 to jsSites.Count - 1 do
+                  begin
+                    siteName := jsSites.Child[i].Value;
+                    fPazoSite := fPazo.FindSite(siteName);
+                    if fPazoSite <> nil then
+                    begin
+                      disabled := False;
+                      if jsIncSites <> nil then
+                      begin
+                        for pazoId := 0 to jsIncSites.Count - 1 do
+                        begin
+                          if jsIncSites.Child[pazoId].Value = siteName then
+                          begin
+                            disabled := True;
+                            Break;
+                          end;
+                        end;
+                      end;
+
+                      if not disabled then
+                      begin
+                        fPazoSite.status := rssComplete;
+                        if fPazoSite.CbftpCompletedTime = 0 then
+                          fPazoSite.CbftpCompletedTime := Now;
+
+                        if (fPazoSite.CbftpFilesDone > 0) and (fPazoSite.CbftpFilesTotal = 0) then
+                          fPazoSite.CbftpFilesTotal := fPazo.GetCountOfCachedFiles;
+
+                        if fPazoSite.CbftpFilesTotal < fPazoSite.CbftpFilesDone then
+                          fPazoSite.CbftpFilesTotal := fPazoSite.CbftpFilesDone;
+                      end;
+                    end;
+                  end;
+                end;
+              end;
+              if js <> nil then
+                js.Free;
+            end;
+          except
+            on E: Exception do
+              Debug(dpError, rsections, Format('[cbftp] race_done REST sync error: %s', [E.Message]));
+          end;
+        end;
+
         s := fPazo.Stats(False, False);
         if s <> '' then
         begin
@@ -2069,7 +2133,37 @@ begin
       rank := 1;
       fPazo := FindPazoByName('', aEvent.Name);
       if fPazo <> nil then
+      begin
         pazoId := fPazo.pazo_id;
+        if (aEvent.Filename <> '') and (aEvent.FileSize > 0) then
+        begin
+          fPazo.FUniqueFileListOfRelease_cs.Enter('PRegisterFile');
+          try
+            if not fPazo.FUniqueFileListOfRelease.TryGetValue(aEvent.Filename, fsizeDummy) then
+              fPazo.FUniqueFileListOfRelease.Add(aEvent.Filename, aEvent.FileSize);
+          finally
+            fPazo.FUniqueFileListOfRelease_cs.Leave;
+          end;
+        end;
+
+        fPazoSite := fPazo.FindSite(aEvent.DstSite);
+        if fPazoSite <> nil then
+        begin
+          Inc(fPazoSite.CbftpFilesDone);
+          Inc(fPazoSite.CbftpBytesDone, aEvent.FileSize);
+        end;
+
+        fPazoSite := fPazo.FindSite(aEvent.SrcSite);
+        if fPazoSite <> nil then
+        begin
+          if fPazoSite.status <> rssComplete then
+          begin
+            fPazoSite.status := rssComplete;
+            if fPazoSite.CbftpCompletedTime = 0 then
+              fPazoSite.CbftpCompletedTime := Now;
+          end;
+        end;
+      end;
 
       if (aEvent.FileSize > 0) and (aEvent.SpeedMbps > 0) then
       begin

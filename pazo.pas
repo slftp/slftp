@@ -2158,16 +2158,16 @@ begin
           Result := Format('<c14>%s</c>', [fsname]); //Grey(name); || site was used but we didn't raced something
       end;
     end
-    else if pazo.IsUDPEnabled and (CbftpFilesTotal > 0) then
+    else if pazo.IsUDPEnabled and (CbftpFilesDone > 0) then
     begin
       // cbftp engine mode: use cbftp progress data
       fsize := CbftpBytesDone / 1024;
       RecalcSizeValueAndUnit(fsize, fsizetrigger, 1);
 
-      if CbftpFilesDone < CbftpFilesTotal then
+      if (CbftpFilesTotal > 0) and (CbftpFilesDone < CbftpFilesTotal) then
         fsname := Format('<c11>%s</c>', [fsname]); // incomplete
 
-      Result := Format('%s-(<b>%d</b>/<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, CbftpFilesDone, CbftpFilesTotal, fsize, fsizetrigger]);
+      Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, CbftpFilesDone, fsize, fsizetrigger]);
     end;
   end;
 
