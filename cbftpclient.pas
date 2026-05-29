@@ -258,7 +258,7 @@ begin
         if status = 404 then
           Debug(dpMessage, section, Format('cbftp request not found: %d %s', [status, url]))
         else
-          Debug(dpError, section, Format('cbftp request failed: %d %s - %s', [status, url, FHttpClient.Content]));
+          Debug(dpSpam, section, Format('cbftp request failed: %d %s - %s', [status, url, FHttpClient.Content]));
       end;
     except
       on E: Exception do
@@ -266,7 +266,7 @@ begin
         FLastStatus := 0;
         FLastResponse := '';
         FLastError := Utf8Encode(E.Message);
-        Debug(dpError, section, Format('cbftp request exception: %s', [E.Message]));
+        Debug(dpSpam, section, Format('cbftp request exception: %s', [E.Message]));
       end;
     end;
   finally

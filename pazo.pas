@@ -953,7 +953,7 @@ begin
     try
       if not cbftpclient_StartSpreadJob(rls.section, rls.rlsname, sitelist) then
       begin
-        Debug(dpError, section, 'cbftp REST spread job start failed');
+        Debug(dpSpam, section, 'cbftp REST spread job start failed');
         lastannounceroutes := '';
         Exit;
       end;
@@ -964,7 +964,7 @@ begin
     except
       on E: Exception do
       begin
-        DebugException(dpError, section, 'TPazo.RoutesText: cbftp REST operation failed', E);
+        DebugException(dpSpam, section, 'TPazo.RoutesText: cbftp REST operation failed', E);
         lastannounceroutes := '';
       end;
     end;
