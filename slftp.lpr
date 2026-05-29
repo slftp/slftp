@@ -50,7 +50,7 @@ program slftp;
 
 uses
   {$IFDEF UNIX}
-    cthreads, BaseUnix,
+    cthreads, BaseUnix, cwstring,
   {$ENDIF}
   {$IFDEF CPUX86_64}
     mormot.core.fpcx64mm,
