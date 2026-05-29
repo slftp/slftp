@@ -2240,43 +2240,56 @@ begin
       fPazo := FindPazoByName('', aEvent.Name);
       if fPazo <> nil then
       begin
-        if GlCbftpClient <> nil then
+        if (fPazo.rls <> nil) and (
+           (fPazo.rls is TIMDBRelease) or
+           (fPazo.rls is TTVRelease) or
+           (fPazo.rls is TMP3Release) or
+           (fPazo.rls is TNFORelease) or
+           (fPazo.rls is TMVIDRelease)
+        ) then
         begin
-          nfoData := string(GlCbftpClient.GetFile(StringToUtf8(aEvent.Site), StringToUtf8(aEvent.Section)));
-          if nfoData <> '' then
+          if GlCbftpClient <> nil then
           begin
-            dbaddnfo_SaveNfo(aEvent.Name, aEvent.Section, nfoData);
-            // Extract genre from NFO and update release
-            genre := '';
-            i := Pos('genre', LowerCase(nfoData));
-            if i > 0 then
+            nfoData := string(GlCbftpClient.GetFile(StringToUtf8(aEvent.Site), StringToUtf8(aEvent.Section)));
+            if nfoData <> '' then
             begin
-              genre := Copy(nfoData, i + 5, 100);
-              for i := 1 to Length(genre) do
+              dbaddnfo_SaveNfo(aEvent.Name, aEvent.Section, nfoData);
+              // Extract genre from NFO and update release
+              genre := '';
+              i := Pos('genre', LowerCase(nfoData));
+              if i > 0 then
               begin
-                if CharInSet(genre[i], [#13, #10]) then
+                genre := Copy(nfoData, i + 5, 100);
+                for i := 1 to Length(genre) do
                 begin
-                  genre := Copy(genre, 1, i - 1);
-                  Break;
+                  if CharInSet(genre[i], [#13, #10]) then
+                  begin
+                    genre := Copy(genre, 1, i - 1);
+                    Break;
+                  end;
+                  if not CharInSet(genre[i], ['a'..'z', 'A'..'Z']) then
+                    genre[i] := ' ';
                 end;
-                if not CharInSet(genre[i], ['a'..'z', 'A'..'Z']) then
-                  genre[i] := ' ';
+                while True do
+                begin
+                  s := ReplaceText(genre, '  ', ' ');
+                  if s = genre then Break;
+                  genre := s;
+                end;
+                genre := Trim(genre);
               end;
-              while True do
-              begin
-                s := ReplaceText(genre, '  ', ' ');
-                if s = genre then Break;
-                genre := s;
-              end;
-              genre := Trim(genre);
+              if genre <> '' then
+                kb_Add('', '', aEvent.Site, fPazo.rls.section, genre, kbeUPDATE, aEvent.Name, '');
+            end
+            else
+            begin
+              Debug(dpError, rsections, Format('[cbftp] Failed to download NFO for %s from %s', [aEvent.Name, aEvent.Site]));
             end;
-            if genre <> '' then
-              kb_Add('', '', aEvent.Site, fPazo.rls.section, genre, kbeUPDATE, aEvent.Name, '');
-          end
-          else
-          begin
-            Debug(dpError, rsections, Format('[cbftp] Failed to download NFO for %s from %s', [aEvent.Name, aEvent.Site]));
           end;
+        end
+        else
+        begin
+          Debug(dpMessage, rsections, Format('[cbftp] NFO for %s skipped (not a relevant release section for NFO processing)', [aEvent.Name]));
         end;
       end;
     end;
