@@ -133,7 +133,6 @@ function QueueSorter(Item1, Item2: Pointer): integer;
 var
   i1, i2: TTask;
   tp1, tp2: TPazoTask;
-  tpm1, tpm2: TPazoMkdirTask;
   tpr1, tpr2: TPazoRaceTask;
 begin
   // compare: -1 Item1 is before Item2
@@ -185,45 +184,6 @@ begin
 
     tp1 := TPazoTask(Item1);
     tp2 := TPazoTask(Item2);
-
-    // Give priority to mkdir
-    if ((tp1 is TPazoMkdirTask) and (tp2 is TPazoMkdirTask)) then
-    begin
-      tpm1 := TPazoMkdirTask(Item1);
-      tpm2 := TPazoMkdirTask(Item2);
-
-      if ((tpm1.dir <> '') and (tpm2.dir <> '')) then
-      begin
-        Result := 0;
-        exit;
-      end;
-      if ((tpm1.dir = '') and (tpm2.dir = '')) then
-      begin
-        Result := 0;
-        exit;
-      end;
-      // give priority to mkdir tasks that affect maindirs (not a subdir mkdir)
-      if ((tpm1.dir = '') and (tpm2.dir <> '')) then
-      begin
-        Result := -1;
-        exit;
-      end;
-      if ((tpm1.dir <> '') and (tpm2.dir = '')) then
-      begin
-        Result := 1;
-        exit;
-      end;
-    end;
-    if ((tp1 is TPazoMkdirTask) and (not (tp2 is TPazoMkdirTask))) then
-    begin
-      Result := -1;
-      exit;
-    end;
-    if ((not (tp1 is TPazoMkdirTask)) and (tp2 is TPazoMkdirTask)) then
-    begin
-      Result := 1;
-      exit;
-    end;
 
     // Give priority to RaceTask
     if ((tp1 is TPazoRaceTask) and (tp2 is TPazoRaceTask)) then
@@ -787,37 +747,6 @@ begin
         end;
       end;
 
-      if t.ClassType = TPazoDirlistTask then
-      begin
-        actual_count := 0;
-        for i := 0 to s.slots.Count - 1 do
-        begin
-          try
-            if i > s.slots.Count then
-              Break;
-          except
-            Break;
-          end;
-          sst := TSiteSlot(s.slots[i]);
-          try
-          if ((sst.todotask <> nil) and (sst.todotask.ClassType = TPazoDirlistTask)) then
-          begin
-            Inc(actual_count);
-          end;
-          except
-          on e: Exception do
-            begin
-              Debug(dpError, section, '[EXCEPTION] This should not happen anymore due to locking at todotask := nil. Else I don''t know why (Remove this if the exception never happens) : %s', [e.Message]);
-            end;
-          end;
-        end;
-        // only half of the slots for dirlist
-        if (actual_count >= Max(s.slots.Count div 2, 1)) then
-        begin
-          exit;
-        end;
-      end;
-
       ss := nil;
       if t.wantedslot <> '' then
       begin
@@ -1009,8 +938,6 @@ function TQueueThread.TaskAlreadyInQueue(t: TTask): boolean;
 var
   fTask:    TTask;
   tpr, i_tpr: TPazoRaceTask;
-  tpd, i_tpd: TPazoDirlistTask;
-  tpm, i_tpm: TPazoMkdirTask;
   tpl, i_tpl: TLoginTask;
   fListIndex: Integer;
   fList: TObjectList;
@@ -1057,98 +984,6 @@ begin
       on E: Exception do
       begin
         Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoRaceTask : %s', [e.Message]));
-        Result := False;
-        exit;
-      end;
-    end;
-    exit;
-  end;
-
-  if (t is TPazoDirlistTask) then
-  begin
-    try
-      tpd := TPazoDirlistTask(t);
-      main_lock.Enter('TaskAlreadyInQueue2');
-      try
-        for fListIndex := 0 to 1 do
-        begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for fTask in fList do
-          begin
-            try
-              if (fTask is TPazoDirlistTask) then
-              begin
-                i_tpd := TPazoDirlistTask(fTask);
-                if ((i_tpd.ready = False) and (i_tpd.readyerror = False) and
-                  (i_tpd.slot1 = nil) and (i_tpd.pazo_id = tpd.pazo_id) and
-                  (i_tpd.site1 = tpd.site1) and (i_tpd.dir = tpd.dir)) then
-                begin
-                  Result := True;
-                  exit;
-                end;
-              end;
-            except
-              on E: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoDirlistTask (loop) : %s', [e.Message]));
-                continue;
-              end;
-            end;
-          end;
-        end;
-      finally
-        main_lock.Leave;
-      end;
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoDirlistTask : %s', [e.Message]));
-        Result := False;
-        exit;
-      end;
-    end;
-    exit;
-  end;
-
-  if (t is TPazoMkdirTask) then
-  begin
-    try
-      tpm := TPazoMkdirTask(t);
-      main_lock.Enter('TaskAlreadyInQueue3');
-      try
-        for fListIndex := 0 to 1 do
-        begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for fTask in fList do
-          begin
-            try
-              if (fTask is TPazoMkdirTask) then
-              begin
-                i_tpm := TPazoMkdirTask(fTask);
-                if ((i_tpm.ready = False) and (i_tpm.readyerror = False) and
-                  (i_tpm.slot1 = nil) and (i_tpm.pazo_id = tpm.pazo_id) and
-                  (i_tpm.site1 = tpm.site1) and (i_tpm.dir = tpm.dir)) then
-                begin
-                  Result := True;
-                  exit;
-                end;
-              end;
-            except
-              on E: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoMkdirTask (loop) : %s', [e.Message]));
-                continue;
-              end;
-            end;
-          end;
-        end;
-      finally
-        main_lock.Leave;
-      end;
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoMkdirTask : %s', [e.Message]));
         Result := False;
         exit;
       end;
@@ -2224,8 +2059,6 @@ begin
       try
         if ((fTask.ClassType = TPazoRaceTask) or (fTask.ClassType = TWaitTask)) then
           Inc(t_race)
-        else if ((fTask.ClassType = TPazoDirlistTask)) then
-          Inc(t_dir)
         else if ((fTask.ClassType = TAutoNukeTask) or (fTask.ClassType = TAutoDirlistTask) or
           (fTask.ClassType = TAutoIndexTask) or (fTask.ClassType = TLoginTask) or
           (fTask.ClassType = TRulesTask)) then

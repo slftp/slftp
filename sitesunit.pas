@@ -996,6 +996,7 @@ end;
 procedure TSite.RemovePazoDirTasks(const aPazoID: integer);
   begin
     fQueue.RemovePazoDirTasks(aPazoID);
+    fCommandScheduler.RemoveByPazo(aPazoID);
   end;
 
 procedure TSite.RemovePazoSfv(const aPazoID: integer; const aDir: string);
@@ -1171,6 +1172,7 @@ end;
 procedure TSite.QueueClean;
 begin
   fQueue.QueueClean;
+  fCommandScheduler.Cleanup;
 end;
 
 procedure TSite.QueueFire;
