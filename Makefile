@@ -111,7 +111,7 @@ FORCE:
 # patch used HEAD git-hash into slftp.inc
 revpatch: FORCE
 	@if [ -d ".git" ]; then \
-        GIT_COMMIT=$(shell git rev-parse --short HEAD) ;\
+        GIT_COMMIT=DEADC0DE-$(shell git rev-parse --short HEAD) ;\
 		echo "patching SL_REV entry to $$GIT_COMMIT" ;\
 		perl replace_git_commit.pl $$GIT_COMMIT ;\
     fi
