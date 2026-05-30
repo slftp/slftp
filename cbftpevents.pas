@@ -5,7 +5,6 @@ interface
 uses
   Classes, SysUtils, SyncObjs, Generics.Collections, Math,
   mormot.core.base, mormot.core.json, mormot.core.buffers,
-  mormot.net.client, mormot.net.http,
   slcriticalsection2, slstack,
   uLkJSON;
 
@@ -57,7 +56,6 @@ type
     procedure Clear;
   end;
 
-  { Background thread that maintains persistent connection to cbftp /events endpoint }
   { Background thread that listens for cbftp events via UDP push }
   TCbftpUdpEventThread = class(TThread)
   private
@@ -75,40 +73,10 @@ type
     property OnEvent: TCbftpEventCallback read FOnEvent write FOnEvent;
   end;
 
-  { Background thread that maintains persistent connection to cbftp /events endpoint }
-  TCbftpEventThread = class(TThread)
-  private
-    FHost: RawUtf8;
-    FPort: Integer;
-    FPassword: RawUtf8;
-    FHttpClient: THttpClientSocket;
-    FLock: TCriticalSection;
-    FRunning: Boolean;
-    FReconnectDelay: Integer;
-    FQueue: TCbftpEventQueue;
-    FOnEvent: TCbftpEventCallback;
-
-    function GetAuthHeader: RawUtf8;
-    procedure ProcessEvents;
-  protected
-    procedure Execute; override;
-  public
-    constructor Create(const aHost: RawUtf8; aPort: Integer; const aPassword: RawUtf8);
-    destructor Destroy; override;
-    procedure Stop;
-    property Queue: TCbftpEventQueue read FQueue;
-    property OnEvent: TCbftpEventCallback read FOnEvent write FOnEvent;
-  end;
-
 var
-  GlCbftpEventThread: TCbftpEventThread = nil;
   GlCbftpUdpEventThread: TCbftpUdpEventThread = nil;
   GlCbftpEventThreadLock: TSLCriticalSection2;
   GlCbftpEventHandler: TCbftpEventCallback;
-
-procedure CbftpEventsStart(const aHost: RawUtf8; aPort: Integer; const aPassword: RawUtf8);
-procedure CbftpEventsStop;
-function CbftpEventsRunning: Boolean;
 
 procedure CbftpUdpEventsStart(const aBindIp: String; aPort: Integer);
 procedure CbftpUdpEventsStop;
@@ -188,50 +156,7 @@ begin
   end;
 end;
 
-{ TCbftpEventThread }
 
-constructor TCbftpEventThread.Create(const aHost: RawUtf8; aPort: Integer; const aPassword: RawUtf8);
-begin
-  inherited Create(False);
-  FreeOnTerminate := False;
-  FHost := aHost;
-  FPort := aPort;
-  FPassword := aPassword;
-  FRunning := True;
-  FReconnectDelay := INITIAL_RECONNECT_DELAY_MS;
-  FQueue := TCbftpEventQueue.Create;
-  FLock := TCriticalSection.Create;
-  FHttpClient := nil;
-end;
-
-destructor TCbftpEventThread.Destroy;
-begin
-  Stop;
-  WaitFor;
-  FreeAndNil(FQueue);
-  FreeAndNil(FLock);
-  if FHttpClient <> nil then
-    FreeAndNil(FHttpClient);
-  inherited;
-end;
-
-procedure TCbftpEventThread.Stop;
-begin
-  FLock.Acquire;
-  try
-    FRunning := False;
-  finally
-    FLock.Release;
-  end;
-end;
-
-function TCbftpEventThread.GetAuthHeader: RawUtf8;
-var
-  credentials: RawUtf8;
-begin
-  credentials := BinToBase64(':' + FPassword);
-  Result := 'Basic ' + credentials;
-end;
 
 function CbftpParseEvent(const aJson: RawUtf8): TCbftpEvent;
 
@@ -487,233 +412,9 @@ begin
   end;
 end;
 
-procedure TCbftpEventThread.ProcessEvents;
-var
-  event: TCbftpEvent;
-begin
-  while FQueue.Dequeue(event) do
-  begin
-    if Assigned(FOnEvent) then
-    begin
-      try
-        FOnEvent(event);
-      except
-        on E: Exception do
-          Debug(dpError, section, Format('Event callback error: %s', [E.Message]));
-      end;
-    end;
-  end;
-end;
-
-procedure TCbftpEventThread.Execute;
-
-  function _ReadLine(out aLine: RawUtf8): Boolean;
-  var
-    buf: array[0..4095] of AnsiChar;
-    len: PtrInt;
-  begin
-    Result := False;
-    if FHttpClient = nil then
-      Exit;
-    len := FHttpClient.SockInReadLn(@buf, SizeOf(buf));
-    if len > 0 then
-    begin
-      SetString(aLine, PAnsiChar(@buf), len);
-      Result := True;
-    end;
-  end;
-
-  function _ReadLongPollResponse(const aContentLen: Integer; out aJson: RawUtf8): Boolean;
-  var
-    body: RawUtf8;
-    buf: array[0..8191] of AnsiChar;
-    len: PtrInt;
-    totalRead: Integer;
-  begin
-    Result := False;
-    aJson := '';
-
-    if aContentLen <= 0 then
-      Exit;
-
-    // read body directly — _ReadHttpHeaders already consumed all headers
-    SetLength(body, aContentLen);
-    totalRead := 0;
-    while totalRead < aContentLen do
-    begin
-      len := FHttpClient.SockInRead(@buf[0], Min(SizeOf(buf), aContentLen - totalRead));
-      if len <= 0 then
-        Exit;
-      Move(buf[0], body[totalRead + 1], len);
-      Inc(totalRead, len);
-    end;
-
-    aJson := body;
-    Result := True;
-  end;
-
-  procedure _SendLongPollRequest(const aBaseUrl: RawUtf8);
-  var
-    host: RawUtf8;
-  begin
-    host := FHost;
-    if FPort <> 443 then
-      host := FormatUtf8('%:%', [FHost, FPort], []);
-    FHttpClient.SockSendLine(['GET /events HTTP/1.1']);
-    FHttpClient.SockSendLine(['Host: ' + host]);
-    FHttpClient.SockSendLine(['Authorization: ' + GetAuthHeader]);
-    FHttpClient.SockSendLine(['Accept: application/json']);
-    FHttpClient.SockSendLine(['Cache-Control: no-cache']);
-    FHttpClient.SockSendCRLF;
-    FHttpClient.SockSendFlush;
-  end;
-
-  function _ReadHttpHeaders(out aContentLen: Integer): Integer;
-  var
-    line: RawUtf8;
-    codeStr: RawUtf8;
-    p: Integer;
-  begin
-    Result := 0;
-    aContentLen := 0;
-    // first line: HTTP/1.1 200 OK
-    if not _ReadLine(line) then
-      Exit;
-    p := Pos(' ', line);
-    if p > 0 then
-    begin
-      codeStr := Copy(line, p + 1, 3);
-      Result := StrToIntDef(string(codeStr), 0);
-    end;
-    // read remaining headers until empty line
-    repeat
-      if not _ReadLine(line) then
-        Break;
-      if Pos('CONTENT-LENGTH:', UpperCase(string(line))) = 1 then
-        aContentLen := StrToIntDef(Trim(Copy(string(line), 16, MaxInt)), 0);
-    until line = '';
-  end;
-
-var
-  running: Boolean;
-  baseUrl: RawUtf8;
-  eventJson: RawUtf8;
-  httpStatus: Integer;
-  contentLen: Integer;
-begin
-  baseUrl := FormatUtf8('https://%:%', [FHost, FPort], []);
-
-  while not Terminated do
-  begin
-    FLock.Acquire;
-    try
-      running := FRunning;
-    finally
-      FLock.Release;
-    end;
-
-    if not running then
-      Break;
-
-    try
-      if FHttpClient = nil then
-      begin
-        FHttpClient := THttpClientSocket.Create;
-        FHttpClient.TLS.IgnoreCertificateErrors := True;
-      end;
-
-      if (not FHttpClient.SockIsDefined) or (not FHttpClient.SockConnected) then
-        FHttpClient.ConnectUri(baseUrl);
-
-      _SendLongPollRequest(baseUrl);
-      httpStatus := _ReadHttpHeaders(contentLen);
-
-      if httpStatus = 200 then
-      begin
-        FReconnectDelay := INITIAL_RECONNECT_DELAY_MS;
-        if _ReadLongPollResponse(contentLen, eventJson) then
-        begin
-          // cbftp returns heartbeat on timeout — wait briefly to avoid log spam
-          if (contentLen <= 2) or (Pos('"heartbeat"', string(eventJson)) > 0) then
-          begin
-            Sleep(1000);
-            Continue;
-          end;
-          FQueue.Enqueue(CbftpParseEvent(eventJson));
-          Synchronize(ProcessEvents);
-          // Long-polling: immediately make next request on success
-          Continue;
-        end
-        else
-        begin
-          Debug(dpError, section, 'Failed to read cbftp event response body');
-          FreeAndNil(FHttpClient);
-        end;
-      end
-      else
-      begin
-        Debug(dpError, section, Format('cbftp events poll failed: %d', [httpStatus]));
-        FreeAndNil(FHttpClient);
-      end;
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, section, Format('cbftp events exception: %s | JSON=%s', [E.Message, string(eventJson)]));
-        FreeAndNil(FHttpClient);
-      end;
-    end;
-
-    if Terminated then
-      Break;
-
-    // Exponential backoff before reconnect on error
-    Debug(dpMessage, section, Format('cbftp events reconnect in %dms', [FReconnectDelay]));
-    Sleep(FReconnectDelay);
-    FReconnectDelay := Min(FReconnectDelay * 2, MAX_RECONNECT_DELAY_MS);
-  end;
-end;
-
 { Global helpers }
 
-procedure CbftpEventsStart(const aHost: RawUtf8; aPort: Integer; const aPassword: RawUtf8);
-begin
-  GlCbftpEventThreadLock.Enter('CbftpEventsStart');
-  try
-    if GlCbftpEventThread <> nil then
-      Exit;
-    GlCbftpEventThread := TCbftpEventThread.Create(aHost, aPort, aPassword);
-    if Assigned(GlCbftpEventHandler) then
-      GlCbftpEventThread.OnEvent := GlCbftpEventHandler;
-    Debug(dpMessage, section, Format('cbftp event thread started: %s:%d', [aHost, aPort]));
-  finally
-    GlCbftpEventThreadLock.Leave;
-  end;
-end;
 
-procedure CbftpEventsStop;
-begin
-  GlCbftpEventThreadLock.Enter('CbftpEventsStop');
-  try
-    if GlCbftpEventThread = nil then
-      Exit;
-    GlCbftpEventThread.Stop;
-    GlCbftpEventThread.WaitFor;
-    FreeAndNil(GlCbftpEventThread);
-    Debug(dpMessage, section, 'cbftp event thread stopped');
-  finally
-    GlCbftpEventThreadLock.Leave;
-  end;
-end;
-
-function CbftpEventsRunning: Boolean;
-begin
-  GlCbftpEventThreadLock.Enter('CbftpEventsRunning');
-  try
-    Result := (GlCbftpEventThread <> nil) and not GlCbftpEventThread.Terminated;
-  finally
-    GlCbftpEventThreadLock.Leave;
-  end;
-end;
 
 procedure CbftpUdpEventsStart(const aBindIp: String; aPort: Integer);
 begin
@@ -760,8 +461,6 @@ begin
   GlCbftpEventThreadLock.Enter('CbftpEventsSetHandler');
   try
     GlCbftpEventHandler := aHandler;
-    if Assigned(GlCbftpEventThread) then
-      GlCbftpEventThread.OnEvent := aHandler;
     if Assigned(GlCbftpUdpEventThread) then
       GlCbftpUdpEventThread.OnEvent := aHandler;
   finally
@@ -773,7 +472,6 @@ initialization
   GlCbftpEventThreadLock := TSLCriticalSection2.Create('CbftpEventThread');
 
 finalization
-  CbftpEventsStop;
   CbftpUdpEventsStop;
   FreeAndNil(GlCbftpEventThreadLock);
 
