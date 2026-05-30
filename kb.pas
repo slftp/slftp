@@ -2242,8 +2242,7 @@ begin
       begin
         if fPazo.rls <> nil then
         begin
-          s := config.ReadString('kb', 'nfo_download_classes', 'TIMDBRelease,TNFORelease,TMP3Release');
-          if Pos(fPazo.rls.ClassName, s) > 0 then
+          if RulesNeedNfo(fPazo) then
           begin
             if GlCbftpClient <> nil then
             begin
@@ -2286,7 +2285,7 @@ begin
           end
           else
           begin
-            Debug(dpMessage, rsections, Format('[cbftp] NFO for %s skipped (not configured in nfo_download_classes)', [aEvent.Name]));
+            Debug(dpMessage, rsections, Format('[cbftp] NFO for %s skipped (not required by any active rule)', [aEvent.Name]));
           end;
         end;
       end;

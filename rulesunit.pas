@@ -340,6 +340,7 @@ procedure RulesReload;
 function AddRule(const rule: String; var error: String): TPair<TRule, integer>;
 function FireRuleSet(p: TPazo; ps: TPazoSite): TRuleAction;
 function FireRules(p: TPazo; ps: TPazoSite): boolean;
+function RulesNeedNfo(p: TPazo): Boolean;
 procedure RulesInit;
 procedure RulesUninit;
 function RuleMod(const aID: integer; const aRule: string; out aMessage: string): boolean;
@@ -3304,6 +3305,107 @@ begin
     end;
   except
     Result := nil;
+  end;
+end;
+
+function RuleUsesNfo(r: TRule): Boolean;
+var
+  ruleText: String;
+begin
+  Result := False;
+  if r = nil then Exit;
+  ruleText := LowerCase(r.AsText(True));
+  if (Pos('imdb', ruleText) > 0) or
+     (Pos('tvgenres', ruleText) > 0) or
+     (Pos('tvrating', ruleText) > 0) or
+     (Pos('tvmaze', ruleText) > 0) or
+     (Pos('tvruntime', ruleText) > 0) or
+     (Pos('mp3genre', ruleText) > 0) or
+     (Pos('mp3year', ruleText) > 0) or
+     (Pos('mp3language', ruleText) > 0) or
+     (Pos('mp3lng', ruleText) > 0) or
+     (Pos('mp3numdisks', ruleText) > 0) or
+     (Pos('mp3live', ruleText) > 0) or
+     (Pos('mp3va', ruleText) > 0) or
+     (Pos('mp3bootleg', ruleText) > 0) or
+     (Pos('mp3source', ruleText) > 0) or
+     (Pos('nfogenre', ruleText) > 0) then
+  begin
+    Result := True;
+  end;
+end;
+
+function RulesNeedNfo(p: TPazo): Boolean;
+var
+  i: Integer;
+  ps: TPazoSite;
+  fRulesForSite: TDictionary<string, TObjectList<TRule>>;
+  fRules: TObjectList<TRule>;
+  fRule: TRule;
+
+  function CheckRuleList(const aSite, aSection: String): Boolean;
+  begin
+    Result := False;
+    // Check 'rtpl' rules
+    if rtpl.TryGetValue(aSite, fRulesForSite) and fRulesForSite.TryGetValue(aSection, fRules) then
+    begin
+      for fRule in fRules do
+        if RuleUsesNfo(fRule) then
+        begin
+          Result := True;
+          Exit;
+        end;
+    end;
+    // Check 'rules' rules
+    if rules.TryGetValue(aSite, fRulesForSite) and fRulesForSite.TryGetValue(aSection, fRules) then
+    begin
+      for fRule in fRules do
+        if RuleUsesNfo(fRule) then
+        begin
+          Result := True;
+          Exit;
+        end;
+    end;
+  end;
+
+begin
+  Result := False;
+  if p = nil then Exit;
+
+  // 1. Check global rules (site='*', section='*')
+  if CheckRuleList('*', '*') then
+  begin
+    Result := True;
+    Exit;
+  end;
+
+  // 2. Check section global rules (site='*', section=p.rls.section)
+  if CheckRuleList('*', p.rls.section) then
+  begin
+    Result := True;
+    Exit;
+  end;
+
+  // 3. Check allowed/complete destination sites
+  for i := 0 to p.PazoSitesList.Count - 1 do
+  begin
+    ps := TPazoSite(p.PazoSitesList[i]);
+    // Only check sites that are allowed, complete, or being raced
+    if ps.status in [rssAllowed, rssComplete] then
+    begin
+      // Check site global rules (site=ps.Name, section='*')
+      if CheckRuleList(ps.Name, '*') then
+      begin
+        Result := True;
+        Exit;
+      end;
+      // Check site-section rules (site=ps.Name, section=p.rls.section)
+      if CheckRuleList(ps.Name, p.rls.section) then
+      begin
+        Result := True;
+        Exit;
+      end;
+    end;
   end;
 end;
 
