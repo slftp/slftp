@@ -2268,7 +2268,7 @@ begin
 
   queueclean_maxrunning := config.ReadInteger('queue', 'queueclean_maxrunning', 900);
   queueclean_unassigned := config.ReadInteger('queue', 'queueclean_unassigned', 600);
-  enable_queueclean := config.ReadBool(section, 'enable_queueclean', False);
+  enable_queueclean := config.ReadBool(section, 'enable_queueclean', True);
   queue_recycle_post_to_irc := spamcfg.readbool(section, 'queue_recycle', True);
   glMaxDirlistSlots := config.ReadString(section, 'max_dirlist_slots', '');
 
