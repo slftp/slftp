@@ -6,7 +6,7 @@ uses
   Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
   taskrules, taskrace, queueunit, Generics.Collections, pazo, slcriticalsection2,
-  variantcache, routeconfig, StrUtils;
+  variantcache, routeconfig, StrUtils, commandscheduler;
 
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
@@ -145,6 +145,9 @@ type
     function RCString(const Name, def: String): String;
 
     procedure Stop; override;
+    { Tries to execute a command (dirlist or mkdir) from the command scheduler.
+      @returns(@true if a command was executed, @false otherwise) }
+    function TryExecuteCommand: Boolean;
     { Reads the last-modified time (cmd: MDTM = MODIFICATION TIME) of the specified file @link(aFilename)
       @param(aFilename Filename)
       @returns(On successful parsing seconds from MTDM response, otherwise 0) }
@@ -235,6 +238,7 @@ type
     fSpeedFromCache: TList<TSpeedFromRouteInfo>;
     fFreeSlotsCS: TSlCriticalSection2;
     FSettingsCacheDict: TVariantCache; //< Cache for site-settings in the sites.dat to avoid the sites.dat bottleneck (lock)
+    fCommandScheduler: TCommandScheduler;
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
@@ -633,6 +637,7 @@ type
     property ReducedSpeedstatWeight: boolean read GetReducedSpeedstatWeight write SetReducedSpeedstatWeight; //< a value indicating whether speedstats should not change calculated rank for this destination site
     property KillConnectionOnStalledTransferSeconds: integer read GetKillConnectionOnStalledTransferSeconds write SetKillConnectionOnStalledTransferSeconds; //< a value saying after how many seconds a stalled transfer should be ended by destroying the socket
     property Speed_From: TList<TSpeedFromRouteInfo> read GetSpeed_From; //< Access cached speed-from speedstats. Creates a new TStringList which you need to free yourself after use
+    property CommandScheduler: TCommandScheduler read fCommandScheduler;
   end;
 
 function ReadSites(): boolean;
@@ -1562,6 +1567,15 @@ begin
   while ((not slshutdown) and (not shouldquit)) do
   begin
     try
+      // NEW: Check command scheduler first (before regular task queue)
+      if TryExecuteCommand then
+      begin
+        // Command executed, fire queue to check for race tasks and continue loop
+        if ((not shouldquit) and (not slshutdown)) then
+          site.QueueFire;
+        Continue;
+      end;
+
       if status = ssOnline then
         Console_Slot_Add(Name, 'Idle...');
 
@@ -1737,6 +1751,61 @@ begin
 
   console_delwindow(Name);
   kilepve := True;
+end;
+
+function TSiteSlot.TryExecuteCommand: Boolean;
+var
+  fReq: TCommandRequest;
+  fDirTask: TPazoDirlistTask;
+  fMkTask: TPazoMkdirTask;
+begin
+  Result := False;
+
+  // 1. Try mkdir first (higher priority than dirlist)
+  if site.CommandScheduler.GetNextMkdir(fReq) then
+  begin
+    try
+      if fReq.pazo <> nil then
+      begin
+        fMkTask := TPazoMkdirTask.Create(fReq.netname, fReq.channel, fReq.site,
+          fReq.pazo, fReq.depending_on_dirlist, fReq.dir);
+        try
+          fMkTask.Execute(self);
+        finally
+          fMkTask.Free;
+        end;
+      end;
+    except
+      on e: Exception do
+        Debug(dpError, section, Format('[EXCEPTION] TryExecuteCommand mkdir: %s', [e.Message]));
+    end;
+    site.CommandScheduler.CompleteMkdir(fReq);
+    Result := True;
+    Exit;
+  end;
+
+  // 2. Try dirlist
+  if site.CommandScheduler.GetNextDirlist(fReq) then
+  begin
+    try
+      if fReq.pazo <> nil then
+      begin
+        fDirTask := TPazoDirlistTask.Create(fReq.netname, fReq.channel, fReq.site,
+          fReq.pazo, fReq.dir, fReq.is_pre, fReq.is_from_incomplete_filler);
+        try
+          fDirTask.Execute(self);
+        finally
+          fDirTask.Free;
+        end;
+      end;
+    except
+      on e: Exception do
+        Debug(dpError, section, Format('[EXCEPTION] TryExecuteCommand dirlist: %s', [e.Message]));
+    end;
+    site.CommandScheduler.CompleteDirlist(fReq);
+    Result := True;
+    Exit;
+  end;
 end;
 
 destructor TSiteSlot.Destroy;
@@ -3160,6 +3229,7 @@ begin
   features := [];
   fSlotsAssignmentLock := TSlCriticalSection2.Create('SLFTP_SlotsAssignmentMutex_' + Name, True);
   fQueue := TQueueThread.Create(Name);
+  fCommandScheduler := TCommandScheduler.Create(Name);
   self.fSpeedFromCS := TSlCriticalSection2.Create('SpeedFromCS_' + Name);
   self.fSpeedFromCache := nil;
   self.fFreeSlotsCS := TSlCriticalSection2.Create('FreeSlotsCS_' + Name);
@@ -3351,6 +3421,7 @@ begin
   FreeAndNil(fSpeedFromCache);
   fFreeSlotsCS.Free;
   FSettingsCacheDict.Free;
+  fCommandScheduler.Free;
   Debug(dpSpam, section, 'Site %s destroy end', [Name]);
   inherited;
 end;
