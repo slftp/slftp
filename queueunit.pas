@@ -2452,6 +2452,46 @@ begin
           Continue;
         end;
 
+        if (t.ClassType = TPazoDirlistTask) then
+        begin
+          ss := t.UidText;
+          ts.AcquireSlotsAssignmentLock('QueueClean dirlist');
+          try
+            if (t.slot1 <> nil) then
+            begin
+              try
+                TSiteSlot(t.slot1).todotask := nil;
+                TSiteSlot(t.slot1).downloadingfrom := False;
+                TSiteSlot(t.slot1).uploadingto := False;
+                t.slot1 := nil;
+                t.slot1name := '';
+              except
+                on e: Exception do
+                begin
+                  Debug(dpError, section, Format('[EXCEPTION] slot1 QueueClean dirlist: Exception : %s', [e.Message]));
+                end;
+              end;
+            end;
+
+            try
+              Debug(dpSpam, section, Format('[QUEUECLEAN] Clean dirlist task : %s', [t.Fullname]));
+              Debug(dpError, section, Format('QueueClean: Remove dirlist : %s', [t.Fullname]));
+              tasks.Remove(t);
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, section, Format('[EXCEPTION] QueueClean dirlist remove: Exception : %s', [e.Message]));
+              end;
+            end;
+          finally
+            ts.ReleaseSlotsAssignmentLock;
+          end;
+          Inc(tkill_other);
+
+          Console_QueueDel(ss);
+          Continue;
+        end;
+
         if (t.ClassType = TWaitTask) then
         begin
           with TWaitTask(t) do
