@@ -3315,12 +3315,7 @@ begin
   Result := False;
   if r = nil then Exit;
   ruleText := LowerCase(r.AsText(True));
-  if (Pos('imdb', ruleText) > 0) or
-     (Pos('tvgenres', ruleText) > 0) or
-     (Pos('tvrating', ruleText) > 0) or
-     (Pos('tvmaze', ruleText) > 0) or
-     (Pos('tvruntime', ruleText) > 0) or
-     (Pos('mp3genre', ruleText) > 0) or
+  if (Pos('mp3genre', ruleText) > 0) or
      (Pos('mp3year', ruleText) > 0) or
      (Pos('mp3language', ruleText) > 0) or
      (Pos('mp3lng', ruleText) > 0) or
