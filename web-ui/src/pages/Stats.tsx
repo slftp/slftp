@@ -285,7 +285,7 @@ export function Stats() {
                     <Table.Td fw={500}>{s.name}</Table.Td>
                     <Table.Td style={{ textAlign: 'right' }}>{formatBytes(totalBytes)}</Table.Td>
                     <Table.Td style={{ textAlign: 'right' }}>
-                       <Badge variant="filled" color={ratioColor}>
+                       <Badge variant="light" color={ratioColor}>
                          {formatRatio(s.inBytes, s.outBytes)}
                        </Badge>
                     </Table.Td>
@@ -305,7 +305,7 @@ export function Stats() {
           <Group justify="space-between" mb="sm">
             <Title order={4}>Site Details: {selectedSite.name}</Title>
             <Group>
-              <Badge size="lg" variant="filled" color={getRatioColor(selectedSite.inBytes, selectedSite.outBytes)}>
+              <Badge size="lg" variant="light" color={getRatioColor(selectedSite.inBytes, selectedSite.outBytes)}>
                 Ratio: {formatRatio(selectedSite.inBytes, selectedSite.outBytes)}
               </Badge>
               <Badge variant="light">{period}</Badge>

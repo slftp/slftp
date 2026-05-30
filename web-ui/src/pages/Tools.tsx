@@ -819,7 +819,7 @@ function NewsViewer() {
                       </Badge>
                     </Table.Td>
                     <Table.Td><Text size="xs" c="dimmed">{entry.Date}</Text></Table.Td>
-                    <Table.Td><Badge size="xs" variant="outline">{entry.Category}</Badge></Table.Td>
+                    <Table.Td><Badge size="xs" variant="light">{entry.Category}</Badge></Table.Td>
                     <Table.Td><Text size="sm">{entry.Message}</Text></Table.Td>
                     <Table.Td>
                       <ActionIcon

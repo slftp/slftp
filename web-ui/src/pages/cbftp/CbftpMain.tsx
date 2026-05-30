@@ -41,21 +41,22 @@ function getStatusBadge(status: string) {
 }
 
 function getPriorityBadge(priority: string) {
-  const color = priority?.toUpperCase().includes('VERY_HIGH')
-    ? 'blue'
-    : priority?.toUpperCase().includes('HIGH')
-    ? 'cyan'
-    : priority?.toUpperCase().includes('VERY_LOW')
+  const p = priority?.toUpperCase() || '';
+  const color = p.includes('VERY_HIGH')
+    ? 'red'
+    : p.includes('HIGH')
+    ? 'orange'
+    : p.includes('VERY_LOW')
     ? 'gray'
-    : priority?.toUpperCase().includes('LOW')
-    ? 'dimmed'
-    : 'teal';
+    : p.includes('LOW')
+    ? 'teal'
+    : 'blue';
   return <Badge size="xs" color={color}>{priority?.replace(/_/g, ' ') || '-'}</Badge>;
 }
 
 function JobsTable({ jobs }: { jobs: CbftpMainJobEntry[] }) {
   const sortedJobs = useMemo(() => {
-    return [...jobs].reverse().slice(0, 20);
+    return [...jobs].reverse().slice(0, 3);
   }, [jobs]);
 
   return (
@@ -68,17 +69,17 @@ function JobsTable({ jobs }: { jobs: CbftpMainJobEntry[] }) {
         <Table striped highlightOnHover fz="xs" verticalSpacing={2} style={{ tableLayout: 'fixed', width: '100%' }}>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th style={{ width: '14%' }}>STARTED</Table.Th>
-              <Table.Th style={{ width: '6%' }}>USE</Table.Th>
-              <Table.Th style={{ width: '8%' }}>SECTION</Table.Th>
-              <Table.Th style={{ width: '26%' }}>NAME</Table.Th>
-              <Table.Th style={{ width: '9%' }}>SIZE</Table.Th>
-              <Table.Th style={{ width: '5%' }}>WORST</Table.Th>
-              <Table.Th style={{ width: '5%' }}>AVG</Table.Th>
-              <Table.Th style={{ width: '5%' }}>BEST</Table.Th>
-              <Table.Th style={{ width: '7%' }}>STATUS</Table.Th>
+              <Table.Th style={{ width: '8%' }}>STARTED</Table.Th>
+              <Table.Th style={{ width: '5%' }}>USE</Table.Th>
+              <Table.Th style={{ width: '6%' }}>SECTION</Table.Th>
+              <Table.Th style={{ width: '20%' }}>NAME</Table.Th>
+              <Table.Th style={{ width: '6%' }}>SIZE</Table.Th>
+              <Table.Th style={{ width: '3%' }}>WORST</Table.Th>
+              <Table.Th style={{ width: '3%' }}>AVG</Table.Th>
+              <Table.Th style={{ width: '3%' }}>BEST</Table.Th>
+              <Table.Th style={{ width: '5%' }}>STATUS</Table.Th>
               <Table.Th style={{ width: '6%' }}>DONE</Table.Th>
-              <Table.Th style={{ width: '9%' }}>SITES</Table.Th>
+              <Table.Th style={{ width: '15%' }}>SITES</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -86,7 +87,7 @@ function JobsTable({ jobs }: { jobs: CbftpMainJobEntry[] }) {
               <Table.Tr key={job.name}>
                 <Table.Td style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   <Tooltip label={job.started} openDelay={400}>
-                    <Text size="xs">{job.started?.substring(0, 19)?.replace('T', ' ') || '-'}</Text>
+                    <Text size="xs">{job.started?.substring(11, 16) || '-'}</Text>
                   </Tooltip>
                 </Table.Td>
                 <Table.Td>

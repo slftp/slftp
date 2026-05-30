@@ -848,10 +848,10 @@ export function RawCommands() {
                       {row.site}
                     </Badge>
                     {row.results.some((result) => result.type === 'failure') && (
-                      <Badge size="xs" color="red" variant="dot">errors</Badge>
+                      <Badge size="xs" color="red" variant="light">errors</Badge>
                     )}
                     {row.results.every((result) => result.type === 'success') && (
-                      <Badge size="xs" color="green" variant="dot">ok</Badge>
+                      <Badge size="xs" color="green" variant="light">ok</Badge>
                     )}
                   </Group>
 

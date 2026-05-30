@@ -64,7 +64,7 @@ function renderSectionBadge(section?: string) {
   const value = (section || '').trim();
   if (!value) {
     return (
-      <Badge color="red" variant="filled" size="xs" radius="sm">
+      <Badge color="red" variant="light" size="xs" radius="sm">
         NO SECTION
       </Badge>
     );

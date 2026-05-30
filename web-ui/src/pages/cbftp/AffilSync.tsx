@@ -319,7 +319,7 @@ export function AffilSync() {
                   </Table.Td>
                   <Table.Td>
                     {!comp.existsInCbftp ? (
-                      <Badge color="gray" variant="outline">N/A</Badge>
+                      <Badge color="gray" variant="light">N/A</Badge>
                     ) : comp.needsSync ? (
                       <Badge color="yellow" leftSection={<IconX size={12} />}>Out of Sync</Badge>
                     ) : (

@@ -140,7 +140,7 @@ function SiteRow({ comp, isSelected, isExpanded, onToggle, onToggleSelect, onSyn
               <IconChevronDown size={14} />
             </ThemeIcon>
             <Text fw={600}>{comp.siteName}</Text>
-            {!comp.existsInCbftp && <Badge color="red" size="xs" variant="filled">Not in cbftp</Badge>}
+            {!comp.existsInCbftp && <Badge color="red" size="xs" variant="light">Not in cbftp</Badge>}
           </Group>
         </Table.Td>
         <Table.Td>
@@ -173,11 +173,11 @@ function SiteRow({ comp, isSelected, isExpanded, onToggle, onToggleSelect, onSyn
         </Table.Td>
         <Table.Td>
           {!comp.existsInCbftp ? (
-            <Badge color="gray" variant="outline">N/A</Badge>
+            <Badge color="gray" variant="light">N/A</Badge>
           ) : comp.needsSync ? (
             <Badge color="yellow" leftSection={<IconX size={12} />}>Out of Sync</Badge>
           ) : comp.sections.length === 0 ? (
-            <Badge color="gray" variant="outline">No Sections</Badge>
+            <Badge color="gray" variant="light">No Sections</Badge>
           ) : (
             <Badge color="green" leftSection={<IconCheck size={12} />}>In Sync</Badge>
           )}
@@ -270,7 +270,7 @@ function SiteRow({ comp, isSelected, isExpanded, onToggle, onToggleSelect, onSyn
                         {sec.status === 'MISSING_IN_CBFTP' && (
                           <>
                             <IconArrowRight size={14} color="var(--primary-light)" />
-                            <Badge size="sm" color="blue" variant="dot">Will be added</Badge>
+                            <Badge size="sm" color="blue" variant="light">Will be added</Badge>
                           </>
                         )}
                         

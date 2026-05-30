@@ -483,6 +483,15 @@ export function Sites() {
     return value ? value.replace(/_/g, ' ') : 'Unknown';
   };
 
+  const getPriorityColor = (value?: string) => {
+    const p = value?.toUpperCase() || '';
+    if (p.includes('VERY_HIGH')) return 'red';
+    if (p.includes('HIGH')) return 'orange';
+    if (p.includes('VERY_LOW')) return 'gray';
+    if (p.includes('LOW')) return 'teal';
+    return 'blue';
+  };
+
   return (
     <>
       <Group justify="apart" mb="md">
@@ -531,7 +540,7 @@ export function Sites() {
                 <Badge color="blue">{formatTlsMode(details?.tls_mode)}</Badge>
               </Table.Td>
               <Table.Td>
-                <Badge>{formatPriority(details?.priority)}</Badge>
+                <Badge color={getPriorityColor(details?.priority)}>{formatPriority(details?.priority)}</Badge>
               </Table.Td>
               <Table.Td>
                 {siteCredits[siteName]?.Ok ? (
@@ -600,7 +609,7 @@ export function Sites() {
               </Group>
               <Group justify="apart">
                 <Text fw={500}>Priority:</Text>
-                <Badge>{siteDetails.priority || 'NORMAL'}</Badge>
+                <Badge color={getPriorityColor(siteDetails.priority)}>{siteDetails.priority || 'NORMAL'}</Badge>
               </Group>
               <Group justify="apart">
                 <Text fw={500}>Max Logins:</Text>
@@ -929,7 +938,7 @@ export function Sites() {
                           <Table.Td>
                             <Text size="sm" style={{ fontFamily: 'monospace' }}>
                               {entry.pattern}
-                              {entry.regex && <Badge size="xs" ml="xs" variant="outline">regex</Badge>}
+                              {entry.regex && <Badge size="xs" ml="xs" variant="light">regex</Badge>}
                             </Text>
                           </Table.Td>
                           <Table.Td>
@@ -939,7 +948,7 @@ export function Sites() {
                             </Group>
                           </Table.Td>
                           <Table.Td>
-                            <Badge variant="outline">{entry.scope}</Badge>
+                            <Badge variant="light">{entry.scope}</Badge>
                           </Table.Td>
                           <Table.Td>
                             <Group gap="xs">

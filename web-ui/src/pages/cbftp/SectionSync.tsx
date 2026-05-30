@@ -298,7 +298,7 @@ export function SectionSync() {
                   </Table.Td>
                   <Table.Td>
                     <Text fw={600}>{comp.siteName}</Text>
-                    {!comp.existsInCbftp && <Badge color="red" size="xs" variant="filled">Not in cbftp</Badge>}
+                    {!comp.existsInCbftp && <Badge color="red" size="xs" variant="light">Not in cbftp</Badge>}
                   </Table.Td>
                   <Table.Td>
                     <Stack gap={6}>
@@ -331,7 +331,7 @@ export function SectionSync() {
                   </Table.Td>
                   <Table.Td>
                     {!comp.existsInCbftp ? (
-                      <Badge color="gray" variant="outline" fullWidth>N/A</Badge>
+                      <Badge color="gray" variant="light" fullWidth>N/A</Badge>
                     ) : comp.needsSync ? (
                       <Badge color="yellow" leftSection={<IconX size={12} />} variant="light" fullWidth>Out of Sync</Badge>
                     ) : (

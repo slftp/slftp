@@ -534,7 +534,7 @@ export function Rules() {
       );
     }
     
-    return <Badge color="gray" variant="dot">Ready</Badge>;
+    return <Badge color="gray" variant="light">Ready</Badge>;
   }, [hasLoaded, isCheckingSyntax, syntaxOk, errors]);
 
   useEffect(() => {
