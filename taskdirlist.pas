@@ -19,7 +19,7 @@ type
 implementation
 
 uses
-  sitesunit, SysUtils, mystrings, DebugUnit, queueunit;
+  sitesunit, SysUtils, mystrings, DebugUnit, queueunit, cbftpclient;
 
 const
   section = 'taskdirlist';
@@ -40,6 +40,13 @@ var
   s: TSiteSlot;
   numerrors: Integer;
 begin
+  if GlCbftpClient <> nil then
+  begin
+    ready := True;
+    Result := True;
+    Exit;
+  end;
+
   Result := False;
   s := slot;
   Debug(dpMessage, section, Name);

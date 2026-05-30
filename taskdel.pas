@@ -21,7 +21,7 @@ type
 implementation
 
 uses
-  Classes, Contnrs, sitesunit,  mystrings, dirlist, DebugUnit, irc;
+  Classes, Contnrs, sitesunit,  mystrings, dirlist, DebugUnit, irc, cbftpclient;
 
 const
   section = 'del';
@@ -88,6 +88,13 @@ var
   s: TSiteSlot;
   fNumErrors: Integer;
 begin
+  if GlCbftpClient <> nil then
+  begin
+    ready := True;
+    Result := True;
+    Exit;
+  end;
+
   Result := False;
   Debug(dpMessage, section, '-->' + Name);
   s := slot;

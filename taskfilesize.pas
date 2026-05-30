@@ -17,7 +17,7 @@ type
 implementation
 
 uses
-  Classes, SysUtils, Contnrs, debugunit, sitesunit, dirlist;
+  Classes, SysUtils, Contnrs, debugunit, sitesunit, dirlist, cbftpclient;
 
 const
   section = 'taskfilesize';
@@ -37,6 +37,13 @@ var
   s: TSiteSlot;
   d: TDirList;
 begin
+  if GlCbftpClient <> nil then
+  begin
+    ready := True;
+    Result := True;
+    Exit;
+  end;
+
   Result := False;
   response := '-1'; // file not found
   s := slot;

@@ -17,7 +17,7 @@ implementation
 
 uses
   Classes, StrUtils, DateUtils, Contnrs, Types, configunit, mainthread, sitesunit, precatcher,
-  kb, queueunit, dirlist, SysUtils, irc, debugunit, nuke, mystrings;
+  kb, queueunit, dirlist, SysUtils, irc, debugunit, nuke, mystrings, cbftpclient;
 
 const
   rsections = 'autonuke';
@@ -57,6 +57,13 @@ var
   end;
 
 begin
+  if GlCbftpClient <> nil then
+  begin
+    ready := True;
+    Result := True;
+    Exit;
+  end;
+
   Result := False;
   s := slot;
   Debug(dpSpam, rsections, '-->' + Name);

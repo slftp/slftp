@@ -18,7 +18,7 @@ type
 implementation
 
 uses
-  sitesunit, SysUtils, DebugUnit;
+  sitesunit, SysUtils, DebugUnit, cbftpclient;
 
 const
   section = 'cwd';
@@ -38,6 +38,13 @@ var
   s: TSiteSlot;
   fNumTries: integer;
 begin
+  if GlCbftpClient <> nil then
+  begin
+    ready := True;
+    Result := True;
+    Exit;
+  end;
+
   Result := False;
   s := slot;
   fNumTries := 0;

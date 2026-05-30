@@ -478,22 +478,20 @@ begin
   FUDPIp := Trim(config.ReadString('UDPConfig', 'IP', ''));
   FUDPPort := config.ReadInteger('UDPConfig', 'Port', 0);
   FUDPPassword := config.ReadString('UDPConfig', 'Password', '');
-  FUDPEnabled := SameText(rawEnable, 'True') or SameText(rawEnable, '1');
+  FUDPEnabled := True;
   FEncryptUDP := config.ReadBool('UDPConfig', 'EncryptUDP', True);
 
-  if FUDPEnabled then
-  begin
-    if (FUDPPort < 1) or (FUDPPort > 65535) then
-    begin
-      Debug(dpError, section, Format('TPazo.LoadUDPConfig: invalid cbftp port %d - disabling engine', [FUDPPort]));
-      FUDPEnabled := False;
-    end;
+  if not (SameText(rawEnable, 'True') or SameText(rawEnable, '1')) then
+    Debug(dpMessage, section, 'TPazo.LoadUDPConfig: Standalone FTP engine is deprecated. Running in cbftp-only mode.');
 
-    if FUDPIp = '' then
-    begin
-      Debug(dpError, section, 'TPazo.LoadUDPConfig: cbftp IP is empty - disabling engine');
-      FUDPEnabled := False;
-    end;
+  if (FUDPPort < 1) or (FUDPPort > 65535) then
+  begin
+    Debug(dpMessage, section, Format('TPazo.LoadUDPConfig: invalid cbftp port %d', [FUDPPort]));
+  end;
+
+  if FUDPIp = '' then
+  begin
+    Debug(dpMessage, section, 'TPazo.LoadUDPConfig: cbftp IP is empty');
   end;
 
 

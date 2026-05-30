@@ -14,7 +14,7 @@ type
 implementation
 
 uses
-  sitesunit, SysUtils, DebugUnit, irc, mrdohutils;
+  sitesunit, SysUtils, DebugUnit, irc, mrdohutils, cbftpclient;
 
 const
   section = 'quit';
@@ -28,6 +28,13 @@ function TQuitTask.Execute(slot: Pointer): Boolean;
 var
   s: TSiteSlot;
 begin
+  if GlCbftpClient <> nil then
+  begin
+    ready := True;
+    Result := True;
+    Exit;
+  end;
+
   Result := False;
 
   s := slot;

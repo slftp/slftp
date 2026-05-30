@@ -24,7 +24,7 @@ uses
   SyncObjs, Contnrs, configunit, sitesunit, taskraw, indexer, Math, pazo, taskrace, Classes,
   precatcher, kb, queueunit, StrUtils, dateutils, dirlist, SysUtils, irc, debugunit, RegExpr,
   kb.releaseinfo, mystrings, IdGlobal, tasksearchrelease, notify, Generics.Collections, taskcwd,
-  routeconfig;
+  routeconfig, cbftpclient;
 
 const
   rsections = 'autodirlist';
@@ -364,6 +364,13 @@ var
   end;
 
 begin
+  if GlCbftpClient <> nil then
+  begin
+    ready := True;
+    Result := True;
+    Exit;
+  end;
+
   Result := False;
   s := slot;
   debugunit.Debug(dpMessage, rsections, Name);

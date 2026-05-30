@@ -30,7 +30,7 @@ var
 implementation
 
 uses
-  DateUtils, configunit, SysUtils, debugunit, irc, sitesunit, mystrings;
+  DateUtils, configunit, SysUtils, debugunit, irc, sitesunit, mystrings, cbftpclient;
 
 const
   section = 'speedtest';
@@ -49,6 +49,13 @@ var
   s: TSiteSlot;
   dir: String;
 begin
+  if GlCbftpClient <> nil then
+  begin
+    ready := True;
+    Result := True;
+    Exit;
+  end;
+
   Result := False;
   s := slot;
   Debug(dpMessage, section, Name);
@@ -114,6 +121,13 @@ var
   d: Double;
   lastAnnounce, uploadStarted: TDateTime;
 begin
+  if GlCbftpClient <> nil then
+  begin
+    ready := True;
+    Result := True;
+    Exit;
+  end;
+
   Result := False;
   s := slot;
   Debug(dpMessage, section, Name);

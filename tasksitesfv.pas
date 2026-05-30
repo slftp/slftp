@@ -23,7 +23,7 @@ type
 implementation
 
 uses
-  SysUtils, SyncObjs, StrUtils, debugunit, dateutils, dirlist, sitesunit, irc, mystrings;
+  SysUtils, SyncObjs, StrUtils, debugunit, dateutils, dirlist, sitesunit, irc, mystrings, cbftpclient;
 
 const
   section = 'sfv';
@@ -82,6 +82,20 @@ var
   fStream: TStringStream;
   fRelativePath: String;
 begin
+  if (mainpazo <> nil) and mainpazo.IsUDPEnabled then
+  begin
+    ready := True;
+    Result := True;
+    exit;
+  end;
+
+  if GlCbftpClient <> nil then
+  begin
+    ready := True;
+    Result := True;
+    Exit;
+  end;
+
   Result := False;
   fSlot := slot;
   fStream := nil;

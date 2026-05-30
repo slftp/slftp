@@ -17,7 +17,7 @@ implementation
 
 uses
   SyncObjs, Classes, DateUtils, Contnrs, configunit, mainthread, sitesunit, precatcher, kb, queueunit,
-  mystrings, dirlist, SysUtils, irc, debugunit, indexer, Regexpr;
+  mystrings, dirlist, SysUtils, irc, debugunit, indexer, Regexpr, cbftpclient;
 
 const
   rsections = 'indexer';
@@ -189,6 +189,13 @@ var
   end;
 
 begin
+  if GlCbftpClient <> nil then
+  begin
+    ready := True;
+    Result := True;
+    Exit;
+  end;
+
   Result := False;
   s := slot;
   Debug(dpSpam, rsections, '-->' + Name);
