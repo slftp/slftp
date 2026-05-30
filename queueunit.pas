@@ -2103,9 +2103,18 @@ var
   ts, ts2: TSite;
   fListIndex: Integer;
   fList: TObjectList;
+  udpEnabled: Boolean;
+  cleanDebugPriority: TDebugPriority;
 begin
 
   try
+
+  udpEnabled := SameText(Trim(config.ReadString('UDPConfig', 'EnableUDP', 'False')), 'True') or
+                SameText(Trim(config.ReadString('UDPConfig', 'EnableUDP', 'False')), '1');
+  if udpEnabled then
+    cleanDebugPriority := dpSpam
+  else
+    cleanDebugPriority := dpError;
 
   if not enable_queueclean then
   begin
@@ -2140,7 +2149,7 @@ begin
         begin
           try
             t.ready := True;
-            Debug(dpError, section, Format('QueueClean: Remove Unassigned : %s', [t.Fullname]));
+            Debug(cleanDebugPriority, section, Format('QueueClean: Remove Unassigned : %s', [t.Fullname]));
           except
             on e: Exception do
             begin
@@ -2230,7 +2239,7 @@ begin
 
             try
               Debug(dpSpam, section, Format('[QUEUECLEAN] Clean race task : %s', [t.Fullname]));
-              Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Fullname]));
+              Debug(cleanDebugPriority, section, Format('QueueClean: Remove : %s', [t.Fullname]));
               tasks.Remove(t);
             except
               on e: Exception do
@@ -2260,7 +2269,7 @@ begin
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean wait task : %s', [t.Fullname]));
             ts.AcquireSlotsAssignmentLock('QueueClean wait');
             try
-              Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Fullname]));
+              Debug(cleanDebugPriority, section, Format('QueueClean: Remove : %s', [t.Fullname]));
               tasks.Remove(t);
             finally
               ts.ReleaseSlotsAssignmentLock;
@@ -2310,7 +2319,7 @@ begin
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean other task : %s', [t.Fullname]));
             ts.AcquireSlotsAssignmentLock('QueueClean other');
             try
-              Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Fullname]));
+              Debug(cleanDebugPriority, section, Format('QueueClean: Remove : %s', [t.Fullname]));
               tasks.Remove(t);
             finally
               ts.ReleaseSlotsAssignmentLock;
@@ -2337,26 +2346,33 @@ begin
 
   if (tkill_unassigne <> 0) then
   begin
-    irc_Addconsole(Format('QueueClean: Killed : %s unassigned tasks',
-      [IntToStr(tkill_unassigne)]));
-    Debug(dpError, section, Format('QueueClean: Killed : %s unassigned tasks',
+    if not udpEnabled then
+      irc_Addconsole(Format('QueueClean: Killed : %s unassigned tasks',
+        [IntToStr(tkill_unassigne)]));
+    Debug(cleanDebugPriority, section, Format('QueueClean: Killed : %s unassigned tasks',
       [IntToStr(tkill_unassigne)]));
   end;
   if (tkill_race <> 0) then
   begin
-    irc_Addconsole(Format('QueueClean: Killed : %s race tasks', [IntToStr(tkill_race)]));
-    irc_Adderror(Format('<c4>[CLEAN]</c> QueueClean: Killed : %s race tasks',
-      [IntToStr(tkill_race)]));
-    Debug(dpError, section, Format('[CLEAN] QueueClean: Killed : %s race tasks',
+    if not udpEnabled then
+    begin
+      irc_Addconsole(Format('QueueClean: Killed : %s race tasks', [IntToStr(tkill_race)]));
+      irc_Adderror(Format('<c4>[CLEAN]</c> QueueClean: Killed : %s race tasks',
+        [IntToStr(tkill_race)]));
+    end;
+    Debug(cleanDebugPriority, section, Format('[CLEAN] QueueClean: Killed : %s race tasks',
       [IntToStr(tkill_race)]));
   end;
   if (tkill_other <> 0) then
   begin
-    irc_Addconsole(Format('QueueClean: Killed : %s other tasks',
-      [IntToStr(tkill_other)]));
-    irc_Adderror(Format('<c4>[CLEAN]</c> QueueClean: Killed : %s other tasks',
-      [IntToStr(tkill_other)]));
-    Debug(dpError, section, Format('[CLEAN] QueueClean: Killed : %s other tasks',
+    if not udpEnabled then
+    begin
+      irc_Addconsole(Format('QueueClean: Killed : %s other tasks',
+        [IntToStr(tkill_other)]));
+      irc_Adderror(Format('<c4>[CLEAN]</c> QueueClean: Killed : %s other tasks',
+        [IntToStr(tkill_other)]));
+    end;
+    Debug(cleanDebugPriority, section, Format('[CLEAN] QueueClean: Killed : %s other tasks',
       [IntToStr(tkill_other)]));
   end;
 
