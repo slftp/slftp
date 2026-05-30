@@ -81,7 +81,7 @@ uses
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles, mormot.core.unicode,
-  globalskipunit, irccommandsunit, slapi.issueshook, cbftpclient, cbftpevents, uLkJSON, Generics.Collections, Generics.Defaults {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  globalskipunit, irccommandsunit, slapi.issueshook, cbftpclient, cbftpevents, cbftpmaincache, uLkJSON, Generics.Collections, Generics.Defaults {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   rsections = 'kb';
@@ -1975,6 +1975,7 @@ begin
     cetRaceStarted:
     begin
       Debug(dpMessage, rsections, Format('[cbftp] race_started: %s/%s', [aEvent.Section, aEvent.Name]));
+      CbftpMainCacheAddJob(aEvent.Name, aEvent.Section, Now);
       if GlRaceCompletions <> nil then
         GlRaceCompletions.Remove(aEvent.Name);
       fPazo := FindPazoByName(aEvent.Section, aEvent.Name);
@@ -1986,6 +1987,7 @@ begin
 
     cetRaceProgress:
     begin
+      CbftpMainCacheUpdateJobProgress(aEvent.Name, aEvent.Site, aEvent.FilesDone, aEvent.FilesTotal, aEvent.BytesDone, aEvent.BytesTotal);
       fPazo := FindPazoByName('', aEvent.Name);
       if fPazo <> nil then
       begin
@@ -2008,6 +2010,7 @@ begin
     begin
       Debug(dpMessage, rsections, Format('[cbftp] race_completed: %s on %s (%.2fs)',
         [aEvent.Name, aEvent.Site, aEvent.TimeSpentSeconds]));
+      CbftpMainCacheUpdateJobCompleted(aEvent.Name, aEvent.Site, Round(aEvent.TimeSpentSeconds * 1000), aEvent.FilesDone, aEvent.BytesDone);
 
       fPazo := FindPazoByName('', aEvent.Name);
       if fPazo <> nil then
@@ -2036,6 +2039,7 @@ begin
     begin
       Debug(dpMessage, rsections, Format('[cbftp] race_done: %s status=%s',
         [aEvent.Name, aEvent.Status]));
+      CbftpMainCacheUpdateJobDone(aEvent.Name, aEvent.Status);
 
       fPazo := FindPazoByName('', aEvent.Name);
       if fPazo <> nil then
@@ -2300,6 +2304,7 @@ begin
     begin
       Debug(dpMessage, rsections, Format('[cbftp] site_status event: %s disabled=%d',
         [aEvent.Site, Ord(aEvent.Disabled)]));
+      CbftpMainCacheUpdateSiteDisabled(aEvent.Site, aEvent.Disabled);
       fSite := FindSiteByName('', aEvent.Site);
       if fSite <> nil then
       begin

@@ -18,7 +18,7 @@ implementation
 
 uses
   SysUtils, StrUtils, configunit, debugunit, mormot.core.unicode, mormot.core.json,
-  slcriticalsection2, pazo,
+  slcriticalsection2, pazo, cbftpmaincache,
   Classes;
 
 function _QueryParam(const aUrl, aName: string): string;
@@ -196,6 +196,16 @@ begin
   begin
     Call.OutStatus := 200;
     Call.OutBody := StringToUtf8(CbftpLatencyGetJson);
+    Call.OutHead := 'Content-Type: application/json';
+    Exit(True);
+  end;
+
+  // Handle /main endpoint - slftp cached cbftp main screen data
+  if (Call.Method = 'GET') and (path = '/main') then
+  begin
+    CbftpMainCacheRefreshSites;
+    Call.OutStatus := 200;
+    Call.OutBody := CbftpMainCacheGetJson;
     Call.OutHead := 'Content-Type: application/json';
     Exit(True);
   end;
