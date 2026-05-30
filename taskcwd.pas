@@ -18,10 +18,7 @@ type
 implementation
 
 uses
-  sitesunit, SysUtils, DebugUnit, cbftpclient;
-
-const
-  section = 'cwd';
+  SysUtils;
 
 { TCWDTask }
 
@@ -32,58 +29,14 @@ begin
 end;
 
 function TCWDTask.Execute(slot: Pointer): Boolean;
-label
-  ujra;
-var
-  s: TSiteSlot;
-  fNumTries: integer;
 begin
-  if GlCbftpClient <> nil then
-  begin
-    ready := True;
-    Result := True;
-    Exit;
-  end;
-
-  Result := False;
-  s := slot;
-  fNumTries := 0;
-  response := IntToStr(Ord(False));
-  Debug(dpMessage, section, Name);
-
-ujra:
-  fNumTries := fNumTries + 1;
-  if s.status <> ssOnline then
-  begin
-    if not s.ReLogin(1) then
-    begin
-      readyerror := True;
-      exit;
-    end;
-  end;
-
-  if not s.Cwd(dir, True) then
-  begin
-    if fNumTries > 2 then
-    begin
-      readyerror := True;
-      exit;
-    end;
-    goto ujra;
-  end;
-
-  //if we reach this, CWD has been successful
-  response := IntToStr(Ord(True));
   ready := True;
+  Result := True;
 end;
 
 function TCWDTask.Name: String;
 begin
-  try
-    Result := format('CWD %s -> %s', [site1, dir]);
-  except
-    Result := 'CWD';
-  end;
+  Result := 'CWD';
 end;
 
 end.

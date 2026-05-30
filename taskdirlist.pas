@@ -18,12 +18,6 @@ type
 
 implementation
 
-uses
-  sitesunit, SysUtils, mystrings, DebugUnit, queueunit, cbftpclient;
-
-const
-  section = 'taskdirlist';
-
 { TDirlistTask }
 
 constructor TDirlistTask.Create(const netname, channel, site, dir: String; forcecwd: Boolean = False);
@@ -34,67 +28,14 @@ begin
 end;
 
 function TDirlistTask.Execute(slot: Pointer): Boolean;
-label
-  ujra;
-var
-  s: TSiteSlot;
-  numerrors: Integer;
 begin
-  if GlCbftpClient <> nil then
-  begin
-    ready := True;
-    Result := True;
-    Exit;
-  end;
-
-  Result := False;
-  s := slot;
-  Debug(dpMessage, section, Name);
-  numerrors := 0;
-
-ujra:
-  inc(numerrors);
-  if numerrors > 3 then
-  begin
-    Debug(dpMessage, section, Format('ERROR: numerrors > 3 for %s @ %s', [dir, s.Name]));
-    readyerror := True;
-    exit;
-  end;
-
-  if s.status <> ssOnline then
-    if not s.ReLogin then
-    begin
-      readyerror := True;
-      exit;
-    end;
-
-
-  if (not s.Dirlist(dir, forcecwd)) then
-  begin
-    if s.status <> ssOnline then
-      goto ujra;
-
-    // could not list directory
-    Debug(dpMessage, section, Format('ERROR: can not dirlist dir %s on %s with forcecwd value %s', [dir, site1, BoolToStr(forcecwd, True)]));
-    readyerror := True;
-    exit;
-  end;
-  response := s.lastResponse;
-
-  Result := True;
   ready := True;
-
-  if GlDirlistCompletedCounter <> nil then
-    GlDirlistCompletedCounter.Increment;
+  Result := True;
 end;
 
 function TDirlistTask.Name: String;
 begin
-  try
-    Result := Format('<b>DIRLIST:</b> %s @ %s', [dir, site1]);
-  except
-    Result := 'DIRLIST';
-  end;
+  Result := 'DIRLIST';
 end;
 
 end.

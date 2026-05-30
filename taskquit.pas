@@ -2,7 +2,8 @@ unit taskquit;
 
 interface
 
-uses tasksunit;
+uses
+  tasksunit;
 
 type
   TQuitTask = class(TTask)
@@ -13,11 +14,7 @@ type
 
 implementation
 
-uses
-  sitesunit, SysUtils, DebugUnit, irc, mrdohutils, cbftpclient;
-
-const
-  section = 'quit';
+{ TQuitTask }
 
 constructor TQuitTask.Create(const netname, channel, site: String);
 begin
@@ -25,35 +22,14 @@ begin
 end;
 
 function TQuitTask.Execute(slot: Pointer): Boolean;
-var
-  s: TSiteSlot;
 begin
-  if GlCbftpClient <> nil then
-  begin
-    ready := True;
-    Result := True;
-    Exit;
-  end;
-
-  Result := False;
-
-  s := slot;
-  s.Quit;
   ready := True;
-
-  if spamcfg.readbool('sites', 'login_logout', False) then
-    irc_SendRACESTATS(Format('%s (%s)', [Name, s.Name]));
-
-  Debug(dpSpam, section, Name);
+  Result := True;
 end;
 
 function TQuitTask.Name: String;
 begin
-  try
-    Result := Format('QUIT <b>%s</b>', [site1]);
-  except
-    Result := 'QUIT';
-  end;
+  Result := 'QUIT';
 end;
 
 end.
