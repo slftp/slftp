@@ -25,6 +25,7 @@ type
     destructor Destroy; override;
     procedure Execute; override;
     procedure TryToAssignSlots(t: TTask);
+    function HasAssignableRaceTask: Boolean;
 
   private
   tasks:      TObjectList;
@@ -702,6 +703,22 @@ begin
   on e: Exception do
     begin
       Debug(dpError, section, '[EXCEPTION] TQueueThread.TryToAssignLoginSlot : %s', [e.Message]);
+      exit;
+    end;
+  end;
+end;
+
+function TQueueThread.HasAssignableRaceTask: Boolean;
+var
+  t: TTask;
+begin
+  Result := False;
+  for t in tasks do
+  begin
+    if (t is TPazoRaceTask) and (t.slot1 = nil) and (not t.ready) and (not t.readyerror) and
+       ((t.startat = 0) or (t.startat <= queue_last_run)) then
+    begin
+      Result := True;
       exit;
     end;
   end;
@@ -1651,7 +1668,7 @@ begin
           end;
         end;
 
-        if bTasksMoved then
+        if bTasksMoved and HasAssignableRaceTask then
           tasks.Sort(@QueueSorter);
 
         for fListIndex := 0 to 1 do
