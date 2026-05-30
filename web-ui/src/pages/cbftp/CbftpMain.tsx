@@ -69,17 +69,17 @@ function JobsTable({ jobs }: { jobs: CbftpMainJobEntry[] }) {
         <Table striped highlightOnHover fz="xs" verticalSpacing={2} style={{ tableLayout: 'fixed', width: '100%' }}>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th style={{ width: '8%' }}>STARTED</Table.Th>
-              <Table.Th style={{ width: '5%' }}>USE</Table.Th>
+              <Table.Th style={{ width: '6%' }}>STARTED</Table.Th>
+              <Table.Th style={{ width: '4%' }}>USE</Table.Th>
               <Table.Th style={{ width: '6%' }}>SECTION</Table.Th>
-              <Table.Th style={{ width: '20%' }}>NAME</Table.Th>
-              <Table.Th style={{ width: '6%' }}>SIZE</Table.Th>
-              <Table.Th style={{ width: '3%' }}>WORST</Table.Th>
-              <Table.Th style={{ width: '3%' }}>AVG</Table.Th>
-              <Table.Th style={{ width: '3%' }}>BEST</Table.Th>
-              <Table.Th style={{ width: '5%' }}>STATUS</Table.Th>
-              <Table.Th style={{ width: '6%' }}>DONE</Table.Th>
-              <Table.Th style={{ width: '15%' }}>SITES</Table.Th>
+              <Table.Th style={{ width: '35%' }}>NAME</Table.Th>
+              <Table.Th style={{ width: '5%' }}>SIZE</Table.Th>
+              <Table.Th style={{ width: '3.5%' }}>WORST</Table.Th>
+              <Table.Th style={{ width: '3.5%' }}>AVG</Table.Th>
+              <Table.Th style={{ width: '3.5%' }}>BEST</Table.Th>
+              <Table.Th style={{ width: '5.5%' }}>STATUS</Table.Th>
+              <Table.Th style={{ width: '5%' }}>DONE</Table.Th>
+              <Table.Th style={{ width: '23%' }}>SITES</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
