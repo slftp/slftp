@@ -416,12 +416,6 @@ begin
     if fJobIdx < 0 then
       Exit;
     GlJobs[fJobIdx].Status := aStatus;
-    // When job is done, mark all sites as completed so pct shows 100%
-    if aStatus = 'DONE' then
-    begin
-      for fSiteIdx := 0 to High(GlJobs[fJobIdx].Sites) do
-        GlJobs[fJobIdx].Sites[fSiteIdx].Completed := True;
-    end;
   finally
     GlCacheLock.Leave;
   end;

@@ -1967,7 +1967,12 @@ var
   jsObj: TlkJSONObject;
   jsSites: TlkJSONlist;
   jsIncSites: TlkJSONlist;
+  jsProgress: TlkJSONbase;
+  jsSiteProg: TlkJSONbase;
   siteName: String;
+  fSiteName: String;
+  fFilesDone, fFilesTotal: Integer;
+  fBytesDone, fBytesTotal: Int64;
   fsizeDummy: Int64;
   disabled: Boolean;
 begin
@@ -2093,6 +2098,28 @@ begin
                   end;
                 end;
               end;
+
+              { Sync per-site progress from cbftp into the main cache
+                so that WORST/AVG/BEST reflect real completion. }
+              jsProgress := jsObj.Field['progress'];
+              if (jsProgress <> nil) and (jsProgress is TlkJSONObject) then
+              begin
+                for i := 0 to TlkJSONobject(jsProgress).Count - 1 do
+                begin
+                  fSiteName := string(TlkJSONobject(jsProgress).NameOf[i]);
+                  jsSiteProg := TlkJSONobject(jsProgress).Child[i];
+                  if (jsSiteProg <> nil) and (jsSiteProg is TlkJSONObject) then
+                  begin
+                    fFilesDone := TlkJSONobject(jsSiteProg).getInt('files_done');
+                    fFilesTotal := TlkJSONobject(jsSiteProg).getInt('total_files');
+                    fBytesDone := StrToInt64Def(TlkJSONobject(jsSiteProg).getString('bytes_done'), 0);
+                    fBytesTotal := StrToInt64Def(TlkJSONobject(jsSiteProg).getString('bytes_total'), 0);
+                    CbftpMainCacheUpdateJobProgress(aEvent.Name, fSiteName,
+                      fFilesDone, fFilesTotal, fBytesDone, fBytesTotal);
+                  end;
+                end;
+              end;
+
               if js <> nil then
                 js.Free;
             end;
