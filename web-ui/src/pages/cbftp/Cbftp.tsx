@@ -1,5 +1,5 @@
 import { Tabs, Title, Container, Text, Alert, Loader, Center } from '@mantine/core';
-import { IconServer, IconFolders, IconTrophy, IconArrowsLeftRight, IconTerminal, IconInfoCircle, IconAlertCircle, IconUsers, IconLayoutDashboard } from '@tabler/icons-react';
+import { IconServer, IconFolders, IconTrophy, IconArrowsLeftRight, IconTerminal, IconInfoCircle, IconAlertCircle, IconUsers, IconLayoutDashboard, IconRoute } from '@tabler/icons-react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { isCbftpEnabled } from '../../api/cbftpClient';
@@ -11,6 +11,7 @@ import { RawCommands } from './RawCommands';
 import { Info } from './Info';
 import { AffilSync } from './AffilSync';
 import { CbftpMain } from './CbftpMain';
+import { Routes } from './Routes';
 
 export function Cbftp() {
   const [activeTab, setActiveTab] = useState<string | null>('main');
@@ -59,6 +60,7 @@ export function Cbftp() {
           <Tabs.Tab value="transferjobs" leftSection={<IconArrowsLeftRight size="0.8rem" />}>Transfer Jobs</Tabs.Tab>
           <Tabs.Tab value="raw" leftSection={<IconTerminal size="0.8rem" />}>Raw Commands</Tabs.Tab>
           <Tabs.Tab value="affilsync" leftSection={<IconUsers size="0.8rem" />}>Affil Sync</Tabs.Tab>
+          <Tabs.Tab value="routes" leftSection={<IconRoute size="0.8rem" />}>Routes</Tabs.Tab>
           <Tabs.Tab value="info" leftSection={<IconInfoCircle size="0.8rem" />}>Info</Tabs.Tab>
         </Tabs.List>
 
@@ -88,6 +90,10 @@ export function Cbftp() {
 
         <Tabs.Panel value="affilsync" pt="xs">
           <AffilSync />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="routes" pt="xs">
+          <Routes />
         </Tabs.Panel>
 
         <Tabs.Panel value="info" pt="xs">
