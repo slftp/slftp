@@ -72,7 +72,7 @@ uses
   taskrace, sitesunit, queueunit, irc, SysUtils, fake, mystrings, tasksunit,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup, encinifile,
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
-  sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
+  sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit, commandscheduler,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
   globalskipunit, irccommandsunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
@@ -177,6 +177,9 @@ function trimmedShitChecker(section, rls: String): boolean;
 begin
   Result := False;
 end;
+
+procedure SchedulePazoDirlist(const aTask: TPazoDirlistTask); forward;
+procedure SchedulePazoMkdir(const aTask: TPazoMkdirTask); forward;
 
 function kb_AddB(const netname, channel, sitename, section, genre: String; event: TKBEventType; rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
 var
@@ -837,7 +840,8 @@ begin
             dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
             ps.dirlist.dirlistadded := True;
-            AddTask(dlt, true);
+            // Use command scheduler instead of task queue
+            SchedulePazoDirlist(dlt);
           end;
 
           // Source site is _not_ a PRE site for this group
@@ -846,7 +850,8 @@ begin
             dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
             ps.dirlist.dirlistadded := True;
-            AddTask(dlt, true);
+            // Use command scheduler instead of task queue
+            SchedulePazoDirlist(dlt);
           end;
 
         except
@@ -1009,6 +1014,66 @@ begin
     end;
   finally
     kb_lock.Leave;
+  end;
+end;
+
+procedure SchedulePazoDirlist(const aTask: TPazoDirlistTask);
+var
+  fReq: TCommandRequest;
+  fSite: TSite;
+begin
+  if aTask = nil then
+    Exit;
+
+  fSite := FindSiteByName('', aTask.site1);
+  if fSite = nil then
+  begin
+    Debug(dpError, 'kb', Format('[ERROR] SchedulePazoDirlist: site %s not found', [aTask.site1]));
+    aTask.Free;
+    Exit;
+  end;
+
+  fReq.Init(aTask.mainpazo, aTask.dir, aTask.site1, ctDirlist, aTask.startat,
+    aTask.netname, aTask.channel, aTask.is_pre, aTask.FDoIncFilling);
+
+  if fSite.CommandScheduler.ScheduleDirlist(fReq) then
+    aTask.Free  // scheduler owns the request, task object no longer needed
+  else
+  begin
+    // Scheduling failed (duplicate or cap), free task but don't treat as error
+    Debug(dpSpam, 'kb', Format('[DEDUP] Dirlist for pazo %d dir %s on %s already scheduled',
+      [aTask.pazo_id, aTask.dir, aTask.site1]));
+    aTask.Free;
+  end;
+end;
+
+procedure SchedulePazoMkdir(const aTask: TPazoMkdirTask);
+var
+  fReq: TCommandRequest;
+  fSite: TSite;
+begin
+  if aTask = nil then
+    Exit;
+
+  fSite := FindSiteByName('', aTask.site1);
+  if fSite = nil then
+  begin
+    Debug(dpError, 'kb', Format('[ERROR] SchedulePazoMkdir: site %s not found', [aTask.site1]));
+    aTask.Free;
+    Exit;
+  end;
+
+  fReq.Init(aTask.mainpazo, aTask.dir, aTask.site1, ctMkdir, aTask.startat,
+    aTask.netname, aTask.channel);
+  fReq.depending_on_dirlist := aTask.FDependingOnDirlist;
+
+  if fSite.CommandScheduler.ScheduleMkdir(fReq) then
+    aTask.Free
+  else
+  begin
+    Debug(dpSpam, 'kb', Format('[DEDUP] Mkdir for pazo %d dir %s on %s already scheduled',
+      [aTask.pazo_id, aTask.dir, aTask.site1]));
+    aTask.Free;
   end;
 end;
 
@@ -1548,7 +1613,7 @@ begin
         if ssites_info.Count = 0 then
           Continue;
         pdt := TPazoDirlistTask.Create('', '', ps.Name, p, '', True);
-        AddTask(pdt);
+        SchedulePazoDirlist(pdt);
       except
         on e: Exception do
         begin
@@ -1564,7 +1629,7 @@ begin
         if dsites_info.Count = 0 then
           Continue;
         pdt := TPazoDirlistTask.Create('', '', ps.Name, p, '', False);
-        AddTask(pdt);
+        SchedulePazoDirlist(pdt);
         irc_Addstats(Format(
           '<c11>[<b>iNC</b> <b>%s</b>]</c> Trying to complete <b>%s</b> on <b>%s</b> from <b>%s</b>',
           [p.rls.section, p.rls.rlsname, ps.Name, dsites_info.CommaText]));
