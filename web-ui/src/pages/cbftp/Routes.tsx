@@ -424,11 +424,11 @@ export function Routes() {
                               value={policy}
                               onChange={(val) => handlePolicyChange(site.name, val as 'ALLOW' | 'BLOCK')}
                               data={[
-                                { label: 'Allow All', value: 'BLOCK' },
-                                { label: 'Block All', value: 'ALLOW' }
+                                { label: 'Allow All', value: 'ALLOW' },
+                                { label: 'Block All', value: 'BLOCK' }
                               ]}
                               size="xs"
-                              color={policy === 'BLOCK' ? 'blue' : 'red'}
+                              color={policy === 'ALLOW' ? 'blue' : 'red'}
                               disabled={isUpdating}
                               fullWidth
                             />
@@ -463,13 +463,13 @@ export function Routes() {
                               {exceptions.map((exName) => (
                                 <Badge
                                   key={exName}
-                                  color={policy === 'ALLOW' ? 'teal' : 'red'}
+                                  color={policy === 'BLOCK' ? 'teal' : 'red'}
                                   variant="light"
                                   size="md"
                                   rightSection={
                                     <ActionIcon 
                                       size="xs" 
-                                      color={policy === 'ALLOW' ? 'teal' : 'red'}
+                                      color={policy === 'BLOCK' ? 'teal' : 'red'}
                                       variant="subtle" 
                                       onClick={() => handleRemoveException(site.name, exName)}
                                       disabled={isUpdating}
@@ -487,7 +487,7 @@ export function Routes() {
                               {/* Placeholder instruction */}
                               {exceptions.length === 0 && (
                                 <Text size="xs" c="dimmed" style={{ flexGrow: 1 }}>
-                                  {policy === 'ALLOW' 
+                                  {policy === 'BLOCK' 
                                     ? `Block All except: drop allowed ${direction === 'outgoing' ? 'targets' : 'sources'} here`
                                     : `Allow All except: drop blocked ${direction === 'outgoing' ? 'targets' : 'sources'} here`}
                                 </Text>
