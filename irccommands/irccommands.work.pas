@@ -738,7 +738,7 @@ begin
   ps_src.dirlist.dirlistadded := True;
 
   pd := TPazoDirlistTask.Create(Netname, Channel, ps_src.Name, p, '', False, False);
-  AddTask(pd, True);
+  SchedulePazoDirlist(pd);
 
   irc_addtext(Netname, Channel,
     'File Transfer has started. Type <c4>%sstop <b>%d</b></c> if you need.', [irccmdprefix,

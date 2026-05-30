@@ -316,7 +316,7 @@ begin
           else
             prestatus := True;
           pdt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', prestatus);
-          AddTask(pdt);
+          SchedulePazoDirlist(pdt);
         except
           on e: Exception do
           begin

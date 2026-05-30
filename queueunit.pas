@@ -1075,6 +1075,14 @@ begin
       fCheckSiteSlotsSite := t.ssite1;
     end;
 
+    // Safety check: Dirlist and Mkdir tasks should be scheduled via TCommandScheduler, not added to the queue
+    if (t is TPazoDirlistTask) or (t is TPazoMkdirTask) then
+    begin
+      Debug(dpError, section, Format('[WARN] Dirlist/Mkdir task added to queue instead of scheduler: %s', [t.Name]));
+      t.Free;
+      exit;
+    end;
+
     Debug(dpSpam, section, Format('[iNFO] adding : %s', [t.Name]));
 
     main_lock.Enter('AddTask');
