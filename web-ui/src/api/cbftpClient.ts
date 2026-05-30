@@ -59,6 +59,8 @@ export interface CbftpSite {
   transfer_protocol?: 'IPV4_ONLY' | 'PREFER_IPV4' | 'PREFER_IPV6' | 'IPV6_ONLY';
   transfer_source_policy?: 'ALLOW' | 'BLOCK';
   transfer_target_policy?: 'ALLOW' | 'BLOCK';
+  transfer_target_affil_policy?: 'ALLOW' | 'BLOCK';
+  except_target_affil_sites?: string[];
   user?: string;
   xdupe?: boolean;
 }

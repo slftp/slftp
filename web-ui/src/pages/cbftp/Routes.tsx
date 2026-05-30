@@ -25,7 +25,8 @@ import {
   IconArrowUpRight, 
   IconArrowDownLeft, 
   IconGridDots, 
-  IconX
+  IconX,
+  IconUsers
 } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
@@ -37,7 +38,7 @@ export function Routes() {
   const queryClient = useQueryClient();
   const [paletteSearch, setPaletteSearch] = useState('');
   const [matrixSearch, setMatrixSearch] = useState('');
-  const [direction, setDirection] = useState<'outgoing' | 'incoming'>('outgoing');
+  const [direction, setDirection] = useState<'outgoing' | 'incoming' | 'affil'>('outgoing');
   const [dragOverRow, setDragOverRow] = useState<string | null>(null);
 
   // Fetch site names
@@ -129,7 +130,7 @@ export function Routes() {
       if (excepts.includes(sourceSiteName)) {
         notifications.show({
           title: 'Already Configured',
-          message: `${sourceSiteName} is already in the exceptions list for ${targetSiteName}.`,
+          message: `${sourceSiteName} is already in the outgoing exceptions list for ${targetSiteName}.`,
           color: 'blue',
         });
         return;
@@ -140,12 +141,12 @@ export function Routes() {
           except_target_sites: [...excepts, sourceSiteName]
         }
       });
-    } else {
+    } else if (direction === 'incoming') {
       const excepts = site.except_source_sites || [];
       if (excepts.includes(sourceSiteName)) {
         notifications.show({
           title: 'Already Configured',
-          message: `${sourceSiteName} is already in the exceptions list for ${targetSiteName}.`,
+          message: `${sourceSiteName} is already in the incoming exceptions list for ${targetSiteName}.`,
           color: 'blue',
         });
         return;
@@ -154,6 +155,22 @@ export function Routes() {
         name: targetSiteName,
         updates: {
           except_source_sites: [...excepts, sourceSiteName]
+        }
+      });
+    } else {
+      const excepts = site.except_target_affil_sites || [];
+      if (excepts.includes(sourceSiteName)) {
+        notifications.show({
+          title: 'Already Configured',
+          message: `${sourceSiteName} is already in the affiliated exceptions list for ${targetSiteName}.`,
+          color: 'blue',
+        });
+        return;
+      }
+      updateSiteMutation.mutate({
+        name: targetSiteName,
+        updates: {
+          except_target_affil_sites: [...excepts, sourceSiteName]
         }
       });
     }
@@ -174,13 +191,22 @@ export function Routes() {
           except_target_sites: [...excepts, sourceSiteName]
         }
       });
-    } else {
+    } else if (direction === 'incoming') {
       const excepts = site.except_source_sites || [];
       if (excepts.includes(sourceSiteName)) return;
       updateSiteMutation.mutate({
         name: targetSiteName,
         updates: {
           except_source_sites: [...excepts, sourceSiteName]
+        }
+      });
+    } else {
+      const excepts = site.except_target_affil_sites || [];
+      if (excepts.includes(sourceSiteName)) return;
+      updateSiteMutation.mutate({
+        name: targetSiteName,
+        updates: {
+          except_target_affil_sites: [...excepts, sourceSiteName]
         }
       });
     }
@@ -198,7 +224,7 @@ export function Routes() {
           except_target_sites: excepts.filter(s => s !== exceptionToRemove)
         }
       });
-    } else {
+    } else if (direction === 'incoming') {
       const excepts = site.except_source_sites || [];
       updateSiteMutation.mutate({
         name: siteName,
@@ -206,24 +232,44 @@ export function Routes() {
           except_source_sites: excepts.filter(s => s !== exceptionToRemove)
         }
       });
+    } else {
+      const excepts = site.except_target_affil_sites || [];
+      updateSiteMutation.mutate({
+        name: siteName,
+        updates: {
+          except_target_affil_sites: excepts.filter(s => s !== exceptionToRemove)
+        }
+      });
     }
   };
 
   const handlePolicyChange = (siteName: string, newPolicy: 'ALLOW' | 'BLOCK') => {
+    let updates = {};
+    if (direction === 'outgoing') {
+      updates = { transfer_target_policy: newPolicy };
+    } else if (direction === 'incoming') {
+      updates = { transfer_source_policy: newPolicy };
+    } else {
+      updates = { transfer_target_affil_policy: newPolicy };
+    }
     updateSiteMutation.mutate({
       name: siteName,
-      updates: direction === 'outgoing' 
-        ? { transfer_target_policy: newPolicy }
-        : { transfer_source_policy: newPolicy }
+      updates
     });
   };
 
   const handleClearAll = (siteName: string) => {
+    let updates = {};
+    if (direction === 'outgoing') {
+      updates = { except_target_sites: [] };
+    } else if (direction === 'incoming') {
+      updates = { except_source_sites: [] };
+    } else {
+      updates = { except_target_affil_sites: [] };
+    }
     updateSiteMutation.mutate({
       name: siteName,
-      updates: direction === 'outgoing'
-        ? { except_target_sites: [] }
-        : { except_source_sites: [] }
+      updates
     });
   };
 
@@ -324,7 +370,7 @@ export function Routes() {
               <Group justify="space-between" align="center" wrap="wrap" gap="md">
                 <SegmentedControl
                   value={direction}
-                  onChange={(val) => setDirection(val as 'outgoing' | 'incoming')}
+                  onChange={(val) => setDirection(val as 'outgoing' | 'incoming' | 'affil')}
                   data={[
                     { 
                       label: (
@@ -344,6 +390,15 @@ export function Routes() {
                       ), 
                       value: 'incoming' 
                     },
+                    { 
+                      label: (
+                        <Center style={{ gap: 6 }}>
+                          <IconUsers size="0.9rem" color="var(--mantine-color-purple-6)" />
+                          <span>Affiliated Targets</span>
+                        </Center>
+                      ), 
+                      value: 'affil' 
+                    },
                   ]}
                   size="sm"
                 />
@@ -362,7 +417,9 @@ export function Routes() {
               <Text size="xs" c="dimmed">
                 🎯 {direction === 'outgoing' 
                   ? 'Manage upload destinations. Set general policy, then drop allowed/blocked sites into the exceptions list.' 
-                  : 'Manage download sources. Set general policy, then drop allowed/blocked sites into the exceptions list.'}
+                  : direction === 'incoming'
+                    ? 'Manage download sources. Set general policy, then drop allowed/blocked sites into the exceptions list.'
+                    : 'Manage affiliated upload destinations. Set general policy, then drop allowed/blocked sites into the exceptions list.'}
               </Text>
 
               {/* Matrix Table */}
@@ -389,11 +446,15 @@ export function Routes() {
                       const isUpdating = updateSiteMutation.isPending && updateSiteMutation.variables?.name === site.name;
                       const policy = direction === 'outgoing'
                         ? (site.transfer_target_policy || 'BLOCK')
-                        : (site.transfer_source_policy || 'BLOCK');
+                        : direction === 'incoming'
+                          ? (site.transfer_source_policy || 'BLOCK')
+                          : (site.transfer_target_affil_policy || 'BLOCK');
                       
                       const exceptions = direction === 'outgoing'
                         ? (site.except_target_sites || [])
-                        : (site.except_source_sites || []);
+                        : direction === 'incoming'
+                          ? (site.except_source_sites || [])
+                          : (site.except_target_affil_sites || []);
 
                       // Options for inline adding: all sites except this site and already excepted ones
                       const inlineOptions = allSiteNames
@@ -488,8 +549,8 @@ export function Routes() {
                               {exceptions.length === 0 && (
                                 <Text size="xs" c="dimmed" style={{ flexGrow: 1 }}>
                                   {policy === 'BLOCK' 
-                                    ? `Block All except: drop allowed ${direction === 'outgoing' ? 'targets' : 'sources'} here`
-                                    : `Allow All except: drop blocked ${direction === 'outgoing' ? 'targets' : 'sources'} here`}
+                                    ? `Block All except: drop allowed ${direction === 'outgoing' ? 'targets' : direction === 'incoming' ? 'sources' : 'affil targets'} here`
+                                    : `Allow All except: drop blocked ${direction === 'outgoing' ? 'targets' : direction === 'incoming' ? 'sources' : 'affil targets'} here`}
                                 </Text>
                               )}
 
