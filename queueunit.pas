@@ -1162,7 +1162,7 @@ begin
               begin
                 i_tpr := TPazoRaceTask(fTask);
                 if ((i_tpr.ready = False) and (i_tpr.readyerror = False) and
-                  (i_tpr.slot1 = nil) and (i_tpr.pazo_id = tpr.pazo_id) and
+                  (i_tpr.pazo_id = tpr.pazo_id) and
                   (i_tpr.site1 = tpr.site1) and (i_tpr.site2 = tpr.site2) and
                   (i_tpr.dir = tpr.dir) and (i_tpr.filename = tpr.filename)) then
                 begin
@@ -1209,7 +1209,7 @@ begin
               begin
                 i_tpd := TPazoDirlistTask(fTask);
                 if ((i_tpd.ready = False) and (i_tpd.readyerror = False) and
-                  (i_tpd.slot1 = nil) and (i_tpd.pazo_id = tpd.pazo_id) and
+                  (i_tpd.pazo_id = tpd.pazo_id) and
                   (i_tpd.site1 = tpd.site1) and (i_tpd.dir = tpd.dir)) then
                 begin
                   Result := True;
@@ -1255,7 +1255,7 @@ begin
               begin
                 i_tpm := TPazoMkdirTask(fTask);
                 if ((i_tpm.ready = False) and (i_tpm.readyerror = False) and
-                  (i_tpm.slot1 = nil) and (i_tpm.pazo_id = tpm.pazo_id) and
+                  (i_tpm.pazo_id = tpm.pazo_id) and
                   (i_tpm.site1 = tpm.site1) and (i_tpm.dir = tpm.dir)) then
                 begin
                   Result := True;
@@ -1300,7 +1300,7 @@ begin
             begin
               i_tpl := TLoginTask(fTask);
               if ((i_tpl.ready = False) and (i_tpl.readyerror = False) and
-                (i_tpl.slot1 = nil) and (i_tpl.site1 = tpl.site1) and
+                (i_tpl.site1 = tpl.site1) and
                 (i_tpl.wantedslot = tpl.wantedslot) and (i_tpl.readd = tpl.readd) and (i_tpl.kill = tpl.kill)) then
               begin
                 Result := True;
