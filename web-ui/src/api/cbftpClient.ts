@@ -495,3 +495,58 @@ export const getInfo = async (): Promise<CbftpInfo> => {
     active_transfer_jobs: stats.transfer_jobs_active ?? stats.transfer_jobs_running,
   };
 };
+
+// Main (cached cbftp main screen data)
+export interface CbftpMainJobEntry {
+  name: string;
+  section: string;
+  started: string;
+  use_sec: number;
+  size: string;
+  size_bytes: number;
+  worst_pct: number;
+  avg_pct: number;
+  best_pct: number;
+  status: string;
+  done: string;
+  sites: string;
+  sites_total: number;
+  sites_done: number;
+}
+
+export interface CbftpMainSiteEntry {
+  name: string;
+  logins_active: number;
+  logins_max: number;
+  uploads_active: number;
+  uploads_max: number;
+  downloads_active: number;
+  downloads_max: number;
+  up: boolean;
+  down: boolean;
+  disabled: boolean;
+  up24hr: string;
+  down24hr: string;
+  allup: string;
+  alldown: string;
+  priority: string;
+}
+
+export interface CbftpMainData {
+  jobs: CbftpMainJobEntry[];
+  sites: CbftpMainSiteEntry[];
+  updated: string;
+}
+
+export const getCbftpMain = async (): Promise<CbftpMainData> => {
+  const response = await cbftpClient.get<CbftpMainData>('/cbftp/main');
+  const data = response.data;
+  if (!data || typeof data !== 'object') {
+    return { jobs: [], sites: [], updated: '' };
+  }
+  return {
+    jobs: data.jobs || [],
+    sites: data.sites || [],
+    updated: data.updated || '',
+  };
+};
