@@ -268,7 +268,6 @@ begin
   SLLanguagesInit;
   console_addline('Admin', 'Init Tags', True);
   TagsInit;
-  //  EPrecatcherInit;
   console_addline('Admin', 'Init Nuke', True);
   NukeInit;
   console_addline('Admin', 'Init News', True);
@@ -544,7 +543,6 @@ begin
   IrcStart();
   console_addline('Admin', 'Start Precatcher', True);
   PrecatcherStart();
-  //  EPrecatcherStart();
   console_addline('Admin', 'Start Sites Auto Tasks', True);
   SiteAutoStart;
   slshutdown := False;
@@ -563,7 +561,6 @@ begin
   Debug(dpSpam, section, 'Main_Stop begin');
   NukeSave;
   SpeedStatsSave;
-  //  EPrecatcherStop;
   IdentServerStop;
   IrcStop();
   kb_Save();
@@ -590,7 +587,6 @@ begin
   RanksUnInit;
   SpeedStatsUnInit;
   NukeUninit;
-  //EPrecatcherUninit;
   TagsUnInit;
   SkiplistsUnInit;
   RulesUnInit;
