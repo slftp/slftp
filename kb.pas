@@ -38,7 +38,7 @@ function FindPazoByKey(const aKey: String): TPazo;
 
 { Schedules a TPazoDirlistTask into the site's TCommandScheduler instead of the task queue.
   Frees the task object after scheduling. }
-procedure SchedulePazoDirlist(const aTask: TPazoDirlistTask);
+procedure SchedulePazoDirlist(const aTask: TPazoDirlistTask; const APriority: Integer = 0);
 { Schedules a TPazoMkdirTask into the site's TCommandScheduler instead of the task queue.
   Frees the task object after scheduling. }
 procedure SchedulePazoMkdir(const aTask: TPazoMkdirTask);
@@ -1021,7 +1021,7 @@ begin
   end;
 end;
 
-procedure SchedulePazoDirlist(const aTask: TPazoDirlistTask);
+procedure SchedulePazoDirlist(const aTask: TPazoDirlistTask; const APriority: Integer = 0);
 var
   fReq: TCommandRequest;
   fSite: TSite;
@@ -1039,6 +1039,7 @@ begin
 
   fReq.Init(aTask.mainpazo, aTask.dir, aTask.site1, ctDirlist, aTask.startat,
     aTask.netname, aTask.channel, aTask.is_pre, aTask.FDoIncFilling);
+  fReq.priority := APriority;
 
   if fSite.CommandScheduler.ScheduleDirlist(fReq) then
     aTask.Free  // scheduler owns the request, task object no longer needed

@@ -489,7 +489,7 @@ begin
       //add task outside the dirlist lock to avoid deadlocks with the queue lock
       for r in fSubDirlistTasks do
       begin
-        SchedulePazoDirlist(r);
+        SchedulePazoDirlist(r, 5); // lower priority than root dirlists
       end;
     end;
   except

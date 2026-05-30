@@ -239,6 +239,7 @@ type
     fFreeSlotsCS: TSlCriticalSection2;
     FSettingsCacheDict: TVariantCache; //< Cache for site-settings in the sites.dat to avoid the sites.dat bottleneck (lock)
     fCommandScheduler: TCommandScheduler;
+    fActiveCommandCount: Integer;
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
@@ -563,6 +564,16 @@ type
 
     { Updates the speed-from cache of this site from the sites.dat. }
     procedure UpdateSpeedFromCache;
+
+    { Returns the maximum number of slots that may execute commands concurrently.
+      Prevents race task starvation by reserving at least half the slots for transfers. }
+    function MaxCommandSlots: Integer;
+    { Returns current number of slots executing commands. }
+    function ActiveCommandCount: Integer;
+    { Atomically increments active command count. }
+    procedure IncActiveCommandCount;
+    { Atomically decrements active command count. }
+    procedure DecActiveCommandCount;
 
     { Migrates old speed-from config values to the new combined route config. }
     procedure MigrateSpeedFromConfig;
@@ -1763,25 +1774,34 @@ var
 begin
   Result := False;
 
+  // Prevent race task starvation: cap concurrent commands to half the slots
+  if site.ActiveCommandCount >= site.MaxCommandSlots then
+    Exit;
+
   // 1. Try mkdir first (higher priority than dirlist)
   if site.CommandScheduler.GetNextMkdir(fReq) then
   begin
+    site.IncActiveCommandCount;
     try
-      if fReq.pazo <> nil then
-      begin
-        fMkTask := TPazoMkdirTask.Create(fReq.netname, fReq.channel, fReq.site,
-          fReq.pazo, fReq.depending_on_dirlist, fReq.dir);
-        try
-          fMkTask.Execute(self);
-        finally
-          fMkTask.Free;
+      try
+        if fReq.pazo <> nil then
+        begin
+          fMkTask := TPazoMkdirTask.Create(fReq.netname, fReq.channel, fReq.site,
+            fReq.pazo, fReq.depending_on_dirlist, fReq.dir);
+          try
+            fMkTask.Execute(self);
+          finally
+            fMkTask.Free;
+          end;
         end;
+      except
+        on e: Exception do
+          Debug(dpError, section, Format('[EXCEPTION] TryExecuteCommand mkdir: %s', [e.Message]));
       end;
-    except
-      on e: Exception do
-        Debug(dpError, section, Format('[EXCEPTION] TryExecuteCommand mkdir: %s', [e.Message]));
+      site.CommandScheduler.CompleteMkdir(fReq);
+    finally
+      site.DecActiveCommandCount;
     end;
-    site.CommandScheduler.CompleteMkdir(fReq);
     Result := True;
     Exit;
   end;
@@ -1789,22 +1809,27 @@ begin
   // 2. Try dirlist
   if site.CommandScheduler.GetNextDirlist(fReq) then
   begin
+    site.IncActiveCommandCount;
     try
-      if fReq.pazo <> nil then
-      begin
-        fDirTask := TPazoDirlistTask.Create(fReq.netname, fReq.channel, fReq.site,
-          fReq.pazo, fReq.dir, fReq.is_pre, fReq.is_from_incomplete_filler);
-        try
-          fDirTask.Execute(self);
-        finally
-          fDirTask.Free;
+      try
+        if fReq.pazo <> nil then
+        begin
+          fDirTask := TPazoDirlistTask.Create(fReq.netname, fReq.channel, fReq.site,
+            fReq.pazo, fReq.dir, fReq.is_pre, fReq.is_from_incomplete_filler);
+          try
+            fDirTask.Execute(self);
+          finally
+            fDirTask.Free;
+          end;
         end;
+      except
+        on e: Exception do
+          Debug(dpError, section, Format('[EXCEPTION] TryExecuteCommand dirlist: %s', [e.Message]));
       end;
-    except
-      on e: Exception do
-        Debug(dpError, section, Format('[EXCEPTION] TryExecuteCommand dirlist: %s', [e.Message]));
+      site.CommandScheduler.CompleteDirlist(fReq);
+    finally
+      site.DecActiveCommandCount;
     end;
-    site.CommandScheduler.CompleteDirlist(fReq);
     Result := True;
     Exit;
   end;
@@ -3232,6 +3257,7 @@ begin
   fSlotsAssignmentLock := TSlCriticalSection2.Create('SLFTP_SlotsAssignmentMutex_' + Name, True);
   fQueue := TQueueThread.Create(Name);
   fCommandScheduler := TCommandScheduler.Create(Name);
+  fActiveCommandCount := 0;
   self.fSpeedFromCS := TSlCriticalSection2.Create('SpeedFromCS_' + Name);
   self.fSpeedFromCache := nil;
   self.fFreeSlotsCS := TSlCriticalSection2.Create('FreeSlotsCS_' + Name);
@@ -5010,6 +5036,44 @@ begin
         [e.Message]));
       Result := 0;
     end;
+  end;
+end;
+
+function TSite.MaxCommandSlots: Integer;
+begin
+  // Reserve at least half the slots for race tasks to prevent starvation
+  Result := Max(slots.Count div 2, 1);
+end;
+
+function TSite.ActiveCommandCount: Integer;
+begin
+  fSlotsAssignmentLock.Enter('ActiveCommandCount');
+  try
+    Result := fActiveCommandCount;
+  finally
+    fSlotsAssignmentLock.Leave;
+  end;
+end;
+
+procedure TSite.IncActiveCommandCount;
+begin
+  fSlotsAssignmentLock.Enter('IncActiveCommandCount');
+  try
+    Inc(fActiveCommandCount);
+  finally
+    fSlotsAssignmentLock.Leave;
+  end;
+end;
+
+procedure TSite.DecActiveCommandCount;
+begin
+  fSlotsAssignmentLock.Enter('DecActiveCommandCount');
+  try
+    Dec(fActiveCommandCount);
+    if fActiveCommandCount < 0 then
+      fActiveCommandCount := 0;
+  finally
+    fSlotsAssignmentLock.Leave;
   end;
 end;
 
