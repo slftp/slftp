@@ -2046,86 +2046,111 @@ begin
         [aEvent.Name, aEvent.Status]));
       CbftpMainCacheUpdateJobDone(aEvent.Name, aEvent.Status);
 
+      { Fetch spread job details once; used for both cache and Pazo sync }
+      js := nil;
+      jsObj := nil;
+      if GlCbftpClient <> nil then
+      begin
+        try
+          s := string(GlCbftpClient.GetSpreadJob(StringToUtf8(aEvent.Name)));
+          Debug(dpMessage, rsections, Format('[cbftp] race_done GetSpreadJob len=%d for %s',
+            [Length(s), aEvent.Name]));
+          if s <> '' then
+          begin
+            js := TlkJSON.ParseText(s);
+            if (js <> nil) and (js is TlkJSONObject) then
+              jsObj := TlkJSONObject(js);
+          end;
+        except
+          on E: Exception do
+            Debug(dpError, rsections, Format('[cbftp] race_done REST sync error: %s', [E.Message]));
+        end;
+      end;
+
+      { Cache sync: per-site progress (independent of Pazo) }
+      if jsObj <> nil then
+      begin
+        jsProgress := jsObj.Field['progress'];
+        if (jsProgress <> nil) and (jsProgress is TlkJSONObject) then
+        begin
+          Debug(dpMessage, rsections, Format('[cbftp] race_done progress sites=%d for %s',
+            [TlkJSONobject(jsProgress).Count, aEvent.Name]));
+          for i := 0 to TlkJSONobject(jsProgress).Count - 1 do
+          begin
+            fSiteName := string(TlkJSONobject(jsProgress).NameOf[i]);
+            jsSiteProg := TlkJSONobject(jsProgress).Child[i];
+            if (jsSiteProg <> nil) and (jsSiteProg is TlkJSONObject) then
+            begin
+              fFilesDone := TlkJSONobject(jsSiteProg).getInt('files_done');
+              fFilesTotal := TlkJSONobject(jsSiteProg).getInt('total_files');
+              fBytesDone := StrToInt64Def(TlkJSONobject(jsSiteProg).getString('bytes_done'), 0);
+              fBytesTotal := StrToInt64Def(TlkJSONobject(jsSiteProg).getString('bytes_total'), 0);
+              { For DONE jobs ensure completion pct is 100%. cbftp may have
+                already cleaned up internal state so progress numbers can
+                be slightly stale. }
+              if aEvent.Status = 'DONE' then
+              begin
+                if fBytesDone < fBytesTotal then
+                  fBytesDone := fBytesTotal;
+                if fFilesDone < fFilesTotal then
+                  fFilesDone := fFilesTotal;
+              end;
+              Debug(dpMessage, rsections, Format('[cbftp] race_done progress %s: fd=%d ft=%d bd=%d bt=%d',
+                [fSiteName, fFilesDone, fFilesTotal, fBytesDone, fBytesTotal]));
+              CbftpMainCacheUpdateJobProgress(aEvent.Name, fSiteName,
+                fFilesDone, fFilesTotal, fBytesDone, fBytesTotal);
+            end
+            else
+              Debug(dpMessage, rsections, Format('[cbftp] race_done progress %s: not an object', [fSiteName]));
+          end;
+        end
+        else
+          Debug(dpMessage, rsections, Format('[cbftp] race_done progress missing for %s', [aEvent.Name]));
+      end;
+
+      { Pazo sync }
       fPazo := FindPazoByName('', aEvent.Name);
       if fPazo <> nil then
       begin
-        if GlCbftpClient <> nil then
+        if jsObj <> nil then
         begin
-          try
-            s := string(GlCbftpClient.GetSpreadJob(StringToUtf8(aEvent.Name)));
-            if s <> '' then
+          jsSites := TlkJSONlist(jsObj.Field['sites']);
+          jsIncSites := TlkJSONlist(jsObj.Field['sites_incomplete']);
+          if jsSites <> nil then
+          begin
+            for i := 0 to jsSites.Count - 1 do
             begin
-              js := TlkJSON.ParseText(s);
-              if (js <> nil) and (js is TlkJSONObject) then
+              siteName := jsSites.Child[i].Value;
+              fPazoSite := fPazo.FindSite(siteName);
+              if fPazoSite <> nil then
               begin
-                jsObj := TlkJSONObject(js);
-                jsSites := TlkJSONlist(jsObj.Field['sites']);
-                jsIncSites := TlkJSONlist(jsObj.Field['sites_incomplete']);
-                if jsSites <> nil then
+                disabled := False;
+                if jsIncSites <> nil then
                 begin
-                  for i := 0 to jsSites.Count - 1 do
+                  for pazoId := 0 to jsIncSites.Count - 1 do
                   begin
-                    siteName := jsSites.Child[i].Value;
-                    fPazoSite := fPazo.FindSite(siteName);
-                    if fPazoSite <> nil then
+                    if jsIncSites.Child[pazoId].Value = siteName then
                     begin
-                      disabled := False;
-                      if jsIncSites <> nil then
-                      begin
-                        for pazoId := 0 to jsIncSites.Count - 1 do
-                        begin
-                          if jsIncSites.Child[pazoId].Value = siteName then
-                          begin
-                            disabled := True;
-                            Break;
-                          end;
-                        end;
-                      end;
-
-                      if not disabled then
-                      begin
-                        fPazoSite.status := rssComplete;
-                        if fPazoSite.CbftpCompletedTime = 0 then
-                          fPazoSite.CbftpCompletedTime := Now;
-
-                        if (fPazoSite.CbftpFilesDone > 0) and (fPazoSite.CbftpFilesTotal = 0) then
-                          fPazoSite.CbftpFilesTotal := fPazo.GetCountOfCachedFiles;
-
-                        if fPazoSite.CbftpFilesTotal < fPazoSite.CbftpFilesDone then
-                          fPazoSite.CbftpFilesTotal := fPazoSite.CbftpFilesDone;
-                      end;
+                      disabled := True;
+                      Break;
                     end;
                   end;
                 end;
-              end;
 
-              { Sync per-site progress from cbftp into the main cache
-                so that WORST/AVG/BEST reflect real completion. }
-              jsProgress := jsObj.Field['progress'];
-              if (jsProgress <> nil) and (jsProgress is TlkJSONObject) then
-              begin
-                for i := 0 to TlkJSONobject(jsProgress).Count - 1 do
+                if not disabled then
                 begin
-                  fSiteName := string(TlkJSONobject(jsProgress).NameOf[i]);
-                  jsSiteProg := TlkJSONobject(jsProgress).Child[i];
-                  if (jsSiteProg <> nil) and (jsSiteProg is TlkJSONObject) then
-                  begin
-                    fFilesDone := TlkJSONobject(jsSiteProg).getInt('files_done');
-                    fFilesTotal := TlkJSONobject(jsSiteProg).getInt('total_files');
-                    fBytesDone := StrToInt64Def(TlkJSONobject(jsSiteProg).getString('bytes_done'), 0);
-                    fBytesTotal := StrToInt64Def(TlkJSONobject(jsSiteProg).getString('bytes_total'), 0);
-                    CbftpMainCacheUpdateJobProgress(aEvent.Name, fSiteName,
-                      fFilesDone, fFilesTotal, fBytesDone, fBytesTotal);
-                  end;
+                  fPazoSite.status := rssComplete;
+                  if fPazoSite.CbftpCompletedTime = 0 then
+                    fPazoSite.CbftpCompletedTime := Now;
+
+                  if (fPazoSite.CbftpFilesDone > 0) and (fPazoSite.CbftpFilesTotal = 0) then
+                    fPazoSite.CbftpFilesTotal := fPazo.GetCountOfCachedFiles;
+
+                  if fPazoSite.CbftpFilesTotal < fPazoSite.CbftpFilesDone then
+                    fPazoSite.CbftpFilesTotal := fPazoSite.CbftpFilesDone;
                 end;
               end;
-
-              if js <> nil then
-                js.Free;
             end;
-          except
-            on E: Exception do
-              Debug(dpError, rsections, Format('[cbftp] race_done REST sync error: %s', [E.Message]));
           end;
         end;
 
@@ -2177,6 +2202,9 @@ begin
           sectionStr := 'UNKNOWN';
         irc_Addstats(Format('<c10>[<b>STATS</b>]</c> %s <b>%s</b> : Race Done! [Status: <b>%s</b>]', [sectionStr, aEvent.Name, aEvent.Status]));
       end;
+
+      if js <> nil then
+        js.Free;
 
       if GlRaceCompletions <> nil then
         GlRaceCompletions.Remove(aEvent.Name);
