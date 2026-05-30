@@ -489,7 +489,7 @@ begin
       //add task outside the dirlist lock to avoid deadlocks with the queue lock
       for r in fSubDirlistTasks do
       begin
-        AddTask(r);
+        SchedulePazoDirlist(r);
       end;
     end;
   except
@@ -597,7 +597,7 @@ begin
       r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue(ps1, d));
 
       try
-        AddTask(r);
+        SchedulePazoDirlist(r);
         itwasadded := True;
       except
         on e: Exception do
@@ -649,8 +649,8 @@ begin
             r_dst.startat := IncMilliSecond(Now(), r_dst.GetDirlistReaddValue(ps, dst_d));
 
             try
-              AddTask(r);
-              AddTask(r_dst);
+              SchedulePazoDirlist(r);
+              SchedulePazoDirlist(r_dst);
               itwasadded := True;
               Break;
             except

@@ -6,7 +6,7 @@ unit kb;
 interface
 
 uses
-  Classes, SyncObjs, slcriticalsection2, kb.releaseinfo, pazo;
+  Classes, SyncObjs, slcriticalsection2, kb.releaseinfo, pazo, taskrace;
 
 type
   TKBThread = class(TThread)
@@ -35,6 +35,13 @@ function FindPazoByName(const section, rlsname: String): TPazo;
       @param(aKey The KB key to be searched for)
       @returns(The found TPazo object or nil if the key is not present in the KB list.) }
 function FindPazoByKey(const aKey: String): TPazo;
+
+{ Schedules a TPazoDirlistTask into the site's TCommandScheduler instead of the task queue.
+  Frees the task object after scheduling. }
+procedure SchedulePazoDirlist(const aTask: TPazoDirlistTask);
+{ Schedules a TPazoMkdirTask into the site's TCommandScheduler instead of the task queue.
+  Frees the task object after scheduling. }
+procedure SchedulePazoMkdir(const aTask: TPazoMkdirTask);
 
 { Adds a release/pazo to the KB list with the given key. The key must be in the format of the KB list keys which is 'section-releasename'
       @param(aKey The KB key to be used)
@@ -69,7 +76,7 @@ implementation
 
 uses
   debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
-  taskrace, sitesunit, queueunit, irc, SysUtils, fake, mystrings, tasksunit,
+  sitesunit, queueunit, irc, SysUtils, fake, mystrings, tasksunit,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup, encinifile,
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit, commandscheduler,
@@ -177,9 +184,6 @@ function trimmedShitChecker(section, rls: String): boolean;
 begin
   Result := False;
 end;
-
-procedure SchedulePazoDirlist(const aTask: TPazoDirlistTask); forward;
-procedure SchedulePazoMkdir(const aTask: TPazoMkdirTask); forward;
 
 function kb_AddB(const netname, channel, sitename, section, genre: String; event: TKBEventType; rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
 var

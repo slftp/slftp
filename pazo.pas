@@ -261,7 +261,8 @@ implementation
 uses
   SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
   taskrace, mystrings, irc, sltcp, slhelper, Math, taskpretime, configunit,
-  mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv;
+  mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv,
+  commandscheduler;
 
 const
   section = 'pazo';
@@ -561,11 +562,12 @@ begin
           if pm <> nil then
           begin
             try
-              AddTask(pm, True);
+              // Schedule mkdir via command scheduler instead of task queue
+              SchedulePazoMkdir(pm);
             except
               on e: Exception do
               begin
-                Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj AddTask(pm): %s', [e.Message]));
+                Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj SchedulePazoMkdir(pm): %s', [e.Message]));
                 Break;
               end;
             end;
@@ -581,11 +583,12 @@ begin
             Debug(dpSpam, section, '%s %s :: Checking routes from %s to %s :: Dirlist added to %s (DEST SITE)', [fd, dir, Name, dst.Name, dst.Name]);
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO]</c> %s %s %s Dirlist added to : %s (DEST SITE)', [fd, pazo.rls.rlsname, dir, dst.Name]));
             dstdl.dirlistadded := True;
-            AddTask(pd, true);
+            // Schedule dirlist via command scheduler instead of task queue
+            SchedulePazoDirlist(pd);
           except
             on e: Exception do
             begin
-              Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj AddTask(pd): %s', [e.Message]));
+              Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj SchedulePazoDirlist(pd): %s', [e.Message]));
               Break;
             end;
           end;
