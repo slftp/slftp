@@ -2088,7 +2088,7 @@ begin
               { For DONE jobs ensure completion pct is 100%. cbftp may have
                 already cleaned up internal state so progress numbers can
                 be slightly stale. }
-              if aEvent.Status = 'DONE' then
+              if SameText(aEvent.Status, 'DONE') then
               begin
                 if fBytesDone < fBytesTotal then
                   fBytesDone := fBytesTotal;

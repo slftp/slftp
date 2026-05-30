@@ -416,6 +416,18 @@ begin
     if fJobIdx < 0 then
       Exit;
     GlJobs[fJobIdx].Status := aStatus;
+
+    if SameText(aStatus, 'DONE') then
+    begin
+      for fSiteIdx := 0 to High(GlJobs[fJobIdx].Sites) do
+      begin
+        GlJobs[fJobIdx].Sites[fSiteIdx].Completed := True;
+        if GlJobs[fJobIdx].Sites[fSiteIdx].BytesTotal > 0 then
+          GlJobs[fJobIdx].Sites[fSiteIdx].BytesDone := GlJobs[fJobIdx].Sites[fSiteIdx].BytesTotal;
+        if GlJobs[fJobIdx].Sites[fSiteIdx].FilesTotal > 0 then
+          GlJobs[fJobIdx].Sites[fSiteIdx].FilesDone := GlJobs[fJobIdx].Sites[fSiteIdx].FilesTotal;
+      end;
+    end;
   finally
     GlCacheLock.Leave;
   end;
@@ -531,7 +543,9 @@ begin
         if GlJobs[i].Sites[j].BytesTotal > fSizeBytes then
           fSizeBytes := GlJobs[i].Sites[j].BytesTotal;
 
-        if GlJobs[i].Sites[j].BytesTotal > 0 then
+        if SameText(GlJobs[i].Status, 'DONE') then
+          fPct := 100
+        else if GlJobs[i].Sites[j].BytesTotal > 0 then
           fPct := Round((GlJobs[i].Sites[j].BytesDone / GlJobs[i].Sites[j].BytesTotal) * 100)
         else if GlJobs[i].Sites[j].FilesTotal > 0 then
           fPct := Round((GlJobs[i].Sites[j].FilesDone / GlJobs[i].Sites[j].FilesTotal) * 100)
