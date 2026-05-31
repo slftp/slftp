@@ -15,7 +15,7 @@ unit commandscheduler;
 interface
 
 uses
-  Classes, SysUtils, DateUtils, Generics.Collections, SyncObjs, slcriticalsection2, dirlist, pazo;
+  Classes, SysUtils, DateUtils, Generics.Collections, SyncObjs, slcriticalsection2, dirlist, pazo, typinfo;
 
 type
   TCommandType = (ctDirlist, ctMkdir, ctSfvDownload, ctNfoDownload, ctCwd, ctRaw, ctLogin);

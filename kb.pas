@@ -95,9 +95,9 @@ uses
   debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
   sitesunit, queueunit, irc, SysUtils, fake, mystrings, tasksunit,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup, encinifile,
-  slvision, tasksitenfo, tasksitesfv, taskcwd, taskraw, tasklogin, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
+  slvision, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit, commandscheduler,
-  mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
+  mrdohutils, ranksunit, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
   globalskipunit, irccommandsunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
