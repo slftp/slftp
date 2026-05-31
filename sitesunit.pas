@@ -1198,16 +1198,22 @@ var
 begin
   // Wake up one free slot if the scheduler has work
   if (fCommandScheduler = nil) or (fCommandScheduler.GetTotalCount = 0) then
+  begin
+    Debug(dpError, section, Format('[SCHEDULER] SchedulerFire skipped for %s: no work (total=%d)', [Name, fCommandScheduler.GetTotalCount]));
     Exit;
+  end;
 
   for fSlot in slots do
   begin
     if (fSlot.todotask = nil) and (fSlot.status = ssOnline) then
     begin
+      Debug(dpError, section, Format('[SCHEDULER] SchedulerFire waking slot %s on %s (scheduler total=%d)', [fSlot.Name, Self.Name, fCommandScheduler.GetTotalCount]));
       fSlot.Fire;
       Exit;
     end;
   end;
+
+  Debug(dpError, section, Format('[SCHEDULER] SchedulerFire for %s: no free online slot found (total=%d)', [Name, fCommandScheduler.GetTotalCount]));
 end;
 
 procedure QueueEmpty(const sitename: String);

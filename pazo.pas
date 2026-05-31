@@ -563,6 +563,7 @@ begin
           begin
             try
               // Schedule mkdir via command scheduler instead of task queue
+              Debug(dpError, section, Format('[RACE] Scheduling MKDIR: %s -> %s dir=%s', [Name, dst.Name, dir]));
               SchedulePazoMkdir(pm);
             except
               on e: Exception do
@@ -584,6 +585,7 @@ begin
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO]</c> %s %s %s Dirlist added to : %s (DEST SITE)', [fd, pazo.rls.rlsname, dir, dst.Name]));
             dstdl.dirlistadded := True;
             // Schedule dirlist via command scheduler instead of task queue
+            Debug(dpError, section, Format('[RACE] Scheduling DIRLIST: %s -> %s dir=%s', [Name, dst.Name, dir]));
             SchedulePazoDirlist(pd);
           except
             on e: Exception do
@@ -648,6 +650,7 @@ begin
 
             // finally we can add the task
             try
+              Debug(dpError, section, Format('[RACE] Adding RACE task: %s -> %s file=%s size=%d', [Name, dst.Name, de.filename, de.filesize]));
               AddTask(pr);
               Result := True;
             except

@@ -435,9 +435,15 @@ begin
     s1 := TSite(t.ssite1);
     s2 := TSite(t.ssite2);
     if s1.freeslots = 0 then
+    begin
+      Debug(dpError, section, Format('[RACE] TryToAssignRaceSlots exit: s1(%s) freeslots=0', [s1.Name]));
       exit;
+    end;
     if s2.freeslots = 0 then
+    begin
+      Debug(dpError, section, Format('[RACE] TryToAssignRaceSlots exit: s2(%s) freeslots=0', [s2.Name]));
       exit;
+    end;
 
     if s2.MaxSimUpCooldownActive then
     begin
@@ -457,31 +463,46 @@ begin
 
     if fBusyDestinations.ContainsKey(s2) then
     begin
-      Debug(dpSpam, section, 'Destination site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
+      Debug(dpError, section, Format('[RACE] TryToAssignRaceSlots exit: s2(%s) busy', [s2.Name]));
       exit;
     end;
 
     // first watch if it is not already in process to upload the same file to the same place
     if t.ps2.HasActiveTransfer(t.dir + t.filename) then
+    begin
+      Debug(dpError, section, Format('[RACE] TryToAssignRaceSlots exit: ps2(%s) has active transfer %s', [s2.Name, t.dir + t.filename]));
       exit; // we are already sending this file to the same destination site
+    end;
 
     if s2.num_up >= s2.max_up then
+    begin
+      Debug(dpError, section, Format('[RACE] TryToAssignRaceSlots exit: s2(%s) num_up(%d) >= max_up(%d)', [s2.Name, s2.num_up, s2.max_up]));
       exit;
+    end;
 
     if t.ps1.HasActiveTransfer(t.dir + t.filename, s2.Name) then
+    begin
+      Debug(dpError, section, Format('[RACE] TryToAssignRaceSlots exit: ps1(%s) has active transfer %s', [s1.Name, t.dir + t.filename]));
       exit; // we are already sending this file the opposite route
+    end;
 
     // or use 'if t.ps1.StatusRealPreOrShouldPre then' from pazo.pas but will also pre true when status = rssShouldPre
     //if t.ps1.status = rssRealPre then
     if t.ps1.StatusRealPreOrShouldPre then
     begin
       if s1.num_dn >= s1.max_pre_dn then
+      begin
+        Debug(dpError, section, Format('[RACE] TryToAssignRaceSlots exit: s1(%s) num_dn(%d) >= max_pre_dn(%d)', [s1.Name, s1.num_dn, s1.max_pre_dn]));
         exit;
+      end;
     end
     else
     begin
       if s1.num_dn >= s1.max_dn then
+      begin
+        Debug(dpError, section, Format('[RACE] TryToAssignRaceSlots exit: s1(%s) num_dn(%d) >= max_dn(%d)', [s1.Name, s1.num_dn, s1.max_dn]));
         exit;
+      end;
     end;
 
     ss1 := nil;
@@ -508,11 +529,15 @@ begin
       end;
     end;
     if ss1 = nil then
+    begin
+      Debug(dpError, section, Format('[RACE] TryToAssignRaceSlots exit: no free online slot on s1(%s)', [s1.Name]));
       exit;
+    end;
 
 
     if not s2.AcquireSlotsAssignmentLock(1, 'TryToAssignRaceSlots') then
     begin
+      Debug(dpError, section, Format('[RACE] TryToAssignRaceSlots exit: s2(%s) acquire lock failed', [s2.Name]));
       fBusyDestinations.Add(s2, 0);
       exit;
     end;
@@ -520,11 +545,17 @@ begin
     try
       // check again now that we have the lock at the destination
       if s2.num_up >= s2.max_up then
+      begin
+        Debug(dpError, section, Format('[RACE] TryToAssignRaceSlots exit: s2(%s) num_up(%d) >= max_up(%d) after lock', [s2.Name, s2.num_up, s2.max_up]));
         exit;
+      end;
 
       // again check if this file is already being sent to the destination now that we have the slot assignment lock
       if t.ps2.HasActiveTransfer(t.dir + t.filename) then
+      begin
+        Debug(dpError, section, Format('[RACE] TryToAssignRaceSlots exit: ps2(%s) has active transfer %s after lock', [s2.Name, t.dir + t.filename]));
         exit; // we are already sending this file to the same destination site
+      end;
 
       ss2 := nil;
       for fSiteSlotLoop in s2.slots do
@@ -537,17 +568,20 @@ begin
         end;
       end;
       if ss2 = nil then
+      begin
+        Debug(dpError, section, Format('[RACE] TryToAssignRaceSlots exit: no free online slot on s2(%s) after lock', [s2.Name]));
         exit;
+      end;
 
       // now you can relax, just check if you don't abuse your max simultaneous uploads for a rip
       i := ss2.site.MaxUpPerRip;
       if ((i > 0) and (t.ps2.ActiveTransferCount >= i)) then
       begin
-        Debug(dpSpam, section, 'We shouldnt upload more than maxupperrip value [' + IntToStr(i) + '] for' + ss2.Name);
+        Debug(dpError, section, Format('[RACE] TryToAssignRaceSlots exit: ps2(%s) ActiveTransferCount(%d) >= MaxUpPerRip(%d)', [s2.Name, t.ps2.ActiveTransferCount, i]));
         exit;
       end;
 
-      Debug(dpSpam, section, 'FOUND SLOTS FOR ' + t.FullName + ': ' + ss1.Name + ' ' + ss2.Name);
+      Debug(dpError, section, Format('[RACE] TryToAssignRaceSlots SUCCESS: %s -> ss1=%s ss2=%s', [t.FullName, ss1.Name, ss2.Name]));
       t.dst      := TWaitTask.Create(t.netname, t.channel, t.site2);
       t.assigned := Now;
       t.dst.assigned := Now;
@@ -1083,7 +1117,10 @@ begin
       exit;
     end;
 
-    Debug(dpSpam, section, Format('[iNFO] adding : %s', [t.Name]));
+    if t is TPazoRaceTask then
+      Debug(dpError, section, Format('[QUEUE] AddTask RACE: %s startat=%s', [t.Name, DateTimeToStr(t.startat)]))
+    else
+      Debug(dpSpam, section, Format('[iNFO] adding : %s', [t.Name]));
 
     main_lock.Enter('AddTask');
     try
@@ -1099,11 +1136,17 @@ begin
 
       // Add to waiting_tasks if it starts in the future, else to main tasks queue
       if (t.startat > Now) then
-        waiting_tasks.Add(t)
+      begin
+        waiting_tasks.Add(t);
+        if t is TPazoRaceTask then
+          Debug(dpError, section, Format('[QUEUE] Race task added to waiting_tasks: %s startat=%s', [t.Name, DateTimeToStr(t.startat)]));
+      end
       else
       begin
         tasks.Add(t);
         fQueueDirty := True;
+        if t is TPazoRaceTask then
+          Debug(dpError, section, Format('[QUEUE] Race task added to tasks: %s', [t.Name]));
       end;
 
 
@@ -1119,11 +1162,22 @@ begin
                 tasks.Sort(@QueueSorter);
                 fQueueDirty := False;
               end;
+              Debug(dpError, section, Format('[QUEUE] AddTryToAssignSlots for race: %s site=%s freeslots=%d', [t.Name, TSite(fSite).Name, TSite(fSite).freeslots]));
               self.TryToAssignSlots(t);
+            end
+            else if (t is TPazoRaceTask) then
+            begin
+              Debug(dpError, section, Format('[QUEUE] Race task NOT assigned from AddTask: ready=%s readyerror=%s IsReady=%s freeslots=%d',
+                [BoolToStr(t.ready, True), BoolToStr(t.readyerror, True), BoolToStr(t.IsReadyToBeExecuted, True), TSite(fSite).freeslots]));
             end;
           finally
             TSite(fSite).ReleaseSlotsAssignmentLock;
           end;
+        end
+        else if (t is TPazoRaceTask) then
+        begin
+          Debug(dpError, section, Format('[QUEUE] Race task NOT assigned from AddTask: ready=%s readyerror=%s IsReady=%s freeslots=%d',
+            [BoolToStr(t.ready, True), BoolToStr(t.readyerror, True), BoolToStr(t.IsReadyToBeExecuted, True), TSite(fSite).freeslots]));
         end;
       except
         on e: Exception do
@@ -1583,7 +1637,8 @@ begin
             try
               if ts.freeslots = 0 then
               begin
-                //Debug(dpSpam, section, Format('No free slots on %s', [ts.Name]));
+                if (fTask is TPazoRaceTask) then
+                  Debug(dpError, section, Format('[QUEUE] Race task seen but no free slots on %s: %s', [ts.Name, fTask.Name]));
 
                 // no need to iterate the queue early if there are no free slots.
                 // when a slot becomes free, a queue fire is issued.
@@ -1597,7 +1652,15 @@ begin
                 if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
                 begin
                   if fTask.IsReadyToBeExecuted then
+                  begin
+                    if (fTask is TPazoRaceTask) then
+                      Debug(dpError, section, Format('[QUEUE] Queue loop assigning race: %s on %s', [fTask.Name, ts.Name]));
                     TryToAssignSlots(fTask);
+                  end
+                  else if (fTask is TPazoRaceTask) then
+                  begin
+                    Debug(dpError, section, Format('[QUEUE] Race task not ready: %s on %s (need_mkdir=%s)', [fTask.Name, ts.Name, BoolToStr(TPazoRaceTask(fTask).ps1.s_mkdirtasks.Value > 0, True)]));
+                  end;
                 end
                 else if (fTask.startat > 0) and (fTask.startat < fNextTaskStartAt) then
                 begin

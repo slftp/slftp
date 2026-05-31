@@ -1061,6 +1061,7 @@ begin
   if fSite.CommandScheduler.ScheduleDirlist(fReq) then
   begin
     aTask.Free;  // scheduler owns the request, task object no longer needed
+    Debug(dpError, 'kb', Format('[SCHEDULER] Dirlist scheduled: pazo=%d dir=%s site=%s priority=%d', [aTask.pazo_id, aTask.dir, aTask.site1, APriority]));
     fSite.SchedulerFire; // wake up slots to service the scheduler
   end
   else
@@ -1095,6 +1096,7 @@ begin
   if fSite.CommandScheduler.ScheduleMkdir(fReq) then
   begin
     aTask.Free;
+    Debug(dpError, 'kb', Format('[SCHEDULER] Mkdir scheduled: pazo=%d dir=%s site=%s', [aTask.pazo_id, aTask.dir, aTask.site1]));
     fSite.SchedulerFire;
   end
   else
