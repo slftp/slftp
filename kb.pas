@@ -216,6 +216,7 @@ var
   dlt: TPazoDirlistTask;
   l: TLoginTask;
   fPretimeLookupTask: TPazoPretimeLookupTask;
+  fPazoSitesSnapshot: TList<TPazoSite>;
 
   { Removes the oldest knowledge base entries }
   procedure KbListsCleanUp;
@@ -765,45 +766,43 @@ begin
 
   try
     // check rules for site only if needed
-    for i := p.PazoSitesList.Count - 1 downto 0 do
-    begin
-      try
-        if i < 0 then
-          Break;
-      except
-        Break;
-      end;
-      ps := TPazoSite(p.PazoSitesList[i]);
-      kb_lock.Enter('kb_AddB_4');
-      try
-        if (ps.status in [rssNotAllowed, rssNotAllowedButItsThere]) then
-        begin
-          if FireRuleSet(p, ps) = raAllow then
-          begin
-            ps.status := rssAllowed;
-          end;
-        end;
-      finally
-        kb_lock.Leave;
-      end;
-    end;
+    // Use a local snapshot of the list to avoid race conditions with other threads
+    // that might modify PazoSitesList while we iterate (e.g. p.Clear)
+    fPazoSitesSnapshot := TList<TPazoSite>.Create;
+    try
+      for i := 0 to p.PazoSitesList.Count - 1 do
+        fPazoSitesSnapshot.Add(p.PazoSitesList[i]);
 
-    // now add all dst
-    for i := p.PazoSitesList.Count - 1 downto 0 do
-    begin
-      try
-        if i < 0 then
-          Break;
-      except
-        Break;
+      for i := 0 to fPazoSitesSnapshot.Count - 1 do
+      begin
+        ps := fPazoSitesSnapshot[i];
+        kb_lock.Enter('kb_AddB_4');
+        try
+          if (ps.status in [rssNotAllowed, rssNotAllowedButItsThere]) then
+          begin
+            if FireRuleSet(p, ps) = raAllow then
+            begin
+              ps.status := rssAllowed;
+            end;
+          end;
+        finally
+          kb_lock.Leave;
+        end;
       end;
-      ps := TPazoSite(p.PazoSitesList[i]);
-      kb_lock.Enter('kb_AddB_5');
-      try
-        FireRules(p, ps);
-      finally
-        kb_lock.Leave;
+
+      // now add all dst
+      for i := 0 to fPazoSitesSnapshot.Count - 1 do
+      begin
+        ps := fPazoSitesSnapshot[i];
+        kb_lock.Enter('kb_AddB_5');
+        try
+          FireRules(p, ps);
+        finally
+          kb_lock.Leave;
+        end;
       end;
+    finally
+      fPazoSitesSnapshot.Free;
     end;
   except
     on e: Exception do
@@ -832,56 +831,59 @@ begin
   try
     if (event in [kbeNEWDIR, kbePRE, kbeSPREAD, kbeADDPRE, kbeUPDATE]) then
     begin
-      for i := p.PazoSitesList.Count - 1 downto 0 do
-      begin
-        try
-          if i < 0 then
-            Break;
-        except
-          Break;
+      // Use a local snapshot of the list to avoid race conditions with other threads
+      fPazoSitesSnapshot := TList<TPazoSite>.Create;
+      try
+        for i := 0 to p.PazoSitesList.Count - 1 do
+          fPazoSitesSnapshot.Add(p.PazoSitesList[i]);
+
+        for i := fPazoSitesSnapshot.Count - 1 downto 0 do
+        begin
+          try
+            ps := fPazoSitesSnapshot[i];
+
+            // dirlist not available
+            if ps.dirlist = nil then
+            begin
+              Debug(dpError, section, 'ERROR: ps.dirlist = nil');
+              Continue;
+            end;
+
+            // dirlist task already added
+            if (ps.dirlist.dirlistadded) and (event <> kbeUPDATE) then
+              Continue;
+
+            // Source site is PRE site for this group
+            if ps.status in [rssShouldPre, rssRealPre] then
+            begin
+              r.PredOnAnySite := True;
+              dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
+              irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
+              ps.dirlist.dirlistadded := True;
+              // Use command scheduler instead of task queue
+              SchedulePazoDirlist(dlt);
+            end;
+
+            // Source site is _not_ a PRE site for this group
+            if ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete] then
+            begin
+              dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
+              irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
+              ps.dirlist.dirlistadded := True;
+              // Use command scheduler instead of task queue
+              SchedulePazoDirlist(dlt);
+            end;
+
+          except
+            on E: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] kb_Add add dirlist iterate: %s', [e.Message]));
+              continue;
+            end;
+          end;
         end;
-        try
-          ps := TPazoSite(p.PazoSitesList[i]);
-
-          // dirlist not available
-          if ps.dirlist = nil then
-          begin
-            Debug(dpError, section, 'ERROR: ps.dirlist = nil');
-            Continue;
-          end;
-
-          // dirlist task already added
-          if (ps.dirlist.dirlistadded) and (event <> kbeUPDATE) then
-            Continue;
-
-          // Source site is PRE site for this group
-          if ps.status in [rssShouldPre, rssRealPre] then
-          begin
-            r.PredOnAnySite := True;
-            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
-            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
-            ps.dirlist.dirlistadded := True;
-            // Use command scheduler instead of task queue
-            SchedulePazoDirlist(dlt);
-          end;
-
-          // Source site is _not_ a PRE site for this group
-          if ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete] then
-          begin
-            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
-            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
-            ps.dirlist.dirlistadded := True;
-            // Use command scheduler instead of task queue
-            SchedulePazoDirlist(dlt);
-          end;
-
-        except
-          on E: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] kb_Add add dirlist iterate: %s', [e.Message]));
-            continue;
-          end;
-        end;
+      finally
+        fPazoSitesSnapshot.Free;
       end;
     end;
   except
@@ -1046,30 +1048,38 @@ begin
   if aTask = nil then
     Exit;
 
-  fSite := FindSiteByName('', aTask.site1);
-  if fSite = nil then
-  begin
-    Debug(dpError, 'kb', Format('[ERROR] SchedulePazoDirlist: site %s not found', [aTask.site1]));
-    aTask.Free;
-    Exit;
-  end;
+  try
+    fSite := FindSiteByName('', aTask.site1);
+    if fSite = nil then
+    begin
+      Debug(dpError, 'kb', Format('[ERROR] SchedulePazoDirlist: site %s not found', [aTask.site1]));
+      aTask.Free;
+      Exit;
+    end;
 
-  fReq.Init(aTask.mainpazo, aTask.dir, aTask.site1, ctDirlist, aTask.startat,
-    aTask.netname, aTask.channel, aTask.is_pre, aTask.FDoIncFilling);
-  fReq.priority := APriority;
+    fReq.Init(aTask.mainpazo, aTask.dir, aTask.site1, ctDirlist, aTask.startat,
+      aTask.netname, aTask.channel, aTask.is_pre, aTask.FDoIncFilling);
+    fReq.priority := APriority;
 
-  if fSite.CommandScheduler.ScheduleDirlist(fReq) then
-  begin
-    aTask.Free;  // scheduler owns the request, task object no longer needed
-    Debug(dpError, 'kb', Format('[SCHEDULER] Dirlist scheduled: pazo=%d dir=%s site=%s priority=%d', [aTask.pazo_id, aTask.dir, aTask.site1, APriority]));
-    fSite.SchedulerFire; // wake up slots to service the scheduler
-  end
-  else
-  begin
-    // Scheduling failed (duplicate or cap), free task but don't treat as error
-    Debug(dpSpam, 'kb', Format('[DEDUP] Dirlist for pazo %d dir %s on %s already scheduled',
-      [aTask.pazo_id, aTask.dir, aTask.site1]));
-    aTask.Free;
+    if fSite.CommandScheduler.ScheduleDirlist(fReq) then
+    begin
+      aTask.Free;  // scheduler owns the request, task object no longer needed
+      Debug(dpError, 'kb', Format('[SCHEDULER] Dirlist scheduled: pazo=%d dir=%s site=%s priority=%d', [aTask.pazo_id, aTask.dir, aTask.site1, APriority]));
+      fSite.SchedulerFire; // wake up slots to service the scheduler
+    end
+    else
+    begin
+      // Scheduling failed (duplicate or cap), free task but don't treat as error
+      Debug(dpSpam, 'kb', Format('[DEDUP] Dirlist for pazo %d dir %s on %s already scheduled',
+        [aTask.pazo_id, aTask.dir, aTask.site1]));
+      aTask.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'kb', Format('[EXCEPTION] SchedulePazoDirlist: %s', [E.Message]));
+      aTask.Free;
+    end;
   end;
 end;
 
@@ -1081,29 +1091,37 @@ begin
   if aTask = nil then
     Exit;
 
-  fSite := FindSiteByName('', aTask.site1);
-  if fSite = nil then
-  begin
-    Debug(dpError, 'kb', Format('[ERROR] SchedulePazoMkdir: site %s not found', [aTask.site1]));
-    aTask.Free;
-    Exit;
-  end;
+  try
+    fSite := FindSiteByName('', aTask.site1);
+    if fSite = nil then
+    begin
+      Debug(dpError, 'kb', Format('[ERROR] SchedulePazoMkdir: site %s not found', [aTask.site1]));
+      aTask.Free;
+      Exit;
+    end;
 
-  fReq.Init(aTask.mainpazo, aTask.dir, aTask.site1, ctMkdir, aTask.startat,
-    aTask.netname, aTask.channel);
-  fReq.depending_on_dirlist := aTask.FDependingOnDirlist;
+    fReq.Init(aTask.mainpazo, aTask.dir, aTask.site1, ctMkdir, aTask.startat,
+      aTask.netname, aTask.channel);
+    fReq.depending_on_dirlist := aTask.FDependingOnDirlist;
 
-  if fSite.CommandScheduler.ScheduleMkdir(fReq) then
-  begin
-    aTask.Free;
-    Debug(dpError, 'kb', Format('[SCHEDULER] Mkdir scheduled: pazo=%d dir=%s site=%s', [aTask.pazo_id, aTask.dir, aTask.site1]));
-    fSite.SchedulerFire;
-  end
-  else
-  begin
-    Debug(dpSpam, 'kb', Format('[DEDUP] Mkdir for pazo %d dir %s on %s already scheduled',
-      [aTask.pazo_id, aTask.dir, aTask.site1]));
-    aTask.Free;
+    if fSite.CommandScheduler.ScheduleMkdir(fReq) then
+    begin
+      aTask.Free;
+      Debug(dpError, 'kb', Format('[SCHEDULER] Mkdir scheduled: pazo=%d dir=%s site=%s', [aTask.pazo_id, aTask.dir, aTask.site1]));
+      fSite.SchedulerFire;
+    end
+    else
+    begin
+      Debug(dpSpam, 'kb', Format('[DEDUP] Mkdir for pazo %d dir %s on %s already scheduled',
+        [aTask.pazo_id, aTask.dir, aTask.site1]));
+      aTask.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'kb', Format('[EXCEPTION] SchedulePazoMkdir: %s', [E.Message]));
+      aTask.Free;
+    end;
   end;
 end;
 
@@ -1115,29 +1133,37 @@ begin
   if aTask = nil then
     Exit;
 
-  fSite := FindSiteByName('', aTask.site1);
-  if fSite = nil then
-  begin
-    Debug(dpError, 'kb', Format('[ERROR] SchedulePazoSiteSfvTask: site %s not found', [aTask.site1]));
-    aTask.Free;
-    Exit;
-  end;
+  try
+    fSite := FindSiteByName('', aTask.site1);
+    if fSite = nil then
+    begin
+      Debug(dpError, 'kb', Format('[ERROR] SchedulePazoSiteSfvTask: site %s not found', [aTask.site1]));
+      aTask.Free;
+      Exit;
+    end;
 
-  fReq.Init(aTask.mainpazo, aTask.Dir, aTask.site1, ctSfvDownload, aTask.startat,
-    aTask.netname, aTask.channel);
-  fReq.sfv_filename := aTask.SFVFilename;
-  fReq.attempt := 0; // attempt counter managed by task itself
+    fReq.Init(aTask.mainpazo, aTask.Dir, aTask.site1, ctSfvDownload, aTask.startat,
+      aTask.netname, aTask.channel);
+    fReq.sfv_filename := aTask.SFVFilename;
+    fReq.attempt := 0; // attempt counter managed by task itself
 
-  if fSite.CommandScheduler.ScheduleCommand(fReq) then
-  begin
-    aTask.Free;
-    fSite.SchedulerFire;
-  end
-  else
-  begin
-    Debug(dpSpam, 'kb', Format('[DEDUP] SFV for pazo %d dir %s file %s on %s already scheduled',
-      [aTask.pazo_id, aTask.Dir, aTask.SFVFilename, aTask.site1]));
-    aTask.Free;
+    if fSite.CommandScheduler.ScheduleCommand(fReq) then
+    begin
+      aTask.Free;
+      fSite.SchedulerFire;
+    end
+    else
+    begin
+      Debug(dpSpam, 'kb', Format('[DEDUP] SFV for pazo %d dir %s file %s on %s already scheduled',
+        [aTask.pazo_id, aTask.Dir, aTask.SFVFilename, aTask.site1]));
+      aTask.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'kb', Format('[EXCEPTION] SchedulePazoSiteSfvTask: %s', [E.Message]));
+      aTask.Free;
+    end;
   end;
 end;
 
@@ -1149,28 +1175,36 @@ begin
   if aTask = nil then
     Exit;
 
-  fSite := FindSiteByName('', aTask.site1);
-  if fSite = nil then
-  begin
-    Debug(dpError, 'kb', Format('[ERROR] SchedulePazoSiteNfoTask: site %s not found', [aTask.site1]));
-    aTask.Free;
-    Exit;
-  end;
+  try
+    fSite := FindSiteByName('', aTask.site1);
+    if fSite = nil then
+    begin
+      Debug(dpError, 'kb', Format('[ERROR] SchedulePazoSiteNfoTask: site %s not found', [aTask.site1]));
+      aTask.Free;
+      Exit;
+    end;
 
-  fReq.Init(aTask.mainpazo, '', aTask.site1, ctNfoDownload, aTask.startat,
-    aTask.netname, aTask.channel);
-  fReq.attempt := 0;
+    fReq.Init(aTask.mainpazo, '', aTask.site1, ctNfoDownload, aTask.startat,
+      aTask.netname, aTask.channel);
+    fReq.attempt := 0;
 
-  if fSite.CommandScheduler.ScheduleCommand(fReq) then
-  begin
-    aTask.Free;
-    fSite.SchedulerFire;
-  end
-  else
-  begin
-    Debug(dpSpam, 'kb', Format('[DEDUP] NFO for pazo %d on %s already scheduled',
-      [aTask.pazo_id, aTask.site1]));
-    aTask.Free;
+    if fSite.CommandScheduler.ScheduleCommand(fReq) then
+    begin
+      aTask.Free;
+      fSite.SchedulerFire;
+    end
+    else
+    begin
+      Debug(dpSpam, 'kb', Format('[DEDUP] NFO for pazo %d on %s already scheduled',
+        [aTask.pazo_id, aTask.site1]));
+      aTask.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'kb', Format('[EXCEPTION] SchedulePazoSiteNfoTask: %s', [E.Message]));
+      aTask.Free;
+    end;
   end;
 end;
 
@@ -1182,27 +1216,35 @@ begin
   if aTask = nil then
     Exit;
 
-  fSite := FindSiteByName('', aTask.site1);
-  if fSite = nil then
-  begin
-    Debug(dpError, 'kb', Format('[ERROR] ScheduleCWDTask: site %s not found', [aTask.site1]));
-    aTask.Free;
-    Exit;
-  end;
+  try
+    fSite := FindSiteByName('', aTask.site1);
+    if fSite = nil then
+    begin
+      Debug(dpError, 'kb', Format('[ERROR] ScheduleCWDTask: site %s not found', [aTask.site1]));
+      aTask.Free;
+      Exit;
+    end;
 
-  fReq.Init(-1, aTask.dir, aTask.site1, ctCwd, aTask.startat,
-    aTask.netname, aTask.channel);
+    fReq.Init(-1, aTask.dir, aTask.site1, ctCwd, aTask.startat,
+      aTask.netname, aTask.channel);
 
-  if fSite.CommandScheduler.ScheduleCommand(fReq) then
-  begin
-    aTask.Free;
-    fSite.SchedulerFire;
-  end
-  else
-  begin
-    Debug(dpSpam, 'kb', Format('[DEDUP] CWD for dir %s on %s already scheduled',
-      [aTask.dir, aTask.site1]));
-    aTask.Free;
+    if fSite.CommandScheduler.ScheduleCommand(fReq) then
+    begin
+      aTask.Free;
+      fSite.SchedulerFire;
+    end
+    else
+    begin
+      Debug(dpSpam, 'kb', Format('[DEDUP] CWD for dir %s on %s already scheduled',
+        [aTask.dir, aTask.site1]));
+      aTask.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'kb', Format('[EXCEPTION] ScheduleCWDTask: %s', [E.Message]));
+      aTask.Free;
+    end;
   end;
 end;
 
@@ -1214,28 +1256,36 @@ begin
   if aTask = nil then
     Exit;
 
-  fSite := FindSiteByName('', aTask.site1);
-  if fSite = nil then
-  begin
-    Debug(dpError, 'kb', Format('[ERROR] ScheduleRawTask: site %s not found', [aTask.site1]));
-    aTask.Free;
-    Exit;
-  end;
+  try
+    fSite := FindSiteByName('', aTask.site1);
+    if fSite = nil then
+    begin
+      Debug(dpError, 'kb', Format('[ERROR] ScheduleRawTask: site %s not found', [aTask.site1]));
+      aTask.Free;
+      Exit;
+    end;
 
-  fReq.Init(-1, aTask.dir, aTask.site1, ctRaw, aTask.startat,
-    aTask.netname, aTask.channel);
-  fReq.cmd := aTask.cmd;
+    fReq.Init(-1, aTask.dir, aTask.site1, ctRaw, aTask.startat,
+      aTask.netname, aTask.channel);
+    fReq.cmd := aTask.cmd;
 
-  if fSite.CommandScheduler.ScheduleCommand(fReq) then
-  begin
-    aTask.Free;
-    fSite.SchedulerFire;
-  end
-  else
-  begin
-    Debug(dpSpam, 'kb', Format('[DEDUP] RAW for dir %s cmd %s on %s already scheduled',
-      [aTask.dir, aTask.cmd, aTask.site1]));
-    aTask.Free;
+    if fSite.CommandScheduler.ScheduleCommand(fReq) then
+    begin
+      aTask.Free;
+      fSite.SchedulerFire;
+    end
+    else
+    begin
+      Debug(dpSpam, 'kb', Format('[DEDUP] RAW for dir %s cmd %s on %s already scheduled',
+        [aTask.dir, aTask.cmd, aTask.site1]));
+      aTask.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'kb', Format('[EXCEPTION] ScheduleRawTask: %s', [E.Message]));
+      aTask.Free;
+    end;
   end;
 end;
 
@@ -1254,27 +1304,35 @@ begin
     Exit;
   end;
 
-  fSite := FindSiteByName('', aTask.site1);
-  if fSite = nil then
-  begin
-    Debug(dpError, 'kb', Format('[ERROR] ScheduleLoginTask: site %s not found', [aTask.site1]));
-    aTask.Free;
-    Exit;
-  end;
+  try
+    fSite := FindSiteByName('', aTask.site1);
+    if fSite = nil then
+    begin
+      Debug(dpError, 'kb', Format('[ERROR] ScheduleLoginTask: site %s not found', [aTask.site1]));
+      aTask.Free;
+      Exit;
+    end;
 
-  fReq.Init(-1, '', aTask.site1, ctLogin, aTask.startat,
-    aTask.netname, aTask.channel);
+    fReq.Init(-1, '', aTask.site1, ctLogin, aTask.startat,
+      aTask.netname, aTask.channel);
 
-  if fSite.CommandScheduler.ScheduleCommand(fReq) then
-  begin
-    aTask.Free;
-    fSite.SchedulerFire;
-  end
-  else
-  begin
-    Debug(dpSpam, 'kb', Format('[DEDUP] Login for site %s already scheduled',
-      [aTask.site1]));
-    aTask.Free;
+    if fSite.CommandScheduler.ScheduleCommand(fReq) then
+    begin
+      aTask.Free;
+      fSite.SchedulerFire;
+    end
+    else
+    begin
+      Debug(dpSpam, 'kb', Format('[DEDUP] Login for site %s already scheduled',
+        [aTask.site1]));
+      aTask.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'kb', Format('[EXCEPTION] ScheduleLoginTask: %s', [E.Message]));
+      aTask.Free;
+    end;
   end;
 end;
 
@@ -1776,12 +1834,14 @@ begin
     for ps in destinations do
     begin
       p.AddSite(ps.Name, ps.maindir);
-      site_allocation.Add(ps.Name, TStringList.Create);
+      if not site_allocation.ContainsKey(ps.Name) then
+        site_allocation.Add(ps.Name, TStringList.Create);
     end;
 
     for sps in sources do
     begin
-      site_allocation.Add(sps.Name, TStringList.Create);
+      if not site_allocation.ContainsKey(sps.Name) then
+        site_allocation.Add(sps.Name, TStringList.Create);
       ssites_info := site_allocation.Items[sps.Name];
       for ps in destinations do
       begin

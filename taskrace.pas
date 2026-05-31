@@ -193,6 +193,7 @@ var
   tname: String;
   ps: TPazoSite;
   fDestination: TDestinationRank;
+  fDestinationsCopy: TList<TDestinationRank>;
   secondsWithNoChange, secondsSinceStart, secondsSinceCompleted: Int64;
 begin
   numerrors := 0;
@@ -611,63 +612,73 @@ begin
     // check if one dst need more dirlist
     if (not itwasadded) then
     begin
-      for fDestination in ps1.destinations do
-      begin
-        if itwasadded then
-          Break;
+      // Make a snapshot of destinations to avoid race conditions with other threads
+      // that might modify ps1.destinations while we iterate (e.g. TPazoRaceTask.ParseDupe -> Tuzelj -> AddDestination)
+      fDestinationsCopy := TList<TDestinationRank>.Create;
+      try
+        for fDestination in ps1.destinations do
+          fDestinationsCopy.Add(fDestination);
 
-        try
-          ps := fDestination.PazoSite;
+        for fDestination in fDestinationsCopy do
+        begin
+          if itwasadded then
+            Break;
 
-          if (ps.error) then
-            Continue;
-          if (ps.dirlistgaveup) then
-            Continue;
-          if (ps.dirlist = nil) then
-            Continue;
-          if (ps.dirlist.error) then
-            Continue;
-          if not (ps.status in [rssAllowed]) then
-            Continue;
-          if ps.dirlist.Complete then
-            Continue;
+          try
+            ps := fDestination.PazoSite;
 
-          dst_d := ps.dirlist;
-          if (dir <> '') then
-          begin
-            dst_d := ps.dirlist.FindDirlist(dir);
-            if (dst_d <> nil) and (dst_d.error or dst_d.Complete) then
+            if (ps.error) then
               Continue;
-          end;
+            if (ps.dirlistgaveup) then
+              Continue;
+            if (ps.dirlist = nil) then
+              Continue;
+            if (ps.dirlist.error) then
+              Continue;
+            if not (ps.status in [rssAllowed]) then
+              Continue;
+            if ps.dirlist.Complete then
+              Continue;
 
-          if is_pre or (ps.dirlist.entries.Count > 0)  then
-          begin
-            // do more dirlist
-            r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-            r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue(ps1, d));
-            r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
-            r_dst.startat := IncMilliSecond(Now(), r_dst.GetDirlistReaddValue(ps, dst_d));
+            dst_d := ps.dirlist;
+            if (dir <> '') then
+            begin
+              dst_d := ps.dirlist.FindDirlist(dir);
+              if (dst_d <> nil) and (dst_d.error or dst_d.Complete) then
+                Continue;
+            end;
 
-            try
-              SchedulePazoDirlist(r);
-              SchedulePazoDirlist(r_dst);
-              itwasadded := True;
-              Break;
-            except
-              on e: Exception do
-              begin
-                Debug(dpError, c_section,
-                  Format('[EXCEPTION] TPazoDirlistTask AddTask: %s', [e.Message]));
+            if is_pre or (ps.dirlist.entries.Count > 0)  then
+            begin
+              // do more dirlist
+              r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
+              r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue(ps1, d));
+              r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
+              r_dst.startat := IncMilliSecond(Now(), r_dst.GetDirlistReaddValue(ps, dst_d));
+
+              try
+                SchedulePazoDirlist(r);
+                SchedulePazoDirlist(r_dst);
+                itwasadded := True;
+                Break;
+              except
+                on e: Exception do
+                begin
+                  Debug(dpError, c_section,
+                    Format('[EXCEPTION] TPazoDirlistTask AddTask: %s', [e.Message]));
+                end;
               end;
             end;
-          end;
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, c_section,
-              Format('[EXCEPTION] TPazoDirlistTask CheckDestinations: %s', [e.Message]));
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, c_section,
+                Format('[EXCEPTION] TPazoDirlistTask CheckDestinations: %s', [e.Message]));
+            end;
           end;
         end;
+      finally
+        fDestinationsCopy.Free;
       end;
     end;
   end;
