@@ -321,13 +321,13 @@ var
 begin
   fSched := TCommandScheduler.Create('TestSite');
   try
-    CheckFalse(fSched.HasDirlist(1, '/test'), 'Should not have dirlist initially');
+    CheckFalse(fSched.HasDirlist(1, '/test', 'TestSite'), 'Should not have dirlist initially');
 
     fReq.Init(1, '/test', 'TestSite', ctDirlist, 0, 'net', 'chan');
     fSched.ScheduleDirlist(fReq);
 
-    CheckTrue(fSched.HasDirlist(1, '/test'), 'Should have dirlist after schedule');
-    CheckFalse(fSched.HasDirlist(1, '/other'), 'Should not have different dir');
+    CheckTrue(fSched.HasDirlist(1, '/test', 'TestSite'), 'Should have dirlist after schedule');
+    CheckFalse(fSched.HasDirlist(1, '/other', 'TestSite'), 'Should not have different dir');
   finally
     fSched.Free;
   end;
@@ -340,12 +340,12 @@ var
 begin
   fSched := TCommandScheduler.Create('TestSite');
   try
-    CheckFalse(fSched.HasMkdir(1, '/test'), 'Should not have mkdir initially');
+    CheckFalse(fSched.HasMkdir(1, '/test', 'TestSite'), 'Should not have mkdir initially');
 
     fReq.Init(1, '/test', 'TestSite', ctMkdir, 0, 'net', 'chan');
     fSched.ScheduleMkdir(fReq);
 
-    CheckTrue(fSched.HasMkdir(1, '/test'), 'Should have mkdir after schedule');
+    CheckTrue(fSched.HasMkdir(1, '/test', 'TestSite'), 'Should have mkdir after schedule');
   finally
     fSched.Free;
   end;

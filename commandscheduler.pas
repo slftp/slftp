@@ -71,9 +71,9 @@ type
     fNextUid: UInt64;
 
     function FindRequestIndex(const aList: TList<TCommandRequest>;
-      const aPazoID: Integer; const aDir: String): Integer; overload;
+      const aPazoID: Integer; const aDir, aSite: String): Integer; overload;
     function FindRequestIndexEx(const aList: TList<TCommandRequest>;
-      const aPazoID: Integer; const aDir, aExtraKey: String): Integer; overload;
+      const aPazoID: Integer; const aDir, aSite, aExtraKey: String): Integer; overload;
     function GetDirlistCount: Integer;
     function GetMkdirCount: Integer;
     function GetOtherCount: Integer;
@@ -120,8 +120,8 @@ type
     procedure RemoveByPazo(const aPazoID: Integer);
 
     // Check if a request exists
-    function HasDirlist(const aPazoID: Integer; const aDir: String): Boolean;
-    function HasMkdir(const aPazoID: Integer; const aDir: String): Boolean;
+    function HasDirlist(const aPazoID: Integer; const aDir, aSite: String): Boolean;
+    function HasMkdir(const aPazoID: Integer; const aDir, aSite: String): Boolean;
     function HasCommand(const aCommandType: TCommandType; const aPazoID: Integer; const aDir: String): Boolean;
 
     property DirlistCount: Integer read GetDirlistCount;
@@ -232,14 +232,14 @@ begin
 end;
 
 function TCommandScheduler.FindRequestIndex(const aList: TList<TCommandRequest>;
-  const aPazoID: Integer; const aDir: String): Integer;
+  const aPazoID: Integer; const aDir, aSite: String): Integer;
 var
   i: Integer;
 begin
   Result := -1;
   for i := 0 to aList.Count - 1 do
   begin
-    if (aList[i].pazo_id = aPazoID) and (aList[i].dir = aDir) then
+    if (aList[i].pazo_id = aPazoID) and (aList[i].dir = aDir) and (aList[i].site = aSite) then
     begin
       Result := i;
       Exit;
@@ -248,14 +248,14 @@ begin
 end;
 
 function TCommandScheduler.FindRequestIndexEx(const aList: TList<TCommandRequest>;
-  const aPazoID: Integer; const aDir, aExtraKey: String): Integer;
+  const aPazoID: Integer; const aDir, aSite, aExtraKey: String): Integer;
 var
   i: Integer;
 begin
   Result := -1;
   for i := 0 to aList.Count - 1 do
   begin
-    if (aList[i].pazo_id = aPazoID) and (aList[i].dir = aDir) and (aList[i].cmd = aExtraKey) then
+    if (aList[i].pazo_id = aPazoID) and (aList[i].dir = aDir) and (aList[i].site = aSite) and (aList[i].cmd = aExtraKey) then
     begin
       Result := i;
       Exit;
@@ -341,9 +341,9 @@ begin
   // Deduplicate: reject if same (pazo_id, dir) already exists
   // For Raw commands, also check cmd field
   if aReq.command_type = ctRaw then
-    fIdx := FindRequestIndexEx(aList, aReq.pazo_id, aReq.dir, aReq.cmd)
+    fIdx := FindRequestIndexEx(aList, aReq.pazo_id, aReq.dir, aReq.site, aReq.cmd)
   else
-    fIdx := FindRequestIndex(aList, aReq.pazo_id, aReq.dir);
+    fIdx := FindRequestIndex(aList, aReq.pazo_id, aReq.dir, aReq.site);
 
   if fIdx >= 0 then
   begin
@@ -444,7 +444,7 @@ procedure TCommandScheduler.InternalCompleteRequest(
 var
   fIdx: Integer;
 begin
-  fIdx := FindRequestIndex(aList, aReq.pazo_id, aReq.dir);
+  fIdx := FindRequestIndex(aList, aReq.pazo_id, aReq.dir, aReq.site);
   if fIdx >= 0 then
   begin
     if aList[fIdx].command_type = ctDirlist then
@@ -674,21 +674,21 @@ begin
   end;
 end;
 
-function TCommandScheduler.HasDirlist(const aPazoID: Integer; const aDir: String): Boolean;
+function TCommandScheduler.HasDirlist(const aPazoID: Integer; const aDir, aSite: String): Boolean;
 begin
   fLock.Enter('HasDirlist');
   try
-    Result := FindRequestIndex(fDirlistRequests, aPazoID, aDir) >= 0;
+    Result := FindRequestIndex(fDirlistRequests, aPazoID, aDir, aSite) >= 0;
   finally
     fLock.Leave;
   end;
 end;
 
-function TCommandScheduler.HasMkdir(const aPazoID: Integer; const aDir: String): Boolean;
+function TCommandScheduler.HasMkdir(const aPazoID: Integer; const aDir, aSite: String): Boolean;
 begin
   fLock.Enter('HasMkdir');
   try
-    Result := FindRequestIndex(fMkdirRequests, aPazoID, aDir) >= 0;
+    Result := FindRequestIndex(fMkdirRequests, aPazoID, aDir, aSite) >= 0;
   finally
     fLock.Leave;
   end;
