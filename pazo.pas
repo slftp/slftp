@@ -793,7 +793,7 @@ begin
         if FindSiteByName('', fPazoSite.Name).UseForNFOdownload = ufnEnabled then
         begin
           Debug(dpSpam, section, 'Add SFV task for %s %s (%s)', [rls.rlsname, aDir, fPazoSite.Name]);
-          AddTask(TPazoSiteSfvTask.Create('', '', fPazoSite.Name, self, aDir, de.filename, 1));
+          SchedulePazoSiteSfvTask(TPazoSiteSfvTask.Create('', '', fPazoSite.Name, self, aDir, de.filename, 1));
         end;
       end;
     end;

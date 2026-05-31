@@ -7,10 +7,9 @@ uses
 
 type
   TRawTask = class(TTask)
-  private
+  public
     cmd: String;
     dir: String;
-  public
     constructor Create(const netname, channel, site, dir, cmd: String);
     function Execute(slot: Pointer): Boolean; override;
     function Name: String; override;

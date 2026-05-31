@@ -100,7 +100,7 @@ begin
   if imdb = nil then
   begin
     // start leeching nfo
-    AddTask(TPazoSiteNfoTask.Create(netname, channel, ps1.name, mainpazo, 1));
+    SchedulePazoSiteNfoTask(TPazoSiteNfoTask.Create(netname, channel, ps1.name, mainpazo, 1));
 
     if attempt < config.readInteger(section, 'readd_attempts', 5) then begin
       Debug(dpSpam, section, 'READD: do not have the nfo file!');

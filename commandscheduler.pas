@@ -18,7 +18,7 @@ uses
   Classes, SysUtils, DateUtils, Generics.Collections, SyncObjs, slcriticalsection2, dirlist, pazo;
 
 type
-  TCommandType = (ctDirlist, ctMkdir);
+  TCommandType = (ctDirlist, ctMkdir, ctSfvDownload, ctNfoDownload, ctCwd, ctRaw, ctLogin);
 
   TCommandRequest = record
     // Identity (for deduplication)
@@ -40,6 +40,11 @@ type
     is_from_incomplete_filler: Boolean;
     depending_on_dirlist: TDirList; // for mkdir
 
+    // Command-specific fields
+    sfv_filename: String; // for ctSfvDownload
+    cmd: String;          // for ctRaw
+    attempt: Integer;      // for retry logic (SFV, NFO)
+
     // Unique id for tracking
     uid: UInt64;
 
@@ -60,14 +65,18 @@ type
     fLock: TSlCriticalSection2;
     fDirlistRequests: TList<TCommandRequest>;
     fMkdirRequests: TList<TCommandRequest>;
+    fOtherRequests: TList<TCommandRequest>; // SFV, NFO, CWD, Raw, Login
     fPazoDirCount: TDictionary<Integer, Integer>;
     fUidLock: TCriticalSection;
     fNextUid: UInt64;
 
     function FindRequestIndex(const aList: TList<TCommandRequest>;
-      const aPazoID: Integer; const aDir: String): Integer;
+      const aPazoID: Integer; const aDir: String): Integer; overload;
+    function FindRequestIndexEx(const aList: TList<TCommandRequest>;
+      const aPazoID: Integer; const aDir, aExtraKey: String): Integer; overload;
     function GetDirlistCount: Integer;
     function GetMkdirCount: Integer;
+    function GetOtherCount: Integer;
     function GetTotalCount: Integer;
     procedure IncrementPazoDirCount(const aPazoID: Integer);
     procedure DecrementPazoDirCount(const aPazoID: Integer);
@@ -92,14 +101,17 @@ type
     // Schedule a command. Returns False if duplicate or cap reached.
     function ScheduleDirlist(const aReq: TCommandRequest): Boolean;
     function ScheduleMkdir(const aReq: TCommandRequest): Boolean;
+    function ScheduleCommand(const aReq: TCommandRequest): Boolean;
 
     // Get next ready request (startat <= Now, no dependencies for mkdir)
     function GetNextDirlist(out aReq: TCommandRequest): Boolean;
     function GetNextMkdir(out aReq: TCommandRequest): Boolean;
+    function GetNextCommand(const aCommandType: TCommandType; out aReq: TCommandRequest): Boolean;
 
     // Mark complete / remove
     procedure CompleteDirlist(const aReq: TCommandRequest);
     procedure CompleteMkdir(const aReq: TCommandRequest);
+    procedure CompleteCommand(const aReq: TCommandRequest);
 
     // Cleanup old requests
     procedure Cleanup(const aMaxAgeMinutes: Integer = 15);
@@ -110,9 +122,11 @@ type
     // Check if a request exists
     function HasDirlist(const aPazoID: Integer; const aDir: String): Boolean;
     function HasMkdir(const aPazoID: Integer; const aDir: String): Boolean;
+    function HasCommand(const aCommandType: TCommandType; const aPazoID: Integer; const aDir: String): Boolean;
 
     property DirlistCount: Integer read GetDirlistCount;
     property MkdirCount: Integer read GetMkdirCount;
+    property OtherCount: Integer read GetOtherCount;
     property TotalCount: Integer read GetTotalCount;
   end;
 
@@ -161,6 +175,9 @@ begin
   is_pre := aIsPre;
   is_from_incomplete_filler := aIsFromIncompleteFiller;
   depending_on_dirlist := aDependingOnDirlist;
+  sfv_filename := '';
+  cmd := '';
+  attempt := 0;
   created := Now();
   priority := 0;
   uid := GenerateUid;
@@ -183,6 +200,9 @@ begin
   is_pre := aIsPre;
   is_from_incomplete_filler := aIsFromIncompleteFiller;
   depending_on_dirlist := aDependingOnDirlist;
+  sfv_filename := '';
+  cmd := '';
+  attempt := 0;
   created := Now();
   priority := 0;
   uid := GenerateUid;
@@ -196,6 +216,7 @@ begin
   fLock := TSlCriticalSection2.Create(Format('CommandScheduler_%s', [aSiteName]));
   fDirlistRequests := TList<TCommandRequest>.Create;
   fMkdirRequests := TList<TCommandRequest>.Create;
+  fOtherRequests := TList<TCommandRequest>.Create;
   fPazoDirCount := TDictionary<Integer, Integer>.Create;
   fNextUid := 1;
 end;
@@ -204,6 +225,7 @@ destructor TCommandScheduler.Destroy;
 begin
   fDirlistRequests.Free;
   fMkdirRequests.Free;
+  fOtherRequests.Free;
   fPazoDirCount.Free;
   fLock.Free;
   inherited;
@@ -218,6 +240,22 @@ begin
   for i := 0 to aList.Count - 1 do
   begin
     if (aList[i].pazo_id = aPazoID) and (aList[i].dir = aDir) then
+    begin
+      Result := i;
+      Exit;
+    end;
+  end;
+end;
+
+function TCommandScheduler.FindRequestIndexEx(const aList: TList<TCommandRequest>;
+  const aPazoID: Integer; const aDir, aExtraKey: String): Integer;
+var
+  i: Integer;
+begin
+  Result := -1;
+  for i := 0 to aList.Count - 1 do
+  begin
+    if (aList[i].pazo_id = aPazoID) and (aList[i].dir = aDir) and (aList[i].cmd = aExtraKey) then
     begin
       Result := i;
       Exit;
@@ -245,11 +283,21 @@ begin
   end;
 end;
 
+function TCommandScheduler.GetOtherCount: Integer;
+begin
+  fLock.Enter('GetOtherCount');
+  try
+    Result := fOtherRequests.Count;
+  finally
+    fLock.Leave;
+  end;
+end;
+
 function TCommandScheduler.GetTotalCount: Integer;
 begin
   fLock.Enter('GetTotalCount');
   try
-    Result := fDirlistRequests.Count + fMkdirRequests.Count;
+    Result := fDirlistRequests.Count + fMkdirRequests.Count + fOtherRequests.Count;
   finally
     fLock.Leave;
   end;
@@ -291,15 +339,37 @@ begin
   Result := False;
 
   // Deduplicate: reject if same (pazo_id, dir) already exists
-  fIdx := FindRequestIndex(aList, aReq.pazo_id, aReq.dir);
+  // For Raw commands, also check cmd field
+  if aReq.command_type = ctRaw then
+    fIdx := FindRequestIndexEx(aList, aReq.pazo_id, aReq.dir, aReq.cmd)
+  else
+    fIdx := FindRequestIndex(aList, aReq.pazo_id, aReq.dir);
+
   if fIdx >= 0 then
   begin
-    if aReq.command_type = ctDirlist then
-      Debug(dpSpam, section, '[DEDUP] Rejecting DIRLIST for pazo %d dir %s (already scheduled)',
-        [aReq.pazo_id, aReq.dir])
-    else
-      Debug(dpSpam, section, '[DEDUP] Rejecting MKDIR for pazo %d dir %s (already scheduled)',
-        [aReq.pazo_id, aReq.dir]);
+    case aReq.command_type of
+      ctDirlist:
+        Debug(dpSpam, section, '[DEDUP] Rejecting DIRLIST for pazo %d dir %s (already scheduled)',
+          [aReq.pazo_id, aReq.dir]);
+      ctMkdir:
+        Debug(dpSpam, section, '[DEDUP] Rejecting MKDIR for pazo %d dir %s (already scheduled)',
+          [aReq.pazo_id, aReq.dir]);
+      ctSfvDownload:
+        Debug(dpSpam, section, '[DEDUP] Rejecting SFV for pazo %d dir %s file %s (already scheduled)',
+          [aReq.pazo_id, aReq.dir, aReq.sfv_filename]);
+      ctNfoDownload:
+        Debug(dpSpam, section, '[DEDUP] Rejecting NFO for pazo %d dir %s (already scheduled)',
+          [aReq.pazo_id, aReq.dir]);
+      ctCwd:
+        Debug(dpSpam, section, '[DEDUP] Rejecting CWD for dir %s (already scheduled)',
+          [aReq.dir]);
+      ctRaw:
+        Debug(dpSpam, section, '[DEDUP] Rejecting RAW for dir %s cmd %s (already scheduled)',
+          [aReq.dir, aReq.cmd]);
+      ctLogin:
+        Debug(dpSpam, section, '[DEDUP] Rejecting LOGIN for site %s (already scheduled)',
+          [aReq.site]);
+    end;
     Exit;
   end;
 
@@ -497,12 +567,95 @@ begin
   end;
 end;
 
+function TCommandScheduler.ScheduleCommand(const aReq: TCommandRequest): Boolean;
+begin
+  fLock.Enter('ScheduleCommand');
+  try
+    Result := InternalAddRequest(fOtherRequests, aReq);
+    if Result then
+      Debug(dpSpam, section, '[SCHEDULE] %s pazo=%d dir=%s site=%s',
+        [GetEnumName(TypeInfo(TCommandType), Ord(aReq.command_type)),
+         aReq.pazo_id, aReq.dir, aReq.site]);
+  finally
+    fLock.Leave;
+  end;
+end;
+
+function TCommandScheduler.GetNextCommand(const aCommandType: TCommandType;
+  out aReq: TCommandRequest): Boolean;
+var
+  i: Integer;
+  fNow: TDateTime;
+  fBestIdx: Integer;
+  fBestReq: TCommandRequest;
+begin
+  fLock.Enter('GetNextCommand');
+  try
+    Result := False;
+    fBestIdx := -1;
+    fNow := Now();
+
+    for i := 0 to fOtherRequests.Count - 1 do
+    begin
+      if fOtherRequests[i].command_type <> aCommandType then
+        Continue;
+      if fOtherRequests[i].startat > fNow then
+        Continue;
+
+      if fBestIdx < 0 then
+      begin
+        fBestIdx := i;
+        fBestReq := fOtherRequests[i];
+      end
+      else if fOtherRequests[i].priority < fBestReq.priority then
+      begin
+        fBestIdx := i;
+        fBestReq := fOtherRequests[i];
+      end
+      else if (fOtherRequests[i].priority = fBestReq.priority) and
+              (fOtherRequests[i].created < fBestReq.created) then
+      begin
+        fBestIdx := i;
+        fBestReq := fOtherRequests[i];
+      end;
+    end;
+
+    if fBestIdx >= 0 then
+    begin
+      aReq := fBestReq;
+      Result := True;
+    end;
+  finally
+    fLock.Leave;
+  end;
+end;
+
+procedure TCommandScheduler.CompleteCommand(const aReq: TCommandRequest);
+var
+  i: Integer;
+begin
+  fLock.Enter('CompleteCommand');
+  try
+    for i := 0 to fOtherRequests.Count - 1 do
+    begin
+      if (fOtherRequests[i].uid = aReq.uid) then
+      begin
+        fOtherRequests.Delete(i);
+        Exit;
+      end;
+    end;
+  finally
+    fLock.Leave;
+  end;
+end;
+
 procedure TCommandScheduler.Cleanup(const aMaxAgeMinutes: Integer = 15);
 begin
   fLock.Enter('Cleanup');
   try
     InternalCleanup(fDirlistRequests, aMaxAgeMinutes);
     InternalCleanup(fMkdirRequests, aMaxAgeMinutes);
+    InternalCleanup(fOtherRequests, aMaxAgeMinutes);
   finally
     fLock.Leave;
   end;
@@ -514,6 +667,7 @@ begin
   try
     InternalRemoveByPazo(fDirlistRequests, aPazoID);
     InternalRemoveByPazo(fMkdirRequests, aPazoID);
+    InternalRemoveByPazo(fOtherRequests, aPazoID);
     fPazoDirCount.Remove(aPazoID);
   finally
     fLock.Leave;
@@ -535,6 +689,29 @@ begin
   fLock.Enter('HasMkdir');
   try
     Result := FindRequestIndex(fMkdirRequests, aPazoID, aDir) >= 0;
+  finally
+    fLock.Leave;
+  end;
+end;
+
+function TCommandScheduler.HasCommand(const aCommandType: TCommandType;
+  const aPazoID: Integer; const aDir: String): Boolean;
+var
+  i: Integer;
+begin
+  fLock.Enter('HasCommand');
+  try
+    Result := False;
+    for i := 0 to fOtherRequests.Count - 1 do
+    begin
+      if (fOtherRequests[i].command_type = aCommandType) and
+         (fOtherRequests[i].pazo_id = aPazoID) and
+         (fOtherRequests[i].dir = aDir) then
+      begin
+        Result := True;
+        Exit;
+      end;
+    end;
   finally
     fLock.Leave;
   end;

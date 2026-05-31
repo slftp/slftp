@@ -766,7 +766,7 @@ implementation
 uses
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
-  dirlist.helpers, tags, Generics.Defaults;
+  dirlist.helpers, tags, Generics.Defaults, tasksitesfv, tasksitenfo, taskcwd, taskraw;
 
 const
   section = 'sites';
@@ -1771,6 +1771,11 @@ var
   fReq: TCommandRequest;
   fDirTask: TPazoDirlistTask;
   fMkTask: TPazoMkdirTask;
+  fSfvTask: TPazoSiteSfvTask;
+  fNfoTask: TPazoSiteNfoTask;
+  fCwdTask: TCWDTask;
+  fRawTask: TRawTask;
+  fLoginTask: TLoginTask;
 begin
   Result := False;
 
@@ -1806,7 +1811,31 @@ begin
     Exit;
   end;
 
-  // 2. Try dirlist
+  // 2. Try login (general logins only, not ghostkill/readd)
+  if site.CommandScheduler.GetNextCommand(ctLogin, fReq) then
+  begin
+    site.IncActiveCommandCount;
+    try
+      try
+        fLoginTask := TLoginTask.Create(fReq.netname, fReq.channel, fReq.site, False, False);
+        try
+          fLoginTask.Execute(self);
+        finally
+          fLoginTask.Free;
+        end;
+      except
+        on e: Exception do
+          Debug(dpError, section, Format('[EXCEPTION] TryExecuteCommand login: %s', [e.Message]));
+      end;
+      site.CommandScheduler.CompleteCommand(fReq);
+    finally
+      site.DecActiveCommandCount;
+    end;
+    Result := True;
+    Exit;
+  end;
+
+  // 3. Try dirlist
   if site.CommandScheduler.GetNextDirlist(fReq) then
   begin
     site.IncActiveCommandCount;
@@ -1827,6 +1856,110 @@ begin
           Debug(dpError, section, Format('[EXCEPTION] TryExecuteCommand dirlist: %s', [e.Message]));
       end;
       site.CommandScheduler.CompleteDirlist(fReq);
+    finally
+      site.DecActiveCommandCount;
+    end;
+    Result := True;
+    Exit;
+  end;
+
+  // 4. Try SFV download
+  if site.CommandScheduler.GetNextCommand(ctSfvDownload, fReq) then
+  begin
+    site.IncActiveCommandCount;
+    try
+      try
+        if fReq.pazo <> nil then
+        begin
+          fSfvTask := TPazoSiteSfvTask.Create(fReq.netname, fReq.channel, fReq.site,
+            fReq.pazo, fReq.dir, fReq.sfv_filename, fReq.attempt);
+          try
+            fSfvTask.Execute(self);
+          finally
+            fSfvTask.Free;
+          end;
+        end;
+      except
+        on e: Exception do
+          Debug(dpError, section, Format('[EXCEPTION] TryExecuteCommand sfv: %s', [e.Message]));
+      end;
+      site.CommandScheduler.CompleteCommand(fReq);
+    finally
+      site.DecActiveCommandCount;
+    end;
+    Result := True;
+    Exit;
+  end;
+
+  // 5. Try NFO download
+  if site.CommandScheduler.GetNextCommand(ctNfoDownload, fReq) then
+  begin
+    site.IncActiveCommandCount;
+    try
+      try
+        if fReq.pazo <> nil then
+        begin
+          fNfoTask := TPazoSiteNfoTask.Create(fReq.netname, fReq.channel, fReq.site,
+            fReq.pazo, fReq.attempt);
+          try
+            fNfoTask.Execute(self);
+          finally
+            fNfoTask.Free;
+          end;
+        end;
+      except
+        on e: Exception do
+          Debug(dpError, section, Format('[EXCEPTION] TryExecuteCommand nfo: %s', [e.Message]));
+      end;
+      site.CommandScheduler.CompleteCommand(fReq);
+    finally
+      site.DecActiveCommandCount;
+    end;
+    Result := True;
+    Exit;
+  end;
+
+  // 6. Try CWD
+  if site.CommandScheduler.GetNextCommand(ctCwd, fReq) then
+  begin
+    site.IncActiveCommandCount;
+    try
+      try
+        fCwdTask := TCWDTask.Create(fReq.netname, fReq.channel, fReq.site, fReq.dir);
+        try
+          fCwdTask.Execute(self);
+        finally
+          fCwdTask.Free;
+        end;
+      except
+        on e: Exception do
+          Debug(dpError, section, Format('[EXCEPTION] TryExecuteCommand cwd: %s', [e.Message]));
+      end;
+      site.CommandScheduler.CompleteCommand(fReq);
+    finally
+      site.DecActiveCommandCount;
+    end;
+    Result := True;
+    Exit;
+  end;
+
+  // 7. Try Raw
+  if site.CommandScheduler.GetNextCommand(ctRaw, fReq) then
+  begin
+    site.IncActiveCommandCount;
+    try
+      try
+        fRawTask := TRawTask.Create(fReq.netname, fReq.channel, fReq.site, fReq.dir, fReq.cmd);
+        try
+          fRawTask.Execute(self);
+        finally
+          fRawTask.Free;
+        end;
+      except
+        on e: Exception do
+          Debug(dpError, section, Format('[EXCEPTION] TryExecuteCommand raw: %s', [e.Message]));
+      end;
+      site.CommandScheduler.CompleteCommand(fReq);
     finally
       site.DecActiveCommandCount;
     end;

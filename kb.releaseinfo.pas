@@ -401,7 +401,7 @@ uses
   taskrace, sitesunit, queueunit, pazo, irc, SysUtils, fake, mystrings,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup,
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers,
-  sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
+  sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit, kb,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, SyncObjs,
   globalskipunit, irccommandsunit, kb {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
@@ -1500,11 +1500,11 @@ begin
       begin
         ps := TPazoSite(pazo.PazoSitesList[j]);
         try
-          AddTask(TPazoSiteNfoTask.Create('', '', ps.Name, pazo, 1));
+          SchedulePazoSiteNfoTask(TPazoSiteNfoTask.Create('', '', ps.Name, pazo, 1));
         except
           on e: Exception do
           begin
-            Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal.AddTask: %s', [e.Message]));
+            Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal.ScheduleNfo: %s', [e.Message]));
           end;
         end;
       end;

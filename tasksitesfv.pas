@@ -7,11 +7,11 @@ uses Classes, pazo, taskrace;
 type
   TPazoSiteSfvTask = class(TPazoPlainTask)
   private
-    FAttempt: Integer;
-    FDir, FSFVFilename: String;
     FInitialTaskCreationTime: TDateTime;
     procedure CreateReattemptTask(const aIncrementAttempts: boolean);
   public
+    FAttempt: Integer;
+    FDir, FSFVFilename: String;
     constructor Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer; const aInitialTaskCreationTime: TDateTime); overload;
     constructor Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer); overload;
     function Execute(slot: Pointer): boolean; override;
@@ -23,7 +23,7 @@ type
 implementation
 
 uses
-  SysUtils, SyncObjs, StrUtils, debugunit, dateutils, dirlist, sitesunit, irc, mystrings;
+  SysUtils, SyncObjs, StrUtils, debugunit, dateutils, dirlist, sitesunit, irc, mystrings, kb;
 
 const
   section = 'sfv';
@@ -70,7 +70,7 @@ begin
   fSfvTask := TPazoSiteSfvTask.Create(netname, channel, ps1.Name, mainpazo, FDir, FSFVFilename, fAttempts);
   fSfvTask.startat := IncMilliSecond(Now, 50);
   fSfvTask.FInitialTaskCreationTime := self.FInitialTaskCreationTime;
-  AddTask(fSfvTask);
+  SchedulePazoSiteSfvTask(fSfvTask);
 end;
 
 function TPazoSiteSfvTask.Execute(slot: Pointer): boolean;

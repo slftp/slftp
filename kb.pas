@@ -6,7 +6,7 @@ unit kb;
 interface
 
 uses
-  Classes, SyncObjs, slcriticalsection2, kb.releaseinfo, pazo, taskrace;
+  Classes, SyncObjs, slcriticalsection2, kb.releaseinfo, pazo, taskrace, tasksitesfv, tasksitenfo, taskcwd, taskraw, tasklogin;
 
 type
   TKBThread = class(TThread)
@@ -43,6 +43,23 @@ procedure SchedulePazoDirlist(const aTask: TPazoDirlistTask; const APriority: In
   Frees the task object after scheduling. }
 procedure SchedulePazoMkdir(const aTask: TPazoMkdirTask);
 
+{ Schedules a TPazoSiteSfvTask into the site's TCommandScheduler.
+  Frees the task object after scheduling. }
+procedure SchedulePazoSiteSfvTask(const aTask: TPazoSiteSfvTask);
+{ Schedules a TPazoSiteNfoTask into the site's TCommandScheduler.
+  Frees the task object after scheduling. }
+procedure SchedulePazoSiteNfoTask(const aTask: TPazoSiteNfoTask);
+{ Schedules a TCWDTask into the site's TCommandScheduler.
+  Frees the task object after scheduling. }
+procedure ScheduleCWDTask(const aTask: TCWDTask);
+{ Schedules a TRawTask into the site's TCommandScheduler.
+  Frees the task object after scheduling. }
+procedure ScheduleRawTask(const aTask: TRawTask);
+{ Schedules a general TLoginTask (kill=False, readd=False) into the site's TCommandScheduler.
+  For GhostKill and AutoBncTest logins, use AddTask instead.
+  Frees the task object after scheduling. }
+procedure ScheduleLoginTask(const aTask: TLoginTask);
+
 { Adds a release/pazo to the KB list with the given key. The key must be in the format of the KB list keys which is 'section-releasename'
       @param(aKey The KB key to be used)
       @param(aPazo The TPazo object to be added) }
@@ -78,7 +95,7 @@ uses
   debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
   sitesunit, queueunit, irc, SysUtils, fake, mystrings, tasksunit,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup, encinifile,
-  slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
+  slvision, tasksitenfo, tasksitesfv, taskcwd, taskraw, tasklogin, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit, commandscheduler,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
   globalskipunit, irccommandsunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
@@ -1078,6 +1095,162 @@ begin
   begin
     Debug(dpSpam, 'kb', Format('[DEDUP] Mkdir for pazo %d dir %s on %s already scheduled',
       [aTask.pazo_id, aTask.dir, aTask.site1]));
+    aTask.Free;
+  end;
+end;
+
+procedure SchedulePazoSiteSfvTask(const aTask: TPazoSiteSfvTask);
+var
+  fReq: TCommandRequest;
+  fSite: TSite;
+begin
+  if aTask = nil then
+    Exit;
+
+  fSite := FindSiteByName('', aTask.site1);
+  if fSite = nil then
+  begin
+    Debug(dpError, 'kb', Format('[ERROR] SchedulePazoSiteSfvTask: site %s not found', [aTask.site1]));
+    aTask.Free;
+    Exit;
+  end;
+
+  fReq.Init(aTask.mainpazo, aTask.Dir, aTask.site1, ctSfvDownload, aTask.startat,
+    aTask.netname, aTask.channel);
+  fReq.sfv_filename := aTask.SFVFilename;
+  fReq.attempt := 0; // attempt counter managed by task itself
+
+  if fSite.CommandScheduler.ScheduleCommand(fReq) then
+    aTask.Free
+  else
+  begin
+    Debug(dpSpam, 'kb', Format('[DEDUP] SFV for pazo %d dir %s file %s on %s already scheduled',
+      [aTask.pazo_id, aTask.Dir, aTask.SFVFilename, aTask.site1]));
+    aTask.Free;
+  end;
+end;
+
+procedure SchedulePazoSiteNfoTask(const aTask: TPazoSiteNfoTask);
+var
+  fReq: TCommandRequest;
+  fSite: TSite;
+begin
+  if aTask = nil then
+    Exit;
+
+  fSite := FindSiteByName('', aTask.site1);
+  if fSite = nil then
+  begin
+    Debug(dpError, 'kb', Format('[ERROR] SchedulePazoSiteNfoTask: site %s not found', [aTask.site1]));
+    aTask.Free;
+    Exit;
+  end;
+
+  fReq.Init(aTask.mainpazo, '', aTask.site1, ctNfoDownload, aTask.startat,
+    aTask.netname, aTask.channel);
+  fReq.attempt := 0;
+
+  if fSite.CommandScheduler.ScheduleCommand(fReq) then
+    aTask.Free
+  else
+  begin
+    Debug(dpSpam, 'kb', Format('[DEDUP] NFO for pazo %d on %s already scheduled',
+      [aTask.pazo_id, aTask.site1]));
+    aTask.Free;
+  end;
+end;
+
+procedure ScheduleCWDTask(const aTask: TCWDTask);
+var
+  fReq: TCommandRequest;
+  fSite: TSite;
+begin
+  if aTask = nil then
+    Exit;
+
+  fSite := FindSiteByName('', aTask.site1);
+  if fSite = nil then
+  begin
+    Debug(dpError, 'kb', Format('[ERROR] ScheduleCWDTask: site %s not found', [aTask.site1]));
+    aTask.Free;
+    Exit;
+  end;
+
+  fReq.Init(-1, aTask.dir, aTask.site1, ctCwd, aTask.startat,
+    aTask.netname, aTask.channel);
+
+  if fSite.CommandScheduler.ScheduleCommand(fReq) then
+    aTask.Free
+  else
+  begin
+    Debug(dpSpam, 'kb', Format('[DEDUP] CWD for dir %s on %s already scheduled',
+      [aTask.dir, aTask.site1]));
+    aTask.Free;
+  end;
+end;
+
+procedure ScheduleRawTask(const aTask: TRawTask);
+var
+  fReq: TCommandRequest;
+  fSite: TSite;
+begin
+  if aTask = nil then
+    Exit;
+
+  fSite := FindSiteByName('', aTask.site1);
+  if fSite = nil then
+  begin
+    Debug(dpError, 'kb', Format('[ERROR] ScheduleRawTask: site %s not found', [aTask.site1]));
+    aTask.Free;
+    Exit;
+  end;
+
+  fReq.Init(-1, aTask.dir, aTask.site1, ctRaw, aTask.startat,
+    aTask.netname, aTask.channel);
+  fReq.cmd := aTask.cmd;
+
+  if fSite.CommandScheduler.ScheduleCommand(fReq) then
+    aTask.Free
+  else
+  begin
+    Debug(dpSpam, 'kb', Format('[DEDUP] RAW for dir %s cmd %s on %s already scheduled',
+      [aTask.dir, aTask.cmd, aTask.site1]));
+    aTask.Free;
+  end;
+end;
+
+procedure ScheduleLoginTask(const aTask: TLoginTask);
+var
+  fReq: TCommandRequest;
+  fSite: TSite;
+begin
+  if aTask = nil then
+    Exit;
+
+  // Only migrate general logins (not ghostkill or autobnctest)
+  if aTask.kill or aTask.readd then
+  begin
+    AddTask(aTask);
+    Exit;
+  end;
+
+  fSite := FindSiteByName('', aTask.site1);
+  if fSite = nil then
+  begin
+    Debug(dpError, 'kb', Format('[ERROR] ScheduleLoginTask: site %s not found', [aTask.site1]));
+    aTask.Free;
+    Exit;
+  end;
+
+  fReq.Init(-1, '', aTask.site1, ctLogin, aTask.startat,
+    aTask.netname, aTask.channel);
+
+  if fSite.CommandScheduler.ScheduleCommand(fReq) then
+    aTask.Free
+  else
+  begin
+    Debug(dpSpam, 'kb', Format('[DEDUP] Login for site %s already scheduled',
+      [aTask.site1]));
     aTask.Free;
   end;
 end;

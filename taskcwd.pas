@@ -7,9 +7,8 @@ uses
 
 type
   TCWDTask = class(TTask)
-  private
-    dir: String;
   public
+    dir: String;
     constructor Create(const netname, channel, site, dir: String);
     function Execute(slot: Pointer): Boolean; override;
     function Name: String; override;

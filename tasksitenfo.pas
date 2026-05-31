@@ -8,8 +8,8 @@ type
   TPazoSiteNfoTask = class(TPazoPlainTask)
   private
     ss: TStringStream;
-    attempt: Integer;
   public
+    attempt: Integer;
     constructor Create(const netname, channel, site: String; pazo: TPazo; const attempt: Integer);
     destructor Destroy; override;
     function Execute(slot: Pointer): Boolean; override;
@@ -202,7 +202,7 @@ begin
         try
           r := TPazoSiteNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
           r.startat := IncSecond(Now, GlTaskSiteNfoReaddInterval);
-          AddTask(r);
+          SchedulePazoSiteNfoTask(r);
         except
           on e: Exception do
           begin
@@ -248,7 +248,7 @@ begin
             r := TPazoSiteNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
 
           r.startat := IncSecond(Now, GlTaskSiteNfoReaddInterval);
-          AddTask(r);
+          SchedulePazoSiteNfoTask(r);
         except
           on e: Exception do
           begin
