@@ -359,7 +359,7 @@ begin
         FOnEvent(event);
       except
         on E: Exception do
-          Debug(dpError, section, Format('UDP event callback error: %s', [E.Message]));
+          DebugException(dpError, section, Format('UDP event callback error (eventType=%d, name=%s)', [Ord(event.EventType), event.Name]), E);
       end;
     end;
   end;

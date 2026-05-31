@@ -2005,444 +2005,452 @@ var
   needsNfo: Boolean;
   rlsSection: String;
 begin
-  case aEvent.EventType of
-    cetRaceStarted:
-    begin
-      Debug(dpMessage, rsections, Format('[cbftp] race_started: %s/%s', [aEvent.Section, aEvent.Name]));
-      CbftpMainCacheAddJob(aEvent.Name, aEvent.Section, Now);
-      if GlRaceCompletions <> nil then
-        GlRaceCompletions.Remove(aEvent.Name);
-      fPazo := FindPazoByName(aEvent.Section, aEvent.Name);
-      if fPazo <> nil then
+  try
+    case aEvent.EventType of
+      cetRaceStarted:
       begin
-        // cbftp has taken over routing for this release
-      end;
-    end;
-
-    cetRaceProgress:
-    begin
-      CbftpMainCacheUpdateJobProgress(aEvent.Name, aEvent.Site, aEvent.FilesDone, aEvent.FilesTotal, aEvent.BytesDone, aEvent.BytesTotal);
-      kb_lock.Enter('cetRaceProgress');
-      try
-        fPazo := FindPazoByName('', aEvent.Name);
-        if (fPazo <> nil) and (not fPazo.cleared) then
+        Debug(dpMessage, rsections, Format('[cbftp] race_started: %s/%s', [aEvent.Section, aEvent.Name]));
+        CbftpMainCacheAddJob(aEvent.Name, aEvent.Section, Now);
+        if GlRaceCompletions <> nil then
+          GlRaceCompletions.Remove(aEvent.Name);
+        fPazo := FindPazoByName(aEvent.Section, aEvent.Name);
+        if fPazo <> nil then
         begin
-          fPazoSite := fPazo.FindSite(aEvent.Site);
-          if fPazoSite <> nil then
-          begin
-            if aEvent.FilesDone > fPazoSite.CbftpFilesDone then
-              fPazoSite.CbftpFilesDone := aEvent.FilesDone;
-            fPazoSite.CbftpFilesTotal := aEvent.FilesTotal;
-            if aEvent.BytesDone > fPazoSite.CbftpBytesDone then
-              fPazoSite.CbftpBytesDone := aEvent.BytesDone;
-            Debug(dpSpam, rsections, Format('[cbftp] progress %s on %s: %d/%d files, %d/%d bytes',
-              [aEvent.Name, aEvent.Site, aEvent.FilesDone, aEvent.FilesTotal,
-               aEvent.BytesDone, aEvent.BytesTotal]));
-          end;
+          // cbftp has taken over routing for this release
         end;
-      finally
-        kb_lock.Leave;
       end;
-    end;
 
-    cetRaceCompleted:
-    begin
-      Debug(dpMessage, rsections, Format('[cbftp] race_completed: %s on %s (%.2fs)',
-        [aEvent.Name, aEvent.Site, aEvent.TimeSpentSeconds]));
-      CbftpMainCacheUpdateJobCompleted(aEvent.Name, aEvent.Site, Round(aEvent.TimeSpentSeconds * 1000), aEvent.FilesDone, aEvent.BytesDone);
-
-      kb_lock.Enter('cetRaceCompleted');
-      try
-        fPazo := FindPazoByName('', aEvent.Name);
-        if (fPazo <> nil) and (not fPazo.cleared) then
-        begin
-          fPazoSite := fPazo.FindSite(aEvent.Site);
-          if fPazoSite <> nil then
-          begin
-            fPazoSite.status := rssComplete;
-            fPazoSite.CbftpCompletedTime := fPazo.added + (aEvent.TimeSpentSeconds / 86400.0);
-            fPazoSite.CbftpFilesDone := aEvent.FilesDone;
-            fPazoSite.CbftpBytesDone := aEvent.BytesDone;
-          end;
-        end;
-      finally
-        kb_lock.Leave;
-      end;
-      if GlRaceCompletions <> nil then
+      cetRaceProgress:
       begin
-        if not GlRaceCompletions.TryGetValue(aEvent.Name, List) then
-        begin
-          List := TList<TCbftpEvent>.Create;
-          GlRaceCompletions.Add(aEvent.Name, List);
-        end;
-        List.Add(aEvent);
-      end;
-    end;
-
-    cetRaceDone:
-    begin
-      Debug(dpMessage, rsections, Format('[cbftp] race_done: %s status=%s',
-        [aEvent.Name, aEvent.Status]));
-      CbftpMainCacheUpdateJobDone(aEvent.Name, aEvent.Status);
-
-      { Fetch spread job details once; used for both cache and Pazo sync }
-      js := nil;
-      jsObj := nil;
-      if GlCbftpClient <> nil then
-      begin
+        CbftpMainCacheUpdateJobProgress(aEvent.Name, aEvent.Site, aEvent.FilesDone, aEvent.FilesTotal, aEvent.BytesDone, aEvent.BytesTotal);
+        kb_lock.Enter('cetRaceProgress');
         try
-          s := string(GlCbftpClient.GetSpreadJob(StringToUtf8(aEvent.Name)));
-          Debug(dpMessage, rsections, Format('[cbftp] race_done GetSpreadJob len=%d for %s',
-            [Length(s), aEvent.Name]));
-          if s <> '' then
+          fPazo := FindPazoByName('', aEvent.Name);
+          if (fPazo <> nil) and (not fPazo.cleared) then
           begin
-            js := TlkJSON.ParseText(s);
-            if (js <> nil) and (js is TlkJSONObject) then
-              jsObj := TlkJSONObject(js);
+            fPazoSite := fPazo.FindSite(aEvent.Site);
+            if fPazoSite <> nil then
+            begin
+              if aEvent.FilesDone > fPazoSite.CbftpFilesDone then
+                fPazoSite.CbftpFilesDone := aEvent.FilesDone;
+              fPazoSite.CbftpFilesTotal := aEvent.FilesTotal;
+              if aEvent.BytesDone > fPazoSite.CbftpBytesDone then
+                fPazoSite.CbftpBytesDone := aEvent.BytesDone;
+              Debug(dpSpam, rsections, Format('[cbftp] progress %s on %s: %d/%d files, %d/%d bytes',
+                [aEvent.Name, aEvent.Site, aEvent.FilesDone, aEvent.FilesTotal,
+                 aEvent.BytesDone, aEvent.BytesTotal]));
+            end;
+          end;
+        finally
+          kb_lock.Leave;
+        end;
+      end;
+
+      cetRaceCompleted:
+      begin
+        Debug(dpMessage, rsections, Format('[cbftp] race_completed: %s on %s (%.2fs)',
+          [aEvent.Name, aEvent.Site, aEvent.TimeSpentSeconds]));
+        CbftpMainCacheUpdateJobCompleted(aEvent.Name, aEvent.Site, Round(aEvent.TimeSpentSeconds * 1000), aEvent.FilesDone, aEvent.BytesDone);
+
+        kb_lock.Enter('cetRaceCompleted');
+        try
+          fPazo := FindPazoByName('', aEvent.Name);
+          if (fPazo <> nil) and (not fPazo.cleared) then
+          begin
+            fPazoSite := fPazo.FindSite(aEvent.Site);
+            if fPazoSite <> nil then
+            begin
+              fPazoSite.status := rssComplete;
+              fPazoSite.CbftpCompletedTime := fPazo.added + (aEvent.TimeSpentSeconds / 86400.0);
+              fPazoSite.CbftpFilesDone := aEvent.FilesDone;
+              fPazoSite.CbftpBytesDone := aEvent.BytesDone;
+            end;
+          end;
+        finally
+          kb_lock.Leave;
+        end;
+        if GlRaceCompletions <> nil then
+        begin
+          if not GlRaceCompletions.TryGetValue(aEvent.Name, List) then
+          begin
+            List := TList<TCbftpEvent>.Create;
+            GlRaceCompletions.Add(aEvent.Name, List);
+          end;
+          List.Add(aEvent);
+        end;
+      end;
+
+      cetRaceDone:
+      begin
+        Debug(dpMessage, rsections, Format('[cbftp] race_done: %s status=%s',
+          [aEvent.Name, aEvent.Status]));
+        CbftpMainCacheUpdateJobDone(aEvent.Name, aEvent.Status);
+
+        { Fetch spread job details once; used for both cache and Pazo sync }
+        js := nil;
+        jsObj := nil;
+        if GlCbftpClient <> nil then
+        begin
+          try
+            s := string(GlCbftpClient.GetSpreadJob(StringToUtf8(aEvent.Name)));
+            Debug(dpMessage, rsections, Format('[cbftp] race_done GetSpreadJob len=%d for %s',
+              [Length(s), aEvent.Name]));
+            if s <> '' then
+            begin
+              js := TlkJSON.ParseText(s);
+              if (js <> nil) and (js is TlkJSONObject) then
+                jsObj := TlkJSONObject(js);
+            end;
+          except
+            on E: Exception do
+              Debug(dpError, rsections, Format('[cbftp] race_done REST sync error: %s', [E.Message]));
+          end;
+        end;
+
+        { Cache sync: per-site progress (independent of Pazo) }
+        try
+          if jsObj <> nil then
+          begin
+            jsProgress := jsObj.Field['progress'];
+            if (jsProgress <> nil) and (jsProgress is TlkJSONObject) then
+            begin
+              Debug(dpMessage, rsections, Format('[cbftp] race_done progress sites=%d for %s',
+                [TlkJSONobject(jsProgress).Count, aEvent.Name]));
+              for i := 0 to TlkJSONobject(jsProgress).Count - 1 do
+              begin
+                fSiteName := string(TlkJSONobject(jsProgress).NameOf[i]);
+                jsSiteProg := TlkJSONobject(jsProgress).Child[i];
+                if (jsSiteProg <> nil) and (jsSiteProg is TlkJSONObject) then
+                begin
+                  fFilesDone := TlkJSONobject(jsSiteProg).getInt('files_done');
+                  fFilesTotal := TlkJSONobject(jsSiteProg).getInt('total_files');
+                  fBytesDone := StrToInt64Def(TlkJSONobject(jsSiteProg).getString('bytes_done'), 0);
+                  fBytesTotal := StrToInt64Def(TlkJSONobject(jsSiteProg).getString('bytes_total'), 0);
+                  { For DONE jobs ensure completion pct is 100%. cbftp may have
+                    already cleaned up internal state so progress numbers can
+                    be slightly stale. }
+                  if SameText(aEvent.Status, 'DONE') then
+                  begin
+                    if fBytesDone < fBytesTotal then
+                      fBytesDone := fBytesTotal;
+                    if fFilesDone < fFilesTotal then
+                      fFilesDone := fFilesTotal;
+                  end;
+                  Debug(dpMessage, rsections, Format('[cbftp] race_done progress %s: fd=%d ft=%d bd=%d bt=%d',
+                    [fSiteName, fFilesDone, fFilesTotal, fBytesDone, fBytesTotal]));
+                  CbftpMainCacheUpdateJobProgress(aEvent.Name, fSiteName,
+                    fFilesDone, fFilesTotal, fBytesDone, fBytesTotal);
+                end
+                else
+                  Debug(dpMessage, rsections, Format('[cbftp] race_done progress %s: not an object', [fSiteName]));
+              end;
+            end
+            else
+              Debug(dpMessage, rsections, Format('[cbftp] race_done progress missing for %s', [aEvent.Name]));
           end;
         except
           on E: Exception do
-            Debug(dpError, rsections, Format('[cbftp] race_done REST sync error: %s', [E.Message]));
+            Debug(dpError, rsections, Format('[cbftp] race_done Cache sync JSON parsing exception: %s', [E.Message]));
         end;
-      end;
 
-      { Cache sync: per-site progress (independent of Pazo) }
-      try
-        if jsObj <> nil then
-        begin
-          jsProgress := jsObj.Field['progress'];
-          if (jsProgress <> nil) and (jsProgress is TlkJSONObject) then
+        { Pazo sync }
+        kb_lock.Enter('cetRaceDone_PazoSync');
+        try
+          fPazo := FindPazoByName('', aEvent.Name);
+          if (fPazo <> nil) and (not fPazo.cleared) then
           begin
-            Debug(dpMessage, rsections, Format('[cbftp] race_done progress sites=%d for %s',
-              [TlkJSONobject(jsProgress).Count, aEvent.Name]));
-            for i := 0 to TlkJSONobject(jsProgress).Count - 1 do
-            begin
-              fSiteName := string(TlkJSONobject(jsProgress).NameOf[i]);
-              jsSiteProg := TlkJSONobject(jsProgress).Child[i];
-              if (jsSiteProg <> nil) and (jsSiteProg is TlkJSONObject) then
+            try
+              if jsObj <> nil then
               begin
-                fFilesDone := TlkJSONobject(jsSiteProg).getInt('files_done');
-                fFilesTotal := TlkJSONobject(jsSiteProg).getInt('total_files');
-                fBytesDone := StrToInt64Def(TlkJSONobject(jsSiteProg).getString('bytes_done'), 0);
-                fBytesTotal := StrToInt64Def(TlkJSONobject(jsSiteProg).getString('bytes_total'), 0);
-                { For DONE jobs ensure completion pct is 100%. cbftp may have
-                  already cleaned up internal state so progress numbers can
-                  be slightly stale. }
-                if SameText(aEvent.Status, 'DONE') then
+                jsSites := nil;
+                if (jsObj.Field['sites'] <> nil) and (jsObj.Field['sites'] is TlkJSONlist) then
+                  jsSites := TlkJSONlist(jsObj.Field['sites']);
+
+                jsIncSites := nil;
+                if (jsObj.Field['sites_incomplete'] <> nil) and (jsObj.Field['sites_incomplete'] is TlkJSONlist) then
+                  jsIncSites := TlkJSONlist(jsObj.Field['sites_incomplete']);
+
+                if jsSites <> nil then
                 begin
-                  if fBytesDone < fBytesTotal then
-                    fBytesDone := fBytesTotal;
-                  if fFilesDone < fFilesTotal then
-                    fFilesDone := fFilesTotal;
-                end;
-                Debug(dpMessage, rsections, Format('[cbftp] race_done progress %s: fd=%d ft=%d bd=%d bt=%d',
-                  [fSiteName, fFilesDone, fFilesTotal, fBytesDone, fBytesTotal]));
-                CbftpMainCacheUpdateJobProgress(aEvent.Name, fSiteName,
-                  fFilesDone, fFilesTotal, fBytesDone, fBytesTotal);
-              end
-              else
-                Debug(dpMessage, rsections, Format('[cbftp] race_done progress %s: not an object', [fSiteName]));
-            end;
-          end
-          else
-            Debug(dpMessage, rsections, Format('[cbftp] race_done progress missing for %s', [aEvent.Name]));
-        end;
-      except
-        on E: Exception do
-          Debug(dpError, rsections, Format('[cbftp] race_done Cache sync JSON parsing exception: %s', [E.Message]));
-      end;
-
-      { Pazo sync }
-      kb_lock.Enter('cetRaceDone_PazoSync');
-      try
-        fPazo := FindPazoByName('', aEvent.Name);
-        if (fPazo <> nil) and (not fPazo.cleared) then
-        begin
-          try
-            if jsObj <> nil then
-            begin
-              jsSites := nil;
-              if (jsObj.Field['sites'] <> nil) and (jsObj.Field['sites'] is TlkJSONlist) then
-                jsSites := TlkJSONlist(jsObj.Field['sites']);
-
-              jsIncSites := nil;
-              if (jsObj.Field['sites_incomplete'] <> nil) and (jsObj.Field['sites_incomplete'] is TlkJSONlist) then
-                jsIncSites := TlkJSONlist(jsObj.Field['sites_incomplete']);
-
-              if jsSites <> nil then
-              begin
-                for i := 0 to jsSites.Count - 1 do
-                begin
-                  siteName := jsSites.Child[i].Value;
-                  fPazoSite := fPazo.FindSite(siteName);
-                  if fPazoSite <> nil then
+                  for i := 0 to jsSites.Count - 1 do
                   begin
-                    disabled := False;
-                    if jsIncSites <> nil then
+                    siteName := jsSites.Child[i].Value;
+                    fPazoSite := fPazo.FindSite(siteName);
+                    if fPazoSite <> nil then
                     begin
-                      for pazoId := 0 to jsIncSites.Count - 1 do
+                      disabled := False;
+                      if jsIncSites <> nil then
                       begin
-                        if jsIncSites.Child[pazoId].Value = siteName then
+                        for pazoId := 0 to jsIncSites.Count - 1 do
                         begin
-                          disabled := True;
-                          Break;
+                          if jsIncSites.Child[pazoId].Value = siteName then
+                          begin
+                            disabled := True;
+                            Break;
+                          end;
                         end;
                       end;
-                    end;
 
-                    if not disabled then
-                    begin
-                      fPazoSite.status := rssComplete;
-                      if fPazoSite.CbftpCompletedTime = 0 then
-                        fPazoSite.CbftpCompletedTime := Now;
+                      if not disabled then
+                      begin
+                        fPazoSite.status := rssComplete;
+                        if fPazoSite.CbftpCompletedTime = 0 then
+                          fPazoSite.CbftpCompletedTime := Now;
 
-                      if (fPazoSite.CbftpFilesDone > 0) and (fPazoSite.CbftpFilesTotal = 0) then
-                        fPazoSite.CbftpFilesTotal := fPazo.GetCountOfCachedFiles;
+                        if (fPazoSite.CbftpFilesDone > 0) and (fPazoSite.CbftpFilesTotal = 0) then
+                          fPazoSite.CbftpFilesTotal := fPazo.GetCountOfCachedFiles;
 
-                      if fPazoSite.CbftpFilesTotal < fPazoSite.CbftpFilesDone then
-                        fPazoSite.CbftpFilesTotal := fPazoSite.CbftpFilesDone;
+                        if fPazoSite.CbftpFilesTotal < fPazoSite.CbftpFilesDone then
+                          fPazoSite.CbftpFilesTotal := fPazoSite.CbftpFilesDone;
+                      end;
                     end;
                   end;
                 end;
               end;
+            except
+              on E: Exception do
+                Debug(dpError, rsections, Format('[cbftp] race_done Pazo sync JSON parsing exception: %s', [E.Message]));
             end;
-          except
-            on E: Exception do
-              Debug(dpError, rsections, Format('[cbftp] race_done Pazo sync JSON parsing exception: %s', [E.Message]));
-          end;
 
-          { Fallback: ensure all participating sites have a completion time.
-            If the REST call above failed, returned empty, or didn't list all
-            sites, any site still without CbftpCompletedTime gets Now.
-            Sites with rssNotAllowed are skipped. }
-          if (GlCbftpClient <> nil) and Assigned(fPazo.PazoSitesList) then
-          begin
-            for pazoId := 0 to fPazo.PazoSitesList.Count - 1 do
+            { Fallback: ensure all participating sites have a completion time.
+              If the REST call above failed, returned empty, or didn't list all
+              sites, any site still without CbftpCompletedTime gets Now.
+              Sites with rssNotAllowed are skipped. }
+            if (GlCbftpClient <> nil) and Assigned(fPazo.PazoSitesList) then
             begin
-              fPazoSite := TPazoSite(fPazo.PazoSitesList[pazoId]);
-              if (fPazoSite <> nil) and (fPazoSite.status <> rssNotAllowed) and (fPazoSite.CbftpCompletedTime = 0) then
+              for pazoId := 0 to fPazo.PazoSitesList.Count - 1 do
               begin
-                { Stagger fallback timestamps by 1s per site so STATS shows
-                  meaningful +Xs deltas even when cbftp didn't send per-site
-                  race_completed events. }
-                fPazoSite.CbftpCompletedTime := Now + (pazoId / 86400.0);
-                if fPazoSite.status = rssAllowed then
-                  fPazoSite.status := rssComplete;
+                fPazoSite := TPazoSite(fPazo.PazoSitesList[pazoId]);
+                if (fPazoSite <> nil) and (fPazoSite.status <> rssNotAllowed) and (fPazoSite.CbftpCompletedTime = 0) then
+                begin
+                  { Stagger fallback timestamps by 1s per site so STATS shows
+                    meaningful +Xs deltas even when cbftp didn't send per-site
+                    race_completed events. }
+                  fPazoSite.CbftpCompletedTime := Now + (pazoId / 86400.0);
+                  if fPazoSite.status = rssAllowed then
+                    fPazoSite.status := rssComplete;
+                end;
               end;
             end;
-          end;
 
-          s := fPazo.Stats(False, False);
-          if s <> '' then
-          begin
-            irc_addstats(Format('<c10>[<b>STATS</b>]</c> %s %s (%d):', [fPazo.rls.section, fPazo.rls.rlsname, fPazo.GetCountOfCachedFiles]));
-            irc_AddstatsB(fPazo.Stats(False, True));
+            s := fPazo.Stats(False, False);
+            if s <> '' then
+            begin
+              irc_addstats(Format('<c10>[<b>STATS</b>]</c> %s %s (%d):', [fPazo.rls.section, fPazo.rls.rlsname, fPazo.GetCountOfCachedFiles]));
+              irc_AddstatsB(fPazo.Stats(False, True));
+            end
+            else
+            begin
+              sectionStr := fPazo.rls.section;
+              irc_Addstats(Format('<c10>[<b>STATS</b>]</c> %s <b>%s</b> : Race Done! [Status: <b>%s</b>]', [sectionStr, aEvent.Name, aEvent.Status]));
+            end;
+
+            // Update ranks when cbftp race is fully complete
+            try
+              RanksProcess(fPazo);
+            except
+              on E: Exception do
+                Debug(dpError, rsections, Format('[cbftp] ranks update error: %s', [E.Message]));
+            end;
           end
           else
           begin
-            sectionStr := fPazo.rls.section;
+            sectionStr := FindReleaseInLatestKBList(aEvent.Name);
+            if sectionStr = '' then
+              sectionStr := 'UNKNOWN';
             irc_Addstats(Format('<c10>[<b>STATS</b>]</c> %s <b>%s</b> : Race Done! [Status: <b>%s</b>]', [sectionStr, aEvent.Name, aEvent.Status]));
           end;
-
-          // Update ranks when cbftp race is fully complete
-          try
-            RanksProcess(fPazo);
-          except
-            on E: Exception do
-              Debug(dpError, rsections, Format('[cbftp] ranks update error: %s', [E.Message]));
-          end;
-        end
-        else
-        begin
-          sectionStr := FindReleaseInLatestKBList(aEvent.Name);
-          if sectionStr = '' then
-            sectionStr := 'UNKNOWN';
-          irc_Addstats(Format('<c10>[<b>STATS</b>]</c> %s <b>%s</b> : Race Done! [Status: <b>%s</b>]', [sectionStr, aEvent.Name, aEvent.Status]));
+        finally
+          kb_lock.Leave;
         end;
-      finally
-        kb_lock.Leave;
+
+        if js <> nil then
+          js.Free;
+
+        if GlRaceCompletions <> nil then
+          GlRaceCompletions.Remove(aEvent.Name);
       end;
 
-      if js <> nil then
-        js.Free;
-
-      if GlRaceCompletions <> nil then
-        GlRaceCompletions.Remove(aEvent.Name);
-    end;
-
-    cetSpeedSample:
-    begin
-      Debug(dpSpam, rsections, Format('[cbftp] speed %s -> %s: %.2f Mbps (file %d bytes)',
-        [aEvent.SrcSite, aEvent.DstSite, aEvent.SpeedMbps, aEvent.FileSize]));
-      
-      pazoId := 0;
-      rank := 1;
-      kb_lock.Enter('cetSpeedSample');
-      try
-        fPazo := FindPazoByName('', aEvent.Name);
-        if (fPazo <> nil) and (not fPazo.cleared) then
-        begin
-          pazoId := fPazo.pazo_id;
-          if (aEvent.Filename <> '') and (aEvent.FileSize > 0) then
-          begin
-            fPazo.RegisterCbftpFile(aEvent.Filename, aEvent.FileSize);
-          end;
-
-          fPazoSite := fPazo.FindSite(aEvent.DstSite);
-          if fPazoSite <> nil then
-          begin
-            Inc(fPazoSite.CbftpFilesDone);
-            Inc(fPazoSite.CbftpBytesDone, aEvent.FileSize);
-          end;
-
-          fPazoSite := fPazo.FindSite(aEvent.SrcSite);
-          if fPazoSite <> nil then
-          begin
-            { NOTE: Do NOT set Source site to rssComplete here. }
-          end;
-        end;
-      finally
-        kb_lock.Leave;
-      end;
-
-      if (aEvent.FileSize > 0) and (aEvent.SpeedMbps > 0) then
+      cetSpeedSample:
       begin
-        fsize := aEvent.FileSize / 1024.0; // kB
-        racebw := (aEvent.SpeedMbps / 8.0) * 1024.0; // kB/s
-        timeSpent := fsize / racebw;
-
-        if (aEvent.FileSize > 1024) then
-        begin
-          if (racebw > 1024) then
-            speed_stat := Format('<b>%.2f</b>mB in <b>%.2f</b>s @ <b>%.2f</b>mB/s', [fsize / 1024.0, timeSpent, racebw / 1024.0])
-          else
-            speed_stat := Format('<b>%.2f</b>mB in <b>%.2f</b>s @ <b>%.2f</b>kB/s', [fsize / 1024.0, timeSpent, racebw]);
-        end
-        else
-        begin
-          if (racebw > 1024) then
-            speed_stat := Format('<b>%.2f</b>kB in <b>%.2f</b>s @ <b>%.2f</b>mB/s', [fsize, timeSpent, racebw / 1024.0])
-          else
-            speed_stat := Format('<b>%.2f</b>kB in <b>%.2f</b>s @ <b>%.2f</b>kB/s', [fsize, timeSpent, racebw]);
-        end;
-      end
-      else
-        speed_stat := 'ZERO FILESIZE!';
-
-      siteInfo := Format(' <c9>[%s -> %s]</c>', [aEvent.SrcSite, aEvent.DstSite]);
-      tname := Format('<c7>[RACE]</c> #%d%s : <c10><b>%s</b></c> <c7>%s</c> <c7>(%d)</c>',
-        [pazoId, siteInfo, aEvent.Name, aEvent.Filename, rank]);
-
-      irc_Addstats(tname + ' ' + speed_stat);
-      // Feed cbftp speed samples into slftp stats system
-      kb_lock.Enter('cetSpeedSample_Stats');
-      try
-        s := FindReleaseInLatestKBList(aEvent.Name);
-      finally
-        kb_lock.Leave;
-      end;
-      if s = '' then
-        s := 'UNKNOWN';
-      try
-        SpeedStatAdd(aEvent.SrcSite, aEvent.DstSite, aEvent.SpeedMbps, s, aEvent.Name);
-        statsProcessRace(aEvent.SrcSite, aEvent.DstSite, s, aEvent.Name, aEvent.Filename, aEvent.FileSize);
-      except
-        on E: Exception do
-          Debug(dpError, rsections, Format('[cbftp] stats write error: %s', [E.Message]));
-      end;
-    end;
-
-    cetNfoAvailable:
-    begin
-      Debug(dpMessage, rsections, Format('[cbftp] nfo_available: %s on %s (path=%s, size=%d)',
-        [aEvent.Name, aEvent.Site, aEvent.Section, aEvent.FileSize]));
-      if (last_addnfo <> nil) and (last_addnfo.IndexOf(aEvent.Name) <> -1) then
-      begin
-        Debug(dpMessage, rsections, Format('[cbftp] NFO for %s already downloaded, skipping.', [aEvent.Name]));
-        exit;
-      end;
-      
-      needsNfo := False;
-      rlsSection := '';
-      kb_lock.Enter('cetNfoAvailable');
-      try
-        fPazo := FindPazoByName('', aEvent.Name);
-        if (fPazo <> nil) and (not fPazo.cleared) and (fPazo.rls <> nil) then
-        begin
-          if RulesNeedNfo(fPazo) then
+        Debug(dpSpam, rsections, Format('[cbftp] speed %s -> %s: %.2f Mbps (file %d bytes)',
+          [aEvent.SrcSite, aEvent.DstSite, aEvent.SpeedMbps, aEvent.FileSize]));
+        
+        pazoId := 0;
+        rank := 1;
+        kb_lock.Enter('cetSpeedSample');
+        try
+          fPazo := FindPazoByName('', aEvent.Name);
+          if (fPazo <> nil) and (not fPazo.cleared) then
           begin
-            needsNfo := True;
-            rlsSection := fPazo.rls.section;
-          end;
-        end;
-      finally
-        kb_lock.Leave;
-      end;
-
-      if needsNfo and (GlCbftpClient <> nil) then
-      begin
-        nfoData := string(GlCbftpClient.GetFile(StringToUtf8(aEvent.Site), StringToUtf8(aEvent.Section)));
-        if nfoData <> '' then
-        begin
-          dbaddnfo_SaveNfo(aEvent.Name, aEvent.Section, nfoData);
-          // Extract genre from NFO and update release
-          genre := '';
-          i := Pos('genre', LowerCase(nfoData));
-          if i > 0 then
-          begin
-            genre := Copy(nfoData, i + 5, 100);
-            for i := 1 to Length(genre) do
+            pazoId := fPazo.pazo_id;
+            if (aEvent.Filename <> '') and (aEvent.FileSize > 0) then
             begin
-              if CharInSet(genre[i], [#13, #10]) then
+              fPazo.RegisterCbftpFile(aEvent.Filename, aEvent.FileSize);
+            end;
+
+            fPazoSite := fPazo.FindSite(aEvent.DstSite);
+            if fPazoSite <> nil then
+            begin
+              Inc(fPazoSite.CbftpFilesDone);
+              Inc(fPazoSite.CbftpBytesDone, aEvent.FileSize);
+            end;
+
+            fPazoSite := fPazo.FindSite(aEvent.SrcSite);
+            if fPazoSite <> nil then
+            begin
+              { NOTE: Do NOT set Source site to rssComplete here. }
+            end;
+          end;
+        finally
+          kb_lock.Leave;
+        end;
+
+        if (aEvent.FileSize > 0) and (aEvent.SpeedMbps > 0) then
+        begin
+          fsize := aEvent.FileSize / 1024.0; // kB
+          racebw := (aEvent.SpeedMbps / 8.0) * 1024.0; // kB/s
+          timeSpent := fsize / racebw;
+
+          if (aEvent.FileSize > 1024) then
+          begin
+            if (racebw > 1024) then
+              speed_stat := Format('<b>%.2f</b>mB in <b>%.2f</b>s @ <b>%.2f</b>mB/s', [fsize / 1024.0, timeSpent, racebw / 1024.0])
+            else
+              speed_stat := Format('<b>%.2f</b>mB in <b>%.2f</b>s @ <b>%.2f</b>kB/s', [fsize / 1024.0, timeSpent, racebw]);
+          end
+          else
+          begin
+            if (racebw > 1024) then
+              speed_stat := Format('<b>%.2f</b>kB in <b>%.2f</b>s @ <b>%.2f</b>mB/s', [fsize, timeSpent, racebw / 1024.0])
+            else
+              speed_stat := Format('<b>%.2f</b>kB in <b>%.2f</b>s @ <b>%.2f</b>kB/s', [fsize, timeSpent, racebw]);
+          end;
+        end
+        else
+          speed_stat := 'ZERO FILESIZE!';
+
+        siteInfo := Format(' <c9>[%s -> %s]</c>', [aEvent.SrcSite, aEvent.DstSite]);
+        tname := Format('<c7>[RACE]</c> #%d%s : <c10><b>%s</b></c> <c7>%s</c> <c7>(%d)</c>',
+          [pazoId, siteInfo, aEvent.Name, aEvent.Filename, rank]);
+
+        irc_Addstats(tname + ' ' + speed_stat);
+        // Feed cbftp speed samples into slftp stats system
+        kb_lock.Enter('cetSpeedSample_Stats');
+        try
+          s := FindReleaseInLatestKBList(aEvent.Name);
+        finally
+          kb_lock.Leave;
+        end;
+        if s = '' then
+          s := 'UNKNOWN';
+        try
+          SpeedStatAdd(aEvent.SrcSite, aEvent.DstSite, aEvent.SpeedMbps, s, aEvent.Name);
+          statsProcessRace(aEvent.SrcSite, aEvent.DstSite, s, aEvent.Name, aEvent.Filename, aEvent.FileSize);
+        except
+          on E: Exception do
+            Debug(dpError, rsections, Format('[cbftp] stats write error: %s', [E.Message]));
+        end;
+      end;
+
+      cetNfoAvailable:
+      begin
+        Debug(dpMessage, rsections, Format('[cbftp] nfo_available: %s on %s (path=%s, size=%d)',
+          [aEvent.Name, aEvent.Site, aEvent.Section, aEvent.FileSize]));
+        if (last_addnfo <> nil) and (last_addnfo.IndexOf(aEvent.Name) <> -1) then
+        begin
+          Debug(dpMessage, rsections, Format('[cbftp] NFO for %s already downloaded, skipping.', [aEvent.Name]));
+          exit;
+        end;
+        
+        needsNfo := False;
+        rlsSection := '';
+        kb_lock.Enter('cetNfoAvailable');
+        try
+          fPazo := FindPazoByName('', aEvent.Name);
+          if (fPazo <> nil) and (not fPazo.cleared) and (fPazo.rls <> nil) then
+          begin
+            if RulesNeedNfo(fPazo) then
+            begin
+              needsNfo := True;
+              rlsSection := fPazo.rls.section;
+            end;
+          end;
+        finally
+          kb_lock.Leave;
+        end;
+
+        if needsNfo and (GlCbftpClient <> nil) then
+        begin
+          nfoData := string(GlCbftpClient.GetFile(StringToUtf8(aEvent.Site), StringToUtf8(aEvent.Section)));
+          if nfoData <> '' then
+          begin
+            dbaddnfo_SaveNfo(aEvent.Name, aEvent.Section, nfoData);
+            // Extract genre from NFO and update release
+            genre := '';
+            i := Pos('genre', LowerCase(nfoData));
+            if i > 0 then
+            begin
+              genre := Copy(nfoData, i + 5, 100);
+              for i := 1 to Length(genre) do
               begin
-                genre := Copy(genre, 1, i - 1);
-                Break;
+                if CharInSet(genre[i], [#13, #10]) then
+                begin
+                  genre := Copy(genre, 1, i - 1);
+                  Break;
+                end;
+                if not CharInSet(genre[i], ['a'..'z', 'A'..'Z']) then
+                  genre[i] := ' ';
               end;
-              if not CharInSet(genre[i], ['a'..'z', 'A'..'Z']) then
-                genre[i] := ' ';
+              while True do
+              begin
+                s := ReplaceText(genre, '  ', ' ');
+                if s = genre then Break;
+                genre := s;
+              end;
+              genre := Trim(genre);
             end;
-            while True do
-            begin
-              s := ReplaceText(genre, '  ', ' ');
-              if s = genre then Break;
-              genre := s;
-            end;
-            genre := Trim(genre);
+            if genre <> '' then
+              kb_Add('', '', aEvent.Site, rlsSection, genre, kbeUPDATE, aEvent.Name, '');
+          end
+          else
+          begin
+            Debug(dpError, rsections, Format('[cbftp] Failed to download NFO for %s from %s', [aEvent.Name, aEvent.Site]));
           end;
-          if genre <> '' then
-            kb_Add('', '', aEvent.Site, rlsSection, genre, kbeUPDATE, aEvent.Name, '');
-        end
-        else
-        begin
-          Debug(dpError, rsections, Format('[cbftp] Failed to download NFO for %s from %s', [aEvent.Name, aEvent.Site]));
         end;
       end;
-    end;
 
-    cetHeartbeat:
-    begin
-      Debug(dpSpam, rsections, '[cbftp] heartbeat');
-    end;
-
-    cetSiteStatus:
-    begin
-      Debug(dpMessage, rsections, Format('[cbftp] site_status event: %s disabled=%d',
-        [aEvent.Site, Ord(aEvent.Disabled)]));
-      CbftpMainCacheUpdateSiteDisabled(aEvent.Site, aEvent.Disabled);
-      fSite := FindSiteByName('', aEvent.Site);
-      if fSite <> nil then
+      cetHeartbeat:
       begin
-        if aEvent.Disabled then
+        Debug(dpSpam, rsections, '[cbftp] heartbeat');
+      end;
+
+      cetSiteStatus:
+      begin
+        Debug(dpMessage, rsections, Format('[cbftp] site_status event: %s disabled=%d',
+          [aEvent.Site, Ord(aEvent.Disabled)]));
+        CbftpMainCacheUpdateSiteDisabled(aEvent.Site, aEvent.Disabled);
+        fSite := FindSiteByName('', aEvent.Site);
+        if fSite <> nil then
         begin
-          if fSite.WorkingStatus <> sstMarkedAsDownByUser then
-            fSite.WorkingStatus := sstMarkedAsDownByUser;
-        end
-        else
-        begin
-          if fSite.WorkingStatus <> sstUp then
-            fSite.WorkingStatus := sstUp;
+          if aEvent.Disabled then
+          begin
+            if fSite.WorkingStatus <> sstMarkedAsDownByUser then
+              fSite.WorkingStatus := sstMarkedAsDownByUser;
+          end
+          else
+          begin
+            if fSite.WorkingStatus <> sstUp then
+              fSite.WorkingStatus := sstUp;
+          end;
         end;
       end;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, rsections, Format('[EXCEPTION] _CbftpEventHandler (eventType=%d, name=%s): %s', [Ord(aEvent.EventType), aEvent.Name, E.Message]));
+      raise;
     end;
   end;
 end;
