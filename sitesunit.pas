@@ -1605,15 +1605,6 @@ begin
   while ((not slshutdown) and (not shouldquit)) do
   begin
     try
-      // NEW: Check command scheduler first (before regular task queue)
-      if TryExecuteCommand then
-      begin
-        // Command executed, fire queue to check for race tasks and continue loop
-        if ((not shouldquit) and (not slshutdown)) then
-          site.QueueFire;
-        Continue;
-      end;
-
       if status = ssOnline then
         Console_Slot_Add(Name, 'Idle...');
 
@@ -1735,6 +1726,14 @@ begin
       end
       else
       begin
+        // Check command scheduler when no queued task is waiting
+        if TryExecuteCommand then
+        begin
+          if ((not shouldquit) and (not slshutdown)) then
+            site.QueueFire;
+          Continue;
+        end;
+
         //event.WaitFor($FFFFFFFF);
         case event.WaitFor(15 * 60 * 1000) of
           wrSignaled: { Event fired. Normal exit. }
