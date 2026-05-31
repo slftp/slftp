@@ -5198,8 +5198,9 @@ end;
 
 function TSite.MaxCommandSlots: Integer;
 begin
-  // Reserve at least half the slots for race tasks to prevent starvation
-  Result := Max(slots.Count div 2, 1);
+  // All slots may execute scheduler commands; race tasks have priority
+  // because todotask is checked before TryExecuteCommand in TSiteSlot.Execute
+  Result := Max(slots.Count, 1);
 end;
 
 function TSite.ActiveCommandCount: Integer;
