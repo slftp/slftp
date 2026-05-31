@@ -331,21 +331,34 @@ procedure TCommandScheduler.IncrementPazoDirCount(const aPazoID: Integer);
 var
   fCount: Integer;
 begin
-  if not fPazoDirCount.TryGetValue(aPazoID, fCount) then
-    fCount := 0;
-  fPazoDirCount[aPazoID] := fCount + 1;
+  // NOTE: FPC's TDictionary.SetItem does NOT auto-add missing keys!
+  // Using Items[key] := value on a missing key raises EListError.
+  // We must use Remove+Add instead.
+  if fPazoDirCount.TryGetValue(aPazoID, fCount) then
+  begin
+    fPazoDirCount.Remove(aPazoID);
+    fPazoDirCount.Add(aPazoID, fCount + 1);
+  end
+  else
+  begin
+    fPazoDirCount.Add(aPazoID, 1);
+  end;
 end;
 
 procedure TCommandScheduler.DecrementPazoDirCount(const aPazoID: Integer);
 var
   fCount: Integer;
 begin
+  // NOTE: FPC's TDictionary.SetItem does NOT auto-add missing keys!
   if fPazoDirCount.TryGetValue(aPazoID, fCount) then
   begin
     if fCount <= 1 then
       fPazoDirCount.Remove(aPazoID)
     else
-      fPazoDirCount[aPazoID] := fCount - 1;
+    begin
+      fPazoDirCount.Remove(aPazoID);
+      fPazoDirCount.Add(aPazoID, fCount - 1);
+    end;
   end;
 end;
 
