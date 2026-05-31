@@ -237,12 +237,15 @@ function TCommandScheduler.FindRequestIndex(const aList: TList<TCommandRequest>;
   const aPazoID: Integer; const aDir, aSite: String): Integer;
 var
   i: Integer;
+  fArr: TArray<TCommandRequest>;
 begin
   Result := -1;
   try
-    for i := 0 to aList.Count - 1 do
+    // Snapshot into local array to avoid any list mutation during iteration
+    fArr := aList.ToArray;
+    for i := 0 to High(fArr) do
     begin
-      if (aList[i].pazo_id = aPazoID) and (aList[i].dir = aDir) and (aList[i].site = aSite) then
+      if (fArr[i].pazo_id = aPazoID) and (fArr[i].dir = aDir) and (fArr[i].site = aSite) then
       begin
         Result := i;
         Exit;
@@ -261,12 +264,15 @@ function TCommandScheduler.FindRequestIndexEx(const aList: TList<TCommandRequest
   const aPazoID: Integer; const aDir, aSite, aExtraKey: String): Integer;
 var
   i: Integer;
+  fArr: TArray<TCommandRequest>;
 begin
   Result := -1;
   try
-    for i := 0 to aList.Count - 1 do
+    // Snapshot into local array to avoid any list mutation during iteration
+    fArr := aList.ToArray;
+    for i := 0 to High(fArr) do
     begin
-      if (aList[i].pazo_id = aPazoID) and (aList[i].dir = aDir) and (aList[i].site = aSite) and (aList[i].cmd = aExtraKey) then
+      if (fArr[i].pazo_id = aPazoID) and (fArr[i].dir = aDir) and (fArr[i].site = aSite) and (fArr[i].cmd = aExtraKey) then
       begin
         Result := i;
         Exit;
@@ -355,63 +361,89 @@ var
   fIdx: Integer;
 begin
   Result := False;
+
+  // --- Step 1: Deduplicate ---
   try
-    // Deduplicate: reject if same (pazo_id, dir) already exists
-    // For Raw commands, also check cmd field
     if aReq.command_type = ctRaw then
       fIdx := FindRequestIndexEx(aList, aReq.pazo_id, aReq.dir, aReq.site, aReq.cmd)
     else
       fIdx := FindRequestIndex(aList, aReq.pazo_id, aReq.dir, aReq.site);
-
-    if fIdx >= 0 then
+  except
+    on E: Exception do
     begin
-      case aReq.command_type of
-        ctDirlist:
-          Debug(dpSpam, section, '[DEDUP] Rejecting DIRLIST for pazo %d dir %s (already scheduled)',
-            [aReq.pazo_id, aReq.dir]);
-        ctMkdir:
-          Debug(dpSpam, section, '[DEDUP] Rejecting MKDIR for pazo %d dir %s (already scheduled)',
-            [aReq.pazo_id, aReq.dir]);
-        ctSfvDownload:
-          Debug(dpSpam, section, '[DEDUP] Rejecting SFV for pazo %d dir %s file %s (already scheduled)',
-            [aReq.pazo_id, aReq.dir, aReq.sfv_filename]);
-        ctNfoDownload:
-          Debug(dpSpam, section, '[DEDUP] Rejecting NFO for pazo %d dir %s (already scheduled)',
-            [aReq.pazo_id, aReq.dir]);
-        ctCwd:
-          Debug(dpSpam, section, '[DEDUP] Rejecting CWD for dir %s (already scheduled)',
-            [aReq.dir]);
-        ctRaw:
-          Debug(dpSpam, section, '[DEDUP] Rejecting RAW for dir %s cmd %s (already scheduled)',
-            [aReq.dir, aReq.cmd]);
-        ctLogin:
-          Debug(dpSpam, section, '[DEDUP] Rejecting LOGIN for site %s (already scheduled)',
-            [aReq.site]);
-      end;
-      Exit;
+      Debug(dpError, section, Format('[EXCEPTION] InternalAddRequest dedup: %s (count=%d pazo=%d dir=%s site=%s)', [E.Message, aList.Count, aReq.pazo_id, aReq.dir, aReq.site]));
+      raise;
     end;
+  end;
 
-    // Cap check for dirlists
+  if fIdx >= 0 then
+  begin
+    case aReq.command_type of
+      ctDirlist:
+        Debug(dpSpam, section, '[DEDUP] Rejecting DIRLIST for pazo %d dir %s (already scheduled)',
+          [aReq.pazo_id, aReq.dir]);
+      ctMkdir:
+        Debug(dpSpam, section, '[DEDUP] Rejecting MKDIR for pazo %d dir %s (already scheduled)',
+          [aReq.pazo_id, aReq.dir]);
+      ctSfvDownload:
+        Debug(dpSpam, section, '[DEDUP] Rejecting SFV for pazo %d dir %s file %s (already scheduled)',
+          [aReq.pazo_id, aReq.dir, aReq.sfv_filename]);
+      ctNfoDownload:
+        Debug(dpSpam, section, '[DEDUP] Rejecting NFO for pazo %d dir %s (already scheduled)',
+          [aReq.pazo_id, aReq.dir]);
+      ctCwd:
+        Debug(dpSpam, section, '[DEDUP] Rejecting CWD for dir %s (already scheduled)',
+          [aReq.dir]);
+      ctRaw:
+        Debug(dpSpam, section, '[DEDUP] Rejecting RAW for dir %s cmd %s (already scheduled)',
+          [aReq.dir, aReq.cmd]);
+      ctLogin:
+        Debug(dpSpam, section, '[DEDUP] Rejecting LOGIN for site %s (already scheduled)',
+          [aReq.site]);
+    end;
+    Exit;
+  end;
+
+  // --- Step 2: Cap check ---
+  try
     if (aReq.command_type = ctDirlist) and (GetPazoDirCount(aReq.pazo_id) >= cMaxPazoDirCount) then
     begin
       Debug(dpSpam, section, '[CAP] Rejecting DIRLIST for pazo %d dir %s (cap %d reached)',
         [aReq.pazo_id, aReq.dir, cMaxPazoDirCount]);
       Exit;
     end;
-
-    aList.Add(aReq);
-
-    if aReq.command_type = ctDirlist then
-      IncrementPazoDirCount(aReq.pazo_id);
-
-    Result := True;
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] InternalAddRequest step: %s (cmdtype=%d pazo=%d dir=%s site=%s)', [E.Message, Ord(aReq.command_type), aReq.pazo_id, aReq.dir, aReq.site]));
+      Debug(dpError, section, Format('[EXCEPTION] InternalAddRequest capcheck: %s (pazo=%d)', [E.Message, aReq.pazo_id]));
       raise;
     end;
   end;
+
+  // --- Step 3: Add to list ---
+  try
+    aList.Add(aReq);
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] InternalAddRequest add: %s (count=%d pazo=%d)', [E.Message, aList.Count, aReq.pazo_id]));
+      raise;
+    end;
+  end;
+
+  // --- Step 4: Increment dir count ---
+  try
+    if aReq.command_type = ctDirlist then
+      IncrementPazoDirCount(aReq.pazo_id);
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] InternalAddRequest increment: %s (pazo=%d)', [E.Message, aReq.pazo_id]));
+      raise;
+    end;
+  end;
+
+  Result := True;
 end;
 
 function TCommandScheduler.InternalGetNextRequest(
