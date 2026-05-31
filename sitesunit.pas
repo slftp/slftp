@@ -1730,7 +1730,10 @@ begin
         if TryExecuteCommand then
         begin
           if ((not shouldquit) and (not slshutdown)) then
+          begin
             site.QueueFire;
+            site.SchedulerFire; // wake another slot if more scheduler work exists
+          end;
           Continue;
         end;
 
