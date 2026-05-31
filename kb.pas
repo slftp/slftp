@@ -228,13 +228,16 @@ var
   procedure KbListsCleanUp;
   begin
     try
-      i := kb_trimmed_rls.Count - 1;
-      if i > 200 then
+      if Assigned(kb_trimmed_rls) then
       begin
-        while i > 150 do
+        i := kb_trimmed_rls.Count - 1;
+        if i > 200 then
         begin
-          kb_trimmed_rls.Delete(0);
-          i := kb_trimmed_rls.Count - 1;
+          while i > 150 do
+          begin
+            kb_trimmed_rls.Delete(0);
+            i := kb_trimmed_rls.Count - 1;
+          end;
         end;
       end;
     except
@@ -245,13 +248,16 @@ var
     end;
 
     try
-      i := kb_groupcheck_rls.Count - 1;
-      if i > 200 then
+      if Assigned(kb_groupcheck_rls) then
       begin
-        while i > 150 do
+        i := kb_groupcheck_rls.Count - 1;
+        if i > 200 then
         begin
-          kb_groupcheck_rls.Delete(0);
-          i := kb_groupcheck_rls.Count - 1;
+          while i > 150 do
+          begin
+            kb_groupcheck_rls.Delete(0);
+            i := kb_groupcheck_rls.Count - 1;
+          end;
         end;
       end;
     except
@@ -262,13 +268,16 @@ var
     end;
 
     try
-      i := kb_latest.Count - 1;
-      if i > 200 then
+      if Assigned(kb_latest) then
       begin
-        while i > 150 do
+        i := kb_latest.Count - 1;
+        if i > 200 then
         begin
-          kb_latest.Delete(i);
-          i := kb_latest.Count - 1;
+          while i > 150 do
+          begin
+            kb_latest.Delete(i);
+            i := kb_latest.Count - 1;
+          end;
         end;
       end;
     except
@@ -279,13 +288,16 @@ var
     end;
 
     try
-      i := kb_skip.Count - 1;
-      if i > 300 then
+      if Assigned(kb_skip) then
       begin
-        while i > 250 do
+        i := kb_skip.Count - 1;
+        if i > 300 then
         begin
-          kb_skip.Delete(i);
-          i := kb_skip.Count - 1;
+          while i > 250 do
+          begin
+            kb_skip.Delete(i);
+            i := kb_skip.Count - 1;
+          end;
         end;
       end;
     except
@@ -305,7 +317,7 @@ begin
   psource := nil;
   try
     // deny adding of a release twice with different section
-    if (section <> '') then
+    if (section <> '') and Assigned(kb_latest) then
     begin
       i := kb_latest.IndexOfName(rls);
       if i <> -1 then
@@ -317,25 +329,26 @@ begin
             irc_addadmin(Format('<b><c4>%s</c> @ %s </b>was caught as section %s but is already in KB with section %s', [rls, sitename, section, ss]));
           exit;
         end;
-      end
+      end;
     end;
 
     // check if rls already skiped
-    if kb_skip.IndexOf(rls) <> -1 then
+    if Assigned(kb_skip) and (kb_skip.IndexOf(rls) <> -1) then
     begin
       if spamcfg.readbool(rsections, 'skipped_release', True) then
         irc_addadmin(format('<b><c4>%s</c> @ %s </b>is in skipped releases list!', [rls, sitename]));
       exit;
     end;
 
-    if trimmed_shit_checker then
+    if trimmed_shit_checker and Assigned(kb_trimmed_rls) then
     begin
       try
         i := kb_trimmed_rls.IndexOf(section + '-' + rls);
         if i <> -1 then
         begin
           irc_addadmin(Format('<b><c4>%s</c> @ %s is trimmed shit!</b>', [rls, sitename]));
-          kb_skip.Insert(0, rls);
+          if Assigned(kb_skip) then
+            kb_skip.Insert(0, rls);
           exit;
         end;
 
@@ -349,7 +362,7 @@ begin
       end;
     end;
 
-    if renamed_group_checker then
+    if renamed_group_checker and Assigned(kb_groupcheck_rls) then
     begin
       try
         grp := GetGroupname(rls);
@@ -363,14 +376,16 @@ begin
           begin
             if spamcfg.readbool(rsections, 'renamed_group', True) then
               irc_addadmin(format('<b><c4>%s</c> @ %s </b>is renamed group shit! %s vs. %s', [rls, sitename, grp, ss]));
-            kb_skip.Insert(0, rls);
+            if Assigned(kb_skip) then
+              kb_skip.Insert(0, rls);
             exit;
           end;
           if grp <> ss then
           begin
             if spamcfg.readbool(rsections, 'renamed_group', True) then
               irc_addadmin(format('<b><c4>%s</c> @ %s </b>is changed case group shit! %s vs. %s', [rls, sitename, grp, ss]));
-            kb_skip.Insert(0, rls);
+            if Assigned(kb_skip) then
+              kb_skip.Insert(0, rls);
             exit;
           end;
         end;
@@ -384,7 +399,7 @@ begin
 
     // don't even enter the checking code if the release is already in kb_latest, because then we already handled it and it's clean
     // because kb_skip would've prevented kb_addb being called from kb_add
-    if (kb_latest.IndexOfName(rls) = -1) then
+    if Assigned(kb_latest) and (kb_latest.IndexOfName(rls) = -1) then
     begin
       if (renamed_release_checker) then
       begin
@@ -409,7 +424,8 @@ begin
                   // release is brand-new but a rename of an already existing release
                   kb_latest.Insert(0, rls + '=' + section);
                   // gonna insert this anyway, because there are sometimes renames of renames
-                  kb_skip.Insert(0, rls);
+                  if Assigned(kb_skip) then
+                    kb_skip.Insert(0, rls);
                   exit;
                 end;
               end;
@@ -436,6 +452,8 @@ begin
 
   kb_lock.Enter('kb_AddB_2');
   try
+    if not Assigned(kb_list) then
+      exit;
     i := kb_list.IndexOf(section + '-' + rls);
     if i = -1 then
     begin
@@ -1448,21 +1466,23 @@ procedure kb_FreeList;
 var
   i: integer;
 begin
-  for i := 0 to kb_list.Count - 1 do
+  if Assigned(kb_list) then
   begin
-    try
-      if kb_List.Objects[i] <> nil then
-      begin
-        kb_List.Objects[i].Free;
-        kb_List.Objects[i] := nil;
+    for i := 0 to kb_list.Count - 1 do
+    begin
+      try
+        if kb_List.Objects[i] <> nil then
+        begin
+          kb_List.Objects[i].Free;
+          kb_List.Objects[i] := nil;
+        end;
+      except
+        continue;
       end;
-    except
-      continue;
     end;
+    FreeAndNil(kb_list);
   end;
-
-  kb_list.Free;
-  kb_trimmed_rls.Free;
+  FreeAndNil(kb_trimmed_rls);
 end;
 
 function kb_reloadsections: boolean;
@@ -1558,6 +1578,8 @@ end;
 
 procedure kb_Stop;
 begin
+  CbftpEventsSetHandler(nil);
+  CbftpUdpEventsStop;
   while (kb_thread <> nil) do
     sleep(100);
 end;
@@ -1565,14 +1587,14 @@ end;
 procedure kb_Uninit;
 begin
   Debug(dpSpam, rsections, 'Uninit1');
-  kb_sections.Free;
-  kb_latest.Free;
-  kb_skip.Free;
-  kb_groupcheck_rls.Free;
+  FreeAndNil(kb_sections);
+  FreeAndNil(kb_latest);
+  FreeAndNil(kb_skip);
+  FreeAndNil(kb_groupcheck_rls);
 
   KbReleaseUninit;
 
-  kb_lock.Free;
+  FreeAndNil(kb_lock);
   FreeAndNil(GlRaceCompletions);
 
   Debug(dpSpam, rsections, 'Uninit2');
