@@ -441,6 +441,7 @@ type
 
     procedure AddTask(const t: TTask; const queueFire: boolean = false);
     procedure QueueFire;
+    procedure SchedulerFire;
     procedure QueueClean;
     procedure QueueSort;
     function RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
@@ -1189,6 +1190,24 @@ end;
 procedure TSite.QueueFire;
 begin
   fQueue.QueueFire;
+end;
+
+procedure TSite.SchedulerFire;
+var
+  fSlot: TSiteSlot;
+begin
+  // Wake up one free slot if the scheduler has work
+  if (fCommandScheduler = nil) or (fCommandScheduler.GetTotalCount = 0) then
+    Exit;
+
+  for fSlot in slots do
+  begin
+    if (fSlot.todotask = nil) and (fSlot.status = ssOnline) then
+    begin
+      fSlot.Fire;
+      Exit;
+    end;
+  end;
 end;
 
 procedure QueueEmpty(const sitename: String);

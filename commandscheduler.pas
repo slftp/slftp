@@ -74,10 +74,6 @@ type
       const aPazoID: Integer; const aDir, aSite: String): Integer; overload;
     function FindRequestIndexEx(const aList: TList<TCommandRequest>;
       const aPazoID: Integer; const aDir, aSite, aExtraKey: String): Integer; overload;
-    function GetDirlistCount: Integer;
-    function GetMkdirCount: Integer;
-    function GetOtherCount: Integer;
-    function GetTotalCount: Integer;
     procedure IncrementPazoDirCount(const aPazoID: Integer);
     procedure DecrementPazoDirCount(const aPazoID: Integer);
     function GetPazoDirCount(const aPazoID: Integer): Integer;
@@ -97,6 +93,12 @@ type
   public
     constructor Create(const aSiteName: String);
     destructor Destroy; override;
+
+    // Count accessors
+    function GetDirlistCount: Integer;
+    function GetMkdirCount: Integer;
+    function GetOtherCount: Integer;
+    function GetTotalCount: Integer;
 
     // Schedule a command. Returns False if duplicate or cap reached.
     function ScheduleDirlist(const aReq: TCommandRequest): Boolean;

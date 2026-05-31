@@ -1059,7 +1059,10 @@ begin
   fReq.priority := APriority;
 
   if fSite.CommandScheduler.ScheduleDirlist(fReq) then
-    aTask.Free  // scheduler owns the request, task object no longer needed
+  begin
+    aTask.Free;  // scheduler owns the request, task object no longer needed
+    fSite.SchedulerFire; // wake up slots to service the scheduler
+  end
   else
   begin
     // Scheduling failed (duplicate or cap), free task but don't treat as error
@@ -1090,7 +1093,10 @@ begin
   fReq.depending_on_dirlist := aTask.FDependingOnDirlist;
 
   if fSite.CommandScheduler.ScheduleMkdir(fReq) then
-    aTask.Free
+  begin
+    aTask.Free;
+    fSite.SchedulerFire;
+  end
   else
   begin
     Debug(dpSpam, 'kb', Format('[DEDUP] Mkdir for pazo %d dir %s on %s already scheduled',
@@ -1121,7 +1127,10 @@ begin
   fReq.attempt := 0; // attempt counter managed by task itself
 
   if fSite.CommandScheduler.ScheduleCommand(fReq) then
-    aTask.Free
+  begin
+    aTask.Free;
+    fSite.SchedulerFire;
+  end
   else
   begin
     Debug(dpSpam, 'kb', Format('[DEDUP] SFV for pazo %d dir %s file %s on %s already scheduled',
@@ -1151,7 +1160,10 @@ begin
   fReq.attempt := 0;
 
   if fSite.CommandScheduler.ScheduleCommand(fReq) then
-    aTask.Free
+  begin
+    aTask.Free;
+    fSite.SchedulerFire;
+  end
   else
   begin
     Debug(dpSpam, 'kb', Format('[DEDUP] NFO for pazo %d on %s already scheduled',
@@ -1180,7 +1192,10 @@ begin
     aTask.netname, aTask.channel);
 
   if fSite.CommandScheduler.ScheduleCommand(fReq) then
-    aTask.Free
+  begin
+    aTask.Free;
+    fSite.SchedulerFire;
+  end
   else
   begin
     Debug(dpSpam, 'kb', Format('[DEDUP] CWD for dir %s on %s already scheduled',
@@ -1210,7 +1225,10 @@ begin
   fReq.cmd := aTask.cmd;
 
   if fSite.CommandScheduler.ScheduleCommand(fReq) then
-    aTask.Free
+  begin
+    aTask.Free;
+    fSite.SchedulerFire;
+  end
   else
   begin
     Debug(dpSpam, 'kb', Format('[DEDUP] RAW for dir %s cmd %s on %s already scheduled',
@@ -1246,7 +1264,10 @@ begin
     aTask.netname, aTask.channel);
 
   if fSite.CommandScheduler.ScheduleCommand(fReq) then
-    aTask.Free
+  begin
+    aTask.Free;
+    fSite.SchedulerFire;
+  end
   else
   begin
     Debug(dpSpam, 'kb', Format('[DEDUP] Login for site %s already scheduled',
