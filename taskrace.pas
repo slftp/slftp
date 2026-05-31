@@ -166,6 +166,13 @@ end;
 function TPazoTask.IsReadyToBeExecuted: boolean;
 begin
   Result := (self.FDependingOnDirlist = nil) or (not self.FDependingOnDirlist.need_mkdir) or self.FDependingOnDirlist.error;
+  if (not Result) and (self.FDependingOnDirlist <> nil) then
+  begin
+    Debug(dpSpam, c_section, Format('[READY] Race task NOT ready: need_mkdir=%s path=%s error=%s',
+      [BoolToStr(self.FDependingOnDirlist.need_mkdir, True),
+       self.FDependingOnDirlist.FullPath,
+       BoolToStr(self.FDependingOnDirlist.error, True)]));
+  end;
 end;
 
 
@@ -1132,7 +1139,9 @@ begin
       end;
     end;
 
+    Debug(dpMessage, c_section, Format('[MKDIR] Calling MkdirReady for dir=%s site=%s', [dir, site1]));
     ps1.MkdirReady(dir);
+    Debug(dpMessage, c_section, Format('[MKDIR] MkdirReady succeeded for dir=%s site=%s', [dir, site1]));
   except
     on e: Exception do
     begin
@@ -1486,6 +1495,7 @@ begin
 
   mainpazo.lastTouch := Now();
   Debug(dpMessage, c_section, '--> ' + tname);
+  Debug(dpMessage, c_section, Format('[RACE] Execute start slots=%s->%s file=%s', [slot1name, slot2name, filename]));
 
   TryAgain:
   if ((ps1.error) or (ps2.error) or (ps1.status = rssNuked) or (ps2.status = rssNuked) or (slshutdown)) then
@@ -2025,6 +2035,7 @@ begin
     goto TryAgain;
   end;
 
+  Debug(dpMessage, c_section, Format('[RACE] Sending STOR for %s', [tname]));
   if not sdst.Send('STOR %s', [sdst.TranslateFilename(FFilenameForSTORCommand)]) then
     goto TryAgain;
 
@@ -2836,6 +2847,7 @@ begin
   end;
 
   Debug(dpSpam, 'taskrace', '<-- WAIT');
+  Debug(dpMessage, c_section, Format('[RACE] Transfer loop completed for %s', [tname]));
 
   //TODO: [ERROR FXP] TPazoRaceTask DST/0, RACE 4727 SRC->DST: Mortal.Kombat.XL-PLAZA plaza-mortal.kombat.xl.s04 (36) 421 421 Timeout (60 seconds): closing control connection.
   //      RACE 4727 SRC->DST: Mortal.Kombat.XL-PLAZA plaza-mortal.kombat.xl.s04 (36) 238.42mB @ 1.16mB/s <-- shouldn't be there, wasn't transfered because a timeout occur
@@ -3479,6 +3491,7 @@ begin
   end;
 
   Debug(dpMessage, c_section, '<-- ' + tname);
+  Debug(dpMessage, c_section, Format('[RACE] Execute end result=success file=%s', [filename]));
 
   Result := True;
   ready := True;

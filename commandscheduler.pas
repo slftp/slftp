@@ -465,40 +465,62 @@ var
   i, fBestIdx: Integer;
   fNow: TDateTime;
   fBestReq: TCommandRequest;
+  fArr: TArray<TCommandRequest>;
+  fSkipped: Integer;
 begin
   Result := False;
   fBestIdx := -1;
   fNow := Now();
+  fSkipped := 0;
 
-  for i := 0 to aList.Count - 1 do
+  // Snapshot to avoid race conditions during iteration
+  fArr := aList.ToArray;
+
+  for i := 0 to High(fArr) do
   begin
-    // Skip if not ready yet (delayed start)
-    if aList[i].startat > fNow then
-      Continue;
+    try
+      // Skip if not ready yet (delayed start)
+      if fArr[i].startat > fNow then
+      begin
+        Inc(fSkipped);
+        Continue;
+      end;
 
-    // For mkdir, check dependency
-    if (aList[i].command_type = ctMkdir) and (aList[i].depending_on_dirlist <> nil) then
-    begin
-      if aList[i].depending_on_dirlist.need_mkdir and not aList[i].depending_on_dirlist.error then
-        Continue; // dependency not satisfied
-    end;
+      // For mkdir, check dependency
+      if (fArr[i].command_type = ctMkdir) and (fArr[i].depending_on_dirlist <> nil) then
+      begin
+        if fArr[i].depending_on_dirlist.need_mkdir and not fArr[i].depending_on_dirlist.error then
+        begin
+          Debug(dpSpam, section, Format('[GETNEXT] Skipping MKDIR for pazo=%d dir=%s: dependency need_mkdir=%s error=%s',
+            [fArr[i].pazo_id, fArr[i].dir, BoolToStr(fArr[i].depending_on_dirlist.need_mkdir, True), BoolToStr(fArr[i].depending_on_dirlist.error, True)]));
+          Inc(fSkipped);
+          Continue; // dependency not satisfied
+        end;
+      end;
 
-    // Pick by priority, then by creation time (FIFO within same priority)
-    if fBestIdx < 0 then
-    begin
-      fBestIdx := i;
-      fBestReq := aList[i];
-    end
-    else if aList[i].priority < fBestReq.priority then
-    begin
-      fBestIdx := i;
-      fBestReq := aList[i];
-    end
-    else if (aList[i].priority = fBestReq.priority) and
-            (aList[i].created < fBestReq.created) then
-    begin
-      fBestIdx := i;
-      fBestReq := aList[i];
+      // Pick by priority, then by creation time (FIFO within same priority)
+      if fBestIdx < 0 then
+      begin
+        fBestIdx := i;
+        fBestReq := fArr[i];
+      end
+      else if fArr[i].priority < fBestReq.priority then
+      begin
+        fBestIdx := i;
+        fBestReq := fArr[i];
+      end
+      else if (fArr[i].priority = fBestReq.priority) and
+              (fArr[i].created < fBestReq.created) then
+      begin
+        fBestIdx := i;
+        fBestReq := fArr[i];
+      end;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] InternalGetNextRequest iteration: %s (i=%d count=%d)', [E.Message, i, Length(fArr)]));
+        Continue;
+      end;
     end;
   end;
 
@@ -506,6 +528,12 @@ begin
   begin
     aReq := fBestReq;
     Result := True;
+    Debug(dpSpam, section, Format('[GETNEXT] Selected %s for pazo=%d dir=%s site=%s (skipped=%d/%d)',
+      [GetEnumName(TypeInfo(TCommandType), Ord(fBestReq.command_type)), fBestReq.pazo_id, fBestReq.dir, fBestReq.site, fSkipped, Length(fArr)]));
+  end
+  else if fSkipped > 0 then
+  begin
+    Debug(dpSpam, section, Format('[GETNEXT] No ready request found (skipped=%d/%d)', [fSkipped, Length(fArr)]));
   end;
 end;
 

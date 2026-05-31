@@ -1805,11 +1805,17 @@ begin
 
   // Prevent race task starvation: cap concurrent commands to half the slots
   if site.ActiveCommandCount >= site.MaxCommandSlots then
+  begin
+    Debug(dpSpam, section, Format('[SCHEDULER] TryExecuteCommand blocked on %s: active=%d max=%d', [site.Name, site.ActiveCommandCount, site.MaxCommandSlots]));
     Exit;
+  end;
+
+  Debug(dpSpam, section, Format('[SCHEDULER] TryExecuteCommand scanning on %s (dirlist=%d mkdir=%d other=%d)', [site.Name, site.CommandScheduler.DirlistCount, site.CommandScheduler.MkdirCount, site.CommandScheduler.OtherCount]));
 
   // 1. Try mkdir first (higher priority than dirlist)
   if site.CommandScheduler.GetNextMkdir(fReq) then
   begin
+    Debug(dpSpam, section, Format('[SCHEDULER] Executing MKDIR on %s: pazo=%d dir=%s dep=%s', [site.Name, fReq.pazo_id, fReq.dir, BoolToStr(fReq.depending_on_dirlist <> nil, True)]));
     site.IncActiveCommandCount;
     try
       try
@@ -1838,6 +1844,7 @@ begin
   // 2. Try login (general logins only, not ghostkill/readd)
   if site.CommandScheduler.GetNextCommand(ctLogin, fReq) then
   begin
+    Debug(dpSpam, section, Format('[SCHEDULER] Executing LOGIN on %s', [site.Name]));
     site.IncActiveCommandCount;
     try
       try
@@ -1862,6 +1869,7 @@ begin
   // 3. Try dirlist
   if site.CommandScheduler.GetNextDirlist(fReq) then
   begin
+    Debug(dpSpam, section, Format('[SCHEDULER] Executing DIRLIST on %s: pazo=%d dir=%s', [site.Name, fReq.pazo_id, fReq.dir]));
     site.IncActiveCommandCount;
     try
       try
@@ -1890,6 +1898,7 @@ begin
   // 4. Try SFV download
   if site.CommandScheduler.GetNextCommand(ctSfvDownload, fReq) then
   begin
+    Debug(dpSpam, section, Format('[SCHEDULER] Executing SFV on %s: pazo=%d dir=%s file=%s', [site.Name, fReq.pazo_id, fReq.dir, fReq.sfv_filename]));
     site.IncActiveCommandCount;
     try
       try
@@ -1918,6 +1927,7 @@ begin
   // 5. Try NFO download
   if site.CommandScheduler.GetNextCommand(ctNfoDownload, fReq) then
   begin
+    Debug(dpSpam, section, Format('[SCHEDULER] Executing NFO on %s: pazo=%d', [site.Name, fReq.pazo_id]));
     site.IncActiveCommandCount;
     try
       try
@@ -1946,6 +1956,7 @@ begin
   // 6. Try CWD
   if site.CommandScheduler.GetNextCommand(ctCwd, fReq) then
   begin
+    Debug(dpSpam, section, Format('[SCHEDULER] Executing CWD on %s: dir=%s', [site.Name, fReq.dir]));
     site.IncActiveCommandCount;
     try
       try
@@ -1970,6 +1981,7 @@ begin
   // 7. Try Raw
   if site.CommandScheduler.GetNextCommand(ctRaw, fReq) then
   begin
+    Debug(dpSpam, section, Format('[SCHEDULER] Executing RAW on %s: dir=%s cmd=%s', [site.Name, fReq.dir, fReq.cmd]));
     site.IncActiveCommandCount;
     try
       try
@@ -1990,6 +2002,8 @@ begin
     Result := True;
     Exit;
   end;
+
+  Debug(dpSpam, section, Format('[SCHEDULER] TryExecuteCommand found no work on %s', [site.Name]));
 end;
 
 destructor TSiteSlot.Destroy;
