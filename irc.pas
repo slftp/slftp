@@ -627,13 +627,20 @@ end;
 
 destructor TMyIrcThread.Destroy;
 begin
-  FSocketWriteLock.Free;
+  Stop; // Signal connectionThread to exit and wait for it!
 
-  FPendingMessagesQueue.Free;
+  if FSocketWriteLock <> nil then
+    FSocketWriteLock.Free;
+
+  if FPendingMessagesQueue <> nil then
+    FPendingMessagesQueue.Free;
 
   status := 'destroying...';
   console_delwindow(netname);
-  channels.Free;
+  
+  if channels <> nil then
+    channels.Free;
+    
   inherited;
 end;
 
@@ -1703,10 +1710,11 @@ var
   s: TSite;
   i: Integer;
 begin
+  if not Assigned(sites) then Exit;
   for i := 0 to sites.Count - 1 do
   begin
     s := TSite(sites[i]);
-    if s.RCString('ircnet', '') = netname then
+    if Assigned(s) and (s.RCString('ircnet', '') = netname) then
       s.siteinvited := False;
   end;
 end;
@@ -1830,6 +1838,7 @@ begin
       on e: Exception do
       begin
         Debug(dpError, section, Format('[EXCEPTION] TMyIrcThread.Execute: %s', [e.Message]));
+        Sleep(1000); // safety sleep to prevent CPU/log flooding on persistent exceptions
         Continue;
       end;
     end;
