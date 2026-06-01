@@ -486,15 +486,15 @@ begin
         Continue;
       end;
 
-      // For mkdir, check dependency
-      if (fArr[i].command_type = ctMkdir) and (fArr[i].depending_on_dirlist <> nil) then
+      // For dirlist, skip if target directory still needs mkdir (mkdir must run first)
+      if (fArr[i].command_type = ctDirlist) and (fArr[i].depending_on_dirlist <> nil) then
       begin
         if fArr[i].depending_on_dirlist.need_mkdir and not fArr[i].depending_on_dirlist.error then
         begin
-          Debug(dpSpam, section, Format('[GETNEXT] Skipping MKDIR for pazo=%d dir=%s: dependency need_mkdir=%s error=%s',
+          Debug(dpSpam, section, Format('[GETNEXT] Skipping DIRLIST for pazo=%d dir=%s: dependency need_mkdir=%s error=%s',
             [fArr[i].pazo_id, fArr[i].dir, BoolToStr(fArr[i].depending_on_dirlist.need_mkdir, True), BoolToStr(fArr[i].depending_on_dirlist.error, True)]));
           Inc(fSkipped);
-          Continue; // dependency not satisfied
+          Continue; // dependency not satisfied - wait for mkdir
         end;
       end;
 
