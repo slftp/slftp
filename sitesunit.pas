@@ -1203,14 +1203,20 @@ begin
     Exit;
   end;
 
-  for fSlot in slots do
-  begin
-    if (fSlot.todotask = nil) and (fSlot.status = ssOnline) then
+  // Protect against multiple threads waking the same slot simultaneously
+  fSlotsAssignmentLock.Enter('SchedulerFire');
+  try
+    for fSlot in slots do
     begin
-      Debug(dpError, section, Format('[SCHEDULER] SchedulerFire waking slot %s on %s (scheduler total=%d)', [fSlot.Name, Self.Name, fCommandScheduler.GetTotalCount]));
-      fSlot.Fire;
-      Exit;
+      if (fSlot.todotask = nil) and (fSlot.status = ssOnline) then
+      begin
+        Debug(dpError, section, Format('[SCHEDULER] SchedulerFire waking slot %s on %s (scheduler total=%d)', [fSlot.Name, Self.Name, fCommandScheduler.GetTotalCount]));
+        fSlot.Fire;
+        Exit;
+      end;
     end;
+  finally
+    fSlotsAssignmentLock.Leave;
   end;
 
   Debug(dpError, section, Format('[SCHEDULER] SchedulerFire for %s: no free online slot found (total=%d)', [Name, fCommandScheduler.GetTotalCount]));
