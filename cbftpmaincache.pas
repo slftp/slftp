@@ -333,7 +333,8 @@ begin
       // remove oldest (first) job
       if Length(GlJobs) > 0 then
       begin
-        Move(GlJobs[1], GlJobs[0], (Length(GlJobs) - 1) * SizeOf(TCbftpMainJobInternal));
+        for fIdx := 0 to High(GlJobs) - 1 do
+          GlJobs[fIdx] := GlJobs[fIdx + 1];
         SetLength(GlJobs, Length(GlJobs) - 1);
       end;
     end;
@@ -435,15 +436,15 @@ end;
 
 procedure CbftpMainCacheRemoveJob(const aName: string);
 var
-  fJobIdx: Integer;
+  fJobIdx, i: Integer;
 begin
   GlCacheLock.Enter('RemoveJob');
   try
     fJobIdx := _FindJobIndex(aName);
     if fJobIdx < 0 then
       Exit;
-    if fJobIdx < High(GlJobs) then
-      Move(GlJobs[fJobIdx + 1], GlJobs[fJobIdx], (Length(GlJobs) - fJobIdx - 1) * SizeOf(TCbftpMainJobInternal));
+    for i := fJobIdx to High(GlJobs) - 1 do
+      GlJobs[i] := GlJobs[i + 1];
     SetLength(GlJobs, Length(GlJobs) - 1);
   finally
     GlCacheLock.Leave;
