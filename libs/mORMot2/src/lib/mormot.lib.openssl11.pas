@@ -2106,6 +2106,9 @@ function SSL_CTX_use_PrivateKey_file(ctx: PSSL_CTX; _file: PUtf8Char;
    typ: integer): integer; cdecl;
 function SSL_CTX_set_cipher_list(p1: PSSL_CTX; str: PUtf8Char): integer; cdecl;
 function SSL_set_fd(s: PSSL; fd: integer): integer; cdecl;
+function SSL_get1_session(ssl: PSSL): PSSL_SESSION; cdecl;
+function SSL_set_session(ssl: PSSL; session: PSSL_SESSION): integer; cdecl;
+procedure SSL_SESSION_free(session: PSSL_SESSION); cdecl;
 function SSL_get_current_cipher(s: PSSL): PSSL_CIPHER; cdecl;
 function SSL_CIPHER_description(p1: PSSL_CIPHER;
    buf: PUtf8Char; size: integer): PUtf8Char; cdecl;
@@ -2923,6 +2926,9 @@ type
     SSL_CTX_use_PrivateKey_file: function(ctx: PSSL_CTX; _file: PUtf8Char; typ: integer): integer; cdecl;
     SSL_CTX_set_cipher_list: function(p1: PSSL_CTX; str: PUtf8Char): integer; cdecl;
     SSL_set_fd: function(s: PSSL; fd: integer): integer; cdecl;
+    SSL_get1_session: function(ssl: PSSL): PSSL_SESSION; cdecl;
+    SSL_set_session: function(ssl: PSSL; session: PSSL_SESSION): integer; cdecl;
+    SSL_SESSION_free: procedure(session: PSSL_SESSION); cdecl;
     SSL_get_current_cipher: function(s: PSSL): PSSL_CIPHER; cdecl;
     SSL_CIPHER_description: function(p1: PSSL_CIPHER; buf: PUtf8Char; size: integer): PUtf8Char; cdecl;
     SSL_get_verify_result: function(ssl: PSSL): integer; cdecl;
@@ -2933,7 +2939,7 @@ type
   end;
 
 const
-  LIBSSL_ENTRIES: array[0..56] of PAnsiChar = (
+  LIBSSL_ENTRIES: array[0..59] of PAnsiChar = (
     'SSL_CTX_new',
     'SSL_CTX_free',
     'SSL_CTX_set_timeout',
@@ -2984,6 +2990,9 @@ const
     'SSL_CTX_use_PrivateKey_file',
     'SSL_CTX_set_cipher_list',
     'SSL_set_fd',
+    'SSL_get1_session',
+    'SSL_set_session',
+    'SSL_SESSION_free',
     'SSL_get_current_cipher',
     'SSL_CIPHER_description',
     'SSL_get_verify_result',
@@ -3258,6 +3267,21 @@ end;
 function SSL_set_fd(s: PSSL; fd: integer): integer;
 begin
   result := libssl.SSL_set_fd(s, fd);
+end;
+
+function SSL_get1_session(ssl: PSSL): PSSL_SESSION;
+begin
+  result := libssl.SSL_get1_session(ssl);
+end;
+
+function SSL_set_session(ssl: PSSL; session: PSSL_SESSION): integer;
+begin
+  result := libssl.SSL_set_session(ssl, session);
+end;
+
+procedure SSL_SESSION_free(session: PSSL_SESSION);
+begin
+  libssl.SSL_SESSION_free(session);
 end;
 
 function SSL_get_current_cipher(s: PSSL): PSSL_CIPHER;
@@ -6176,6 +6200,15 @@ function SSL_CTX_set_cipher_list(p1: PSSL_CTX; str: PUtf8Char): integer; cdecl;
 
 function SSL_set_fd(s: PSSL; fd: integer): integer; cdecl;
   external LIB_SSL name _PU + 'SSL_set_fd';
+
+function SSL_get1_session(ssl: PSSL): PSSL_SESSION; cdecl;
+  external LIB_SSL name _PU + 'SSL_get1_session';
+
+function SSL_set_session(ssl: PSSL; session: PSSL_SESSION): integer; cdecl;
+  external LIB_SSL name _PU + 'SSL_set_session';
+
+procedure SSL_SESSION_free(session: PSSL_SESSION); cdecl;
+  external LIB_SSL name _PU + 'SSL_SESSION_free';
 
 function SSL_get_current_cipher(s: PSSL): PSSL_CIPHER; cdecl;
   external LIB_SSL name _PU + 'SSL_get_current_cipher';
