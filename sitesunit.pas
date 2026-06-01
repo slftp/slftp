@@ -1195,13 +1195,16 @@ end;
 procedure TSite.SchedulerFire;
 var
   fSlot: TSiteSlot;
+  fWokenCount: Integer;
 begin
-  // Wake up one free slot if the scheduler has work
+  // Wake up free slots if the scheduler has work
   if (fCommandScheduler = nil) or (fCommandScheduler.GetTotalCount = 0) then
   begin
     Debug(dpError, section, Format('[SCHEDULER] SchedulerFire skipped for %s: no work (total=%d)', [Name, fCommandScheduler.GetTotalCount]));
     Exit;
   end;
+
+  fWokenCount := 0;
 
   // Protect against multiple threads waking the same slot simultaneously
   fSlotsAssignmentLock.Enter('SchedulerFire');
@@ -1212,14 +1215,47 @@ begin
       begin
         Debug(dpError, section, Format('[SCHEDULER] SchedulerFire waking slot %s on %s (scheduler total=%d)', [fSlot.Name, Self.Name, fCommandScheduler.GetTotalCount]));
         fSlot.Fire;
-        Exit;
+        Inc(fWokenCount);
+        // Wake multiple slots to allow parallel scheduler command execution,
+        // but avoid firing all slots at once to prevent thundering herd
+        if fWokenCount >= 3 then
+          Break;
       end;
     end;
   finally
     fSlotsAssignmentLock.Leave;
   end;
 
-  Debug(dpError, section, Format('[SCHEDULER] SchedulerFire for %s: no free online slot found (total=%d)', [Name, fCommandScheduler.GetTotalCount]));
+  if fWokenCount = 0 then
+  begin
+    // No free online slot found, but we have scheduler work.
+    // Try to bring one offline slot online so it can service the scheduler.
+    Debug(dpError, section, Format('[SCHEDULER] SchedulerFire for %s: no free online slot found (total=%d), triggering slot login', [Name, fCommandScheduler.GetTotalCount]));
+    fSlot := nil;
+    fSlotsAssignmentLock.Enter('SchedulerFire');
+    try
+      for fSlot in slots do
+      begin
+        if ((fSlot.status = ssOffline) or (fSlot.status = ssNone)) and (fSlot.todotask = nil) then
+        begin
+          Break;
+        end;
+      end;
+    finally
+      fSlotsAssignmentLock.Leave;
+    end;
+
+    if (fSlot <> nil) and ((fSlot.status = ssOffline) or (fSlot.status = ssNone)) then
+    begin
+      Debug(dpError, section, Format('[SCHEDULER] SchedulerFire calling ReLogin for slot %s on %s', [fSlot.Name, Self.Name]));
+      try
+        fSlot.ReLogin(1, False, 'SchedulerFire');
+      except
+        on E: Exception do
+          Debug(dpError, section, Format('[EXCEPTION] SchedulerFire ReLogin for %s: %s', [fSlot.Name, E.Message]));
+      end;
+    end;
+  end;
 end;
 
 procedure QueueEmpty(const sitename: String);
