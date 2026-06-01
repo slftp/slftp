@@ -27,6 +27,7 @@ type
     FLastUrl: RawUtf8;
     FLastMethod: RawUtf8;
     FLastError: RawUtf8;
+    FConnected: Boolean;
 
     function GetAuthHeader: RawUtf8;
     function DoRequest(const aMethod, aPath: RawUtf8; const aBody: RawUtf8 = ''): RawUtf8;
@@ -38,6 +39,7 @@ type
     property LastUrl: RawUtf8 read FLastUrl;
     property LastMethod: RawUtf8 read FLastMethod;
     property LastError: RawUtf8 read FLastError;
+    property Connected: Boolean read FConnected;
 
     { Get list of all sites }
     function GetSites(const aFilters: RawUtf8 = ''): RawUtf8;
@@ -248,6 +250,12 @@ begin
       FLastResponse := FHttpClient.Content;
       FLastError := '';
 
+      if not FConnected then
+      begin
+        FConnected := True;
+        Debug(dpMessage, section, 'cbftp connected');
+      end;
+
       if status in [200, 201, 204] then
       begin
         Result := FHttpClient.Content;
@@ -266,6 +274,11 @@ begin
         FLastStatus := 0;
         FLastResponse := '';
         FLastError := Utf8Encode(E.Message);
+        if FConnected then
+        begin
+          FConnected := False;
+          Debug(dpError, section, 'cbftp disconnected');
+        end;
         if (Pos('connect', LowerCase(E.Message)) > 0) or
            (Pos('refused', LowerCase(E.Message)) > 0) or
            (Pos('tls failed', LowerCase(E.Message)) > 0) or

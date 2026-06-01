@@ -67,11 +67,15 @@ type
     FQueueOtherCount: integer;
     FCbftpVersion: RawUTF8;
     FCbftpUptime: Int64;
+    FCbftpConnected: boolean;
+    FCbftpEnabled: boolean;
   published
     property Version: RawUTF8 read FVersion write FVersion;
     property Uptime: Int64 read FUptime write FUptime;
     property CbftpVersion: RawUTF8 read FCbftpVersion write FCbftpVersion;
     property CbftpUptime: Int64 read FCbftpUptime write FCbftpUptime;
+    property CbftpConnected: boolean read FCbftpConnected write FCbftpConnected;
+    property CbftpEnabled: boolean read FCbftpEnabled write FCbftpEnabled;
     property SitesCount: integer read FSitesCount write FSitesCount;
     property SitesUp: integer read FSitesUp write FSitesUp;
     property SitesDown: integer read FSitesDown write FSitesDown;

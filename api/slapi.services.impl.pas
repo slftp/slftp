@@ -1055,6 +1055,15 @@ begin
         Response.QueueAutoCount := qAuto;
         Response.QueueOtherCount := qOther;
 
+        Response.CbftpEnabled := (LowerCase(config.ReadString('UDPConfig', 'EnableUDP', '0')) = 'true') or
+                                 (LowerCase(config.ReadString('UDPConfig', 'EnableUDP', '0')) = '1') or
+                                 (LowerCase(config.ReadString('UDPConfig', 'EnableUDP', '0')) = 'yes');
+
+        if GlCbftpClient <> nil then
+          Response.CbftpConnected := GlCbftpClient.Connected
+        else
+          Response.CbftpConnected := False;
+
         // Query cbftp /info to fetch live directory listing rate (dir/s), version, and uptime
         try
           v := _Json(GlCbftpClient.GetInfo);

@@ -85,6 +85,8 @@ export interface SystemStatus {
   QueueOtherCount: number;
   CbftpVersion?: string;
   CbftpUptime?: number;
+  CbftpConnected?: boolean;
+  CbftpEnabled?: boolean;
 }
 
 export interface Bnc {

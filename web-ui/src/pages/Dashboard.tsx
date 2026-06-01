@@ -252,16 +252,33 @@ export function Dashboard() {
               System Overview
             </Title>
           </div>
-          <Badge
-            size="sm"
-            radius="md"
-            style={{
-              background: 'var(--nav-active-bg)',
-              border: '1px solid var(--nav-active-border)',
-            }}
-          >
-            v{stats.Version}
-          </Badge>
+          <Group gap="xs">
+            {stats.CbftpEnabled && (
+              <Badge
+                size="sm"
+                radius="md"
+                color={stats.CbftpConnected ? 'green' : 'red'}
+                variant="light"
+                style={{
+                  border: stats.CbftpConnected 
+                    ? '1px solid rgba(0, 255, 136, 0.3)' 
+                    : '1px solid rgba(255, 77, 77, 0.3)',
+                }}
+              >
+                cbftp: {stats.CbftpConnected ? 'connected' : 'disconnected'}
+              </Badge>
+            )}
+            <Badge
+              size="sm"
+              radius="md"
+              style={{
+                background: 'var(--nav-active-bg)',
+                border: '1px solid var(--nav-active-border)',
+              }}
+            >
+              v{stats.Version}
+            </Badge>
+          </Group>
         </Group>
       </Box>
 
