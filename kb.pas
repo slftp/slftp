@@ -1044,16 +1044,19 @@ procedure SchedulePazoDirlist(const aTask: TPazoDirlistTask; const APriority: In
 var
   fReq: TCommandRequest;
   fSite: TSite;
+  fFreed: Boolean;
 begin
   if aTask = nil then
     Exit;
 
+  fFreed := False;
   try
     fSite := FindSiteByName('', aTask.site1);
     if fSite = nil then
     begin
       Debug(dpError, 'kb', Format('[ERROR] SchedulePazoDirlist: site %s not found', [aTask.site1]));
       aTask.Free;
+      fFreed := True;
       Exit;
     end;
 
@@ -1063,8 +1066,9 @@ begin
 
     if fSite.CommandScheduler.ScheduleDirlist(fReq) then
     begin
-      aTask.Free;  // scheduler owns the request, task object no longer needed
       Debug(dpError, 'kb', Format('[SCHEDULER] Dirlist scheduled: pazo=%d dir=%s site=%s priority=%d', [aTask.pazo_id, aTask.dir, aTask.site1, APriority]));
+      aTask.Free;  // scheduler owns the request, task object no longer needed
+      fFreed := True;
       fSite.SchedulerFire; // wake up slots to service the scheduler
     end
     else
@@ -1073,12 +1077,14 @@ begin
       Debug(dpSpam, 'kb', Format('[DEDUP] Dirlist for pazo %d dir %s on %s already scheduled',
         [aTask.pazo_id, aTask.dir, aTask.site1]));
       aTask.Free;
+      fFreed := True;
     end;
   except
     on E: Exception do
     begin
       Debug(dpError, 'kb', Format('[EXCEPTION] SchedulePazoDirlist: %s', [E.Message]));
-      aTask.Free;
+      if not fFreed then
+        aTask.Free;
     end;
   end;
 end;
@@ -1087,16 +1093,19 @@ procedure SchedulePazoMkdir(const aTask: TPazoMkdirTask);
 var
   fReq: TCommandRequest;
   fSite: TSite;
+  fFreed: Boolean;
 begin
   if aTask = nil then
     Exit;
 
+  fFreed := False;
   try
     fSite := FindSiteByName('', aTask.site1);
     if fSite = nil then
     begin
       Debug(dpError, 'kb', Format('[ERROR] SchedulePazoMkdir: site %s not found', [aTask.site1]));
       aTask.Free;
+      fFreed := True;
       Exit;
     end;
 
@@ -1106,8 +1115,9 @@ begin
 
     if fSite.CommandScheduler.ScheduleMkdir(fReq) then
     begin
-      aTask.Free;
       Debug(dpError, 'kb', Format('[SCHEDULER] Mkdir scheduled: pazo=%d dir=%s site=%s', [aTask.pazo_id, aTask.dir, aTask.site1]));
+      aTask.Free;
+      fFreed := True;
       fSite.SchedulerFire;
     end
     else
@@ -1115,12 +1125,14 @@ begin
       Debug(dpSpam, 'kb', Format('[DEDUP] Mkdir for pazo %d dir %s on %s already scheduled',
         [aTask.pazo_id, aTask.dir, aTask.site1]));
       aTask.Free;
+      fFreed := True;
     end;
   except
     on E: Exception do
     begin
       Debug(dpError, 'kb', Format('[EXCEPTION] SchedulePazoMkdir: %s', [E.Message]));
-      aTask.Free;
+      if not fFreed then
+        aTask.Free;
     end;
   end;
 end;
@@ -1129,16 +1141,19 @@ procedure SchedulePazoSiteSfvTask(const aTask: TPazoSiteSfvTask);
 var
   fReq: TCommandRequest;
   fSite: TSite;
+  fFreed: Boolean;
 begin
   if aTask = nil then
     Exit;
 
+  fFreed := False;
   try
     fSite := FindSiteByName('', aTask.site1);
     if fSite = nil then
     begin
       Debug(dpError, 'kb', Format('[ERROR] SchedulePazoSiteSfvTask: site %s not found', [aTask.site1]));
       aTask.Free;
+      fFreed := True;
       Exit;
     end;
 
@@ -1150,6 +1165,7 @@ begin
     if fSite.CommandScheduler.ScheduleCommand(fReq) then
     begin
       aTask.Free;
+      fFreed := True;
       fSite.SchedulerFire;
     end
     else
@@ -1157,12 +1173,14 @@ begin
       Debug(dpSpam, 'kb', Format('[DEDUP] SFV for pazo %d dir %s file %s on %s already scheduled',
         [aTask.pazo_id, aTask.Dir, aTask.SFVFilename, aTask.site1]));
       aTask.Free;
+      fFreed := True;
     end;
   except
     on E: Exception do
     begin
       Debug(dpError, 'kb', Format('[EXCEPTION] SchedulePazoSiteSfvTask: %s', [E.Message]));
-      aTask.Free;
+      if not fFreed then
+        aTask.Free;
     end;
   end;
 end;
@@ -1171,16 +1189,19 @@ procedure SchedulePazoSiteNfoTask(const aTask: TPazoSiteNfoTask);
 var
   fReq: TCommandRequest;
   fSite: TSite;
+  fFreed: Boolean;
 begin
   if aTask = nil then
     Exit;
 
+  fFreed := False;
   try
     fSite := FindSiteByName('', aTask.site1);
     if fSite = nil then
     begin
       Debug(dpError, 'kb', Format('[ERROR] SchedulePazoSiteNfoTask: site %s not found', [aTask.site1]));
       aTask.Free;
+      fFreed := True;
       Exit;
     end;
 
@@ -1191,6 +1212,7 @@ begin
     if fSite.CommandScheduler.ScheduleCommand(fReq) then
     begin
       aTask.Free;
+      fFreed := True;
       fSite.SchedulerFire;
     end
     else
@@ -1198,12 +1220,14 @@ begin
       Debug(dpSpam, 'kb', Format('[DEDUP] NFO for pazo %d on %s already scheduled',
         [aTask.pazo_id, aTask.site1]));
       aTask.Free;
+      fFreed := True;
     end;
   except
     on E: Exception do
     begin
       Debug(dpError, 'kb', Format('[EXCEPTION] SchedulePazoSiteNfoTask: %s', [E.Message]));
-      aTask.Free;
+      if not fFreed then
+        aTask.Free;
     end;
   end;
 end;
@@ -1212,16 +1236,19 @@ procedure ScheduleCWDTask(const aTask: TCWDTask);
 var
   fReq: TCommandRequest;
   fSite: TSite;
+  fFreed: Boolean;
 begin
   if aTask = nil then
     Exit;
 
+  fFreed := False;
   try
     fSite := FindSiteByName('', aTask.site1);
     if fSite = nil then
     begin
       Debug(dpError, 'kb', Format('[ERROR] ScheduleCWDTask: site %s not found', [aTask.site1]));
       aTask.Free;
+      fFreed := True;
       Exit;
     end;
 
@@ -1231,6 +1258,7 @@ begin
     if fSite.CommandScheduler.ScheduleCommand(fReq) then
     begin
       aTask.Free;
+      fFreed := True;
       fSite.SchedulerFire;
     end
     else
@@ -1238,12 +1266,14 @@ begin
       Debug(dpSpam, 'kb', Format('[DEDUP] CWD for dir %s on %s already scheduled',
         [aTask.dir, aTask.site1]));
       aTask.Free;
+      fFreed := True;
     end;
   except
     on E: Exception do
     begin
       Debug(dpError, 'kb', Format('[EXCEPTION] ScheduleCWDTask: %s', [E.Message]));
-      aTask.Free;
+      if not fFreed then
+        aTask.Free;
     end;
   end;
 end;
@@ -1252,16 +1282,19 @@ procedure ScheduleRawTask(const aTask: TRawTask);
 var
   fReq: TCommandRequest;
   fSite: TSite;
+  fFreed: Boolean;
 begin
   if aTask = nil then
     Exit;
 
+  fFreed := False;
   try
     fSite := FindSiteByName('', aTask.site1);
     if fSite = nil then
     begin
       Debug(dpError, 'kb', Format('[ERROR] ScheduleRawTask: site %s not found', [aTask.site1]));
       aTask.Free;
+      fFreed := True;
       Exit;
     end;
 
@@ -1272,6 +1305,7 @@ begin
     if fSite.CommandScheduler.ScheduleCommand(fReq) then
     begin
       aTask.Free;
+      fFreed := True;
       fSite.SchedulerFire;
     end
     else
@@ -1279,12 +1313,14 @@ begin
       Debug(dpSpam, 'kb', Format('[DEDUP] RAW for dir %s cmd %s on %s already scheduled',
         [aTask.dir, aTask.cmd, aTask.site1]));
       aTask.Free;
+      fFreed := True;
     end;
   except
     on E: Exception do
     begin
       Debug(dpError, 'kb', Format('[EXCEPTION] ScheduleRawTask: %s', [E.Message]));
-      aTask.Free;
+      if not fFreed then
+        aTask.Free;
     end;
   end;
 end;
@@ -1293,6 +1329,7 @@ procedure ScheduleLoginTask(const aTask: TLoginTask);
 var
   fReq: TCommandRequest;
   fSite: TSite;
+  fFreed: Boolean;
 begin
   if aTask = nil then
     Exit;
@@ -1304,12 +1341,14 @@ begin
     Exit;
   end;
 
+  fFreed := False;
   try
     fSite := FindSiteByName('', aTask.site1);
     if fSite = nil then
     begin
       Debug(dpError, 'kb', Format('[ERROR] ScheduleLoginTask: site %s not found', [aTask.site1]));
       aTask.Free;
+      fFreed := True;
       Exit;
     end;
 
@@ -1319,6 +1358,7 @@ begin
     if fSite.CommandScheduler.ScheduleCommand(fReq) then
     begin
       aTask.Free;
+      fFreed := True;
       fSite.SchedulerFire;
     end
     else
@@ -1326,12 +1366,14 @@ begin
       Debug(dpSpam, 'kb', Format('[DEDUP] Login for site %s already scheduled',
         [aTask.site1]));
       aTask.Free;
+      fFreed := True;
     end;
   except
     on E: Exception do
     begin
       Debug(dpError, 'kb', Format('[EXCEPTION] ScheduleLoginTask: %s', [E.Message]));
-      aTask.Free;
+      if not fFreed then
+        aTask.Free;
     end;
   end;
 end;
