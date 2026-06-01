@@ -1436,7 +1436,11 @@ begin
           x.Add(GetKbPazoInfoLine(p));
       end;
     except
-      exit;
+      on e: Exception do
+      begin
+        Debug(dpError, rsections, '[EXCEPTION] kb_Save (collecting pazos): %s', [e.Message]);
+        exit;
+      end;
     end;
     x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.kb');
   finally
@@ -1454,7 +1458,11 @@ begin
         x.Add(kb_skip[i]);
       end;
     except
-      exit;
+      on e: Exception do
+      begin
+        Debug(dpError, rsections, '[EXCEPTION] kb_Save (collecting renames): %s', [e.Message]);
+        exit;
+      end;
     end;
     x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.renames');
   finally
@@ -1860,15 +1868,34 @@ begin
             if p.stated and (fTryToCompleteTimeReached and not fIncFillPazos.Contains(p)) and ((kb_save_entries <= 0) Or (SecondsBetween(Now, p.added) > kb_keep_entries)) then
             begin
               kb_list.Delete(i);
-              j := kb_latest.IndexOf(p.rls.rlsname);
-              if j <> -1 then
+              if (p.rls <> nil) and (kb_latest <> nil) then
               begin
-                kb_latest.Delete(j);
+                j := kb_latest.IndexOf(p.rls.rlsname);
+                if j <> -1 then
+                begin
+                  kb_latest.Delete(j);
+                end;
               end;
               fDeletedPazos.Add(p);
             end;
 
           end;
+
+          for p in fDeletedPazos do
+          begin
+            try
+              p.Free;
+            except
+              on e: Exception do
+              begin
+                if p.rls <> nil then
+                  Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute FreePazo(pazo_id=%d, rls=%s): %s', [p.pazo_id, p.rls.rlsname, e.Message]))
+                else
+                  Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute FreePazo(pazo_id=%d, rls=nil): %s', [p.pazo_id, e.Message]));
+              end;
+            end;
+          end;
+          fDeletedPazos.Clear;
         finally
           kb_lock.Leave;
         end;
@@ -1896,7 +1923,10 @@ begin
             except
               on e: Exception do
               begin
-                Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute RanksProcess(p) : %s', [e.Message]));
+                if p.rls <> nil then
+                  Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute RanksProcess(pazo_id=%d, rls=%s) : %s', [p.pazo_id, p.rls.rlsname, e.Message]))
+                else
+                  Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute RanksProcess(pazo_id=%d, rls=nil) : %s', [p.pazo_id, e.Message]));
               end;
             end;
           end;
@@ -1912,18 +1942,7 @@ begin
         fFinishedPazos.Clear;
         fFinishedRankCalcPazos.Clear;
 
-        for p in fDeletedPazos do
-        begin
-          try
-            p.Free;
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, rsections, '[EXCEPTION] TKBThread.Execute FreePazo: %s', [e.Message]);
-            end;
-          end;
-        end;
-        fDeletedPazos.Clear;
+        // fDeletedPazos is now freed and cleared inside kb_lock above to avoid race conditions
 
       except
         on e: Exception do
