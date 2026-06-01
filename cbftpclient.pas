@@ -250,11 +250,7 @@ begin
       FLastResponse := FHttpClient.Content;
       FLastError := '';
 
-      if not FConnected then
-      begin
-        FConnected := True;
-        Debug(dpError, section, 'cbftp connected');
-      end;
+      FConnected := True;
 
       if status in [200, 201, 204] then
       begin
