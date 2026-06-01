@@ -266,7 +266,13 @@ begin
         FLastStatus := 0;
         FLastResponse := '';
         FLastError := Utf8Encode(E.Message);
-        Debug(dpError, section, Format('cbftp request exception: %s', [E.Message]));
+        if (Pos('connect', LowerCase(E.Message)) > 0) or
+           (Pos('refused', LowerCase(E.Message)) > 0) or
+           (Pos('tls failed', LowerCase(E.Message)) > 0) or
+           (Pos('econnrefused', LowerCase(E.Message)) > 0) then
+          Debug(dpError, section, 'cbftp not reachable')
+        else
+          Debug(dpError, section, Format('cbftp request exception: %s', [E.Message]));
       end;
     end;
   finally
