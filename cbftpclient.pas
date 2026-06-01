@@ -253,7 +253,7 @@ begin
       if not FConnected then
       begin
         FConnected := True;
-        Debug(dpMessage, section, 'cbftp connected');
+        Debug(dpError, section, 'cbftp connected');
       end;
 
       if status in [200, 201, 204] then
