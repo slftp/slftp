@@ -1,21 +1,25 @@
-Usage: <cmd> <srcsite> <dstsite> <rank> [--c1] [--c2] [--sw1] [--sw2] [-b/--back] [-a/--apply] [-f/--affil] [-n/--noaffil] [-l/--lock]
-Description: Sets routes between src and dst sites. Rank is an integer, higher value means higher priority.
+Usage: <cmd> <srcsite> <dstsite> [rank] [--allow|--block|--reset] [--affil-target] [--c1] [--c2] [--sw1] [--sw2] [-b/--back] [-a/--apply] [-f/--affil] [-n/--noaffil] [-l/--lock]
+Description: Sets routes between src and dst sites and configures their cbftp transfer policies.
 
-Normal positional parameters (mandatory):
+Normal positional parameters (mandatory/optional):
 <srcsite>
   Site name or wildcard * for all 
 <dstsite>
   Site name or wildcard * for all
-<rank>
-  Rank from 1 to 9. Use 0 to remove routes
+[rank]
+  Optional. Rank from 1 to 9 (default: 9 for allow, 0 for block/reset). Use 0 to remove routes in slftp.
 
-Examples:
-Add route from SITE1 to SITE2 with a rank of 5
-<cmd> SITE1 SITE2 5
+Named parameters (optional cbftp policies):
+--allow
+  Configure cbftp to only allow transfers between the sites (sets policies to BLOCK, default behavior).
+--block
+  Explicitly block transfer direction between the sites in cbftp (sets policies to ALLOW).
+--reset
+  Reset transfer exceptions between the sites in cbftp.
+--affil-target
+  Applies target policies specifically to affiliate releases (transfer_target_affil_policy).
 
-
-Named parameters (optional wilcards filters):
-
+Named parameters (optional wildcards filters):
 --c1 XX
   Source sites country
 --c2 XX
@@ -42,7 +46,11 @@ XX for ftpd softwares can be GLFTPD, IOFTPD or DRFTPD
    Lock the given speed rank, so that a new speed will not be calculated.
 
 Examples:
-Add routes from all french sites to all swiss sites (with back routes) and apply changes.
-<cmd> * * 9 --c1 fr --c2 ch -b -a
-Add routes from SITE1 to all sites in netherlands running glftpd
-<cmd> SITE1 * --sw2 glftpd --c2 nl
+Allow transfers from SITE1 to SITE2 (exclusively):
+<cmd> SITE1 SITE2 --allow
+Reset all exceptions between all sites (with back routes) and apply changes:
+<cmd> * * --reset -b -a
+Explicitly block SITE1 from transferring to SITE2:
+<cmd> SITE1 SITE2 --block
+Allow affiliate target transfers specifically:
+<cmd> SITE1 SITE2 --allow --affil-target

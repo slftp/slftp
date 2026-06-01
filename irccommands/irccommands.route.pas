@@ -14,7 +14,8 @@ implementation
 
 uses
   SysUtils, Classes, StrUtils, Contnrs, irc, debugunit, speedstatsunit, sitesunit,
-  rcmdline, mystrings, irccommandsunit, routeconfig, Generics.Collections;
+  rcmdline, mystrings, irccommandsunit, routeconfig, Generics.Collections,
+  cbftpclient, uLkJSON, mormot.core.base, mormot.core.unicode;
 
 const
   section = 'irccommands.route';
@@ -27,6 +28,96 @@ type
   TRoutesToShow = (dRoutesIn, dRoutesOut);
 
 {$I common.inc}
+
+procedure UpdateCbftpSiteException(const aSiteName, aExceptSiteName, aPolicyField, aExceptField: string; AllowFlag, BlockFlag, ResetFlag: Boolean);
+var
+  resp: RawUtf8;
+  js: TlkJSONbase;
+  jsObj: TlkJSONObject;
+  jsArr: TlkJSONlist;
+  i: Integer;
+  existingExceptions: TStringList;
+  policyValue: string;
+  exceptionsJson: string;
+  patchBody: string;
+  fField: TlkJSONbase;
+begin
+  if GlCbftpClient = nil then
+    Exit;
+
+  try
+    resp := GlCbftpClient.GetSite(StringToUtf8(aSiteName));
+    if resp = '' then
+    begin
+      Debug(dpError, section, 'UpdateCbftpSiteException: GetSite(%s) returned empty response', [aSiteName]);
+      Exit;
+    end;
+
+    js := TlkJSON.ParseText(AnsiString(resp));
+    if (js <> nil) and (js is TlkJSONObject) then
+    begin
+      jsObj := TlkJSONObject(js);
+      try
+        existingExceptions := TStringList.Create;
+        try
+          existingExceptions.Sorted := True;
+          existingExceptions.Duplicates := dupIgnore;
+
+          jsArr := TlkJSONlist(jsObj.Field[aExceptField]);
+          if jsArr <> nil then
+          begin
+            for i := 0 to jsArr.Count - 1 do
+              existingExceptions.Add(string(jsArr.Child[i].Value));
+          end;
+
+          if ResetFlag then
+          begin
+            i := existingExceptions.IndexOf(aExceptSiteName);
+            if i >= 0 then
+              existingExceptions.Delete(i);
+            
+            fField := jsObj.Field[aPolicyField];
+            if (fField <> nil) and (fField.SelfType <> jsNull) then
+              policyValue := string(fField.Value)
+            else
+              policyValue := 'ALLOW';
+          end
+          else
+          begin
+            if AllowFlag then
+              policyValue := 'BLOCK'
+            else
+              policyValue := 'ALLOW';
+
+            existingExceptions.Add(aExceptSiteName);
+          end;
+
+          exceptionsJson := '[';
+          for i := 0 to existingExceptions.Count - 1 do
+          begin
+            if i > 0 then
+              exceptionsJson := exceptionsJson + ',';
+            exceptionsJson := exceptionsJson + '"' + existingExceptions[i] + '"';
+          end;
+          exceptionsJson := exceptionsJson + ']';
+
+          patchBody := '{"' + aPolicyField + '":"' + policyValue + '","' + aExceptField + '":' + exceptionsJson + '}';
+          
+          if not GlCbftpClient.UpdateSite(StringToUtf8(aSiteName), StringToUtf8(patchBody)) then
+            Debug(dpError, section, 'UpdateCbftpSiteException: Failed to PATCH site %s', [aSiteName]);
+
+        finally
+          existingExceptions.Free;
+        end;
+      finally
+        jsObj.Free;
+      end;
+    end;
+  except
+    on E: Exception do
+      Debug(dpError, section, '[EXCEPTION] UpdateCbftpSiteException: %s', [E.Message]);
+  end;
+end;
 
 function _IrcSetRoute(const netname, channel, params: String): boolean;
 var
@@ -41,6 +132,8 @@ var
   site: TSite;
   speed: integer;
   fSpeedInfo: TSpeedFromRouteInfo;
+  fAllow, fBlock, fReset, fAffilTarget: Boolean;
+  nameless: TStringArray;
 begin
   Result := False;
 
@@ -64,6 +157,10 @@ begin
       rcmd.addAbbreviation('n', 'noaffil');
       rcmd.declareFlag('lock','Lock the given speed rank');
       rcmd.addAbbreviation('l', 'lock');
+      rcmd.declareFlag('allow','Allow transfers');
+      rcmd.declareFlag('block','Block transfers');
+      rcmd.declareFlag('reset','Reset exceptions');
+      rcmd.declareFlag('affil-target','Configure target affiliate policy');
       rcmd.parse(params);
     except
       on e: Exception do
@@ -74,9 +171,34 @@ begin
       end;
     end;
 
-    source := AnsiUpperCase(rcmd.readNamelessString()[0]);
-    dest := AnsiUpperCase(rcmd.readNamelessString()[1]);
-    speed := StrToIntDef(rcmd.readNamelessString()[2], -1);
+    nameless := rcmd.readNamelessString();
+    if Length(nameless) < 2 then
+    begin
+      irc_addtext(Netname, Channel, '<c4><b>Usage: !routeset <srcsite> <dstsite> [rank] [--allow|--block|--reset] [--affil-target] [-b] [-a] ...</b></c>');
+      exit;
+    end;
+
+    source := AnsiUpperCase(nameless[0]);
+    dest := AnsiUpperCase(nameless[1]);
+
+    fAllow := rcmd.readFlag('allow');
+    fBlock := rcmd.readFlag('block');
+    fReset := rcmd.readFlag('reset');
+    fAffilTarget := rcmd.readFlag('affil-target');
+
+    if not fAllow and not fBlock and not fReset then
+      fAllow := True;
+
+    if fBlock or fReset then
+      speed := 0
+    else
+    begin
+      if (Length(nameless) > 2) then
+        speed := StrToIntDef(nameless[2], 9)
+      else
+        speed := 9;
+    end;
+
     c1 := stringreplace(rcmd.readString('c1'), '.', '', [rfReplaceAll]);
     c2 := stringreplace(rcmd.readString('c2'), '.', '', [rfReplaceAll]);
     sw1 := rcmd.readString('sw1');
@@ -250,13 +372,24 @@ begin
           backtext := backtext + ' (no affil)';
         if lock then
           backtext := backtext + ' (locked)';
+        
+        if fAffilTarget then
+          backtext := backtext + ' (affil target)';
+
+        if fReset then
+          backtext := backtext + ' (reset)'
+        else if fBlock then
+          backtext := backtext + ' (blocked)'
+        else
+          backtext := backtext + ' (allowed)';
+
         if speed > 0 then
         begin
           irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set to %d%s', [source_sites[i], dest_sites[j], speed, backtext]);
         end
         else
         begin
-          irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> removed', [source_sites[i], dest_sites[j]]);
+          irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> removed%s', [source_sites[i], dest_sites[j], backtext]);
         end;
 
         // When using wildcards apply changes only if --apply has been specified (to avoid unwanted changes)
@@ -276,6 +409,38 @@ begin
             if back then
             begin
               sitesdat.DeleteKey('site-' + dest_sites[j], 'speed-from-' + source_sites[i]);
+            end;
+          end;
+
+          if GlCbftpClient <> nil then
+          begin
+            if fAffilTarget then
+            begin
+              // Destination Site: Update standard Source Exceptions & Policy (as cbftp has no source affil policy)
+              UpdateCbftpSiteException(dest_sites[j], source_sites[i], 'transfer_source_policy', 'except_source_sites', fAllow, fBlock, fReset);
+              // Source Site: Update Target Affiliate Exceptions & Policy
+              UpdateCbftpSiteException(source_sites[i], dest_sites[j], 'transfer_target_affil_policy', 'except_target_affil_sites', fAllow, fBlock, fReset);
+            end
+            else
+            begin
+              // Standard route
+              UpdateCbftpSiteException(dest_sites[j], source_sites[i], 'transfer_source_policy', 'except_source_sites', fAllow, fBlock, fReset);
+              UpdateCbftpSiteException(source_sites[i], dest_sites[j], 'transfer_target_policy', 'except_target_sites', fAllow, fBlock, fReset);
+            end;
+
+            if back then
+            begin
+              // Backroute
+              if fAffilTarget then
+              begin
+                UpdateCbftpSiteException(source_sites[i], dest_sites[j], 'transfer_source_policy', 'except_source_sites', fAllow, fBlock, fReset);
+                UpdateCbftpSiteException(dest_sites[j], source_sites[i], 'transfer_target_affil_policy', 'except_target_affil_sites', fAllow, fBlock, fReset);
+              end
+              else
+              begin
+                UpdateCbftpSiteException(source_sites[i], dest_sites[j], 'transfer_source_policy', 'except_source_sites', fAllow, fBlock, fReset);
+                UpdateCbftpSiteException(dest_sites[j], source_sites[i], 'transfer_target_policy', 'except_target_sites', fAllow, fBlock, fReset);
+              end;
             end;
           end;
 
