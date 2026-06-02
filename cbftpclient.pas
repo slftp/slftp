@@ -255,6 +255,8 @@ begin
       if status in [200, 201, 204] then
       begin
         Result := FHttpClient.Content;
+        if Result = '' then
+          Result := ' ';
         Debug(dpMessage, section, Format('cbftp response: %d', [status]));
       end
       else
