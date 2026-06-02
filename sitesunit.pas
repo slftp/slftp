@@ -790,7 +790,7 @@ implementation
 uses
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
-  dirlist.helpers, tags, Generics.Defaults, cbftpclient, mormot.core.base;
+  dirlist.helpers, tags, Generics.Defaults, cbftpclient, mormot.core.base, mormot.core.unicode;
 
 const
   section = 'sites';
@@ -4932,12 +4932,12 @@ begin
   begin
     if Value then
     begin
-      GlCbftpClient.UpdateSite(StringToUTF8(Name), '{"disabled":true}');
+      GlCbftpClient.UpdateSite(StringToUtf8(Name), '{"disabled":true}');
       WorkingStatus := sstMarkedAsDownByUser;
     end
     else
     begin
-      GlCbftpClient.UpdateSite(StringToUTF8(Name), '{"disabled":false}');
+      GlCbftpClient.UpdateSite(StringToUtf8(Name), '{"disabled":false}');
       WorkingStatus := sstUp;
     end;
   end;
