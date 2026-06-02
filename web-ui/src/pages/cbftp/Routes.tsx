@@ -16,7 +16,9 @@ import {
   ScrollArea, 
   Select,
   Grid,
-  ActionIcon
+  ActionIcon,
+  Checkbox,
+  Divider
 } from '@mantine/core';
 import { 
   IconRoute, 
@@ -26,7 +28,8 @@ import {
   IconArrowDownLeft, 
   IconGridDots, 
   IconX,
-  IconUsers
+  IconUsers,
+  IconTrash
 } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
@@ -40,6 +43,12 @@ export function Routes() {
   const [matrixSearch, setMatrixSearch] = useState('');
   const [direction, setDirection] = useState<'outgoing' | 'incoming' | 'affil'>('outgoing');
   const [dragOverRow, setDragOverRow] = useState<string | null>(null);
+  const [selectedSites, setSelectedSites] = useState<string[]>([]);
+
+  const handleDirectionChange = (val: 'outgoing' | 'incoming' | 'affil') => {
+    setDirection(val);
+    setSelectedSites([]);
+  };
 
   // Fetch site names
   const { data: siteNames, isLoading: namesLoading, refetch: refetchNames } = useQuery({
@@ -81,6 +90,103 @@ export function Routes() {
       });
     }
   });
+
+  const bulkUpdateMutation = useMutation({
+    mutationFn: async ({ names, updatesList }: { names: string[]; updatesList: Partial<CbftpSite>[] }) => {
+      await Promise.all(
+        names.map((name, idx) => updateSite(name, updatesList[idx]))
+      );
+    },
+    onSuccess: (_, variables) => {
+      notifications.show({
+        title: 'Bulk Route Configuration Saved',
+        message: `Routing configuration for ${variables.names.length} sites has been synchronized with cbftp.`,
+        color: 'green',
+        icon: <IconRoute size="1.1rem" />,
+      });
+      queryClient.invalidateQueries({ queryKey: ['cbftp-sites-details-routes'] });
+      setSelectedSites([]);
+    },
+    onError: (error: any) => {
+      notifications.show({
+        title: 'Bulk Synchronization Failed',
+        message: `Failed to update sites: ${error.message || 'Unknown error'}`,
+        color: 'red',
+      });
+    }
+  });
+
+  const handleBulkPolicyChange = (newPolicy: 'ALLOW' | 'BLOCK') => {
+    const names = [...selectedSites];
+    const updatesList = names.map(() => {
+      if (direction === 'outgoing') {
+        return { transfer_target_policy: newPolicy };
+      } else if (direction === 'incoming') {
+        return { transfer_source_policy: newPolicy };
+      } else {
+        return { transfer_target_affil_policy: newPolicy };
+      }
+    });
+
+    bulkUpdateMutation.mutate({ names, updatesList });
+  };
+
+  const handleBulkAddException = (sourceSiteName: string) => {
+    const names = [...selectedSites];
+    const updatesList = names.map(name => {
+      const site = sites?.find(s => s.name === name);
+      if (!site) return {};
+
+      if (direction === 'outgoing') {
+        const excepts = site.except_target_sites || [];
+        if (excepts.includes(sourceSiteName)) return {};
+        return { except_target_sites: [...excepts, sourceSiteName] };
+      } else if (direction === 'incoming') {
+        const excepts = site.except_source_sites || [];
+        if (excepts.includes(sourceSiteName)) return {};
+        return { except_source_sites: [...excepts, sourceSiteName] };
+      } else {
+        const excepts = site.except_target_affil_sites || [];
+        if (excepts.includes(sourceSiteName)) return {};
+        return { except_target_affil_sites: [...excepts, sourceSiteName] };
+      }
+    });
+
+    const namesToUpdate: string[] = [];
+    const finalUpdates: Partial<CbftpSite>[] = [];
+    names.forEach((name, idx) => {
+      const update = updatesList[idx];
+      if (update && Object.keys(update).length > 0) {
+        namesToUpdate.push(name);
+        finalUpdates.push(update);
+      }
+    });
+
+    if (namesToUpdate.length > 0) {
+      bulkUpdateMutation.mutate({ names: namesToUpdate, updatesList: finalUpdates });
+    } else {
+      notifications.show({
+        title: 'No Changes Needed',
+        message: 'All selected sites already have this exception configured.',
+        color: 'blue'
+      });
+    }
+  };
+
+  const handleBulkClearExceptions = () => {
+    const names = [...selectedSites];
+    const updatesList = names.map(() => {
+      if (direction === 'outgoing') {
+        return { except_target_sites: [] };
+      } else if (direction === 'incoming') {
+        return { except_source_sites: [] };
+      } else {
+        return { except_target_affil_sites: [] };
+      }
+    });
+
+    bulkUpdateMutation.mutate({ names, updatesList });
+  };
 
   const allSiteNames = useMemo(() => {
     if (!siteNames) return [];
@@ -307,8 +413,18 @@ export function Routes() {
 
       <Grid gutter="md">
         {/* Left Column: Draggable Sites Palette */}
-        <Grid.Col span={{ base: 12, md: 3 }}>
-          <Card shadow="sm" padding="md" radius="md" withBorder style={{ height: '100%' }}>
+        <Grid.Col span={{ base: 12, md: 3 }} style={{ position: 'relative' }}>
+          <Card 
+            shadow="sm" 
+            padding="md" 
+            radius="md" 
+            withBorder 
+            style={{ 
+              position: 'sticky', 
+              top: '80px', 
+              zIndex: 10 
+            }}
+          >
             <Stack gap="md">
               <Group gap="xs">
                 <IconGridDots size="1.2rem" color="var(--mantine-color-blue-6)" />
@@ -370,7 +486,7 @@ export function Routes() {
               <Group justify="space-between" align="center" wrap="wrap" gap="md">
                 <SegmentedControl
                   value={direction}
-                  onChange={(val) => setDirection(val as 'outgoing' | 'incoming' | 'affil')}
+                  onChange={(val) => handleDirectionChange(val as 'outgoing' | 'incoming' | 'affil')}
                   data={[
                     { 
                       label: (
@@ -422,11 +538,107 @@ export function Routes() {
                     : 'Manage affiliated upload destinations. Set general policy, then drop allowed/blocked sites into the exceptions list.'}
               </Text>
 
+              {/* Bulk Actions Panel */}
+              {selectedSites.length > 0 && (
+                <Card withBorder padding="md" radius="md" style={{ backgroundColor: 'var(--mantine-color-blue-light)' }}>
+                  <Stack gap="xs">
+                    <Group justify="space-between">
+                      <Group gap="xs">
+                        <IconRoute size="1.2rem" color="var(--mantine-color-blue-6)" />
+                        <Text fw={600} size="sm">Bulk Edit Options ({selectedSites.length} sites selected)</Text>
+                      </Group>
+                      <Button variant="subtle" size="xs" color="gray" onClick={() => setSelectedSites([])}>
+                        Deselect All
+                      </Button>
+                    </Group>
+                    <Divider my="xs" style={{ borderColor: 'var(--mantine-color-blue-3)' }} />
+                    <Group gap="md" wrap="wrap">
+                      <Group gap="xs">
+                        <Text size="xs" fw={500}>Set General Policy:</Text>
+                        <Button 
+                          size="xs" 
+                          variant="filled" 
+                          color="blue"
+                          onClick={() => handleBulkPolicyChange('ALLOW')}
+                          disabled={bulkUpdateMutation.isPending}
+                        >
+                          Allow All
+                        </Button>
+                        <Button 
+                          size="xs" 
+                          variant="filled" 
+                          color="red"
+                          onClick={() => handleBulkPolicyChange('BLOCK')}
+                          disabled={bulkUpdateMutation.isPending}
+                        >
+                          Block All
+                        </Button>
+                      </Group>
+                      
+                      <Divider orientation="vertical" style={{ height: '20px', borderColor: 'var(--mantine-color-blue-3)' }} />
+
+                      <Group gap="xs">
+                        <Text size="xs" fw={500}>Add Exception Site:</Text>
+                        <Select
+                          placeholder="Select site..."
+                          data={allSiteNames.filter(name => !selectedSites.includes(name))}
+                          size="xs"
+                          searchable
+                          style={{ width: 150 }}
+                          onChange={(val) => {
+                            if (val) handleBulkAddException(val);
+                          }}
+                          value={null}
+                          disabled={bulkUpdateMutation.isPending}
+                        />
+                      </Group>
+
+                      <Divider orientation="vertical" style={{ height: '20px', borderColor: 'var(--mantine-color-blue-3)' }} />
+
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        color="red"
+                        leftSection={<IconTrash size="0.8rem" />}
+                        onClick={handleBulkClearExceptions}
+                        disabled={bulkUpdateMutation.isPending}
+                      >
+                        Clear All Exceptions
+                      </Button>
+                    </Group>
+                  </Stack>
+                </Card>
+              )}
+
               {/* Matrix Table */}
               <Table.ScrollContainer minWidth={600}>
                 <Table striped highlightOnHover withTableBorder withColumnBorders verticalSpacing="sm">
                   <Table.Thead>
                     <Table.Tr>
+                      <Table.Th style={{ width: 40 }}>
+                        <Checkbox
+                          checked={
+                            filteredMatrixSites.length > 0 && 
+                            filteredMatrixSites.every(site => selectedSites.includes(site.name))
+                          }
+                          indeterminate={
+                            filteredMatrixSites.some(site => selectedSites.includes(site.name)) &&
+                            !filteredMatrixSites.every(site => selectedSites.includes(site.name))
+                          }
+                          onChange={(event) => {
+                            if (event.currentTarget.checked) {
+                              const visibleNames = filteredMatrixSites.map(s => s.name);
+                              setSelectedSites(prev => {
+                                const newSelection = new Set([...prev, ...visibleNames]);
+                                return Array.from(newSelection);
+                              });
+                            } else {
+                              const visibleNames = filteredMatrixSites.map(s => s.name);
+                              setSelectedSites(prev => prev.filter(name => !visibleNames.includes(name)));
+                            }
+                          }}
+                        />
+                      </Table.Th>
                       <Table.Th style={{ width: 140 }}>
                         <Text fw={700} size="sm">Site Name</Text>
                       </Table.Th>
@@ -443,7 +655,8 @@ export function Routes() {
                   
                   <Table.Tbody>
                     {filteredMatrixSites.map((site) => {
-                      const isUpdating = updateSiteMutation.isPending && updateSiteMutation.variables?.name === site.name;
+                      const isUpdating = (updateSiteMutation.isPending && updateSiteMutation.variables?.name === site.name) ||
+                                         (bulkUpdateMutation.isPending && selectedSites.includes(site.name));
                       const policy = direction === 'outgoing'
                         ? (site.transfer_target_policy || 'BLOCK')
                         : direction === 'incoming'
@@ -463,6 +676,21 @@ export function Routes() {
 
                       return (
                         <Table.Tr key={site.name} style={{ opacity: isUpdating ? 0.6 : 1, transition: 'opacity 0.2s' }}>
+                          {/* Checkbox Column */}
+                          <Table.Td>
+                            <Checkbox
+                              checked={selectedSites.includes(site.name)}
+                              onChange={(event) => {
+                                if (event.currentTarget.checked) {
+                                  setSelectedSites(prev => [...prev, site.name]);
+                                } else {
+                                  setSelectedSites(prev => prev.filter(name => name !== site.name));
+                                }
+                              }}
+                              disabled={isUpdating}
+                            />
+                          </Table.Td>
+
                           {/* Row Header: Site Name */}
                           <Table.Td style={{ fontWeight: 600 }}>
                             <Group gap="xs" wrap="nowrap">
@@ -605,7 +833,7 @@ export function Routes() {
 
                     {filteredMatrixSites.length === 0 && (
                       <Table.Tr>
-                        <Table.Td colSpan={3}>
+                        <Table.Td colSpan={4}>
                           <Center p="xl">
                             <Text size="sm" c="dimmed">No sites match the matrix filter.</Text>
                           </Center>
