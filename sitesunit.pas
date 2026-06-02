@@ -4916,11 +4916,6 @@ end;
 
 function TSite.GetPermDownStatus: boolean;
 begin
-  if GlCbftpClient <> nil then
-  begin
-    Result := False;
-    Exit;
-  end;
   Result := fPermDownStatus;
 end;
 
