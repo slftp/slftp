@@ -472,10 +472,16 @@ export function Sections() {
             }
 
             let path: string;
+            let syncToSlftp = false;
             
             if (s.status === 'MISMATCH' && s.cbftpPath) {
               const dir = siteDirections.get(s.name) || 'slftp';
-              path = dir === 'slftp' ? s.slftpPath : s.cbftpPath;
+              if (dir === 'cbftp') {
+                path = s.cbftpPath;
+                syncToSlftp = true;
+              } else {
+                path = s.slftpPath;
+              }
             } else {
               path = s.slftpPath;
             }
@@ -487,11 +493,18 @@ export function Sections() {
             
             if (!path || path.trim().length === 0) continue;
 
-            if (s.status === 'MISSING_IN_CBFTP') {
-              // Create new section
+            if (syncToSlftp) {
+              // Update section in slftp
+              await apiClient.post('/ApiSitesService/SetSiteSection', {
+                SiteName: siteName,
+                Section: s.name,
+                Dir: path
+              });
+            } else if (s.status === 'MISSING_IN_CBFTP') {
+              // Create new section in cbftp
               await createSiteSection(siteName, { name: s.name, path });
             } else if (s.status === 'MISMATCH') {
-              // Update existing section
+              // Update existing section in cbftp
               await updateSiteSection(siteName, s.name, { path });
             }
             successCount++;
