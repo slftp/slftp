@@ -46,7 +46,7 @@ interface SectionSyncStatus {
   name: string;
   slftpPath: string;
   cbftpPath: string | null;
-  status: 'MATCH' | 'MISMATCH' | 'MISSING_IN_CBFTP';
+  status: 'MATCH' | 'MISMATCH' | 'MISSING_IN_CBFTP' | 'EXTRA_IN_CBFTP';
 }
 
 interface SiteComparison {
@@ -112,12 +112,26 @@ export function SectionSync() {
           const cbftpSectionMap = new Map<string, string>();
           cbftpSections.forEach(s => cbftpSectionMap.set(s.name, s.path));
 
+          const slftpSectionNames = new Set(slftpSections.map(ss => ss.section));
+
           const sectionStatuses: SectionSyncStatus[] = slftpSections.map(ss => {
             const cbftpPath = cbftpSectionMap.get(ss.section) ?? null;
             let status: SectionSyncStatus['status'] = 'MATCH';
             if (cbftpPath === null) status = 'MISSING_IN_CBFTP';
             else if (cbftpPath !== ss.dir) status = 'MISMATCH';
             return { name: ss.section, slftpPath: ss.dir, cbftpPath, status };
+          });
+
+          // Add extra sections that exist in cbftp but not in slftp
+          cbftpSections.forEach(cs => {
+            if (!slftpSectionNames.has(cs.name)) {
+              sectionStatuses.push({
+                name: cs.name,
+                slftpPath: '',
+                cbftpPath: cs.path,
+                status: 'EXTRA_IN_CBFTP'
+              });
+            }
           });
 
           comparisons.push({
@@ -164,10 +178,12 @@ export function SectionSync() {
           results.push({ site: siteName, status: 'skipped', message: 'Site not found in cbftp', changes: 0 });
         } else {
           try {
-            const updatedSections = comparison.sections.map(s => ({
-              name: s.name,
-              path: s.slftpPath
-            }));
+            const updatedSections = comparison.sections
+              .filter(s => s.status !== 'EXTRA_IN_CBFTP')
+              .map(s => ({
+                name: s.name,
+                path: s.slftpPath
+              }));
             await updateCbftpSite(siteName, { sections: updatedSections });
             const changes = comparison.sections.filter(s => s.status !== 'MATCH').length;
             results.push({ site: siteName, status: 'success', message: `Synced ${changes} section(s)`, changes });
@@ -306,23 +322,35 @@ export function SectionSync() {
                         <Group key={sec.name} gap="sm" wrap="nowrap">
                           <Badge 
                             size="sm" variant="filled" 
-                            color={sec.status === 'MATCH' ? 'green' : sec.status === 'MISMATCH' ? 'orange' : 'blue'}
+                            color={sec.status === 'MATCH' ? 'green' : sec.status === 'MISMATCH' ? 'orange' : sec.status === 'MISSING_IN_CBFTP' ? 'blue' : 'red'}
                             style={{ minWidth: 90 }}
                           >
                             {sec.name}
                           </Badge>
-                          <Text size="sm" style={{ fontFamily: 'monospace' }}>{sec.slftpPath}</Text>
                           
-                          {sec.status === 'MISMATCH' && (
+                          {sec.status === 'EXTRA_IN_CBFTP' ? (
                             <>
+                              <Text size="sm" c="dimmed" fs="italic" style={{ fontFamily: 'monospace' }}>(not in slftp)</Text>
                               <IconArrowRight size={14} style={{ flexShrink: 0 }} />
-                              <Text size="sm" c="orange" fw={500} style={{ fontFamily: 'monospace' }}>{sec.cbftpPath}</Text>
-                              <Tooltip label="Path mismatch!"><IconEdit size={16} color="orange" /></Tooltip>
+                              <Text size="sm" c="red" fw={500} style={{ fontFamily: 'monospace' }}>{sec.cbftpPath}</Text>
+                              <Tooltip label="Extra in cbftp (will be removed)"><IconX size={16} color="red" /></Tooltip>
                             </>
-                          )}
-                          
-                          {sec.status === 'MISSING_IN_CBFTP' && (
-                            <Tooltip label="Missing in cbftp!"><IconPlus size={16} color="blue" /></Tooltip>
+                          ) : (
+                            <>
+                              <Text size="sm" style={{ fontFamily: 'monospace' }}>{sec.slftpPath}</Text>
+                              
+                              {sec.status === 'MISMATCH' && (
+                                <>
+                                  <IconArrowRight size={14} style={{ flexShrink: 0 }} />
+                                  <Text size="sm" c="orange" fw={500} style={{ fontFamily: 'monospace' }}>{sec.cbftpPath}</Text>
+                                  <Tooltip label="Path mismatch!"><IconEdit size={16} color="orange" /></Tooltip>
+                                </>
+                              )}
+                              
+                              {sec.status === 'MISSING_IN_CBFTP' && (
+                                <Tooltip label="Missing in cbftp!"><IconPlus size={16} color="blue" /></Tooltip>
+                              )}
+                            </>
                           )}
                         </Group>
                       ))}
