@@ -169,6 +169,41 @@ uses
 const
   section = 'cbftpclient';
 
+function CollapseWhitespace(const s: RawUtf8): RawUtf8;
+var
+  i, len: Integer;
+  lastWasSpace: Boolean;
+  c: AnsiChar;
+begin
+  Result := '';
+  len := Length(s);
+  if len = 0 then
+    Exit;
+  SetLength(Result, len);
+  lastWasSpace := False;
+  len := 0;
+  for i := 1 to Length(s) do
+  begin
+    c := s[i];
+    if c in [#9, #10, #13, ' '] then
+    begin
+      if not lastWasSpace then
+      begin
+        Inc(len);
+        Result[len] := ' ';
+        lastWasSpace := True;
+      end;
+    end
+    else
+    begin
+      Inc(len);
+      Result[len] := c;
+      lastWasSpace := False;
+    end;
+  end;
+  SetLength(Result, len);
+end;
+
 { TCbftpHttpClient }
 
 procedure TCbftpHttpClient.DisableProxy;
@@ -264,7 +299,7 @@ begin
         if status = 404 then
           Debug(dpMessage, section, Format('cbftp request not found: %d %s', [status, url]))
         else
-          Debug(dpError, section, Format('cbftp request failed: %d %s - %s', [status, url, FHttpClient.Content]));
+          Debug(dpError, section, Format('cbftp request failed: %d %s - %s', [status, url, CollapseWhitespace(FHttpClient.Content)]));
       end;
     except
       on E: Exception do
