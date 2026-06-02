@@ -248,8 +248,8 @@ export function Routes() {
               srcEntry.except_target_affil_sites = srcEntry.except_target_affil_sites.filter(x => x !== dst);
             } else {
               srcEntry.except_target_sites = srcEntry.except_target_sites.filter(x => x !== dst);
+              dstEntry.except_source_sites = dstEntry.except_source_sites.filter(x => x !== src);
             }
-            dstEntry.except_source_sites = dstEntry.except_source_sites.filter(x => x !== src);
           } else {
             const policyVal = bulkAction === 'ALLOW' ? 'BLOCK' : 'ALLOW';
             if (bulkAffilTarget) {
@@ -281,8 +281,8 @@ export function Routes() {
                 backSrcEntry.except_target_affil_sites = backSrcEntry.except_target_affil_sites.filter(x => x !== src);
               } else {
                 backSrcEntry.except_target_sites = backSrcEntry.except_target_sites.filter(x => x !== src);
+                backDstEntry.except_source_sites = backDstEntry.except_source_sites.filter(x => x !== dst);
               }
-              backDstEntry.except_source_sites = backDstEntry.except_source_sites.filter(x => x !== dst);
             } else {
               const policyVal = bulkAction === 'ALLOW' ? 'BLOCK' : 'ALLOW';
               if (bulkAffilTarget) {

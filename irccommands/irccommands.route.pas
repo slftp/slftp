@@ -417,7 +417,8 @@ begin
             if fAffilTarget then
             begin
               // Destination Site: Update standard Source Exceptions & Policy (as cbftp has no source affil policy)
-              UpdateCbftpSiteException(dest_sites[j], source_sites[i], 'transfer_source_policy', 'except_source_sites', fAllow, fBlock, fReset);
+              if not fReset then
+                UpdateCbftpSiteException(dest_sites[j], source_sites[i], 'transfer_source_policy', 'except_source_sites', fAllow, fBlock, fReset);
               // Source Site: Update Target Affiliate Exceptions & Policy
               UpdateCbftpSiteException(source_sites[i], dest_sites[j], 'transfer_target_affil_policy', 'except_target_affil_sites', fAllow, fBlock, fReset);
             end
@@ -433,7 +434,8 @@ begin
               // Backroute
               if fAffilTarget then
               begin
-                UpdateCbftpSiteException(source_sites[i], dest_sites[j], 'transfer_source_policy', 'except_source_sites', fAllow, fBlock, fReset);
+                if not fReset then
+                  UpdateCbftpSiteException(source_sites[i], dest_sites[j], 'transfer_source_policy', 'except_source_sites', fAllow, fBlock, fReset);
                 UpdateCbftpSiteException(dest_sites[j], source_sites[i], 'transfer_target_affil_policy', 'except_target_affil_sites', fAllow, fBlock, fReset);
               end
               else
