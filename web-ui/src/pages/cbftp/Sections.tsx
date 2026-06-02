@@ -41,7 +41,8 @@ import {
   getSites as getCbftpSites, 
   getSite as getCbftpSite, 
   createSiteSection,
-  updateSiteSection 
+  updateSiteSection,
+  deleteSiteSection
 } from '../../api/cbftpClient';
 import type { CbftpSite } from '../../api/cbftpClient';
 import { apiClient } from '../../api/client';
@@ -55,7 +56,7 @@ interface SectionSyncStatus {
   name: string;
   slftpPath: string;
   cbftpPath: string | null;
-  status: 'MATCH' | 'MISMATCH' | 'MISSING_IN_CBFTP';
+  status: 'MATCH' | 'MISMATCH' | 'MISSING_IN_CBFTP' | 'EXTRA_IN_CBFTP';
 }
 
 interface SiteComparison {
@@ -89,6 +90,7 @@ interface SiteRowProps {
 function SiteRow({ comp, isSelected, isExpanded, onToggle, onToggleSelect, onSync, isSyncing, showOnlyDifferences }: SiteRowProps) {
   const mismatchCount = comp.sections.filter(s => s.status === 'MISMATCH').length;
   const missingCount = comp.sections.filter(s => s.status === 'MISSING_IN_CBFTP').length;
+  const extraCount = comp.sections.filter(s => s.status === 'EXTRA_IN_CBFTP').length;
   const matchCount = comp.sections.filter(s => s.status === 'MATCH').length;
   
   // State for sync directions per section (only for mismatches)
@@ -160,7 +162,12 @@ function SiteRow({ comp, isSelected, isExpanded, onToggle, onToggleSelect, onSyn
                     {missingCount} new
                   </Badge>
                 )}
-                {matchCount > 0 && mismatchCount === 0 && missingCount === 0 && (
+                {extraCount > 0 && (
+                  <Badge size="sm" color="red" variant="light" leftSection={<IconX size={10} />}>
+                    {extraCount} extra
+                  </Badge>
+                )}
+                {matchCount > 0 && mismatchCount === 0 && missingCount === 0 && extraCount === 0 && (
                   <Badge size="sm" color="green" variant="light" leftSection={<IconCheck size={10} />}>
                     All match
                   </Badge>
@@ -238,44 +245,55 @@ function SiteRow({ comp, isSelected, isExpanded, onToggle, onToggleSelect, onSyn
                       <Badge 
                         size="md" 
                         variant="filled" 
-                        color={sec.status === 'MATCH' ? 'green' : sec.status === 'MISMATCH' ? 'orange' : 'blue'}
+                        color={sec.status === 'MATCH' ? 'green' : sec.status === 'MISMATCH' ? 'orange' : sec.status === 'MISSING_IN_CBFTP' ? 'blue' : 'red'}
                         style={{ minWidth: 100 }}
                       >
                         {sec.name}
                       </Badge>
                       
                       <Group gap="xs" style={{ flex: 1 }} align="center">
-                        <Text size="sm" fw={500} style={{ fontFamily: 'monospace', minWidth: 150 }}>
-                          {sec.slftpPath}
-                        </Text>
-                        
-                        {sec.status === 'MISMATCH' && sec.cbftpPath && (
+                        {sec.status === 'EXTRA_IN_CBFTP' ? (
                           <>
-                            {/* Direction selector */}
-                            <SegmentedControl
-                              size="xs"
-                              value={direction}
-                              onChange={(val) => handleDirectionChange(sec.name, val as SyncDirection)}
-                              data={[
-                                { value: 'slftp', label: <Tooltip label="Use slftp path"><IconArrowRight size={14} /></Tooltip> },
-                                { value: 'cbftp', label: <Tooltip label="Use cbftp path"><IconArrowLeft size={14} /></Tooltip> },
-                              ]}
-                            />
-                            <Text size="sm" c={direction === 'cbftp' ? 'blue' : 'orange'} fw={500} style={{ fontFamily: 'monospace' }}>
-                              {sec.cbftpPath}
+                            <Text size="sm" c="dimmed" fs="italic" style={{ fontFamily: 'monospace', minWidth: 150 }}>(not in slftp)</Text>
+                            <IconArrowRight size={14} style={{ flexShrink: 0 }} />
+                            <Text size="sm" c="red" fw={500} style={{ fontFamily: 'monospace' }}>{sec.cbftpPath}</Text>
+                            <Badge size="sm" color="red" variant="light">Will be removed</Badge>
+                          </>
+                        ) : (
+                          <>
+                            <Text size="sm" fw={500} style={{ fontFamily: 'monospace', minWidth: 150 }}>
+                              {sec.slftpPath}
                             </Text>
+                            
+                            {sec.status === 'MISMATCH' && sec.cbftpPath && (
+                              <>
+                                {/* Direction selector */}
+                                <SegmentedControl
+                                  size="xs"
+                                  value={direction}
+                                  onChange={(val) => handleDirectionChange(sec.name, val as SyncDirection)}
+                                  data={[
+                                    { value: 'slftp', label: <Tooltip label="Use slftp path"><IconArrowRight size={14} /></Tooltip> },
+                                    { value: 'cbftp', label: <Tooltip label="Use cbftp path"><IconArrowLeft size={14} /></Tooltip> },
+                                  ]}
+                                />
+                                <Text size="sm" c={direction === 'cbftp' ? 'blue' : 'orange'} fw={500} style={{ fontFamily: 'monospace' }}>
+                                  {sec.cbftpPath}
+                                </Text>
+                              </>
+                            )}
+                            
+                            {sec.status === 'MISSING_IN_CBFTP' && (
+                              <>
+                                <IconArrowRight size={14} color="var(--primary-light)" />
+                                <Badge size="sm" color="blue" variant="light">Will be added</Badge>
+                              </>
+                            )}
+                            
+                            {sec.status === 'MATCH' && (
+                              <IconCheck size={16} color="var(--mantine-color-green-6)" />
+                            )}
                           </>
-                        )}
-                        
-                        {sec.status === 'MISSING_IN_CBFTP' && (
-                          <>
-                            <IconArrowRight size={14} color="var(--primary-light)" />
-                            <Badge size="sm" color="blue" variant="light">Will be added</Badge>
-                          </>
-                        )}
-                        
-                        {sec.status === 'MATCH' && (
-                          <IconCheck size={16} color="var(--mantine-color-green-6)" />
                         )}
                       </Group>
                     </Group>
@@ -365,6 +383,7 @@ export function Sections() {
           const cbftpSectionMap = new Map<string, string>();
           cbftpSections.forEach(s => cbftpSectionMap.set(s.name, s.path));
 
+          const slftpSectionNames = new Set(slftpSections.map(ss => ss.section));
 
           const sectionStatuses: SectionSyncStatus[] = slftpSections.map(ss => {
             const cbftpPath = cbftpSectionMap.get(ss.section) ?? null;
@@ -378,6 +397,18 @@ export function Sections() {
               if (normalizedSlftp !== normalizedCbftp) status = 'MISMATCH';
             }
             return { name: ss.section, slftpPath: ss.dir, cbftpPath, status };
+          });
+
+          // Add extra sections that exist in cbftp but not in slftp
+          cbftpSections.forEach(cs => {
+            if (!slftpSectionNames.has(cs.name)) {
+              sectionStatuses.push({
+                name: cs.name,
+                slftpPath: '',
+                cbftpPath: cs.path,
+                status: 'EXTRA_IN_CBFTP'
+              });
+            }
           });
 
           comparisons.push({
@@ -433,6 +464,13 @@ export function Sections() {
           if (s.status === 'MATCH') continue; // Skip already matching sections
 
           try {
+            if (s.status === 'EXTRA_IN_CBFTP') {
+              // Delete extra section from site in cbftp
+              await deleteSiteSection(siteName, s.name);
+              successCount++;
+              continue;
+            }
+
             let path: string;
             
             if (s.status === 'MISMATCH' && s.cbftpPath) {
