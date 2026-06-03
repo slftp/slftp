@@ -1627,7 +1627,7 @@ begin
         Debug(dpSpam, section, Format('--> %s', [Name]));
 
         try
-          if GlCbftpClient <> nil then
+          if (GlCbftpClient <> nil) and (not (todotask is TRulesTask)) then
           begin
             todotask.ready := True;
             todotask.readyerror := True;
