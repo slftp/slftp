@@ -16,7 +16,7 @@ implementation
 
 uses
   sitesunit, SysUtils, DateUtils, mystrings, DebugUnit, Diff, HashUnit, encinifile, configunit, queueunit, irc, mrdohutils, news,
-  cbftpclient, mormot.core.base, mormot.core.variants;
+  cbftpclient, mormot.core.base, mormot.core.variants, mormot.core.unicode;
 
 const
   section = 'taskrules';
