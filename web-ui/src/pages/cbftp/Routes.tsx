@@ -19,7 +19,8 @@ import {
   ActionIcon,
   Checkbox,
   Divider,
-  MultiSelect
+  MultiSelect,
+  FileButton
 } from '@mantine/core';
 import { 
   IconRoute, 
@@ -31,7 +32,9 @@ import {
   IconX,
   IconUsers,
   IconTrash,
-  IconBolt
+  IconBolt,
+  IconDownload,
+  IconUpload
 } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
@@ -54,6 +57,8 @@ export function Routes() {
   const [bulkAction, setBulkAction] = useState<'ALLOW' | 'BLOCK' | 'RESET'>('ALLOW');
   const [addBackRoutes, setAddBackRoutes] = useState(false);
   const [bulkAffilTarget, setBulkAffilTarget] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
 
   const handleDirectionChange = (val: 'outgoing' | 'incoming' | 'affil') => {
     setDirection(val);
@@ -557,6 +562,105 @@ export function Routes() {
     });
   };
 
+  const handleExport = () => {
+    if (!sites) return;
+    setExportLoading(true);
+    try {
+      const exportData = sites.map(site => ({
+        name: site.name,
+        transfer_target_policy: site.transfer_target_policy,
+        transfer_source_policy: site.transfer_source_policy,
+        transfer_target_affil_policy: site.transfer_target_affil_policy,
+        except_target_sites: site.except_target_sites || [],
+        except_source_sites: site.except_source_sites || [],
+        except_target_affil_sites: site.except_target_affil_sites || []
+      }));
+
+      const jsonStr = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'cbftp-routes-backup.json';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      notifications.show({ title: 'Export Complete', message: `Exported ${exportData.length} sites.`, color: 'green' });
+    } catch (e) {
+      notifications.show({ title: 'Export Failed', message: 'Could not generate export file.', color: 'red' });
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const handleImport = async (file: File | null) => {
+    if (!file || !sites) return;
+    setImportLoading(true);
+    try {
+      const text = await file.text();
+      const importData = JSON.parse(text) as Array<{
+        name: string;
+        transfer_target_policy?: 'ALLOW' | 'BLOCK';
+        transfer_source_policy?: 'ALLOW' | 'BLOCK';
+        transfer_target_affil_policy?: 'ALLOW' | 'BLOCK';
+        except_target_sites?: string[];
+        except_source_sites?: string[];
+        except_target_affil_sites?: string[];
+      }>;
+
+      let count = 0;
+      for (const entry of importData) {
+        const site = sites.find(s => s.name === entry.name);
+        if (!site) continue;
+
+        const updates: Partial<CbftpSite> = {};
+        if (entry.transfer_target_policy !== undefined && entry.transfer_target_policy !== site.transfer_target_policy) {
+          updates.transfer_target_policy = entry.transfer_target_policy;
+        }
+        if (entry.transfer_source_policy !== undefined && entry.transfer_source_policy !== site.transfer_source_policy) {
+          updates.transfer_source_policy = entry.transfer_source_policy;
+        }
+        if (entry.transfer_target_affil_policy !== undefined && entry.transfer_target_affil_policy !== site.transfer_target_affil_policy) {
+          updates.transfer_target_affil_policy = entry.transfer_target_affil_policy;
+        }
+        if (entry.except_target_sites !== undefined) {
+          const a = entry.except_target_sites.sort();
+          const b = (site.except_target_sites || []).sort();
+          if (a.length !== b.length || !a.every((v, i) => v === b[i])) {
+            updates.except_target_sites = entry.except_target_sites;
+          }
+        }
+        if (entry.except_source_sites !== undefined) {
+          const a = entry.except_source_sites.sort();
+          const b = (site.except_source_sites || []).sort();
+          if (a.length !== b.length || !a.every((v, i) => v === b[i])) {
+            updates.except_source_sites = entry.except_source_sites;
+          }
+        }
+        if (entry.except_target_affil_sites !== undefined) {
+          const a = entry.except_target_affil_sites.sort();
+          const b = (site.except_target_affil_sites || []).sort();
+          if (a.length !== b.length || !a.every((v, i) => v === b[i])) {
+            updates.except_target_affil_sites = entry.except_target_affil_sites;
+          }
+        }
+
+        if (Object.keys(updates).length > 0) {
+          await updateSiteMutation.mutateAsync({ name: entry.name, updates });
+          count++;
+        }
+      }
+
+      notifications.show({ title: 'Import Complete', message: `Updated ${count} sites.`, color: 'green' });
+    } catch (e) {
+      notifications.show({ title: 'Import Failed', message: 'Ensure the file is valid cbftp routes JSON.', color: 'red' });
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   if (namesLoading || detailsLoading) {
     return (
       <Center h={300}>
@@ -596,6 +700,28 @@ export function Routes() {
           >
             Refresh Data
           </Button>
+          <Button
+            variant="default"
+            size="sm"
+            leftSection={<IconDownload size="1rem" />}
+            loading={exportLoading}
+            onClick={handleExport}
+          >
+            Export JSON
+          </Button>
+          <FileButton onChange={handleImport} accept="application/json">
+            {(props) => (
+              <Button
+                {...props}
+                variant="default"
+                size="sm"
+                leftSection={<IconUpload size="1rem" />}
+                loading={importLoading}
+              >
+                Import JSON
+              </Button>
+            )}
+          </FileButton>
         </Group>
       </Group>
 
@@ -729,18 +855,18 @@ export function Routes() {
 
               {/* Bulk Actions Panel */}
               {selectedSites.length > 0 && (
-                <Card withBorder padding="md" radius="md" style={{ backgroundColor: 'var(--mantine-color-blue-light)' }}>
+                <Card withBorder padding="md" radius="md" style={{ backgroundColor: `var(--mantine-color-${direction === 'affil' ? 'violet' : 'blue'}-light)` }}>
                   <Stack gap="xs">
                     <Group justify="space-between">
                       <Group gap="xs">
-                        <IconRoute size="1.2rem" color="var(--mantine-color-blue-6)" />
+                        <IconRoute size="1.2rem" color={`var(--mantine-color-${direction === 'affil' ? 'violet' : 'blue'}-6)`} />
                         <Text fw={600} size="sm">Bulk Edit Options ({selectedSites.length} sites selected)</Text>
                       </Group>
                       <Button variant="subtle" size="xs" color="gray" onClick={() => setSelectedSites([])}>
                         Deselect All
                       </Button>
                     </Group>
-                    <Divider my="xs" style={{ borderColor: 'var(--mantine-color-blue-3)' }} />
+                    <Divider my="xs" style={{ borderColor: `var(--mantine-color-${direction === 'affil' ? 'violet' : 'blue'}-3)` }} />
                     <Group gap="md" wrap="wrap">
                       <Group gap="xs">
                         <Text size="xs" fw={500}>Set General Policy:</Text>
@@ -764,7 +890,7 @@ export function Routes() {
                         </Button>
                       </Group>
                       
-                      <Divider orientation="vertical" style={{ height: '20px', borderColor: 'var(--mantine-color-blue-3)' }} />
+                      <Divider orientation="vertical" style={{ height: '20px', borderColor: `var(--mantine-color-${direction === 'affil' ? 'violet' : 'blue'}-3)` }} />
 
                       <Group gap="xs">
                         <Text size="xs" fw={500}>Add Exception Site:</Text>
@@ -782,7 +908,7 @@ export function Routes() {
                         />
                       </Group>
 
-                      <Divider orientation="vertical" style={{ height: '20px', borderColor: 'var(--mantine-color-blue-3)' }} />
+                      <Divider orientation="vertical" style={{ height: '20px', borderColor: `var(--mantine-color-${direction === 'affil' ? 'violet' : 'blue'}-3)` }} />
 
                       <Button
                         size="xs"
@@ -858,6 +984,11 @@ export function Routes() {
                           ? (site.except_source_sites || [])
                           : (site.except_target_affil_sites || []);
 
+                      const themeColor = direction === 'affil' ? 'violet' : 'blue';
+                      const badgeColor = direction === 'affil'
+                        ? (policy === 'BLOCK' ? 'violet' : 'pink')
+                        : (policy === 'BLOCK' ? 'teal' : 'red');
+
                       // Options for inline adding: all sites except this site and already excepted ones
                       const inlineOptions = allSiteNames
                         .filter(name => name !== site.name && !exceptions.includes(name))
@@ -922,11 +1053,11 @@ export function Routes() {
                               onDragLeave={() => setDragOverRow(null)}
                               onDrop={(e) => handleDrop(e, site.name)}
                               style={{
-                                border: dragOverRow === site.name 
-                                  ? '2px dashed var(--mantine-color-blue-6)' 
+                                border: dragOverRow === site.name
+                                  ? `2px dashed var(--mantine-color-${themeColor}-6)`
                                   : '1px dashed var(--mantine-color-default-border)',
-                                backgroundColor: dragOverRow === site.name 
-                                  ? 'var(--mantine-color-blue-light)' 
+                                backgroundColor: dragOverRow === site.name
+                                  ? `var(--mantine-color-${themeColor}-light)`
                                   : 'transparent',
                                 borderRadius: 'var(--mantine-radius-md)',
                                 padding: '8px 12px',
@@ -941,14 +1072,14 @@ export function Routes() {
                               {exceptions.map((exName) => (
                                 <Badge
                                   key={exName}
-                                  color={policy === 'BLOCK' ? 'teal' : 'red'}
+                                  color={badgeColor}
                                   variant="light"
                                   size="md"
                                   rightSection={
-                                    <ActionIcon 
-                                      size="xs" 
-                                      color={policy === 'BLOCK' ? 'teal' : 'red'}
-                                      variant="subtle" 
+                                    <ActionIcon
+                                      size="xs"
+                                      color={badgeColor}
+                                      variant="subtle"
                                       onClick={() => handleRemoveException(site.name, exName)}
                                       disabled={isUpdating}
                                       radius="xl"

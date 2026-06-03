@@ -754,7 +754,7 @@ var
       end;
 
       try
-        aSite.WorkingStatus := sstDown;
+        aSite.WorkingStatus := sstMarkedAsDownByUser;
       except
         on E: Exception do
           irc_AddText(Netname, Channel, '<c4>[Exception]</c> in mark as down: %s', [E.Message]);
