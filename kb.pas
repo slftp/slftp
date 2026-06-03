@@ -65,6 +65,7 @@ procedure KB_start;
 procedure kb_Init;
 procedure kb_Uninit;
 procedure kb_Stop;
+procedure SyncSitesFromCbftp;
 
 function kb_reloadsections: boolean;
 
@@ -1190,6 +1191,8 @@ var
   disabled: Boolean;
   fSite: TSite;
   f: TlkJSONbase;
+  maxLogins: Integer;
+  currentLogins: Integer;
 begin
   if GlCbftpClient = nil then
     Exit;
@@ -1236,6 +1239,18 @@ begin
                 disabled := (f.Value = True) or (f.Value = 'true') or (f.Value = '1');
               end;
 
+              // Get max_logins
+              f := obj.Field['max_logins'];
+              maxLogins := 0;
+              if (f <> nil) and (f.SelfType <> jsNull) then
+                maxLogins := StrToIntDef(f.Value, 0);
+
+              // Get current_logins
+              f := obj.Field['current_logins'];
+              currentLogins := 0;
+              if (f <> nil) and (f.SelfType <> jsNull) then
+                currentLogins := StrToIntDef(f.Value, 0);
+
               if siteName <> '' then
               begin
                 fSite := FindSiteByName('', siteName);
@@ -1250,6 +1265,12 @@ begin
                   begin
                     if fSite.WorkingStatus <> sstUp then
                       fSite.WorkingStatus := sstUp;
+                  end;
+
+                  // Update slot sizes and free slots to match cbftp settings
+                  if maxLogins > 0 then
+                  begin
+                    fSite.SyncSlots(maxLogins, currentLogins);
                   end;
                 end;
               end;

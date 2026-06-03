@@ -430,6 +430,7 @@ type
 
     constructor Create(const Name: String);
     destructor Destroy; override;
+    procedure SyncSlots(const aMaxLogins, aCurrentLogins: integer);
 
     procedure Stop;
     procedure DeleteKey(const Name: String);
@@ -3423,6 +3424,21 @@ begin
   FSettingsCacheDict.Free;
   Debug(dpSpam, section, 'Site %s destroy end', [Name]);
   inherited;
+end;
+
+procedure TSite.SyncSlots(const aMaxLogins, aCurrentLogins: integer);
+begin
+  fFreeSlotsCS.Enter('SyncSlots');
+  try
+    while slots.Count < aMaxLogins do
+      slots.Add(TSiteSlot.Create(self, slots.Count));
+    while slots.Count > aMaxLogins do
+      slots.Delete(slots.Count - 1);
+    
+    freeslots := aMaxLogins - aCurrentLogins;
+  finally
+    fFreeSlotsCS.Leave;
+  end;
 end;
 
 procedure SlotsFire;

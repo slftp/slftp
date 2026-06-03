@@ -80,6 +80,7 @@ var
   spd, sup, sdn, suk: TStringList;
   scount: integer;
 begin
+  SyncSitesFromCbftp;
   scount := sites.Count - 1;
 
   sup := TStringList.Create;
