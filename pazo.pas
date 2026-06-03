@@ -176,6 +176,7 @@ type
     lastannounceconsole: String;
     lastannounceirc: String; //< last announce string for [STATS] after race
     lastannounceroutes: String; //< last announce string from @link(TPazo.RoutesText)
+    FcbftpSitesSent: String; //< Comma-separated list of sites already sent to cbftp
     FExcludeFromIncfiller: boolean; //< @true if the incomplete filler should ignore this TPazo (e.g. already handled once), @false otherwise.
     FUniqueFileListOfRelease_cs: TSlCriticalSection2; //< Critical section for Add calls to @link(FUniqueFileListOfRelease)
     FUniqueFileListOfRelease: TDictionary<String, Int64>; //< Dictionary with files (including subdirs) and corresponding filesize (biggest value seen on any site) for this release, Key="dir + '/' + filename" and Value=filesize
@@ -890,6 +891,10 @@ var
   cbftpLine: String;
   sitelist: String;
   shouldSendUDP: Boolean;
+  tempSiteList: TStringList;
+  i: Integer;
+  siteName: String;
+  hasNewSite: Boolean;
 begin
   if rls = nil then
   begin
@@ -926,10 +931,33 @@ begin
     if sitelist <> '' then
     begin
       SetLength(sitelist, Length(sitelist) - 1);
-      cbftpLine := Format('<c3>[CBFTP]</c> : <b>%s %s</b> %s', [rls.section, rls.rlsname, sitelist]);
-      cbftpLine := cbftpLine + #13#10;
-      Result := Result + cbftpLine;
-      shouldSendUDP := True;
+
+      hasNewSite := False;
+      tempSiteList := TStringList.Create;
+      try
+        tempSiteList.CommaText := sitelist;
+        for i := 0 to tempSiteList.Count - 1 do
+        begin
+          siteName := tempSiteList[i];
+          if Pos(',' + siteName + ',', ',' + FcbftpSitesSent) = 0 then
+          begin
+            hasNewSite := True;
+            FcbftpSitesSent := FcbftpSitesSent + siteName + ',';
+          end;
+        end;
+      finally
+        tempSiteList.Free;
+      end;
+
+      if hasNewSite then
+      begin
+        cbftpLine := Format('<c3>[CBFTP]</c> : <b>%s %s</b> %s', [rls.section, rls.rlsname, sitelist]);
+        cbftpLine := cbftpLine + #13#10;
+        Result := Result + cbftpLine;
+        shouldSendUDP := True;
+      end
+      else
+        Debug(dpSpam, section, 'TPazo.RoutesText: no new sites in sitelist, skipping cbftp start spread job');
     end
     else
       Debug(dpMessage, section, 'TPazo.RoutesText: no eligible sites for UDP, skipping send');
@@ -1097,6 +1125,7 @@ begin
 
   self.stated := False;
   self.cleared := False;
+  FcbftpSitesSent := '';
 
   FExcludeFromIncfiller := False;
   if (rls <> nil) and rls.IsSFVRelease then
