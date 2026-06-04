@@ -164,7 +164,7 @@ type
 implementation
 
 uses
-  debugunit;
+  debugunit, uLkJSON;
 
 const
   section = 'cbftpclient';
@@ -202,6 +202,34 @@ begin
     end;
   end;
   SetLength(Result, len);
+end;
+
+function GetJsonErrorString(const aJson: RawUtf8): RawUtf8;
+var
+  js: TlkJSONbase;
+  obj: TlkJSONObject;
+begin
+  Result := aJson;
+  if aJson = '' then
+    Exit;
+  try
+    js := TlkJSON.ParseText(AnsiString(aJson));
+    if js <> nil then
+    begin
+      try
+        if js is TlkJSONObject then
+        begin
+          obj := TlkJSONObject(js);
+          if obj.Field['error'] <> nil then
+            Result := RawUtf8(obj.getString('error'));
+        end;
+      finally
+        js.Free;
+      end;
+    end;
+  except
+    // Fallback to original JSON on error
+  end;
 end;
 
 { TCbftpHttpClient }
@@ -298,8 +326,10 @@ begin
       begin
         if status = 404 then
           Debug(dpMessage, section, Format('cbftp request not found: %d %s', [status, url]))
+        else if (status = 503) and (Pos('"error":', FHttpClient.Content) > 0) then
+          Debug(dpMessage, section, Format('cbftp request ignored: %d %s - %s', [status, url, GetJsonErrorString(FHttpClient.Content)]))
         else
-          Debug(dpError, section, Format('cbftp request failed: %d %s - %s', [status, url, CollapseWhitespace(FHttpClient.Content)]));
+          Debug(dpError, section, Format('cbftp request failed: %d %s - %s', [status, url, GetJsonErrorString(FHttpClient.Content)]));
       end;
     except
       on E: Exception do
