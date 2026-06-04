@@ -50,12 +50,10 @@ type
 
   TPazoSite = class
   private
-    FStatus: TRlsSiteStatus;
     cds: String;
     FDestinations: TList<TDestinationRank>; //< destination sites and ranks
     FActiveTransfers: TDictionary<string, string>; //< stores which files have an active tranfer to this destination site. Key: filepath, Value: source site
     FActiveTransfersCS: TCriticalSection;
-    procedure SetStatus(const Value: TRlsSiteStatus);
     function Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>): boolean;
     function GetDirlistGaveUp: boolean;
     procedure SetDirlistGaveUp(const aGaveUp: boolean);
@@ -83,7 +81,7 @@ type
 
     ts: TDateTime;
     lookupforcedhere: boolean;
-    FIsSource: Boolean;
+    status: TRlsSiteStatus;
 
     reason: String;
 
@@ -98,13 +96,15 @@ type
     CbftpFilesDone: Integer;
     CbftpFilesTotal: Integer;
     CbftpBytesDone: Int64;
+    CbftpFilesTotalDone: Integer;
+    CbftpBytesTotalDone: Int64;
     CbftpCompletedTime: TDateTime;
 
     property dirlistgaveup: boolean read GetDirlistGaveUp write SetDirListGaveUp; //< gets or sets a value indicating whether dirlisting have been given up for this site
     property Destinations: TList<TDestinationRank> read FDestinations; //< destination sites and ranks
     property ActiveTransferCount: Int32 read GetActiveTransferCount;
-    property status: TRlsSiteStatus read FStatus write SetStatus;
 
+    function IsPureSource: Boolean;
     function StatusRealPreOrShouldPre: boolean;  //< returns @true if its a pre or at least it should be one
     function Source: boolean;
     function Complete: boolean;
@@ -573,11 +573,24 @@ begin
     dirlist.DirlistGaveUp := aGaveUp;
 end;
 
-procedure TPazoSite.SetStatus(const Value: TRlsSiteStatus);
+function TPazoSite.IsPureSource: Boolean;
+var
+  otherPs: TPazoSite;
+  destRank: TDestinationRank;
 begin
-  if Value in [rssRealPre, rssShouldPre] then
-    FIsSource := True;
-  FStatus := Value;
+  Result := True;
+  if pazo = nil then Exit;
+  for otherPs in pazo.PazoSitesList do
+  begin
+    for destRank in otherPs.destinations do
+    begin
+      if destRank.PazoSite.Name = self.Name then
+      begin
+        Result := False;
+        Exit;
+      end;
+    end;
+  end;
 end;
 
 function TPazoSite.Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>): boolean;
@@ -1323,11 +1336,11 @@ begin
           Continue;
 
         // Filter out zero-transfer/nuller sites
-        if not (ps.status in [rssRealPre, rssShouldPre, rssNotAllowed]) and not ps.FIsSource then
+        if not (ps.status in [rssRealPre, rssShouldPre, rssNotAllowed]) then
         begin
           if IsUDPEnabled then
           begin
-            if ps.CbftpFilesDone = 0 then
+            if ps.CbftpFilesTotalDone = 0 then
               Continue;
           end
           else
@@ -1429,9 +1442,9 @@ begin
         begin
           if IsUDPEnabled then
           begin
-            if ps.CbftpFilesDone = 0 then
+            if ps.CbftpFilesTotalDone = 0 then
             begin
-              Debug(dpSpam, section, Format('[TIMING DEBUG] SKIPPED: %s - Reason: CbftpFilesDone is 0 (nuller)', [ps.Name]));
+              Debug(dpSpam, section, Format('[TIMING DEBUG] SKIPPED: %s - Reason: CbftpFilesTotalDone is 0 (nuller)', [ps.Name]));
               Continue;
             end;
           end
@@ -1734,7 +1747,12 @@ begin
   ts := 0;
   firesourcesinstead := False;
   badcrcevents := 0;
-  FIsSource := False;
+  CbftpFilesDone := 0;
+  CbftpFilesTotal := 0;
+  CbftpBytesDone := 0;
+  CbftpFilesTotalDone := 0;
+  CbftpBytesTotalDone := 0;
+  CbftpCompletedTime := 0;
 
   FDestinations := TList<TDestinationRank>.Create(TComparer<TDestinationRank>.Construct(_CompareDestinationRanks));
   destinations_cs := TCriticalSection.Create;
@@ -2193,7 +2211,7 @@ begin
     if pazo.IsUDPEnabled then
     begin
       // cbftp engine mode: use cbftp progress data (takes priority over dirlist)
-      if FIsSource then
+      if CbftpFilesDone = 0 then
       begin
         Result := fsname;
       end

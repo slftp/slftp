@@ -2071,11 +2071,25 @@ begin
             fPazoSite := fPazo.FindSite(aEvent.Site);
             if fPazoSite <> nil then
             begin
-              if aEvent.FilesDone > fPazoSite.CbftpFilesDone then
-                fPazoSite.CbftpFilesDone := aEvent.FilesDone;
+              if aEvent.HasDownFields then
+              begin
+                if aEvent.FilesDown > fPazoSite.CbftpFilesDone then
+                  fPazoSite.CbftpFilesDone := aEvent.FilesDown;
+                if aEvent.BytesDown > fPazoSite.CbftpBytesDone then
+                  fPazoSite.CbftpBytesDone := aEvent.BytesDown;
+              end
+              else
+              begin
+                if aEvent.FilesDone > fPazoSite.CbftpFilesDone then
+                  fPazoSite.CbftpFilesDone := aEvent.FilesDone;
+                if aEvent.BytesDone > fPazoSite.CbftpBytesDone then
+                  fPazoSite.CbftpBytesDone := aEvent.BytesDone;
+              end;
               fPazoSite.CbftpFilesTotal := aEvent.FilesTotal;
-              if aEvent.BytesDone > fPazoSite.CbftpBytesDone then
-                fPazoSite.CbftpBytesDone := aEvent.BytesDone;
+              if aEvent.FilesDone > fPazoSite.CbftpFilesTotalDone then
+                fPazoSite.CbftpFilesTotalDone := aEvent.FilesDone;
+              if aEvent.BytesDone > fPazoSite.CbftpBytesTotalDone then
+                fPazoSite.CbftpBytesTotalDone := aEvent.BytesDone;
               Debug(dpSpam, rsections, Format('[cbftp] progress %s on %s: %d/%d files, %d/%d bytes',
                 [aEvent.Name, aEvent.Site, aEvent.FilesDone, aEvent.FilesTotal,
                  aEvent.BytesDone, aEvent.BytesTotal]));
@@ -2102,8 +2116,18 @@ begin
             begin
               fPazoSite.status := rssComplete;
               fPazoSite.CbftpCompletedTime := fPazo.added + (aEvent.TimeSpentSeconds / 86400.0);
-              fPazoSite.CbftpFilesDone := aEvent.FilesDone;
-              fPazoSite.CbftpBytesDone := aEvent.BytesDone;
+              if aEvent.HasDownFields then
+              begin
+                fPazoSite.CbftpFilesDone := aEvent.FilesDown;
+                fPazoSite.CbftpBytesDone := aEvent.BytesDown;
+              end
+              else
+              begin
+                fPazoSite.CbftpFilesDone := aEvent.FilesDone;
+                fPazoSite.CbftpBytesDone := aEvent.BytesDone;
+              end;
+              fPazoSite.CbftpFilesTotalDone := aEvent.FilesDone;
+              fPazoSite.CbftpBytesTotalDone := aEvent.BytesDone;
             end;
           end;
         finally

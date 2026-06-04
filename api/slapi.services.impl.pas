@@ -1367,7 +1367,7 @@ begin
                 isPresent := False;
                 if GlCbftpClient <> nil then
                 begin
-                  isPresent := (ps.CbftpFilesDone > 0) or (ps.status = rssComplete);
+                   isPresent := (ps.CbftpFilesTotalDone > 0) or (ps.status in [rssComplete, rssRealPre, rssShouldPre]);
                 end
                 else
                 begin
@@ -1546,8 +1546,8 @@ begin
           try
             if (GlCbftpClient <> nil) and (ps.CbftpFilesTotal > 0) then
             begin
-              siteDetail.Complete := ps.status = rssComplete;
-              siteDetail.FileCount := ps.CbftpFilesDone;
+              siteDetail.Complete := ps.status in [rssComplete, rssRealPre, rssShouldPre];
+              siteDetail.FileCount := ps.CbftpFilesTotalDone;
               siteDetail.FilesRacedByMe := ps.CbftpFilesDone;
               siteDetail.StartedTime := 0;
               if ps.status = rssComplete then
@@ -1555,7 +1555,10 @@ begin
               else
                 siteDetail.CompletedTime := 0;
 
-              siteDetail.Percent := (ps.CbftpFilesDone / ps.CbftpFilesTotal) * 100.0;
+              if ps.status in [rssComplete, rssRealPre, rssShouldPre] then
+                siteDetail.Percent := 100.0
+              else
+                siteDetail.Percent := (ps.CbftpFilesDone / ps.CbftpFilesTotal) * 100.0;
             end
             else if ps.dirlist <> nil then
             begin
