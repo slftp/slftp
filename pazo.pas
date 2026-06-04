@@ -50,10 +50,12 @@ type
 
   TPazoSite = class
   private
+    FStatus: TRlsSiteStatus;
     cds: String;
     FDestinations: TList<TDestinationRank>; //< destination sites and ranks
     FActiveTransfers: TDictionary<string, string>; //< stores which files have an active tranfer to this destination site. Key: filepath, Value: source site
     FActiveTransfersCS: TCriticalSection;
+    procedure SetStatus(const Value: TRlsSiteStatus);
     function Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>): boolean;
     function GetDirlistGaveUp: boolean;
     procedure SetDirlistGaveUp(const aGaveUp: boolean);
@@ -81,7 +83,7 @@ type
 
     ts: TDateTime;
     lookupforcedhere: boolean;
-    status: TRlsSiteStatus;
+    FIsSource: Boolean;
 
     reason: String;
 
@@ -101,6 +103,7 @@ type
     property dirlistgaveup: boolean read GetDirlistGaveUp write SetDirListGaveUp; //< gets or sets a value indicating whether dirlisting have been given up for this site
     property Destinations: TList<TDestinationRank> read FDestinations; //< destination sites and ranks
     property ActiveTransferCount: Int32 read GetActiveTransferCount;
+    property status: TRlsSiteStatus read FStatus write SetStatus;
 
     function StatusRealPreOrShouldPre: boolean;  //< returns @true if its a pre or at least it should be one
     function Source: boolean;
@@ -568,6 +571,13 @@ procedure TPazoSite.SetDirlistGaveUp(const aGaveUp: boolean);
 begin
   if (dirlist <> nil) then
     dirlist.DirlistGaveUp := aGaveUp;
+end;
+
+procedure TPazoSite.SetStatus(const Value: TRlsSiteStatus);
+begin
+  if Value in [rssRealPre, rssShouldPre] then
+    FIsSource := True;
+  FStatus := Value;
 end;
 
 function TPazoSite.Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>): boolean;
@@ -1313,7 +1323,7 @@ begin
           Continue;
 
         // Filter out zero-transfer/nuller sites
-        if not (ps.status in [rssRealPre, rssShouldPre, rssNotAllowed]) then
+        if not (ps.status in [rssRealPre, rssShouldPre, rssNotAllowed]) and not ps.FIsSource then
         begin
           if IsUDPEnabled then
           begin
@@ -1724,6 +1734,7 @@ begin
   ts := 0;
   firesourcesinstead := False;
   badcrcevents := 0;
+  FIsSource := False;
 
   FDestinations := TList<TDestinationRank>.Create(TComparer<TDestinationRank>.Construct(_CompareDestinationRanks));
   destinations_cs := TCriticalSection.Create;
@@ -2182,13 +2193,20 @@ begin
     if pazo.IsUDPEnabled then
     begin
       // cbftp engine mode: use cbftp progress data (takes priority over dirlist)
-      fsize := CbftpBytesDone / 1024;
-      RecalcSizeValueAndUnit(fsize, fsizetrigger, 1);
+      if FIsSource then
+      begin
+        Result := fsname;
+      end
+      else
+      begin
+        fsize := CbftpBytesDone / 1024;
+        RecalcSizeValueAndUnit(fsize, fsizetrigger, 1);
 
-      if not Complete then
-        fsname := Format('<c11>%s</c>', [fsname]); // incomplete
+        if not Complete then
+          fsname := Format('<c11>%s</c>', [fsname]); // incomplete
 
-      Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, CbftpFilesDone, fsize, fsizetrigger]);
+        Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, CbftpFilesDone, fsize, fsizetrigger]);
+      end;
     end
     else if (dirlist <> nil) then
     begin
