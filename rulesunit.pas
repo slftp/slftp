@@ -3316,14 +3316,6 @@ begin
   if r = nil then Exit;
   ruleText := LowerCase(r.AsText(True));
   if (Pos('mp3genre', ruleText) > 0) or
-     (Pos('mp3year', ruleText) > 0) or
-     (Pos('mp3language', ruleText) > 0) or
-     (Pos('mp3lng', ruleText) > 0) or
-     (Pos('mp3numdisks', ruleText) > 0) or
-     (Pos('mp3live', ruleText) > 0) or
-     (Pos('mp3va', ruleText) > 0) or
-     (Pos('mp3bootleg', ruleText) > 0) or
-     (Pos('mp3source', ruleText) > 0) or
      (Pos('nfogenre', ruleText) > 0) then
   begin
     Result := True;
