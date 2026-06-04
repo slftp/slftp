@@ -1,0 +1,7 @@
+Usage: <cmd> [count] [CATEGORY]
+Displays the decrypted news. Default count is 10.
+If you want to only show messages of a specific category, you also need to input a count value!
+Examples:
+<cmd> 15
+<cmd> 5 TVMAZE
+For a list of valid categories see <cmdprefix>newscategories

@@ -1,0 +1,4 @@
+Remove a Show from the Database.
+Usage: <cmd> ripName or ID
+Example: <cmd> 66
+Example: <cmd> New Girl

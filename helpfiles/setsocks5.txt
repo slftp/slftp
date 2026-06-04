@@ -1,0 +1,15 @@
+Usage: <cmd> Trigger Name Value
+Description: Link a Proxy (socks5 only) to a SITE, IRC Network or HTTP connections.
+Triggers: SITE or IRC or HTTP
+Value: can be the Proxyname or the Indexnumber, -1 to remove Proxy.
+Examples:
+<cmd> SITE MYHQ 0
+<cmd> SITE MYHEADQ MYSOCKS1
+<cmd> SITE * MYSOCKS1 <-- all sites should use proxy MYSOCKS1
+<cmd> SITE MYHQ -1 <- removes the proxy.
+You can use the special sitename * for site-generic rules.
+<cmd> IRC MYIRCNET SOCKS5NAME
+<cmd> IRC MYIRCNET -1 <- removes the proxy.
+Note: Different syntax for setting a HTTP proxy.
+<cmd> HTTP MYSOCKS 
+<cmd> HTTP -1 <- removes the HTTP proxy.

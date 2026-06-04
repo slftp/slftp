@@ -1,0 +1,5 @@
+Usage: <cmd> sitename text
+Display/Change/Modifies infos for a site
+Description: add some infos to a site
+Example: Add sections for the glftpd-cluster
+<cmd> iso.box: pcgames, xboxone, ps4, x265

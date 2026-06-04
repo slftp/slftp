@@ -1,0 +1,10 @@
+Get/sets/Remove autorules status of a site.
+Usage: <cmd> sitename interval
+Autorules read the siterules and let you know if anything has changed.
+If interval is zero, autorules is turned off. Interval is seconds.
+NOTE: Use a higher interval because rules are not changed every x minutes/hours! It'll only block your sites.
+Examples:
+<cmd> * 0 <- disable autorules on every site
+<cmd> HQ1,HQ2,HQ3 86400 <- checks every 24h if there was a change in rules
+
+You can use the special sitename * as a wildcard for all sites.

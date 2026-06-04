@@ -1,0 +1,290 @@
+stages:
+  - build
+  - test
+  - create sourcecode documentation
+  - deploy sourcecode documentation
+  - upload
+  - release
+
+variables:
+  SLFTP_CI_IMAGE: registry.gitlab.com/slftp/ci-images/ubuntu-lts
+
+### build stage ###
+
+.buildwin64: &buildwin64
+  stage: build
+  script:
+    - cmd.exe -/c ".\make.bat slftp_64"
+  after_script:
+    # rename executable
+    - ren slftp.exe slftp_x64-${CI_COMMIT_SHORT_SHA}.exe
+  artifacts:
+    # name of the generated zipfile
+    name: "slftp_x64-${CI_JOB_NAME}-${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHA}"
+    paths:
+      # included file
+      - slftp_x64-${CI_COMMIT_SHORT_SHA}.exe
+  tags:
+    - windows
+    - delphi 64bit
+
+buildwin64-release:
+  <<: *buildwin64
+  before_script:
+    # delete .git dir to avoid patching in git rev
+    - Remove-Item .git -Recurse -Force
+  only:
+    - tags
+
+buildwin64-development:
+  <<: *buildwin64
+  except:
+    - tags
+
+.buildlinux64: &buildlinux64
+  stage: build
+  image: $SLFTP_CI_IMAGE
+  script:
+    - make slftp_64
+  after_script:
+    # rename executable
+    - mv slftp slftp_x64-${CI_COMMIT_SHORT_SHA}
+  artifacts:
+    # name of the generated zipfile
+    name: "slftp_x64-${CI_JOB_NAME}-${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHA}"
+    paths:
+      # included file
+      - slftp_x64-${CI_COMMIT_SHORT_SHA}
+  tags:
+    - saas-linux-medium-amd64
+
+buildlinux64-release:
+  <<: *buildlinux64
+  before_script:
+    # delete .git dir to avoid patching in git rev
+    - rm -fr .git
+  only:
+    - tags
+
+buildlinux64-development:
+  <<: *buildlinux64
+  except:
+    - tags
+
+### test stage ###
+
+testwin64:
+  stage: test
+  when: on_success
+  before_script:
+    - move config\* tests
+  script:
+    - cmd.exe -/c ".\make.bat test_64"
+  artifacts:
+    paths:
+      - tests\dunitx-results.xml
+    reports:
+      junit: tests\dunitx-results.xml
+  tags:
+    - windows
+    - delphi 64bit
+
+testlinux64:
+  stage: test
+  image: $SLFTP_CI_IMAGE
+  when: on_success
+  before_script:
+    - cp /usr/lib/x86_64-linux-gnu/libcrypto.so.3 tests/libcrypto.so.3
+    - cp /usr/lib/x86_64-linux-gnu/libssl.so.3 tests/libssl.so.3
+    - cp /usr/lib/x86_64-linux-gnu/ossl-modules/legacy.so tests/legacy.so
+    #- wget -O libcrypto.so https://gitlab.com/slftp/ci-images/-/raw/master/libcrypto_openssl-1.1.1s
+    #- wget -O libssl.so https://gitlab.com/slftp/ci-images/-/raw/master/libssl_openssl-1.1.1s
+    - mv config/* tests/
+  script:
+    - make test
+  tags:
+    - saas-linux-medium-amd64
+
+### sourcecode documentation stage ###
+
+src-docs:
+  stage: create sourcecode documentation
+  image: $SLFTP_CI_IMAGE
+  only:
+    - dev
+  except:
+    # not for tag creation as they could be older
+    - tags
+  when: on_success
+  allow_failure: true
+  artifacts:
+    name: "${CI_JOB_NAME}-${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHA}"
+    when: on_success
+    paths:
+      - src-docs/
+  before_script:
+    - mkdir src-docs
+  script:
+    - pasdoc --format html --write-uses-list --output src-docs irccommands/*.pas *.pas slftp.lpr
+  tags:
+    - saas-linux-medium-amd64
+
+pages:
+  stage: deploy sourcecode documentation
+  only:
+    - dev
+  except:
+    # not for tag creation as they could be older
+    - tags
+  when: on_success
+  artifacts:
+    when: on_success
+    paths:
+      - public/
+  script:
+    - cp -r src-docs public
+  tags:
+    - saas-linux-medium-amd64
+
+### package & release stage ###
+
+upload-package-files:
+  stage: upload
+  image: alpine:latest
+  rules:
+    - if: $CI_COMMIT_TAG
+  variables:
+    PACKAGE_REGISTRY_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic"
+  before_script:
+    # Install needed dependencies
+    - apk add --no-cache grep git curl zip unzip openssh-client ca-certificates
+    # save environment variables also for release stage
+    # get current version
+    - echo "VERSION=$(awk '/SL_VERSION:/{print $NF}' slftp.inc | grep -oP '\d\.\d\.\d\w?\d?')" >> build.env
+    # package number must be \d.\d.\d
+    - echo "NUMBERVERSION=$(awk '/SL_VERSION:/{print $NF}' slftp.inc | grep -oP '\d\.\d\.\d')" >> build.env
+    # load env variables before using them
+    - source build.env
+    # repo url
+    - echo "PACKAGE_URL=${PACKAGE_REGISTRY_URL}/slftp_${VERSION}/${NUMBERVERSION}" >> build.env
+    # naming convention for files
+    - echo "WINDOWS_x64_BINARY=slftp-v${VERSION}_x64.exe" >> build.env
+    - echo "LINUX_x64_BINARY=slftp-v${VERSION}_x64" >> build.env
+    - echo "SLCONFIG=slftp-v${VERSION}_config.zip" >> build.env
+    - echo "SLDOCU=slftp-v${VERSION}_documentation.zip" >> build.env
+    - echo "SLHELPFILES=slftp-v${VERSION}_helpfiles.zip" >> build.env
+    - echo "SLPACKAGE=slFtp.v${VERSION}.Linux.Windows.incl.Sources-SLDev.zip" >> build.env
+    # usually this will only be executed if a tag is commited. but for developing/testing this script, it's nice to 
+    # have this workingwithout a CI_COMMIT_TAG being set. therefore check if we have a CI_COMMIT_TAG, else use 
+    # CI_COMMIT_BRANCH instead. this is used to download the source code and add it to the complete release package
+    - |
+      if [[ -n "${CI_COMMIT_TAG}" ]]
+      then
+        echo "SLBRANCHORTAG=${CI_COMMIT_TAG}" >> build.env
+      else
+        echo "SLBRANCHORTAG=${CI_COMMIT_BRANCH}" >> build.env
+      fi
+    # load env variables again
+    - source build.env
+  script:
+    # remove git short hash from filename
+    - mv slftp_x64-${CI_COMMIT_SHORT_SHA}.exe slftp_x64.exe
+    - mv slftp_x64-${CI_COMMIT_SHORT_SHA} slftp_x64
+    # upload windows versions
+    - |
+      curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file slftp_x64.exe ${PACKAGE_URL}/${WINDOWS_x64_BINARY}
+    # upload linux versions
+    - |
+      curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file slftp_x64 ${PACKAGE_URL}/${LINUX_x64_BINARY}
+    # create config, docs and helpfiles
+    - |
+      zip -r ${SLCONFIG} config
+      zip -r ${SLDOCU} docs
+      zip -r ${SLHELPFILES} helpfiles
+    # upload config, docs and helpfiles
+    - |
+      curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file ${SLCONFIG} ${PACKAGE_URL}/${SLCONFIG}
+      curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file ${SLDOCU} ${PACKAGE_URL}/${SLDOCU}
+      curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file ${SLHELPFILES} ${PACKAGE_URL}/${SLHELPFILES}
+
+     # create complete pack ready to run
+    - |
+     mkdir dist
+     mkdir dist/help
+     mkdir sources
+     cp slftp_x64.exe dist
+     cp slftp_x64 dist
+     cp config/* dist
+     cp helpfiles/* dist/help
+    - |
+     git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/slftp/slftp.git -b ${SLBRANCHORTAG} sources
+    #delete the .git directory to save space
+    - |
+     rm -rf sources/.git
+    - |
+     rm -rf sources/config
+     rm -rf sources/docs
+     rm -rf sources/helpfiles
+    - |
+     curl -s https://cdn.mysql.com/archives/mysql-connector-c/mysql-connector-c-6.1.11-winx64.zip -o mysqlwin64.zip
+    - |
+     unzip -p mysqlwin64.zip */lib/libmysql.dll > dist/libmysql.dll
+    - |
+     rm -f mysqlwin64.zip
+    - |
+     curl -s https://archive.mariadb.org/mariadb-10.5.24/winx64-packages/mariadb-10.5.24-winx64.zip -o mariadbwin64.zip
+    - |
+     unzip -p mariadbwin64.zip */lib/libmariadb.dll > dist/libmariadb.dll
+    - |
+     rm -f mariadbwin64.zip
+    - |
+     curl -s https://www.sqlite.org/2024/sqlite-dll-win-x64-3450300.zip -o sqlitewin64.zip
+    - |
+     unzip -p sqlitewin64.zip sqlite3.dll > dist/sqlite3-64.dll
+    - |
+     rm -f sqlitewin64.zip
+    - |
+     curl -s -L https://gitlab.com/slftp/binaries/-/tree/main/openssl-3.5_x64.zip -o opensslwin64.zip
+    - |
+     unzip -p opensslwin64.zip libcrypto-3-x64.dll > dist/libcrypto-3-x64.dll
+    - |
+     unzip -p opensslwin64.zip libssl-3-x64.dll > dist/libssl-3-x64.dll
+    - |
+     unzip -p opensslwin64.zip ossl-modules/legacy.dll > dist/legacy.dll
+    - |
+     rm -f opensslwin64.zip
+    - |
+     zip -r ${SLPACKAGE} dist docs sources CHANGELOG README.md
+    # upload the pack
+    - |
+     curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file ${SLPACKAGE} ${PACKAGE_URL}/${SLPACKAGE}
+  artifacts:
+    reports:
+      # publish environment variables
+      dotenv: build.env
+  tags:
+    - saas-linux-medium-amd64
+
+release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  variables:
+    # do not fetch the git repository
+    GIT_STRATEGY: none
+  needs:
+    # get environment variables
+    - job: upload-package-files
+      artifacts: true
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - >
+      release-cli create --name "slFtp ${CI_COMMIT_TAG}" --tag-name ${CI_COMMIT_TAG}
+      --assets-link "{\"name\":\"${WINDOWS_x64_BINARY}\",\"url\":\"${PACKAGE_URL}/${WINDOWS_x64_BINARY}\"}"
+      --assets-link "{\"name\":\"${LINUX_x64_BINARY}\",\"url\":\"${PACKAGE_URL}/${LINUX_x64_BINARY}\"}"
+      --assets-link "{\"name\":\"${SLCONFIG}\",\"url\":\"${PACKAGE_URL}/${SLCONFIG}\"}"
+      --assets-link "{\"name\":\"${SLDOCU}\",\"url\":\"${PACKAGE_URL}/${SLDOCU}\"}"
+      --assets-link "{\"name\":\"${SLHELPFILES}\",\"url\":\"${PACKAGE_URL}/${SLHELPFILES}\"}"
+      --assets-link "{\"name\":\"${SLPACKAGE}\",\"url\":\"${PACKAGE_URL}/${SLPACKAGE}\"}"
+  tags:
+    - saas-linux-medium-amd64

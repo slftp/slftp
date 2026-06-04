@@ -1,0 +1,4 @@
+Usage: <cmd> sitename [0|1]
+Command gets/sets the nosocks5 parameter for sites.
+To query the actual status omit the 2nd parameter.
+To disable SOCKS5 for a site, type <cmd> sitename 1

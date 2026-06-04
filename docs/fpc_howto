@@ -1,0 +1,55 @@
+FPC 3.2 is in BETA stadium which gets fixes from time to time and
+FPC 3.3 is a moving target where changes are added almost every day.
+
+Even if you have a working version installed, you should update it
+from time to time for improvements and/or fixed bugs inside the
+compiler, libraries, etc which might also affect slFtp.
+
+For downloading details, see https://www.freepascal.org/develop.html
+
+1. Install latest official FPC version 
+    see https://www.freepascal.org/download.var and 'compiling' file
+
+    e.g. for Debian:
+      echo "deb http://ftp.debian.org/debian stretch-backports main" >> /etc/apt/sources.list
+      apt-get update -y
+      apt-get install fpc-3.0.4 screen binutils libncurses-dev libncursesw5-dev libssl-dev libncurses5 libncursesw5-dbg unzip -y
+
+    e.g. for Arch Linux:
+      pacman -S fpc
+
+2. Installation of FPC
+
+   self-compiling:
+     a. Installation of FPC 3.2:
+        wget ftp://ftp.freepascal.org/pub/fpc/snapshot/v32/source/fpc.zip
+        or
+        wget ftp://mirror.freemirror.org/pub/fpc/snapshot/v32/source/fpc.zip
+
+     b. Installation of FPC trunk:
+        wget ftp://ftp.freepascal.org/pub/fpc/snapshot/trunk/source/fpc.zip
+        or
+        wget ftp://mirror.freemirror.org/pub/fpc/snapshot/trunk/source/fpc.zip
+
+      unzip fpc.zip
+      cd fpc
+      make all -j`lscpu | grep "^CPU(s):" | awk {'print $NF'}`
+      fpc_version=$(grep version= Makefile.fpc | cut -d= -f2 | cut -d "-" -f 1)
+      sudo make install
+      sudo ln -sfv /usr/local/bin/fpc /etc/alternatives/fpc
+      sudo ln -sfv /usr/local/lib/fpc/${fpc_version}/ppcx64 /usr/local/bin/ppcx64
+      sudo /usr/local/lib/fpc/${fpc_version}/samplecfg /usr/local/lib/fpc/${fpc_version}/
+
+   Arch Linux:
+     a. Installation of FPC 3.2:
+        see self-compiling
+
+     b. Installation of FPC trunk:
+        git clone https://aur.archlinux.org/fpc-svn.git
+        cd fpc-svn
+        makepkg -si
+
+3. Use included libinstaller.sh to compile relevant libraries yourself
+
+                    WE DO NOT PROVIDE ANY FURTHER HELP,
+       IF YOU WANT TO COMPILE YOUR OWN LIBRARIES, FIGURE IT OUT YOURSELF!

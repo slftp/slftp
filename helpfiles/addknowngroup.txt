@@ -1,0 +1,7 @@
+Usage: <cmd> section knowngroup1 knowngroup2 ... 
+Description: Adds known groups to slftp.knowngroups, use knowngroups in general if you want to make use of that list.
+Example: <cmd> MP3 RNS DV8 
+
+If you added the 3 knowngroups mentioned above, you might use the following rule:
+<cmdprefix>ruleadd MyHQ MP3 if not knowngroup then drop
+This would drop all other groups except for the ones you defined as knowngroup.

@@ -1,0 +1,4 @@
+Usage: <cmd> dstsite srcsite1 [srcsite2 ...]
+Bot will test incoming speeds of dstsite: it will send speedtest files 
+between srcsite1-dstsite, srcsite2-dstsite, ...
+A speedtest file with size 15-100mb must already exist on all srcsites.

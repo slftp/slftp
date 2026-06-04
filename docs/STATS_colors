@@ -1,0 +1,9 @@
+Grey:   site was used but we didn't raced something
+Cyan:   release was a pre on this site
+Orange: release should be pred on this site but wasn't pred there
+Brown:  not used to race from because no destination(s) added
+Pink:   dirlisting was stopped because there was an error (mkdir denied, out of space, etc) or race took too long
+Light Cyan: release is incomplete (0byte files, dupefiles, etc) but we raced some files
+Light Cyan: release is incomplete (0byte files, dupefiles, etc) but we didn't raced any files
+Light Red:  release is not allowed on this site
+Light Grey: we raced some files

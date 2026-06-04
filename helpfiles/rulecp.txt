@@ -1,0 +1,8 @@
+Usage: <cmd> sourcesite destsite sourcesection [destsection]
+Copys the rules in Sourcesection from Sourcesite to Destsite.
+If Destsection is defined the rules will be copied into a
+section by that name. If it is not defined Destsection will
+be set to Sourcesection.
+Example: <cmd> HQ1 RACE1 MP3
+         <cmd> HQ1 HQ1 MP3 FLAC
+         <cmd> HQ1 HQ1 TV720 TV720WEB

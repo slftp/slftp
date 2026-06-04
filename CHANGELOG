@@ -1,0 +1,579 @@
+                                .
+                                ;    .
+                               01.   .
+                               01;, .:
+                               0100 11
+                               1010 01
+                               0100 01
+                             : 1001 00 :
+                             :   `0 01 :
+       _______     _         :  _____._:___              _
+      /      /    / \___     __/          /             / \________
+     /  ,___/____/     /     \    _      / \___________/          /
+  ___\____      /     /______/    /_____/             /    _     /
+ /__     /     /     /      /     ___/ /____      ___/     /    /
+   /    /     /     /      /     /2o!  :   /     /  /     _____/
+  /     _____/_____       /__   /     .:  /     /  /__   /
+ /__   /          /___   /...\_/....:::: /__   /  .   \_/
+    \_.001.  1    .100._/            ...    \_/   .
+       01    10      10               ::          :
+      `10.11 .0  11.01'                `          :
+        1000.  .  .000'                 ........  :
+        `'`101. .101'`1.......:.........:      :..'
+          . `10100'.:         :         :      :
+   --->   :.  `10z.`:  <-- ---+- slFtp -+-     :
+          1:   .`10f.         :         `......:
+          01  .1  `00r.       :.............'
+          00  0:  .100'       :...Legend...:'
+          01  01.101'
+          10  0101' .  {+} - new feature
+          01  01'  .1  {#} - bug-fix
+          0:  10   00  {^} - improvement
+          :.  1    10  {-} - removed
+          .   1    0:
+              0.    :.
+              .     .
+
+--=========================( NEW SETTINGS AND FILES )==============================-
+
+    NEW slftp.ini parameter(s):
+      SFVRelease=
+      event_based_locking=0
+	  monitor_lock_times=0
+	  mode=0 in [dbaddpre] for in-memory pre DB
+	  add_to_kb_on_dbaddpre_insert=0
+	  show_complete_time_stats=0
+	  enable_boxofficemojo_lookup=0 in [dbaddimdb] - fetches screen counts from Box Office Mojo (~5-6s added to IMDB lookup)
+
+    1. compare your slftp.ini with the provided one in /config folder
+    2. update your helpfiles with the provided ones in /helpfiles folder
+    3. enjoy!
+
+--==============================( KNOWN BUGS )====================================-
+
+    Statsoutput sometimes screwed -> NEGATIVE BYTES (due to parsing of x-dupe response)
+
+--=============================( IMDBAPI MIGRATION )================================-
+    {#} Fix BOM screen count lookup fetching re-release page instead of Original Release, resulting in 0 screens for wide movies
+    {+} Add enable_boxofficemojo_lookup option in [dbaddimdb] to fetch screen counts from Box Office Mojo (adds ~5-6s to IMDB lookup)
+
+--=============================( SLFTP v1.5.11 )==================================-
+    {+} Complete React 19 / Mantine 8 Web UI (http://localhost:8089/ui) with real-time monitoring and configuration
+    {+} Comprehensive REST API (/api) for external integrations and remote management
+    {+} Add AES-256-CBC encryption support for cbftp UDP race notifications
+    {+} Add !newdirlistreadd IRC command
+    {+} Add Clear button to delete all issues at once in the Web UI
+    {+} Make MKDIR IRC announcement toggleable via slftp.spamconf
+    {+} Add version reporting to startup and !status
+    {^} Integrated rank and speed-from data into site settings when split_site_data is enabled.
+    {#} Stop infinite 550 Permission denied dirlist retry loop
+    {#} Ensure clean exit on Linux/Windows for interactive and cmdline mode
+    {#} Exponential backoff on consecutive IRC connection failures
+    {#} Fix missing IssueLog calls for SKIP, DONT_MATCH, NUKE and MISSING_SECTION
+    {#} Exclude not-allowed sites from ROUTEINFOS output
+    {#} Match API AddChannel behavior to !ircchanadd IRC command
+    {#} Fix IRC network added via API not persisted after restart
+    {#} Fix section insertion order tracking to preserve RulesSave sequence
+    {#} Fix error when trying to install openssl 1.1.1w via the libinstaller
+    {#} Fix build on BSD
+    {#} Fix corrupted sites.dat and rtpl/SITE.setting files when the process gets killed or crashes
+    {#} Fix REQUEST precatcher event firing when it should not
+    {+} Enable SFV check to avoid sending wrong files. Set sections in SFVRelease in [taskrace] of slftp.ini
+    {+} Enable locks with timeout in slftp.ini section 'debug' setting 'event_based_locking'. This is to debug deadlocks and
+        will raise an exception with some info about which thread and code is blocking a lock.
+    {+} Enable lock monitoring by setting monitor_lock_times=1 then you can use !loglockstats to generate a report.
+    {+} Allow to add a Rls to the KB / start race when it's being added to the predb. Enable by setting add_to_kb_on_dbaddpre_insert=1
+    {+} Cooldown time when a site get a max sim up/dn error during which no new tasks will be assigned to the corresponding direction
+    {+} Monitor files of running transfers and detect changes of username and file size regressions to abort a transfer immediately
+        which would else block a slot and fail later.
+    {+} Kill a connection if one site has reported the transfer as completed but the other one is still waiting.
+    {+} Enable setting show_complete_time_stats to display the complete times relative to race start additional to the ones relative 
+        to the the first site that completed the race
+    {^} Rewrite rules unit for faster race start
+    {^} Rewrite of in-memory pre DB which now uses in-memory SQLite. Enable by using mode=0 in [dbaddpre] section of slftp.ini
+    {^} Added support for OpenSSL 3
+    {^} Improve parallelization of the queue which results in higher task throughput especially when you have many routes. If
+        the CPU load gets too high, increate the value of newdir_dirlist_readd as it's not closer to actually reaching this value
+        of dirlist interval
+    {^} Various other performance improvements
+    {^} The routeset command now features the option -f to enable the given route only for races where the group is added
+        as affil on the source site. Also the option -n was added to race only when the group is no affil.
+    {^} Changed the look of the raced file announce which now shows the slot name and the % complete state of the race
+        on the sites.
+    {-} The routelock command has been removed. Use routeset with option -l instead.
+        Existing route locks will be migrated, if you revert to an older version, you will need to set those routes again.
+
+
+--=============================( SLFTP v1.5.10 )==================================-
+    {+} Expose IMDB type to rulesengine. You can now make rules to block for example TV Movie or Short. !rulehelp imdbtype
+    {+} Made regex for http pretime configurable (see slftp.ini). It now expects only one row of text from the remote endpoint
+    {+} You can now print the version of a slftp executable by adding the parameter -v or --version
+    {+} The new setting kill_connection_on_stalled_transfer_seconds allows to set a timeout in seconds after which a transfer that is stalled at
+        0 bytes gets killed (by closing the connection). This option can be set per site as well using !killconnectiononstalledtransfer. Stalled
+        transfers will be posted into the channel with role ERROR.
+    {#} Fix bugs which caused some mp3 genres not to be recognized and setting mp3genres be ignored (#322)
+    {#} Fix 'Site down' spam on Admin channel
+    {#} Fix TV lookup issues with case sensitivity and show names that include a '
+    {#} Fix CD number calculation error when the release name contains a very large number
+    {#} Fix showing a file in race stats even if the transfer failed
+    {#} Fix sometimes transfering files with size 0 even if it is not configured to do so (by setting skip_being_uploaded_files)
+    {#} Fix some memory leaks
+    {#} Fix race condition leading to subdirs (Sample) not being detected at batch/spread (#64)
+    {^} Reevaluate race if a pre time is added to the local SQLite DB after the race is already in KB
+    {^} Option to reduce weight of speedstats when calculating destination ranks during a race (setting reduced_speedstat_weight in slftp.ini)
+    {^} Improve caching of skiplist values for dirlist
+    {^} Write race stats to the DB asynchronously
+    {^} Adjust parsing of the IMDB website because it has a new layout
+    {^} Various improvements for the reqfiller, racing/spreading, performance, slot management
+    {^} Upgraded to mORMot2 and updated other 3rd party libraries
+    {^} Show some more details at startup to see what's taking long
+    {^} Consider 'file not allowed' and 'bad zip' responses from pzs zipscript
+
+--=============================( SLFTP v1.5.9 )===================================-
+    {+} Support 'site search' cmd to find requests, use setting use_site_search_on_reqfill in ini or !usesitesearchonreqfill per site
+    {#} sort destinations on KB level to make sure the highest ranked sites get race tasks created first before the queue sort
+    {#} Fixed an issue which could cause autodirlists to stop working on very busy sites when queue clean is enabled
+    {#} Rules for all sites (*) were not being persisted if split_site_data was enabled. Those are now saved into {admin_sitename}.rtpl
+    {^} Allow to disable creating the 'already on site' dir when req filling by setting create_already_on_site_in_directory=0 (#302)
+    {^} Allow to disable the file compare to determine a complete request by setting compare_files_for_reqfilled_fallback=0
+    {^} Allow to fill requests that are on the site already by setting fill_already_on_site=1
+    {^} Reset auto disabled NFO download for sites to enabled on 'SITE UP'
+    {^} Adjust IMDB parsing for new IMDB page layout (#311)
+
+--=============================( SLFTP v1.5.8 )===================================-
+    {+} Reverse FXP can be enabled by command !reversefxp (#9)
+    {+} cryptconf functionality integrated into slftp as command line utility, see 'slftp(.exe) --help' (#298)
+    {+} Pure-FTPd support (#303)
+    {+} Added OpenSSL 1.1.1 support (OpenSSL 1.0.2 no longer supported) (#90)
+    {#} Fix 'No such directory' error flood if a subdir was deleted during a race (#200)
+    {#} Fix not working pretime check retry (settings readd_attempts, readd_interval of [taskpretime])
+    {#} Setting !maxupdn 1 0 1 to leech only pres did not work
+    {^} New code for IMDb and Box Office Mojo website parsing
+    {^} Slightly improved behaviour for STV/Wide/Limited determination
+    {^} Less unnecessary 'tell your developer' messages to the admin channel
+    {^} Improved detection of FTPD software and version
+    {^} Send PBSZ command (Pure-FTPd requires it)
+    {^} Setting global_skip in .ini is removed and replaced by global_skip_files and global_skip_dirs
+
+--=============================( SLFTP v1.5.7 )===================================-
+    {+} FastMM5 memory manager with better multithreading scaling for Windows (https://github.com/pleriche/FastMM5)
+    {+} SynFPCx64MM memory manager with better multithreading scaling for x86_64
+        (http://blog.synopse.info/post/2020/05/07/New-Multi-thread-Friendly-Memory-Manager-for-FPC-written-in-x86_64-assembly)
+    {+} Default C memory manager for other 32-bit unix targets (https://www.freepascal.org/docs-html/current/rtl/cmem/index.html)
+    {+} New rule mvidlookupdone - needed for genre, filecount, ntsc and pal rule
+    {+} Catchadd command now accepts event type ADDPRE which can be used to fill your pre database using the precatcher
+    {#} Relogin of slots didn't bring up all slots as intended
+    {#} announce_event for precatcher from spam config never worked
+    {#} Fix issue with messed up working directory on drftpd sites which would cause races to fail
+    {#} Fix wrong or no [SITE FAILED] message was shown if a race failed on a site
+    {#} Backup causes access violation if stats db is disabled but a stats db file exists
+    {#} Possibility for deadlock due to irc_message_lock and pending_messages_queue lock
+    {#} Fix queue bloat issue with race task being recreated over and over again for a specific site
+    {#} Sometimes files that should have been skipped were transfered anyway
+    {#} Fix some queue sorting issues for NFO, SFV and subdir priority settings
+    {#} mp3numdisks took the wrong value, e.g. VA-Serious_Beats_92-(541833CD)-4CD-FLAC-2019-WRE
+    {#} Fix some dirlist related access violations
+    {#} Fix autoindexer skipping some short dirs because filename checks were applied
+    {#} Fix error which made it impossible to load latest OpenSSL 1.0.2 Win64 DLLs
+    {^} TRegExpr class is faster now and doesn't work with invalid regexes anymore
+    {^} Enumerations for some TV function for better clarification
+    {^} Idling keeps all slots in a ready state now
+    {^} Added a new option (2) for the setting skip_being_uploaded_files to allow downloading 0byte files
+    {^} Remove unnecessary global lock when writing to IRC
+    {^} Optimized code for splitting long messages before writing to IRC
+    {^} Announce reason why getting TV season and/or episode from releasename failed
+    {^} Some improvements in racing mechanics and FTP response handling
+    {^} Rewritten Ident support (cross-platform)
+    {^} Use up to half of a site's slots for dirlist in case of multiple simultaneous races
+    {-} Remove auto-set of legacydirlist in case of 'PRET required' FTP response
+
+--=============================( SLFTP v1.5.6 )===================================-
+ ** NOTE: FROM NOW ON YOU HAVE TO USE - Delphi 10.3 Rio or newer - ON WINDOWS! **
+ ** NOTE: FROM NOW ON YOU HAVE TO USE UNRELEASED - FPC 3.2 or newer - ON LINUX! **
+  
+    {+} Blowfish CBC support (#124)
+    {+} Box Office Mojo support
+    {+} New HTTP Library (up to 50% faster) with Socks5 support and SSL version negotiation
+    {+} News System to store important messages to encrypted file. (#173, #164, #198)
+    {+} New race stats database based on mORMot object-relational mapping
+    {+} Wildcard/Regex (Masks) support for kb_sectionhandlers (TTVRelease, TIMDBRelease, etc) (#147)
+    {+} Wildcard/Regex (Masks) support for midnight sections
+    {+} New !affils command.
+    {+} Show a message when 0 byte file was detected on startup (#189)
+    {+} !status and !uptime shows if you use 32/64-bit version of slftp and used compiler version
+    {+} !lastlog command to show last log entries. (#160)
+    {+} Avoid double race of release in different sections (#116)
+    {+} Show a warn message if important files not found on startup
+    {+} Show PID & actual memory usage in !status command (#170)
+    {+} !fetchuser cmd to fetch some information about site settings + basic recommendation (#51)
+    {+} Support for wildcards in !batch (#222)
+    {+} Completely new SQLite engine
+    {+} Completely new MySQL/MariaDB engine
+    {+} !setdownoutofspace command to configure set_down_on_out_of_space value per site (#158)
+    {+} Detection for RaidenFTPD sites added (#231)
+    {+} (internal) SITE FEAT response parsing (#237)
+    {+} Some unit tests are added, please help to add more!
+    {+} Wildcard support for !setsocks5 SITE (#234)
+    {+} Wildcard support for !autoinvite (#247)
+    {+} Make TV-releases skippable for iMDB lookups (#232)
+    {+} Optimized code for release language detection (slftp.languagebase)
+    {+} Support for rules-checking in !batch, !spread, !check, !pre cmds for groups
+    {+} New rules tvlookupdone and imdblookupdone (#67)
+    {+} !rulecp can now copy rules to a differently named target section (#249)
+    {+} New rule tvrating analog to imdbrating (#228)
+    {+} New rules currentyear, imdbcurrentyear, imdbcurrentcineyear, mp3currentyear and mvidcurrentyear (#29)
+    {+} Setting to disable message that rls was already catched in different section
+    {#} Fixed !routelock so it doesn't remove normal route when removing lock
+    {#} precmd can be removed by omitting precommand via !setprecmd (#178)
+    {#} Remove language and 2160(p|i) tags before searching on TVmaze
+    {#} Correct counting and comparing of CRC errors in TPazoRaceTask
+    {#} Missing built-in skip features from slftp.skip added (#195)
+    {#} Saving TVInfo for some shows containing ' in its name (#191, #196)
+    {#} Double free of TNukeQueueItem (#203)
+    {#} !batch looses sites in bnctest output over time (#216)
+    {#} !prelist parameter count (#212)
+    {#} Fix !prelist for arbitrary PRE-sections and improve error handling (#212)
+    {#} Don't require PRE sections to be configured in precatcher (#182)
+    {#} Wrong mp3genre detected on IRC announce (#114)
+    {#} !raw command timeout/error handling (#225)
+    {#} !slots command didn't supported showing of siteslots for all sites (#230)
+    {#} Addpre event received after a NEWDIR will now correctly update kb with the pretime and recalc routes
+    {#} Converting error in TVMaze lookup if webChannel exists but Country was null (#233)
+    {#} Logging of categories which are specified as value for debugging works now
+    {#} Replacing of <yyyy>, <yy>, <mm>, ... identifiers for sectiondir was missed in some places
+    {#} No segmentation fault if terminal window is too big (#213)
+    {#} Correctly apply <sample/proof/...>_dirs_priority to files
+    {#} reqfiller not realizing requests are done (#32)
+    {#} !addtvmaze -s The.Twilight.Zone gaves wrong showname result (#241)
+    {#} global skipped groups will also skip GRPNAME_INT
+    {#} !spread not realizing spreading was completed
+    {#} Ignore PRE sections for duplicate kb race check, to be able to race own releases
+    {#} !addtvinfo showed wrong results for some shows like 'The.New.Frontier' or 'The.Twilight.Zone' (#246)
+    {#} Try to complete works again and also supports non-routable sites as sources
+    {#} Improve !delrelease to correctly delete files on glftpd, handle errors better (#146)
+    {#} IRC channel name missing '#' for some IRCd's or bouncers (#281)
+    {#} TMyIrcThread.IrcProcess: List index (1) out of bounds avoided by use of locked list (#89)
+    {#} Allow !setaffils to remove all affils
+    {#} Fully working incomplete filler (#10)
+    {#} Credits parsing for newer glFTPd (#284)
+    {^} Requests can be filled from sites without checking the routes. (#168)
+    {^} All irc commands with * as allowed input for sitename should output stuff in alphabetical order. (#163)
+    {^} [MKDIR Denied] msg shows path with denied releasename.
+    {^} !autoinvite warns you if no IRCNick is specified for the site.
+    {^} !maxupperrip can show actual value now.
+    {^} !findaffil has improved irc output.
+    {^} backup on startup will only be executed after sites.dat has been successfully decrypted. (#169)
+    {^} !leechers code improved.
+    {^} Support for regex in IMDb Language rule
+    {^} Detection for iOFTPD sites
+    {^} IMDb parsing code update due to recent website changes
+    {^} taskdirlist shows sitename on 'can not dirlist' announce (#227)
+    {^} !indexquery search count is selectable (#188)
+    {^} Skip lookup of extra infos for skipped groups (#218)
+    {^} Addpre command does not need to contain the section anymore (it was ignored anyway)
+    {^} Less flickering of console window at startup on Windows platform
+    {^} Send nfo for NFOFIX, SFVFIX, SAMPLEFIX, etc instead of creating only an empty dir
+    {^} more reliable maxidle interval handling
+    {^} Free and reassign slots faster on completed races of single files
+    {^} If available parse complete_tag on requests to determine completion
+    {^} Separate spread event to not clash with PRE events like addpre announces
+    {^} Allow handling of multiple PRE sections through !setpredir (#182)
+    {^} !batch output is less verbose by default (#217)
+    {^} Reduce amount of MP3 language mismatches by case-sensitive checks (#245)
+    {^} !findsection ignores permdown sites in output (#253)
+    {^} language detection for releases highly improved
+    {^} improved stripping of scene tags before tv lookup
+    {^} Allow !check and !batch for GROUP chans
+    {^} Replaced old !help code with recently introduced !nhelp code because it provides much more functionality
+    {^} Rename !reloadglobalskip to !globalskipreload
+    {^} !stop can be used with Pazo ID and Releasename
+    {^} Split IRC chanroles for processing and echo's for tvmaze, imdb, addgn, addurl (#274)
+    {^} Strip more scene tags from releasename before doing a TVMaze lookup (#280)
+    {^} IMDB ID's can now be 8 digits
+    {^} Kill slot if stuck trying to CWD from a path that does not exist anymore (#267)
+    {^} Change in replacing of and/at for searching TV show improves returned results
+    {-} TheTVDB support as public API goes offline sooner or later (#175)
+    {-} !sectionins command -> edit slftp.precatcher manually! (#157)
+    {-} old language base (slftp.languages)
+    {-} Support for older FPC compilers (at least version 3.2.0 needed!)
+    {-} !setoffset no longer required or supported
+    {-} Remove !lame and associated classes
+    {-} Remove !manageuser, !users, !leechers, !traders, !userslots, !freeslots and !finduser
+    {-} Remove !nologinmsg, breaks many cmds due to missing responses
+    {-} Remove !nhelp cmd, code moved into !help function
+    {-} Remove commands which were related to old stats.db and not available anymore
+
+--=============================( SLFTP v1.5.5 )===================================-
+  ** NOTE: FROM NOW ON YOU HAVE TO USE THE MAKEFILE ON LINUX AND THE MAKE.BAT ON WINDOWS **
+
+    {+} FastMM4 memory manager (https://github.com/pleriche/FastMM4)
+    {+} Partial use of Faster Regex Engine FLRE (https://github.com/BeRo1985/flre) (much faster!!!)
+    {+} New dirlist Code including:
+        - Changed filesize variables to use Int64 instead of Integer
+        - flag to enable/disable racing incomplete files (at least with glftpd for now) (see !skipinc) (#16)
+        - Reworked the file sorting with more options
+        - Reworked/optimized dirlist sorting
+        - Added handling for special dirs completeness (i.e. dirfix)
+    {+} !skipinc to enable/disable racing incomplete files (#16)
+    {+} tvlanguage rule for TVMaze infos (#79)
+    {+} !sites output is in alphabetically order (#152)
+    {+} !siteuser to change a site username
+    {+} !sitepass to change a site password
+    {+} sites in [STATS] line are ordered by completion time (uses both, ftp and irc, if catchline added)
+    {+} !routeset/!routelock supports several new ways to set routes -> !help routeset (#82)
+    {+} Add all available Genres from TVMaze und TheTVDB
+    {+} Affilsgroups with _INT will be handled as normal Affilgroup, no need to add both (e.g. ZzZz & ZzZz_INT) (#129)
+    {+} New IRC Help Command -> !help nhelp
+    {+} Enable/disable NFO Download for fetching infos + automatically disable problematic sites -> !help usefornfodownload (#125)
+    {+} Add new sections over IRC -> !help sectionins
+    {+} Wrap IRC Messages into 256 char long chunks (#36)
+    {+} Wrap lines on console window based on width (#36)
+    {+} Option to enable/disable autoinvite -> !help autoinvite (#84)
+    {#} nukewords from slftp.precatcher works as intended, supporting double quoted strings and shows correct matched nukeword (#144)
+        -> Rename nukewords to ignorewords in slftp.precatcher (see above!)
+    {#} Precatcher reload (!catchreload) works correctly when using split_site_data=1 (#132)
+    {#} Precatcher should be faster due to several code changes which improves performance and [EXCEPTION] ProcessReleaseVegeB mind = true is fixed
+    {#} Skip FTPRush screwed up files with 4 chars in Extension (e.g. .FLAC) (#113)
+    {#} Bug with !dirlist not showing entries (#112)
+    {#} Bug with looping of Sample folder fixed (#4)                                                                 ---- need some more code changes - uses SetFileError ---
+    {#} Uppercasing mappings sections names in slftp.precatcher (#153)
+    {#} Fix for tvtag rules -> tvtag weren't initialized (#102)
+    {#} Prevent NFO download when IMDb info already gotten via !addimdb (#125)
+    {#} Rule 'pred' should work now (#136)
+    {#} !dirlist works as expected and lists everything in dir (#135, #143)
+    {#} No more stalling of slftp if languagebase file is missing (#111)
+    {#} Year regex improvement for shows like "1066: A Year to Conquer England" or 2017.Flick.Electric.Co.Comedy.Gala.Part.2.720p.HDTV.x264-FiHTV
+    {#} Skip sites if your DL/UL Slots are 0 (#106)                                                                                     ---- need to be tested ----
+    {#} sitename for !speedtestin and !speedtestout, no empty "Site '' has no suitable file for speedtesting" (#130)
+    {#} !credits * does not show all other sites when a site is offline, support for multiple input of sitenames (#97)
+    {#} No more blank lines removed from slftp.ini when file is rewritten (split_site_data only) (#145)
+    {#} Classification was never updated when doing a tvinfo update
+    {#} IMDB post_lookup_infos config setting is now respected
+    {#} disable MySQL if host=(empty) in slftp.ini
+    {#} resorting bnc entries leads to problems so it overwrites bnc entries somehow (#104)
+    {#} default values for maxidle and idleinterval never used from slftp.ini
+    {#} Don't send messages to admin_net when you are not connected or have a configuration error (#122)
+    {#} Section input for !allrules is no more case sensitive (#162)
+    {^} Error handling for ftpd response in taskrace (dirlisttask, mkdirtask and racetask) is done
+    {^} Show in a log message what's wrong with MySQL when using as predb
+    {^} !inviteme suggest !ircnick command with site username as IRCNick if it's empty
+    {^} TVMaze Us US mismatch gets detected better now (#1)
+    {^} Rule tvrunning will be also true on Status "In Development" (#150)
+    {^} No 'Section on SITE for SECTION was not found' on COMPLETE and NUKE announce (#117)
+    {^} Retry 3x Genre fetch from TheTVDB if a response error occur (lag, bad response, timeout, ...) (#28, #70)
+    {^} No [NOT SET] message if site is set to permdown & rename to [SECTION NOT SET] (#108)
+    {^} Re-written backup unit code, supporting old options (skipfiles, backup_dir) and includes all .db files in backup (#134)
+    {^} Announce old + renamed groupname when check with renamed_group_checker was positive
+    {^} Disabled all fake checking for sitepres
+    {^} !speedstats output sorted by speed (lower to higher)
+    {^} Better input checks and more output for !setoffset, !pretimemode, !pretimemode2 and !addpremode
+    {^} No need to !setdown before !setpermdown (#108)
+    {^} !transfer cmd works as expected (#128)
+    {^} check if it's a valid IMDB ID before adding it -> no more exceptions
+    {^} !sslmethod checks if valid SSL method + shows which one is used
+    {^} Some TV Shows weren't detected as STV from IMDb fetch
+    {^} Improvement of autodirlist announces
+    {^} MVID Year regex changed from \-(\d{4})\- to \-((19|20)\d{2})\-
+    {^} PermDown check on all irc commands with sitename = '*', means no setting changing for PermDown sites when using '*'
+    {^} For all TMP3Release Sections Genre will also be parsed on bot announce (#114)
+    {^} Update to latest LibTar 2.1.2
+    {^} Several improvements for tags (COMPLETE/INCOMPLETE detection):
+        - no more constant regexp initialization/freeing; instead using an unique one at startup (much faster!)
+        - Added locking/unlocking on regexp instances to avoid access exceptions on heavy load
+    {^} languagebase.slftp gets automatically renamed to slftp.languagebase (#111)
+    {^} some improvements to !site output (Linebreaks, more text for pretime)
+    {^} Changed irc "Too few parameters" errors with better ones
+    {^} Added additionnal infos to "Dirlist added" messages
+    {^} Color a site if it was stopped due to dirlist gave up in [STATS] announce + Output seconds for [EMPTY|INCOMPLETE] announce
+    {^} Omitting dir parameter in !setdir was leaving some values in config (#21)
+    {-} Option to set own regex for !credits removed (if you have one which don't match yet, tell us!)
+    {-} Support for deprecated OpenSSL 1.0.1 series
+
+--=============================( SLFTP v1.5.4 )===================================-
+    ** NOTE: You HAVE TO LOWERCASE the CONFIG VALUE NAMES in sites.dat manually or with cryptconf (-lc) **
+ !!! Manual changes for split_site_data=1 (cryptconf don't support it): ProxyName, NoLoginMSG, IRCNick, SiteInfos !!!
+    {+} Fix a bug for !setprecmd, so now it support to set 'SITE PRE <rlsname> SECTION' for every section
+    {+} Detection for iOFTPD sites added
+    {+} New ircchanrole "UPDATE" for all update announces
+    {+} !statrace * to show total transfer infos for all sites + total transfer count for all sites together (#45)
+    {+} Set max_pre_dn via !maxupdn - will use this amount to leech a PRE (#52)
+    {#} !addtvinfo shows more than one result, value from max_sid_lookup_results is observed now (#98)
+    {#} !rulehelp tvcurrent shows correct help
+    {#} !lookup works with sections which are only mapped - like everywhere else
+    {#} imdb language/country parsing fix
+    {#} !nologinmsg supports only GLFTPD + automatically uppercase sitenames + hide admin_site
+    {#} fix for TV Movie's on imdb, weren't detect as STV and cineyear was parsed (#93)
+    {#} Fix imdb title regex to properly parse currently running tv series
+    {#} Bug with delayupload and delayleech was fixed -> Values weren't initialized (#12)
+    {#} auto adding blacklist rule for group should work again
+    {#} !batch supports PRE in releasename (#105)
+    {#} TSiteSlot.Leechfile negotiates to the highest version mutually supported by the client and the server, no more TLS v1.2 only!
+    {^} many code changes on dirlisttask, mkdirtask and racetask - more things regarding this will come + better error handling
+    {^} maxup & maxdn can be set to 0 via !maxupdn to only leech/upload (#83)
+    {^} Added *.u and *.v fileextionsions for _RAR_ in slftp.skip
+    {^} !country only supports countrycode + shows countryname for each countrycode
+    {^} fake check is enabled by default [check slftp.ini] & fakereason tells you more info why it's fake
+    {^} displaying of movie status (stv/limited/festival/wide/cine) on irc imdb announce
+    {^} network/country change on tvmaze gets saved now (#95)
+    {^} !addrule shows inserted ID
+    {^} Small changes for NEW, PRE, UPDATE and STATS output -> [EVENT] SECTION RELEASENAME instead [EVENT SECTION] RELEASENAME
+    {^} !rulecp, !ruleins shows more info - overall the output msgs are identical for every rulecmd
+    {^} !tweak automatically switch to lowercase values (#78)
+    {^} RegExpr updated to latest version
+    {^} Archive sections can be added with !setdir using 'ARCH-' -> ARCH-SECTIONNAME (#75)
+    {^} !status shows SSL Version now + URL, IMDB and NFO count are back
+    {^} tvcurrentep supports current ep or newer now (#101)
+
+--=============================( SLFTP v1.5.3.0 )=================================-
+    {+} '!transfer srcsite dstsite srcdir dstdir rlsname' with sending to full path / slftp section *BETA*
+    {+} !testcolors to display a line with all the irc colors
+    {+} slftp.skip with regex - no need to add an entry for every language
+        [skiplist-X264-HD-FR], [skiplist-X264-HD-NL], etc can be togehter now: [skiplist-X264-HD-*]
+    {^} slftp.precatcher entries can be mapped without a need to have it under [sections]
+    {^} !credits with colors, calculating, ... + matching more ftpd stat lines + option to change !credits regexps in slftp.ini
+    {^} Update to latest LibTar
+    {^} !indexquery results output changed
+    {^} Update of tvinfo regexps to get excactly showvalues
+    {#} !setdown reply is correct now
+    {#} !tweaksocks5 don't respond always with "Too few parameters."
+    {#} !addsocks5 uppercases the input values now
+    {#} No more trying to trade into wrong subdirs
+    {#} Use presites as source when imdb rules are set
+
+--=============================( SLFTP v1.5.2.2 )=================================-
+    {#} 'Invalid argument index in format' error message fixed
+    {#} !addgn is working again
+    {#} !setsocks5 is now case insensitive
+    {^} No [SKIP] message after [PRE] message
+
+--=============================( SLFTP v1.5.2.1 )=================================-
+    {#} stop_on_englishcheck is working again. FYI: shamless is unequal to shamelessus! so disable the stop_on_englishcheck in slftp.ini
+    {#} TVInfo.db is now include to onStart Backup
+    {^} Mapped sections will now listed under !sections, no need for: TV-1080-DE=TV-1080-DE
+
+--=============================( SLFTP v1.5.2.0 )=================================-
+    {+} TVInfo auto-update + end_year is back
+    {+} !findcountry to find sites by country
+    {#} !sites and !status will now show correct site count
+    {#} autologin trigger doesn't show up an error when typed incorrectly
+    {^} TVInfo will find shows with country tag, like UK, US, NZ and year tag.
+    {^} fixed slssl.pas file to be compatible with latest openssl libs (1.0.2g+ and 1.0.1s+)
+    {^} Now you can compile slftp with the newest FPC (Free Pascal Compiler)
+    {^} ircsetsocks5 works with lowercase input and a bug with -1 fixed
+    {^} IMDB shows correct infos for movies with no rating/not enough votes
+    {^} Private IRC messages forwarding to admin nick can now be disabled (admin_forward_msgs)
+    {^} slftp.skip can now be used with *, instead of rules for TV-SD-ENG,TV-SD-DE,TV-SD-FR you can have one like TV-SD-*
+    {^} MangleHost (+h) and Invisible (+i) mode will only be send if IRCD know this commands
+    {^} No more SKIP message on a PRE
+    {^} Show more infos on !ruledel and !rulemod
+
+--=============================( SLFTP v1.5.1.0 )=================================-
+    {#} Bug fixes over fixes over fixes, to much to name them all, really!
+    {#} Adjust to new IMDb layout some users have been experiencing on rating/votes
+    {+} Welcome TVMaze & TheTVDb!
+    {-} TVRage, rest in peace, thanks for your support!
+    {-} We removed NFO, URL and IMDB Db, we need to start from scratch for these features.
+    {-} last_tvinfo_in_memory. we already have them in a DataBase!
+    {^} Starting to get the IRC-Announce-color-pattern back in line.
+
+--=============================( SLFTP v1.5.0.6 )=================================-
+    {#} TVRage code mess-up.. sorry!
+
+--=============================( SLFTP v1.5.0.5 )=================================-
+    {#} TVRage SQL statement's  fixed to ignore case (thx madjik)
+    {#} !queue --all now will REALLY show all!
+    {+} logverbosity, change the Debug verbosity.
+
+--=============================( SLFTP v1.5.0.4 )=================================-
+    {#} ProcessReleaseVege, should be fixed
+    {^} Perm. down.
+    {^} IMDB.stv will now work even with old languagebase.
+    {^} setdir IRCCommand throw an error when user try to add REQUEST section, its REQUESTS.
+    {+} !sections sectionname , will announce each site with that section in list.
+
+--=============================( SLFTP v1.5.0.3 )=================================-
+    {#} !imdbinfo - fixed added cmd parameter to TIrcCommandThread exception
+    {#} sample first config value, sample was  sended always first.
+    {#} Played around with TVRage Ended Year, UNTESTED!
+    {#} IrcSetSocks5 set -1 to remove a proxy from Site/IRCNet
+    {^} TCP connection use ssl_v23 again. thx to glftpd dev for the heads-up!
+
+--=============================( SLFTP v1.5.0.2 )=================================-
+    {#} some MYSQL dupe check fixes.
+    {#} try_to_complete finally work:.(?)
+
+--=============================( SLFTP v1.5.0.1 )=================================-
+    {+} irccommands: setpretimemod2, setaddpremode.
+    {^} irccommands check for PermDown -> Raw,Invite,Setdown,Autologin,Autobnctest,Autodirlist,Autoindex,Autonuke,Speedtest,Credits.
+    {^} Proxy connection is now over TLS v1.2
+    {#} spamconf command work again.
+    {#} TVRage should only crache when TVRage lags or an old show got Aired and Pred again, then some items are missing in the XML. -> Us.and.Them.S01E01.Pilot.PDTV.x264-FiHTV
+    {#} Adding English as default language (like in MP3Source CDR) -> [SKIP] : 0DAY Ashampoo.Photo.Card.2.v2.0.2-TE @ xy "xy 0DAY if language notin German, English then DROP" (NEWDIR)
+
+--=============================( SLFTP v1.5.0.0 )=================================-
+    {+} mode_2 for a 2nd pretime check.
+    {+} sample_first value.
+    {+} Convert file names to lower case option.
+    {+} updatetvrageinfo and deltvrageinfo added. check !help
+    {+} New SSL method: #7 TLSv1_2 and #8 ImplicitTLSv1_2
+    {^} MYSQL will work the old fashion way, check slftp.ini
+    {^} addtvrageinfo, syntax changed. check helpfile.
+    {#} try_to_complete code added from eN0Rm.
+    {#} Autoindex work again
+    {#} findaffil irccommand.
+    {#} IRCCommand-errors now ALL go into the same channel and dont need a chanrole.
+
+--=============================( SLFTP v1.4.5.1 )=================================-
+    {^} PreTimeMode will announced on new_rls and update_rls, now you know which mode did the job :)
+    {^} IMDB regex to properly fetch /releaseinfo status
+    {^} NukeWord in prechater will now check word by word and not AnsiSameText.
+    {#} Pretime offset handling.
+
+--=============================( SLFTP v1.4.5.0 )=================================-
+    {+} MYSQL Pretime check. read MYSQL under docs!
+    {+} added support for hex and long bnc ips
+    {+} added split_site_data mode for splitting site data to 3 files per site, disabled by default changed mysql initialisation to not exit when it fails
+    {^} slftp.ini and spamconf.
+    {^} Added Adminsite site check to Prebot.
+    {^} changed affil handling from toggling to !setaffils and !affils
+    {#} many many many bugfixes, to much to count them all
+    {#} IrcSpread exception fixed on windows.
+
+--=============================( SLFTP v1.4.0.4 )=================================-
+    {+} XML-Wrapper!!! DOM AND MSXML, NATIVE! No 3rd party Component pack!
+    {#} SpeedStat calc now show megabyte again.
+    {#} Nukewords work again.
+    {#} Sites count on !status, !sites and Console windows.
+    {#} try_to_complete back in game?
+    {#} Some Artist like Vanden_Plas was detected as mp3va.
+    {^} Added a new NEWDIR PRE theme thx to d3x. let us know if its cool or awful ;)
+    {^} Autobnctest, Autologin and try_to_complete now check for permdown = true.
+
+--=============================( SLFTP v1.4.0.3 )=================================-
+    {#} auto_add_affils config value was not in use
+    {#} on try to complete when no source site was found, slftp take the dest site as source site.
+    {#} IRCWrite wrong EXCEPTION
+    {#} TVRage Running and TVGenre
+    {-} old code that attempted to part any channels without blowkeys. The code did not work properly and caused lots of "No such channel" errors on adding or removing channels
+    {-} !listaffils, its now a part of affils.
+    {+} custom Dirlist command for Autoindex added.
+    {+} !nukes, show the sitenukes.
+    {+} !catchmod, same like rulemod but for catches
+    {^} replace function moved to  FoCsupaszitas, now we replace before we check the catchline. we can rename (MP3)(NEW) to MP3 NEW and make the catchline withpout (). eg -> NEWDIR NEW,>
+        NOTE: Your catchline is: #n SITE-NETNAME-#CHANNEL <BOTNICK> [PRE]     {PRE-RELEASE,ENG-x264-SD,by} (ENGXVID) you have to tweak it!
+        you can use !catchmod or decrpyt your slftp.chans file and fixe the words part:     {PRE-RELEASE,ENG-x264-SD,by} ->     {PRE,RELEASE,ENG,x264,SD,by}
+        Best solution is make a proper replacer config :)
+    {^} !affils command now include listaffils command. You can list all affils from a site with e.g. !affils MP3. Read the new helpfile!
+--=============================( SLFTP v1.4.0.2 )=================================-
+    {+} Topic and Nick change detection. chanrole: INFO  .. check slftp.ini
+    {^} !ircnetadd now accept user and nick value for proxy usage!
+    {^} !affils linesplit after 12 items.
+    {^} TIMDBScreens Always take the highest US/UK screen count, not only from the opening weekend
+    {-} !ircnetaddbnc
+    {#} !tweak work again.
+    {#} try_to_complete finally work, was broken in 1.4.0.1
+    {#} QueueSort memory leak.
+--=============================( SLFTP v1.4.0.1 )=================================-
+    {#} try_to_complete is back!
+    {^} QueueSort Fileorder, MKDir, SFV, NFO, Sample
+    {-} infinite loop from console

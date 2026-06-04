@@ -1,0 +1,10 @@
+Usage: <cmd> configsection <key> <value>
+This will let you change/query settings of your sites.dat without 
+restarting slftp.
+
+This command is for advanced users. Only use it if you know what
+you're doing.
+
+example:
+<cmd> site-HQ <key> <value>
+

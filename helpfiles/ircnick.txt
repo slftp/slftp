@@ -1,0 +1,2 @@
+Usage: <cmd> SITENAME IRCNick
+Set your ircnick (not the slftp botnick!) for the inviteme command.

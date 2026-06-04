@@ -1,0 +1,45 @@
+                                  NUKEBOT
+-------------------------------------------------------------------------------
+slFtp has nukebot feature since version 1.2.0.4: you can use it to nuke the same
+releases with the same reason on several sites. slFtp maintains a nuke queue, it
+is saved to file, so nukes wont be skipped if a site is temp down (not even when
+you restart the bot in the meantime).
+
+How to use it?
+
+1. You need to setup the section dir on each site first. 
+  !setdir HQ1 MP3 /MP3/<yyyy>-<mm><dd>/
+  !setdir HQ2 MP3 /MP3/<mm><dd>/
+The <> macros will be changed with the given date on nuke event.
+Macros you can use: 
+  <yyyy>: four digit year
+    <yy>: last two digits of <yyyy>
+    <mm>: two digits month (with leading zero)
+    <dd>: two digits day of month (with leading zero)
+    <ww>: week of year (with leading zero)
+Of course you can setup static path if section is not dated.
+
+2. You need to enable nuking on each site.
+  !autonuke HQ1 900
+  !autonuke HQ2 900
+This means, slFtp will check the nuke queue every 15 minutes and nuke releases.
+If you want immediate action, you can use 1 second interval.
+
+3. Actual nuking, some examples:
+- Nuking todays release on each site:
+  !nuke MP3 Foo-Bar-2009-ABORTED 3 Reencode crap.
+This will nuke the ABORTED release on HQ1 and HQ2 in todays dir with multiplier of 3.
+
+- Nuking release pred on a specific time on each site:
+  !nuke MP3 2009-05-01 Foo-Bar-2009-ABORTED 3 Reencode crap.
+This will nuke the ABORTED release on HQ1 (/MP3/2009-0501) and on HQ2 (/MP3/0501).
+
+- Nuking release on a specific site only:
+  !nuke HQ2 MP3 2009-05-01 Foo-Bar-2009-ABORTED 3 Reencode crap.
+This will nuke the ABORTED release on HQ2 (/MP3/0501).
+
+You can use !unnuke with almost the same syntax (without multiplier) to unnuke releases.
+
+4. If you want an IRC based nuke channel, you need to enable this ACL:
+!ircchanrole LINKNET #myprivatenukechan NUKE
+Note: channel MUST have a blowfish key.

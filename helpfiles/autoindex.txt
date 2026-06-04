@@ -1,0 +1,3 @@
+Indexes rips in sections for the auto reqfiller feature.
+Usage: <cmd> sitename [interval section1 section2 section3 ...]
+If interval is zero, autoindex is turned off. Interval is seconds.

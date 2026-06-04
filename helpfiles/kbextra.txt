@@ -1,0 +1,3 @@
+Sets the extra field of a knowledge base entry.
+Usage: <cmd> sitename section rlsname extra info
+Example: <cmd> HQ MP3 Foobar-Foobar-2009-XXX Heavy Metal

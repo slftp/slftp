@@ -1,0 +1,2 @@
+e539c03fce78ddb25712fc46a8c253b530ccef30
+fix cgi mode compilation

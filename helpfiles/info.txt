@@ -1,0 +1,3 @@
+Usage: <cmd> sitename
+Displays info about a site (country, size, notes, sections, affils, etc.)
+See also: site/info/... section in <cmdprefix>help

@@ -1,0 +1,3 @@
+Description: displays queue of the ftp client.
+Trigger: --ALL 10 queue items inkl. autologin, -c:n, empty dont display AUTOLOGIN tasks.
+Usage: <cmd> , <cmd> -c:20 , <cmd> --ALL

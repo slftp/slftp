@@ -1,0 +1,7 @@
+Usage: <cmd> sitename
+Description: Dirlists predir and sort them by release.
+Examples:
+<cmd> MyHQ <- lists predir on MyHQ
+<cmd> * <- lists predir on all sites
+
+You can use the special sitename * as a wildcard for all sites.

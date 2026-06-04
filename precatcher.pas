@@ -1,0 +1,1387 @@
+unit precatcher;
+
+interface
+
+uses
+  Classes,
+  SysUtils,
+  Contnrs,
+  slmasks,
+  encinifile,
+  kb,
+  kb.releaseinfo;
+
+type
+  { Precatcher hit information for API/UI diagnostics }
+  TPrecatcherHit = record
+    Id: Int64;
+    At: TDateTime;
+    Netname: String;
+    Channel: String;
+    Nick: String;
+    Sitename: String;
+    EventType: TKBEventType;
+    Section: String;
+    ReleaseName: String;
+    RuleId: Integer;
+    RuleLine: String;
+    Text: String;
+  end;
+
+  TPrecatcherHits = array of TPrecatcherHit;
+
+  TSection = class
+    eventtype: TKBEventType;
+    section: String;
+    words: TStringList;
+    ruleid: Integer;
+    ruleline: String;
+
+    constructor Create;
+    destructor Destroy; override;
+  end;
+
+  TSiteChan = class
+    sitename: String;
+    sections: TObjectList;
+    constructor Create;
+    destructor Destroy; override;
+  end;
+
+  huntartunk_tipus = (sehun, racetool, ignorelist, replace, hunsections, mappings, channels, pretime);
+
+  TMap = class
+    origsection: String;
+    newsection: String;
+    mask: TslMask;
+    constructor Create(const origsection, newsection, mask: String);
+    destructor Destroy; override;
+  end;
+
+function precatcherauto: boolean;
+procedure setprecatcherauto(const aPrecatcherAutoValue: boolean);
+
+procedure Precatcher_DelSiteChans(const sitename: String);
+function PrecatcherReload: String;
+procedure PrecatcherRebuild();
+procedure PrecatcherStart;
+procedure PrecatcherProcessB(net, chan, nick, Data: String; aDetectedTick: Int64 = 0);
+procedure PrecatcherProcess(const net, chan, nick, Data: String; aDetectedTick: Int64 = 0);
+function precatcher_logfilename: String;
+procedure Precatcher_Init(const aSetAuto: boolean);
+procedure Precatcher_Uninit;
+function PrecatcherSectionMapping(const rls, section: String; x_count: integer = 0): String;
+
+// Captures precatcher debug output into a string list for APIs/tests.
+// Caller must call Precatcher_EndDebugCapture and then free the list.
+procedure Precatcher_BeginDebugCapture(out aCapture: TStringList);
+procedure Precatcher_EndDebugCapture(const aCapture: TStringList);
+
+function ExtractReleasename(ts_data: TStringList): String;
+
+{ Tries to extract the section from the given sitebot announce by iterating through the [sections] items
+  @param(aCleanSitebotAnnounce Sitebot announce with additional characters removed and section enclosed by whitespaces)
+  @returns(First occurring section name of the mapping if section is listed, otherwise empty string) }
+function FindSection(const aCleanSitebotAnnounce: String): String;
+function ProcessDoReplace(const s: String; const rls: String = ''): String;
+
+/// Stores a precatcher rule hit for later retrieval via API/UI.
+procedure Precatcher_LogHit(const aNetname, aChannel, aNick, aSitename: String;
+  const aEventType: TKBEventType; const aSection, aReleaseName: String;
+  const aRuleId: Integer; const aRuleLine, aText: String);
+
+/// Returns recent precatcher hits (reverse chronological) with optional filters.
+procedure Precatcher_GetHits(const aLimit: Integer; const aSinceUnix: Int64;
+  const aReleaseName, aSiteName: String; out aHits: TPrecatcherHits);
+
+/// Returns the last hit for a given rule id.
+function Precatcher_TryGetLastHitForRule(const aRuleId: Integer; out aHit: TPrecatcherHit): Boolean;
+
+var
+  precatcher_debug: boolean = False;
+  precatcher_ircdebug: boolean = False;
+  precatcher_debug_netname, precatcher_debug_channel: String;
+  precatcher_debug_capture: TStringList = nil;
+  precatcher_debug_capture_only: boolean = False;
+  //  precatcher_auto: Boolean;
+  catcherFile: TEncStringlist;
+  mappingslist: TObjectList;
+  minimum_rlsname: integer = 10;
+
+implementation
+
+uses
+  DateUtils,
+  Generics.Collections,
+  sitesunit, irc, queueunit, mystrings, precatcher.helpers,
+  inifiles, DebugUnit, StrUtils, configunit, Regexpr, globalskipunit, dbaddpre,
+  console, mrdohutils, SlCriticalSection2, taskautodirlist, IdGlobal, slapi.issueshook {$IFDEF MSWINDOWS}, Windows{$ENDIF}
+  ;
+
+const
+  rsections = 'precatcher';
+  glReleaseNamePlaceHolder: String = '${RELEASENAMEPLACEHOLDER}$';
+  CPrecatcherMaxHits = 5000;
+  CPrecatcherMaxTextLen = 400;
+
+var
+  catcherFilename, replacefromline: String;
+  cd, skiprlses: THashedStringList;
+  tagline, irclines_ignorewords, replacefrom, replaceto: TStringList;
+  huntartunk: huntartunk_tipus;
+
+  debug_f: TextFile;
+  precatcher_debug_lock: TSlCriticalSection2;
+  precatcher_lock: TSlCriticalSection2;
+  precatcher_auto: Boolean;
+  recursiv_mapping: Boolean;
+  announce_event: Boolean;
+
+  glSectionList: TStringList; //< List of all entries of the [sections] category
+  GlPrecatcherHits: TList<TPrecatcherHit>;
+  GlPrecatcherHitsLock: TSlCriticalSection2;
+  GlPrecatcherHitSeq: Int64;
+  GlPrecatcherLastHitByRuleId: TDictionary<Integer, TPrecatcherHit>;
+  GlPrecatcherHitsLockTimeout: Integer;
+
+procedure _LogMissingSectionIfNeeded(const aNetname, aSitename, aSection, aReleaseName, aReason, aKbEvent: String);
+var
+  siteObj: TSite;
+begin
+  if (aSitename = '') or (aSection = '') then
+    Exit;
+
+  siteObj := FindSiteByName(aNetname, aSitename);
+  if (siteObj <> nil) and (siteObj.sectiondir[aSection] = '') then
+  begin
+    IssueLog('MISSING_SECTION', aSection, aReleaseName, aSitename, aReason, aKbEvent,
+      'MISSING_SECTION|' + aSitename + '|' + aSection, 300);
+    irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)',
+      [aSection, aReleaseName, aSitename, aKbEvent]));
+  end;
+end;
+
+procedure Precatcher_LogHit(const aNetname, aChannel, aNick, aSitename: String;
+  const aEventType: TKBEventType; const aSection, aReleaseName: String;
+  const aRuleId: Integer; const aRuleLine, aText: String);
+var
+  h: TPrecatcherHit;
+  t: String;
+  lockAcquired: Boolean;
+begin
+  if not (aEventType in [kbeNEWDIR, kbePRE, kbeCOMPLETE, kbeNUKE, kbeREQUEST, kbeADDPRE]) then
+    Exit;
+  if (GlPrecatcherHits = nil) or (GlPrecatcherHitsLock = nil) then
+    Exit;
+
+  t := aText;
+  if Length(t) > CPrecatcherMaxTextLen then
+    t := Copy(t, 1, CPrecatcherMaxTextLen);
+
+  if GlPrecatcherHitsLockTimeout > 0 then
+    lockAcquired := GlPrecatcherHitsLock.Enter('Precatcher_LogHit', GlPrecatcherHitsLockTimeout, False)
+  else
+    lockAcquired := GlPrecatcherHitsLock.Enter('Precatcher_LogHit');
+  if not lockAcquired then
+  begin
+    Debug(dpError, rsections, Format('[EXCEPTION] Precatcher_LogHit: Unable to acquire lock ''precatcher_hits_lock'' within %d ms.', [GlPrecatcherHitsLockTimeout]));
+    Exit;
+  end;
+  try
+    Inc(GlPrecatcherHitSeq);
+    h.Id := GlPrecatcherHitSeq;
+    h.At := Now;
+    h.Netname := aNetname;
+    h.Channel := aChannel;
+    h.Nick := aNick;
+    h.Sitename := aSitename;
+    h.EventType := aEventType;
+    h.Section := aSection;
+    h.ReleaseName := aReleaseName;
+    h.RuleId := aRuleId;
+    h.RuleLine := aRuleLine;
+    h.Text := t;
+
+    GlPrecatcherHits.Add(h);
+    if GlPrecatcherHits.Count > CPrecatcherMaxHits then
+      GlPrecatcherHits.Delete(0);
+
+    if GlPrecatcherLastHitByRuleId <> nil then
+      GlPrecatcherLastHitByRuleId.AddOrSetValue(aRuleId, h);
+  finally
+    GlPrecatcherHitsLock.Leave;
+  end;
+end;
+
+procedure Precatcher_GetHits(const aLimit: Integer; const aSinceUnix: Int64;
+  const aReleaseName, aSiteName: String; out aHits: TPrecatcherHits);
+var
+  i: Integer;
+  c: Integer;
+  sinceUtc: TDateTime;
+  h: TPrecatcherHit;
+begin
+  SetLength(aHits, 0);
+  if (aLimit <= 0) or (GlPrecatcherHits = nil) or (GlPrecatcherHitsLock = nil) then
+    Exit;
+
+  if aSinceUnix > 0 then
+    sinceUtc := UnixToDateTime(aSinceUnix, False)
+  else
+    sinceUtc := 0;
+
+  c := 0;
+  if GlPrecatcherHitsLockTimeout > 0 then
+  begin
+    if not GlPrecatcherHitsLock.Enter('Precatcher_GetHits', GlPrecatcherHitsLockTimeout, False) then
+    begin
+      Debug(dpError, rsections, Format('[EXCEPTION] Precatcher_GetHits: Unable to acquire lock ''precatcher_hits_lock'' within %d ms.', [GlPrecatcherHitsLockTimeout]));
+      Exit;
+    end;
+  end
+  else
+  begin
+    GlPrecatcherHitsLock.Enter('Precatcher_GetHits');
+  end;
+  try
+    for i := GlPrecatcherHits.Count - 1 downto 0 do
+    begin
+      h := GlPrecatcherHits[i];
+      if (aSinceUnix > 0) and (h.At < sinceUtc) then
+        Break;
+      if (aReleaseName <> '') and (not SameText(h.ReleaseName, aReleaseName)) then
+        Continue;
+      if (aSiteName <> '') and (not SameText(h.Sitename, aSiteName)) then
+        Continue;
+
+      SetLength(aHits, c + 1);
+      aHits[c] := h;
+      Inc(c);
+      if c >= aLimit then
+        Break;
+    end;
+  finally
+    GlPrecatcherHitsLock.Leave;
+  end;
+end;
+
+function Precatcher_TryGetLastHitForRule(const aRuleId: Integer; out aHit: TPrecatcherHit): Boolean;
+begin
+  Result := False;
+  if (GlPrecatcherLastHitByRuleId = nil) or (GlPrecatcherHitsLock = nil) then
+    Exit;
+
+  GlPrecatcherHitsLock.Enter('Precatcher_TryGetLastHitForRule');
+  try
+    Result := GlPrecatcherLastHitByRuleId.TryGetValue(aRuleId, aHit);
+  finally
+    GlPrecatcherHitsLock.Leave;
+  end;
+end;
+
+procedure mydebug(const s: String); overload;
+var
+  nowstr: String;
+begin
+  if (precatcher_debug_capture <> nil) then
+  begin
+    try
+      precatcher_debug_lock.Enter('mydebug_capture');
+      try
+        precatcher_debug_capture.Add(s);
+      finally
+        precatcher_debug_lock.Leave;
+      end;
+    except
+      on e: Exception do
+        Debug(dpError, rsections, Format('[EXCEPTION] mydebug_capture: %s', [e.Message]));
+    end;
+    if precatcher_debug_capture_only then
+      Exit;
+  end;
+  Debug(dpSpam, rsections, s);
+  if precatcher_ircdebug then
+  begin
+    try
+      precatcher_debug_lock.Enter('mydebug');
+      try
+        DateTimeToString(nowstr, 'mm-dd hh:nn:ss.zzz', Now());
+        WriteLn(debug_f, Format('%s %s', [nowstr, s]));
+        Flush(debug_f);
+      finally
+        precatcher_debug_lock.Leave;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, rsections, Format('[EXCEPTION] mydebug: Exception : %s', [e.Message]));
+        irc_Adderror(Format('<c4>[EXCEPTION]</c> mydebug: Exception : %s', [e.Message]));
+      end;
+    end;
+  end;
+  if (precatcher_debug) then
+  begin
+    irc_Addtext(precatcher_debug_netname, precatcher_debug_channel, s);
+  end;
+end;
+
+procedure Precatcher_BeginDebugCapture(out aCapture: TStringList);
+begin
+  aCapture := TStringList.Create;
+  precatcher_debug_lock.Enter('BeginDebugCapture');
+  try
+    precatcher_debug_capture := aCapture;
+    precatcher_debug_capture_only := True;
+    precatcher_debug := True;
+    precatcher_debug_netname := '';
+    precatcher_debug_channel := '';
+  finally
+    precatcher_debug_lock.Leave;
+  end;
+end;
+
+procedure Precatcher_EndDebugCapture(const aCapture: TStringList);
+begin
+  precatcher_debug_lock.Enter('EndDebugCapture');
+  try
+    if precatcher_debug_capture = aCapture then
+      precatcher_debug_capture := nil;
+    precatcher_debug_capture_only := False;
+    precatcher_debug := False;
+    precatcher_debug_netname := '';
+    precatcher_debug_channel := '';
+  finally
+    precatcher_debug_lock.Leave;
+  end;
+end;
+
+procedure mydebug(const s: String; args: array of const); overload;
+begin
+  myDebug(Format(s, args));
+end;
+
+function ExtractReleasename(ts_data: TStringList): String;
+var
+  k, i: integer;
+  maxi: integer;
+  maxs: String;
+begin
+  Result := '';
+
+  // no need to go further if it's empty
+  if ts_data.Count = 0 then
+    exit;
+
+  // detect longest entry with '-' --> our releasename
+  maxi := 0;
+  maxs := '';
+  for i := 0 to ts_data.Count - 1 do
+  begin
+    if ((Length(ts_data[i]) > maxi) and (0 <> Pos('-', ts_data[i]))) then
+    begin
+      maxi := Length(ts_data[i]);
+      maxs := ts_data[i];
+    end;
+  end;
+
+  Result := maxs;
+
+  // remove '.' from the end of detected releasename if there is one
+  k := Length(Result);
+  if (k > 0) and (Result[k] = '.') then
+  begin
+    Dec(k);
+    SetLength(Result, k);
+  end;
+
+  if (k < minimum_rlsname) then
+    Result := '';
+
+  Result := Trim(Result);
+end;
+
+function MainStripping(const idata: String): String;
+begin
+  Result := idata;
+  try
+    Result := RemoveSpecialCharsAndBareIt(Result);
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, Format('[EXCEPTION] RemoveSpecialCharsAndBareIt : %s', [e.Message]));
+      irc_Adderror(Format('<c4>[EXCEPTION]</c> RemoveSpecialCharsAndBareIt : %s', [e.Message]));
+      Result := '';
+      exit;
+    end;
+  end;
+
+{
+  // this part doesn't change the result at all (reason see below)
+  // above we only allow a-z, A-Z, Numbers and StrippingChars - else we replace the char with ' '
+  // then we check the response in StripNoValidChars against ValidChars which includes a lot more chars but our
+  // response won't have them in it because it's already replaced with ' '
+  try
+    Result := StripNoValidChars(Result);
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, Format('[EXCEPTION] StripNoValidChars : %s', [e.Message]));
+      irc_Adderror(Format('<c4>[EXCEPTION]</c> StripNoValidChars : %s', [e.Message]));
+      Result := '';
+      exit;
+    end;
+  end;
+}
+end;
+
+function PrecatcherSectionMapping(const rls, section: String; x_count: integer = 0): String;
+var
+  i: integer;
+  x: TMap;
+begin
+  MyDebug(Format('PrecatcherSectionMapping start testing %s in %s', [rls, section]));
+
+  Inc(x_count);
+  if (x_count > 500) then
+  begin
+    Debug(dpError, rsections, Format('[ERROR] in PrecatcherSectionMapping: big loop %s', [rls]));
+    Result := '';
+    exit;
+  end;
+
+  Result := section;
+
+  for i := 0 to mappingslist.Count - 1 do
+  begin
+    try
+      if i > mappingslist.Count then
+        Break;
+      x := mappingslist[i] as TMap;
+      if (((x.origsection = '') and (x_count = 1)) or (x.origsection = Result)) then
+      begin
+        MyDebug(Format('PrecatcherSectionMapping testing %s for %s', [rls, x.newsection]));
+        if (x.mask.Matches(rls)) then
+        begin
+          if ((recursiv_mapping) and (x.newsection <> 'TRASH')) then
+          begin
+            Result := PrecatcherSectionMapping(rls, x.newsection, x_count);
+            exit;
+          end
+          else
+          begin
+            Result := x.newsection;
+            MyDebug(Format('PrecatcherSectionMapping %s mapped to %s', [rls, x.newsection]));
+            exit;
+          end;
+        end;
+      end;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, rsections, Format('[EXCEPTION] in PrecatcherSectionMapping: %s', [e.Message]));
+        break;
+      end;
+    end;
+  end;
+
+end;
+
+function FindSection(const aCleanSitebotAnnounce: String): String;
+var
+  i: Integer;
+begin
+  Result := '';
+  for i := 0 to glSectionList.Count - 1 do
+  begin
+    if ContainsText(aCleanSitebotAnnounce, glSectionList.ValueFromIndex[i]) then
+    begin
+      Result := glSectionList.Names[i];
+      break;
+    end;
+  end;
+end;
+
+function ProcessDoReplace(const s: String; const rls: String = ''): String;
+var
+  i: integer;
+  rep_s: String;
+begin
+  rep_s := s;
+
+  if rls <> '' then
+    rep_s := ReplaceText(rep_s, rls, glReleaseNamePlaceHolder);
+
+  if replacefrom.Count = replaceto.Count then
+  begin
+    for i := 0 to replacefrom.Count - 1 do
+    begin
+      MyDebug('ProcessDoReplace %s to %s', [replacefrom[i], replaceto[i]]);
+      rep_s := ReplaceText(rep_s, replacefrom[i], replaceto[i]);
+    end;
+  end
+  else
+    Debug(dpError, rsections, 'replacefrom count is <> replaceto count!');
+
+  if rls <> '' then
+    rep_s := ReplaceText(rep_s, glReleaseNamePlaceHolder, rls);
+
+  Result := rep_s;
+end;
+
+procedure ProcessReleaseVege(net, chan, nick, sitename: String; kb_event: TKBEventType; section, rls: String; ts_data: TStringList; aDetectedTick: Int64 = 0);
+var
+  genre, s, oldsection, event: String;
+begin
+  precatcher_lock.Enter('ProcessReleaseVege');
+  try
+    event := KBEventTypeToString(kb_event);
+    MyDebug('ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]);
+    Debug(dpSpam, rsections, Format('--> ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]));
+
+    if (kb_event <> kbeREQUEST) then
+    begin
+
+      if CheckIfGlobalSkippedGroup(rls) then
+      begin
+        MyDebug('<c4>[GLOBAL SKIPPED GROUP]</c> detected!: ' + rls);
+        Debug(dpSpam, rsections, 'Global skipped group detected!: ' + rls);
+        if ((not precatcher_debug) and (spamcfg.ReadBool('precatcher', 'global_skip_group', True))) then
+          irc_addadmin('<b><c14>Info</c></b>: Global skipped group detected!: ' + rls);
+        skiprlses.Add(rls);
+        exit;
+      end;
+
+    end;
+
+    // removing double spaces
+    s := ts_data.DelimitedText;
+
+    MyDebug('Cleaned up line with rlsname: %s', [s]);
+    Debug(dpSpam, rsections, 'Cleaned up line with rlsname: %s', [s]);
+    s := ' ' + s + ' ';
+
+    if section = '' then
+    begin
+      section := FindSection(s);
+    end;
+    MyDebug('Section: %s', [section]);
+
+    if section <> 'REQUEST' then
+    begin
+
+      oldsection := section;
+      try
+        section := PrecatcherSectionMapping(rls, section);
+      except
+        on e: Exception do
+        begin
+          section := '';
+          Debug(dpError, rsections, Format('[EXCEPTION] PrecatcherSectionMapping: %s', [e.Message]));
+        end;
+      end;
+    end;
+
+    if oldsection <> section then
+    begin
+      MyDebug('Mapped section: %s', [section]);
+      Debug(dpSpam, rsections, 'Mapped section: %s', [section]);
+    end;
+
+    if ((section = '') and (not (kb_event in [kbeCOMPLETE, kbeNUKE]))) then
+    begin
+      irc_Addadmin('<c14><b>Info</c></b>: Section on %s for %s was not found. Add Sectionname to slftp.precatcher under [sections] and/or [mappings].', [sitename, rls]);
+      MyDebug('No section?! ' + sitename + '@' + rls);
+      exit;
+    end;
+
+    genre := '';
+    if ((kb_event <> kbeNEWDIR) and (FindSectionHandler(section).Name = 'TMP3Release')) then
+    begin
+      // TODO: add an extra event for GENRE and/or do a proper way of parsing genre
+
+      // removes rlsname from irc line to avoid detecting genre Noise for e.g. Systemic_Noise_-_Show_Me-(FU122)-WEB-2018-ZzZz
+      genre := TryToExtractMP3GenreFromSitebotAnnounce(StringReplace(s, rls, '', [rfReplaceAll, rfIgnoreCase]));
+      if genre <> '' then
+      begin
+        MyDebug('Genre: %s', [genre]);
+        Debug(dpSpam, rsections, Format('Genre found via IRC announce: %s', [genre]));
+      end;
+    end;
+  finally
+    precatcher_lock.Leave;
+  end;
+
+  MyDebug('Event: %s', [event]);
+  Debug(dpSpam, rsections, 'Event: %s', [event]);
+
+  Debug(dpSpam, rsections, Format('-- ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]));
+  if not precatcher_debug then
+  begin
+    try
+      if announce_event then
+      begin
+        irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[%s]</c> %s %s @ <b>%s</b>', [event, section, rls, sitename]));
+      end;
+      kb_Add('', '', sitename, section, genre, kb_event, rls, '', False, False, 0, aDetectedTick);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, rsections, Format('[EXCEPTION] ProcessReleaseVege kb_Add: %s', [e.Message]));
+      end;
+    end;
+  end;
+
+  Debug(dpSpam, rsections, Format('<-- ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]));
+end;
+
+procedure PrecatcherProcessB(net, chan, nick, Data: String; aDetectedTick: Int64 = 0);
+var
+  igindex, i, j: integer;
+  sc: TSiteChan;
+  ss: TSection;
+  mind: boolean;
+  ts_data: TStringList;
+  rls: String;
+  rls_section: String;
+  siteObj: TSite;
+  fRequestDirlistTask: TAutoDirlistTask;
+begin
+  MyDebug('Process %s %s %s %s', [net, chan, nick, Data]);
+
+  net := UpperCase(net);
+  chan := LowerCase(chan);
+  nick := LowerCase(nick);
+  i := cd.IndexOf(net + chan + nick);
+  if i <> -1 then
+  begin
+    MyDebug('Ok %s %s %s is valid for check', [net, chan, nick]);
+    try
+      sc := TSiteChan(cd.Objects[i]);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, rsections, Format('[EXCEPTION] TSiteChan() : %s', [e.Message]));
+        exit;
+      end;
+    end;
+
+    ts_data := TStringList.Create;
+    try
+      ts_data.CaseSensitive := False;
+      ts_data.Delimiter := ' ';
+      ts_data.QuoteChar := '"';
+
+      try
+        Data := MainStripping(Data); //main Stripping
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, rsections, Format('[EXCEPTION] MainStripping : %s', [e.Message]));
+          exit;
+        end;
+      end;
+
+      ts_data.DelimitedText := Data;
+      MyDebug('After main stripping line is: %s', [ts_data.DelimitedText]);
+
+
+      MyDebug('Checking main stripped line for ignore words.');
+      // ignorewords check
+      // word by word check for single words
+      for i := 0 to ts_data.Count - 1 do
+      begin
+        igindex := irclines_ignorewords.IndexOf(ts_data.Strings[i]);
+        if igindex > -1 then
+        begin
+          MyDebug('Ignoreword ' + irclines_ignorewords[igindex] + ' found in ' + Data);
+          Debug(dpSpam, rsections, 'Ignoreword ' + irclines_ignorewords.strings[igindex] + ' found in ' + Data);
+          exit;
+        end;
+      end;
+
+      // fulltext check for quoted phrases (that contains at least one space)
+      for i := 0 to irclines_ignorewords.Count - 1 do
+      begin
+        if AnsiContainsText(irclines_ignorewords[i],' ') and AnsiContainsText(ts_data.DelimitedText, irclines_ignorewords[i]) then
+        begin
+          MyDebug('Ignoreword (phrase) "' + irclines_ignorewords[i] + '" found in ' + Data);
+          Debug(dpSpam, rsections, 'Ignoreword (phrase) "' + irclines_ignorewords[i] + '" found in ' + Data);
+          exit;
+        end;
+      end;
+
+
+
+      // Extract the release name, returns '' when no rlsname found
+      try
+        rls := ExtractReleasename(ts_data);
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, rsections, Format('[EXCEPTION] ExtractReleasename : %s (%s)', [e.Message, ts_data.DelimitedText]));
+          exit;
+        end;
+      end;
+
+      if (rls = '') then
+      begin
+        Debug(dpSpam, rsections, Format('PrecatcherProcessB: Releasename is empty! (%s)', [ts_data.DelimitedText]));
+        exit;
+      end;
+
+      if (skiprlses.IndexOf(rls) <> -1) then
+      begin
+        MyDebug('Release found in SkipRlses ...');
+        Debug(dpSpam, rsections, Format('Release %s found in SkipRlses (%s) ...', [rls, skiprlses.ValueFromIndex[skiprlses.IndexOf(rls)]]));
+        exit;
+      end;
+
+
+      // do the [replace] from slftp.precatcher
+      ts_data.DelimitedText := ProcessDoReplace(ts_data.DelimitedText, rls);
+      MyDebug('After replace line is: %s', [ts_data.DelimitedText]);
+
+
+      // Find section name
+      for i := 0 to sc.sections.Count - 1 do
+      begin
+        ss := TSection(sc.sections[i]);
+        mind := True;
+        for j := 0 to ss.words.Count - 1 do
+        begin
+          if (ts_data.IndexOf(ss.words[j]) = -1) then
+          begin
+            mind := False;
+            Break;
+          end;
+        end;
+
+        if (mind) then
+        begin
+          try
+            rls_section := ss.section;
+            if rls_section = '' then
+            begin
+              rls_section := ProcessDoReplace(ts_data.DelimitedText, rls);
+              rls_section := FindSection(' ' + rls_section + ' ');
+            end;
+            rls_section := PrecatcherSectionMapping(rls, rls_section);
+
+            Precatcher_LogHit(net, chan, nick, sc.sitename, ss.eventtype, rls_section, rls,
+              ss.ruleid, ss.ruleline, Data);
+
+            if (ss.section = 'REQUEST') or (ss.eventtype = kbeREQUEST) then
+            begin
+              MyDebug('Event: ' + KBEventTypeToString(ss.eventtype));
+              if not precatcher_debug then
+              begin
+                fRequestDirlistTask := TAutoDirlistTask.Create(net, chan, sc.sitename, rls);
+                AddTask(fRequestDirlistTask);
+              end;
+              exit;
+            end;
+
+            if ss.eventtype = kbeADDPRE then
+            begin
+              MyDebug('Event: ' + KBEventTypeToString(ss.eventtype));
+              if not precatcher_debug then
+              begin
+                dbaddpre_ADDPRE(net, chan, nick, rls, ss.section, ts_data.DelimitedText, kbeADDPRE);
+              end;
+              exit;
+            end;
+
+            if not precatcher_debug then
+              _LogMissingSectionIfNeeded(net, sc.sitename, rls_section, rls, 'PRECATCHER', KBEventTypeToString(ss.eventtype));
+
+            ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data, aDetectedTick);
+
+          except
+            on e: Exception do
+            begin
+              MyDebug('[EXCEPTION] ProcessReleaseVegeB mind = true : %s', [e.Message]);
+              Debug(dpError, rsections, Format('[EXCEPTION] ProcessReleaseVegeB mind = true: %s || net: %s, chan: %s, nick: %s || site: %s, event: %s, section: %s, rls: %s || ts_data: %s', [e.Message, net, chan, nick, sc.sitename, KBEventTypeToString(ss.eventtype), ss.section, rls, ts_data.Text]));
+              exit;
+            end;
+          end;
+          exit;
+        end;
+      end;
+
+      MyDebug('No matching catcher event found.');
+
+    finally
+      ts_data.Free;
+    end;
+
+  end
+  else
+  begin
+    MyDebug('No catchline found for %s %s %s', [net, chan, nick]);
+  end;
+end;
+
+procedure PrecatcherProcess(const net, chan, nick, Data: String; aDetectedTick: Int64 = 0);
+begin
+  if not precatcherauto then
+    Exit;
+
+{
+  precatcher_lock.Enter;
+  try
+}
+    try
+      PrecatcherProcessB(net, chan, nick, Data, aDetectedTick);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, rsections, Format('[EXCEPTION] PrecatcherProcess : %s', [e.Message]));
+      end;
+    end;
+{
+  finally
+    precatcher_lock.Leave;
+  end;
+}
+
+end;
+
+function ProcessChannels(s: String; const aRuleId: Integer): boolean;
+var
+  network, chan, nick, sitename, words, event, forced_section: String;
+  sci: integer;
+  sc: TSiteChan;
+  section: TSection;
+  i, j: integer;
+  nickc: integer;
+  nickt: String;
+begin
+  Result := False;
+  if (length(s) = 0) then
+    exit;
+
+  if (Count(';', s) < 6) then
+    exit;
+
+  network := UpperCase(SubString(s, ';', 1));
+  chan := LowerCase(SubString(s, ';', 2));
+  nickt := LowerCase(SubString(s, ';', 3));
+  sitename := SubString(s, ';', 4);
+  event := SubString(s, ';', 5);
+  words := SubString(s, ';', 6);
+  forced_section := SubString(s, ';', 7);
+
+  if (chan[1] <> '#') then
+    exit;
+  if (event = '') then
+    exit;
+
+  nickc := Count(',', nickt);
+
+  for j := 1 to nickc + 1 do
+  begin
+    nick := SubString(nickt, ',', j);
+    sci := cd.IndexOf(network + chan + nick);
+    if (sci = -1) then
+    begin
+      sc := TSiteChan.Create();
+      sc.sitename := sitename;
+      cd.AddObject(network + chan + nick, sc);
+    end
+    else
+      sc := TSiteChan(cd.Objects[sci]);
+
+    section := TSection.Create;
+    section.section := forced_section;
+    section.eventtype := EventStringToTKBEventType(event);
+    section.ruleid := aRuleId;
+    section.ruleline := s;
+
+    if (words <> '') then
+      for i := 1 to Count(',', words) + 1 do
+        section.words.Add(SubString(words, ',', i));
+
+    sc.sections.Add(section);
+  end;
+  Result := True;
+end;
+
+procedure cdClear;
+var
+  i: integer;
+begin
+  for i := 0 to cd.Count - 1 do
+  begin
+    if cd.Objects[i] <> nil then
+    begin
+      cd.Objects[i].Free;
+      cd.Objects[i] := nil;
+    end;
+  end;
+  cd.Clear;
+end;
+
+procedure PrecatcherRebuild();
+var
+  i: integer;
+  S: String;
+var
+  f: TextFile;
+begin
+  cdClear;
+  i := 0;
+  while (i < catcherFile.Count) do
+  begin
+    if not ProcessChannels(catcherFile[i], i) then
+    begin
+      catcherFile.Delete(i);
+      Dec(i);
+    end;
+    Inc(i);
+  end;
+
+  if (config.ReadBool('sites', 'split_site_data', False)) then
+  begin
+
+    for i := 0 to catcherFile.Count - 1 do // delete all old files first
+    begin
+      S := catcherFile[i];
+      S := SubString(s, ';', 4);
+      S := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim + S + '.chans';
+      if FileExists(S) then
+        {$IFDEF MSWINDOWS}
+          {$IFDEF UNICODE}
+            DeleteFile(PChar(S));
+          {$ELSE}
+            DeleteFile(PAnsiChar(S));
+          {$ENDIF}
+        {$ELSE}
+          DeleteFile(S);
+        {$ENDIF}
+    end;
+
+    for i := 0 to catcherFile.Count - 1 do // create if needed and append lines
+    begin
+      S := catcherFile[i];
+      S := SubString(s, ';', 4);
+      S := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim + S + '.chans';
+      AssignFile(f, S);
+      if (FileExists(S)) then
+        Append(f)
+      else
+        Rewrite(f);
+      WriteLn(f, catcherFile[i]);
+      CloseFile(f);
+    end;
+
+    if FileExists(catcherFilename) then // convert to split format
+      {$IFDEF MSWINDOWS}
+        {$IFDEF UNICODE}
+          DeleteFile(PChar(catcherFilename));
+        {$ELSE}
+          DeleteFile(PAnsiChar(catcherFilename));
+        {$ENDIF}
+      {$ELSE}
+        DeleteFile(catcherFilename);
+      {$ENDIF}
+  end
+  else
+  begin
+    catcherFile.SaveToFile(catcherFilename);
+  end;
+end;
+
+procedure ProcessRaceTool(s: String);
+begin
+  if (SubString(s, '=', 1) = 'minimum_rlsname') then
+    minimum_rlsname := StrToIntDef(SubString(s, '=', 2), 10);
+end;
+
+procedure ProcessIgnoreList(s: String);
+begin
+  if (SubString(s, '=', 1) = 'ignorewords') then
+    irclines_ignorewords.DelimitedText := SubString(s, '=', 2)
+  else if (SubString(s, '=', 1) = 'tagline') then
+    tagline.DelimitedText := SubString(s, '=', 2);
+
+end;
+
+procedure ProcessReplace(s: String);
+var
+  i, db: integer;
+  replacetoline: String;
+begin
+  if IsLineCommentedOut(s) then
+  begin
+    exit;
+  end;
+
+  if (SubString(s, '=', 1) = 'replacefrom') then
+  begin
+    replacefromline := trim(SubString(s, '=', 2))
+  end
+  else if (SubString(s, '=', 1) = 'replaceto') then
+  begin
+    replacetoline := trim(SubString(s, '=', 2));
+    replacetoline := ReplaceText(replacetoline, '[:space:]', ' ');
+    db := Count(';', replacefromline);
+    for i := 1 to db + 1 do
+    begin
+      replacefrom.Add(SubString(replacefromline, ';', i));
+      replaceto.Add(replacetoline);
+    end;
+  end;
+
+end;
+
+procedure ProcessSections(s: String);
+var
+  v, vv, section: String;
+begin
+  if IsLineCommentedOut(s) then
+  begin
+    exit;
+  end;
+
+  section := UpperCase(SubString(s, '=', 1));
+  if (section <> '') then
+  begin
+    v := SubString(s, '=', 2);
+    while (True) do
+    begin
+      vv := Trim(Fetch(v, ',', True, False));
+      if ((vv = '') and (v = '')) then
+        break;
+      if (vv <> '') then
+        glSectionList.Add(section + '= ' + vv + ' ');
+    end;
+  end;
+
+end;
+
+procedure ProcessMappings(s: String);
+var
+  db, i: integer;
+  ss: String;
+  rx: TRegExpr;
+begin
+  if IsLineCommentedOut(s) then
+  begin
+    exit;
+  end;
+
+  rx := TRegExpr.Create;
+  try
+    rx.ModifierI := True;
+
+    if Count(';', s) = 2 then
+    begin
+      ss := SubString(s, ';', 3);
+      rx.Expression := '(\/.*?\/i?)';
+      if rx.Exec(ss) then
+      begin
+        repeat
+          mappingslist.Add(TMap.Create(UpperCase(SubString(s, ';', 1)), UpperCase(SubString(s, ';', 2)), rx.Match[1]));
+        until not rx.ExecNext;
+      end
+      else
+      begin
+        db := Count(',', ss);
+        for i := 1 to db + 1 do
+          mappingslist.Add(TMap.Create(UpperCase(SubString(s, ';', 1)), UpperCase(SubString(s, ';', 2)), SubString(ss, ',', i)));
+      end;
+    end;
+
+  finally
+    rx.Free;
+  end;
+end;
+
+procedure ProcessConfigLine(s: String);
+begin
+  if s = '[racetool]' then
+    huntartunk := racetool
+  else if s = '[ignorelist]' then
+    huntartunk := ignorelist
+  else if s = '[replace]' then
+    huntartunk := replace
+  else if s = '[sections]' then
+    huntartunk := hunsections
+  else if s = '[mappings]' then
+    huntartunk := mappings
+  else if s = '[channels]' then
+    huntartunk := channels
+  else if s = '[pretime]' then
+    huntartunk := pretime;
+
+  case huntartunk of
+    racetool: ProcessRaceTool(s);
+    ignorelist: ProcessIgnoreList(s);
+    replace: ProcessReplace(s);
+    hunsections: ProcessSections(s);
+    mappings: ProcessMappings(s);
+  end;
+end;
+
+procedure Precatcher_DelSiteChans(const sitename: String);
+var
+  i: integer;
+  s: String;
+begin
+  i := 0;
+
+  while (i < catcherFile.Count) do
+  begin
+    s := catcherFile[i];
+    s := SubString(s, ';', 4);
+
+    if s = sitename then
+    begin
+      catcherFile.Delete(i);
+      Dec(i);
+    end;
+
+    Inc(i);
+  end;
+end;
+
+function precatcher_logfilename: String;
+begin
+  Result := ExtractFilePath(ParamStr(0)) + config.ReadString(rsections, 'debugfile', 'precatcher.log');
+end;
+
+procedure Precatcher_Init(const aSetAuto: boolean);
+begin
+  cd := THashedStringList.Create;
+  cd.CaseSensitive := False;
+
+  irclines_ignorewords := TStringList.Create;
+  irclines_ignorewords.Delimiter := ' ';
+  irclines_ignorewords.QuoteChar := '"';
+  irclines_ignorewords.Sorted := True;
+  irclines_ignorewords.Duplicates := dupIgnore;
+
+  precatcher_lock := TSlCriticalSection2.Create('precatcher_lock');
+
+  tagline := TStringList.Create;
+  tagline.Delimiter := ' ';
+  tagline.QuoteChar := '"';
+  glSectionList := TStringList.Create;
+  mappingslist := TObjectList.Create;
+  skiprlses := THashedStringList.Create;
+
+  replacefrom := TStringList.Create;
+  replacefrom.Duplicates := dupAccept;
+  replaceto := TStringList.Create;
+  replaceto.Duplicates := dupAccept;
+
+  huntartunk := sehun;
+
+  // ezt itt most csak azert hogy jo sorrendben hivodjanak meg az inicializaciok -- Now it here just so that good order should call the initialization ??
+  catcherFilename := ExtractFilePath(ParamStr(0)) + 'slftp.chans';
+  catcherFile := TEncStringList.Create(passphrase);
+
+  precatcher_ircdebug := config.ReadBool(rsections, 'precatcher_debug', False);
+
+  if aSetAuto then
+    precatcher_auto := True
+  else
+    precatcher_auto := sitesdat.ReadBool('precatcher', 'auto', False);
+
+  recursiv_mapping := config.ReadBool(rsections, 'recursiv_mapping', False);
+  announce_event := spamcfg.ReadBool('precatcher', 'announce_event', True);
+
+  precatcher_debug_lock := TSlCriticalSection2.Create('precatcher_debug_lock');
+  Assignfile(debug_f, precatcher_logfilename);
+  try
+    if FileExists(precatcher_logfilename) then
+      Append(debug_f)
+    else
+      Rewrite(debug_f);
+  except
+    begin
+      Writeln('Couldnt open logfile! It might be too huge?');
+      halt;
+    end;
+  end;
+
+  GlPrecatcherHits := TList<TPrecatcherHit>.Create;
+  GlPrecatcherLastHitByRuleId := TDictionary<Integer, TPrecatcherHit>.Create;
+  GlPrecatcherHitsLock := TSlCriticalSection2.Create('precatcher_hits_lock');
+  GlPrecatcherHitSeq := 0;
+  GlPrecatcherHitsLockTimeout := config.ReadInteger('debug', 'event_based_locking_timeout', 0);
+end;
+
+procedure Precatcher_UnInit;
+begin
+  Debug(dpSpam, rsections, 'Uninit1');
+
+  irclines_ignorewords.Free;
+
+  precatcher_lock.Free;
+
+  glSectionList.Free;
+  mappingslist.Free;
+  skiprlses.Free;
+  tagline.Free;
+  replacefrom.Free;
+  replaceto.Free;
+
+  catcherFile.Free;
+
+  cdClear;
+  cd.Free;
+
+  precatcher_debug_lock.Free;
+  Closefile(debug_f);
+
+  GlPrecatcherHitsLock.Free;
+  GlPrecatcherHitsLock := nil;
+  GlPrecatcherLastHitByRuleId.Free;
+  GlPrecatcherLastHitByRuleId := nil;
+  GlPrecatcherHits.Free;
+  GlPrecatcherHits := nil;
+
+  Debug(dpSpam, rsections, 'Uninit2');
+end;
+
+{ TMap }
+
+constructor TMap.Create(const origsection, newsection, mask: String);
+begin
+  self.origsection := origsection;
+  self.newsection := newsection;
+  self.mask := TslMask.Create(mask);
+end;
+
+destructor TMap.Destroy;
+begin
+  Mask.Free;
+  inherited;
+end;
+
+constructor TSection.Create;
+begin
+  words := TStringList.Create;
+end;
+
+destructor TSection.Destroy;
+begin
+  words.Free;
+  inherited;
+end;
+
+constructor TSiteChan.Create;
+begin
+  sections := TObjectList.Create;
+end;
+
+destructor TSiteChan.Destroy;
+begin
+  sections.Free;
+  inherited;
+end;
+
+procedure LoadSplitChanFiles;
+var
+  fst: TStringList;
+  S: String;
+  i: Integer;
+  intFound: Integer;
+  SearchRec: TSearchRec;
+  rules_path: String;
+begin
+  catcherFile.Clear;
+  rules_path := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim;
+
+  intFound := FindFirst(rules_path + '*.chans', faAnyFile, SearchRec);
+  while intFound = 0 do
+  begin
+    fst := TStringList.Create();
+    try
+      fst.LoadFromFile(rules_path + SearchRec.Name);
+      for i := 0 to fst.Count - 1 do
+      begin
+        S := fst[i];
+        catcherFile.Add(S);
+      end;
+    finally
+      fst.Free;
+    end;
+    intFound := FindNext(SearchRec);
+  end;
+
+{$IFDEF MSWINDOWS}
+  SysUtils.FindClose(SearchRec);
+{$ELSE}
+  FindClose(SearchRec);
+{$ENDIF}
+end;
+
+procedure PrecatcherStart;
+begin
+  // Actually starting precatcher is an initial reload
+  PrecatcherReload;
+end;
+
+function PrecatcherReload:String;
+var
+  f: TextFile;
+  s: String;
+
+begin
+  // clear in-memory data
+  mappingslist.Clear;
+  glSectionList.Clear;
+  irclines_ignorewords.Clear;
+  replacefrom.Clear;
+  replaceto.Clear;
+  catcherFile.Clear;
+
+  // load slftp.chans
+  catcherFile.LoadFromFile(catcherFileName);
+
+  // load rtpl/<site>.chans if split_site_data is enabled
+  if (config.ReadBool('sites', 'split_site_data', False)) then
+    LoadSplitChanFiles;
+
+  result := 'Precatcher reload FAILED!';
+  try
+    AssignFile(f, ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
+{$I-}
+    Reset(f);
+{$I+}
+    if IOResult = 0 then
+    begin
+      while (not EOF(f)) do
+      begin
+        ReadLn(f, s);
+        ProcessConfigLine(s);
+      end;
+    end;
+    kb_reloadsections;
+
+  finally
+    CloseFile(f);
+  end;
+
+  // Rewrite files to disk
+  PrecatcherRebuild;
+
+  result := 'Precatcher reloaded successfully.' + sLineBreak;
+  result := result + 'Minimum_rlsname: ' + IntToStr(minimum_rlsname) + sLineBreak;
+  result := result + Format('Sections (%d) - Mapping (%d) - Replace|from/to: (%d/%d) - Ignorelist (%d)', [kb_sections.Count, mappingslist.Count, replacefrom.Count, replaceto.Count, irclines_ignorewords.Count]);
+end;
+
+function precatcherauto: boolean;
+begin
+  Result := precatcher_auto;
+end;
+
+procedure setprecatcherauto(const aPrecatcherAutoValue: boolean);
+begin
+  precatcher_auto := aPrecatcherAutoValue;
+  sitesdat.WriteBool('precatcher', 'auto', aPrecatcherAutoValue);
+end;
+
+end.

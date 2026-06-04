@@ -1,0 +1,2 @@
+Deletes an Perform Line from a IRC NET
+Usage: <cmd> IRCNET ITS_NUMBER

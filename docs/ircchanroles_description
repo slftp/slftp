@@ -1,0 +1,101 @@
+There are plenty of ircchanroles, and you surely want to know what these roles are for and what they do, so here is an explanation:
+
+ADMIN
+Give an IRC Channel ADMIN privilege.
+If you want slftp to accept any commands that modifies slftp (add a site, irc channel, catchlist etc.) then a channel needs this role. 
+All admin commands from other channels that don't have the ADMIN role will be discarded.
+
+KB
+Allows you to send kb commands. So, if you want to add a release to KB or whatever, you need this ircchanrole.
+
+STATS
+Announces new KB hits and status message. 
+For Example:
+[NEW] MP3 Kinda-New-Mp3-2015-MP3Group @ SomeSite (MP3*) (01 Sec ago) (SQLite)
+[PRE] TV-SD-ES Latinas.are.Hot.S01E03.SPANiSH.WEBRip.x264-SomeSpanishGrp @ SomeSite
+[STATS] MP3 Kinda-New-Mp3-2015-MP3Group (5):
+1. Fasttestsite, 2. 2ndFastSite-(1F @ 81.88KB), 3. Otherside, ...
+
+ERROR
+If this ircchanrole is set all error messages will be spammed to that channel.
+
+INFO
+Spams infos of IMDB-ID's fetched from nfos or addimdb channels, does the same for TV-Maze etc.
+
+INDEXER
+Announces Autoindexer process messages.
+
+GROUP
+Give an IRC Channel Group privilege: pre, spread, batch, check and so on.
+
+NUKE
+Give an IRC Channel Nuke privilege: nuke and unnuke. So, if you want to make use of manual !nuke commands, you have to set this ircchanrole. 
+  
+IRCEVENT
+Announces NICK, KICK, JOIN, TOPIC and PART messages from any of your site channels.
+
+SPEEDSTATS
+Announces changes of speedcalculations for site sections.
+
+RACESTATS
+Announces detailed racestats e.g. which file has been transfered from site1 to site2 and how fast.
+
+RANKSTATS
+Announces changes of internal rank calculations for non-ranklocked sites / sections.
+
+PRECATCHSTATS
+Shows you what exactly is going on during races, e.g.
+[DIRLIST] TV-1080P-DE Some.Show.S02E19.German.1080p.WebHD.x264-TVNATiON Sample Dirlist (SUBDIR) added to : SITE1
+[PAZO] TV-1080P-DE Some.Show.S02E19.German.1080p.WebHD.x264-TVNATiON Sample Dirlist added to : SITE2 (DEST SITE)
+[PAZO] TV-1080P-DE Some.Show.S02E19.German.1080p.WebHD.x264-TVNATiON Sample Dirlist added to : SITE3 (DEST SITE)
+[KB] TV-1080P-DE Some.Show.S02E19.German.1080p.WebHD.x264-TVNATiON Dirlist added to : SITE4 (NOT PRESITE) from event NEWDIR
+
+ROUTEINFOS
+If set, slftp spams routeinfos e.g.: Site1 ->site2(rank) site3(rank) for each race in the correct order.
+Please note: 
+Routes may change during a race as soon as imdb / tv infos have been fetched.
+
+SKIPLOG
+Spams infos on files / dirs that have been skipped due to your settings in slftp.skip.
+
+ADDNFO
+Parse NFO via posted HTTP url (deprecated)
+
+ADDPRE
+An IRC Channel with ADDPRE privilege allows you to fill the internal dupedb.
+This chanrole (on a channel where bots announce addpres) is mandatory if you want to check pretime via SQLite.
+
+ADDPREECHO
+Allows slftp to spam !sitepre (or whatever word you defined in your slftp.ini) to a channel whenever it catched one from your pre sources (correct pre-catchline needed).
+This will fill the dupe db of others, if they set the addpre ircchanrole.
+Example output:
+!sitepre Some.TV.Show.S02E13.1080p.HDTV.x264-SomeGroup TV-1080P-ENG
+Caution: Not all siteops like that the pres get to be echoed and it might get you purged.
+
+ADDURL
+An IRC Channel with ADDURL privilege allows you to parse IMDB/TVMAZE via url link.
+
+ADDURLECHO
+Sends !addurl lines to IRC Channel to help other slftp users trigger a lookup for a release you parsed, if they set the addurl ircchanrole.
+
+ADDIMDB
+Give an IRC Channel ADDIMDB privilege in order to fetch imdb infos quicker via posted imdb id from bots / other slftp users.
+
+ADDIMDBECHO
+Sends !addimdb <release> <imdbID> lines to IRC Channel to help other slftp users trigger a lookup faster, if they set the addimdb ircchanrole.
+
+ADDTVMAZE
+An IRC Channel with ADDTVMAZE privilege to link release to a TVMaze ID's for metadata lookup.
+Checkout #addtvinfo @ LinkNet
+
+ADDTVMAZEECHO
+Sends !addtvmaze <release> <tvmazeID> to IRC Channel to help other slftp users map a TV show to a TVMaze ID for metadata lookup, if they set the addtvmaze ircchanrole.
+
+ADDGN
+Give an IRC Channel ADDGN (addgenre) privilege, so others may fill your database with mp3 genres.
+
+ADDGNECHO
+Sends !addgn to IRC Channel to help other slftp users fill their releases with parsed genres, if they set the addgn ircchanrole.
+
+UPDATE
+Post infos when IMDB/TVMAZE infos was updated.

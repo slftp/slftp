@@ -1,0 +1,15 @@
+Usage: <cmd> trigger
+Trigger: -status
+Description: Display the MYSQL Status.
+Trigger: -start
+Description: Connect to MYSQLDB.
+Trigger: -stop
+Description: Disconnect from MYSQLDB.
+Trigger: -restart
+Description: Restart the MYSQL Connection.
+Trigger: -db or -stats
+Description: Display some info about the dupe table
+Trigger: -value
+Description: Display some info about saved mysql data.
+Example: <cmd> -db
+Example: <cmd> -restart

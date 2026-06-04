@@ -1,0 +1,6 @@
+Usage: <cmd> site section [directory]
+Description: lists section's dir on site. If you also input a directory, it will display the content of that dir.
+Example: 
+to dirlist predir on MyHQ: <cmd> MyHQ PRE
+to dirlist BLURAY on HQ: <cmd> HQ BLURAY
+to dirlist X264HD/Latest-Release-GRP on HQ: <cmd> HQ X264-1080P Latest-Release-GRP

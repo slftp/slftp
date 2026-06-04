@@ -1,0 +1,3 @@
+ac470554d51b46fc8b99d0edba9deda7f752a6bf
+core: fixed GotoNextSqlIdentifier()
+- as reported by #458

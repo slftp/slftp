@@ -1,0 +1,11 @@
+Usage: <cmd> number or <cmd> category [-s or -show]
+Deletes the news entry specified with its number. With category parameter, it removes all entries with specified category.
+When using with category, you can enable announcing of each deleted entry with second parameter -s or -show.
+You can use the special number * as a wildcard to delete all entries.
+For a list of valid categories see <cmdprefix>newscategories
+Examples:
+<cmd> 4 <-- will remove fourth entry and shows deleted one
+<cmd> TVMAZE <-- will remove all entries with TVMAZE category and don't shows each deleted entry
+<cmd> TVMAZE -show <-- will remove all entries with TVMAZE category and shows each deleted entry
+<cmd> * <-- will remove all entries without showing all deleted entries
+Use <cmdprefix>news to find out the Number's.

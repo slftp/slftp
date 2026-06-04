@@ -1,0 +1,13 @@
+Usage: <cmd> CATEGORY TEXT
+Add a new news entry.
+If you want to use mirc text formatting, use the identifier below:
+<c#ID>colored text</c> #ID is your color code, e.g. <c4>red...
+For the following text formattings you need to remove the & to get it working:
+<&b>bold</b>
+<&u>underlined</u>
+<&i>italic</i>
+<&l>list item</l>
+<&f> </f>
+<&r> </r>
+Note: Take care that you close each identifier correctly!
+For a list of valid categories see <cmdprefix>newscategories

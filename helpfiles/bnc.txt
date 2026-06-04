@@ -1,0 +1,2 @@
+Usage: <cmd> sitename
+Simply displays the list of bnc's of a site.

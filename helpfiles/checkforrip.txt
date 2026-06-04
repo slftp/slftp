@@ -1,0 +1,6 @@
+Usage: <cmd> [section] rip
+Description: Check for rip on all pre-sites.
+Similar to <cmdprefix>check, with less output and not depending on <cmdprefix>spread.
+Default section is PRE.
+Example: <cmd> My.Super.Duper.Rip-dUH
+Example: <cmd> PRE-MYGRP My.Super.Duper.Rip-dUH

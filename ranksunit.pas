@@ -1,0 +1,420 @@
+unit ranksunit;
+
+interface
+
+uses pazo, SyncObjs, Contnrs;
+
+type
+  TRankStat = class
+    sitename, section: String;
+    score: Integer;
+    function ToString: String; override;
+    constructor Create(const sitename, section: String; const score: Integer); overload;
+    constructor Create(line: String); overload;
+  end;
+
+procedure RankStatAdd(const sitename, section: String; const score: Integer); overload;
+procedure RankStatAdd(s: TRankStat); overload;
+
+procedure RanksInit;
+procedure RanksUnInit;
+procedure RanksSave;
+procedure RanksStart;
+
+procedure RanksProcess(p: TPazo);
+
+{ Calculates the rank stats based on all @link(glRanks)
+  @param(aNetname Name if the IRC network)
+  @param(aChannel Channelname) }
+procedure RanksRecalc(const aNetname, aChannel: String);
+
+{ Removes all @link(TRankStat) for given @link(aSitename) from @link(glRanks) list
+  @param(aSitename name of site which TRankStat should be deleted)
+  @returns(@true if successful, @false on exception) }
+function RemoveRanks(const aSitename: String): boolean; overload;
+
+{ Removes all @link(TRankStat) from @link(glRanks) where given @link(aSitename) and @link(aSection) matches exactly the values from @link(TRankStat)
+  @param(aSitename name of site which TRankStat should be deleted)
+  @param(aSection name of section)
+  @returns(@true if successful, @false on exception) }
+function RemoveRanks(const aSitename, aSection: String): boolean; overload;
+
+{ Helper function to get the number of elements of @link(glRanks) variable
+  @returns(Number of rank stats in list) }
+function GetRanksCount: Cardinal;
+
+function RanksReload: boolean;
+
+var
+  ranks_last_save: TDateTime;
+  ranks_last_process: TDateTime;
+  max_entries: integer;
+
+implementation
+
+uses
+  Classes, irc, sitesunit, Debugunit, SysUtils, configunit, encinifile, DateUtils, IdGlobal, slcriticalsection2;
+
+const
+  r_section = 'ranks';
+
+var
+  rankslock: TSlCriticalSection2;
+  glRanks: TObjectList; // TODO: use TObjectList<TRankStat>
+
+function RemoveRanks(const aSitename: String): boolean;
+var
+  i: Integer;
+begin
+  Result := False;
+  try
+    rankslock.Enter('RemoveRanks');
+    try
+      for i := glRanks.Count - 1 downto 0 do
+        if TRankStat(glRanks.Items[i]).sitename = aSitename then
+          glRanks.Delete(i);
+    finally
+      rankslock.Leave;
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, r_section, Format('[EXCEPTION] RemoveRanks1: %s', [e.Message]));
+     exit;
+    end;
+  end;
+  Result := True;
+end;
+
+function RemoveRanks(const aSitename, aSection: String): boolean;
+var
+  i: Integer;
+  rank: TRankStat;
+begin
+  Result := False;
+  try
+    rankslock.Enter('RemoveRanks2');
+    try
+      for i := glRanks.Count - 1 downto 0 do
+      begin
+        rank := TRankStat(glRanks.Items[i]);
+        if ((rank.sitename = aSitename) and (rank.section = aSection)) then
+          glRanks.Delete(i);
+      end;
+    finally
+      rankslock.Leave;
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, r_section, Format('[EXCEPTION] RemoveRanks2: %s', [e.Message]));
+      exit;
+    end;
+  end;
+  Result := True;
+end;
+
+function GetRanksCount: Cardinal;
+begin
+  Result := glRanks.Count;
+end;
+
+function RanksReload: boolean;
+begin
+  try
+    rankslock.Enter('RanksReload');
+    try
+      glRanks.clear;
+      RanksStart;
+    finally
+      rankslock.Leave;
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, r_section, Format('[EXCEPTION] RanksReload:boolean: %s', [e.Message]));
+    end;
+  end;
+
+  Result := True;
+end;
+
+procedure RanksInit;
+begin
+  rankslock := TSlCriticalSection2.Create('Ranks');
+  ranks_last_save := Now;
+  ranks_last_process := Now;
+  glRanks := TObjectList.Create;
+  max_entries := config.readInteger(r_section, 'max_entries', 1000);
+end;
+
+procedure RanksUnInit;
+begin
+  Debug(dpSpam, r_section, 'Uninit1');
+  glRanks.Free;
+  rankslock.Free;
+  Debug(dpSpam, r_section, 'Uninit2');
+end;
+
+procedure RanksSave;
+var
+  x: TEncStringList;
+  i: Integer;
+begin
+  debug(dpMessage, r_section, '--> RanksSave');
+
+  try
+    x := TEncStringlist.Create(passphrase);
+    try
+      for i := glRanks.Count - 1 downto 0 do
+      begin
+        try
+          x.Add(TRankStat(glRanks[i]).ToString);
+        except
+          on E: Exception do
+          begin
+            Debug(dpError, r_section, '[EXCEPTION] RanksSave add TRankStat: %s', [e.Message]);
+          end;
+        end;
+      end;
+      x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.ranks');
+      ranks_last_save := Now;
+    finally
+      x.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      ranks_last_save := Now;
+      Debug(dpError, r_section, Format('[EXCEPTION] RanksSave : %s', [e.Message]));
+    end;
+  end;
+
+  debug(dpMessage, r_section, '<-- RanksSave');
+end;
+
+function NewAverage(const sitename, section: String): Integer;
+var
+  sumvalue, db, i: Integer;
+  r: TRankStat;
+begin
+  Result := 0;
+  try
+    db := 0;
+    sumvalue := 0;
+
+    for i := 0 to glRanks.Count - 1 do
+    begin
+      r := TRankStat(glRanks[i]);
+      if (r.sitename = sitename) and (r.section = section) then
+      begin
+        inc(db);
+        inc(sumvalue, r.score);
+      end;
+    end;
+
+    if db > 0 then
+      Result := Round(sumvalue / db);
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, r_section, Format('[EXCEPTION] NewAverage : %s', [e.Message]));
+      Result := 0;
+    end;
+  end;
+end;
+
+procedure RanksProcess(p: TPazo);
+var
+  i: Integer;
+  ps: TPazoSite;
+  fcomplete, lcomplete: TDateTime;
+  db: Integer;
+  d, diff, minduration, maxduration: Integer;
+  ranknew: Integer;
+begin
+  db := 0;
+  fcomplete := 0;
+  lcomplete := 0;
+
+  for i := 0 to p.PazoSitesList.Count - 1 do
+  begin
+    try if i > p.PazoSitesList.Count then Break; except Break; end;
+    try
+      ps := TPazoSite(p.PazoSitesList[i]);
+      if (ps.dirlist = nil) then
+        Continue;
+
+      if ((ps.dirlist <> nil) and (ps.dirlist.CompletedTime <> 0)) then
+      begin
+        if ((fcomplete = 0) or (fcomplete > ps.dirlist.CompletedTime)) then
+          fcomplete := ps.dirlist.CompletedTime;
+        if ((lcomplete = 0) or (lcomplete < ps.dirlist.CompletedTime)) then
+          lcomplete := ps.dirlist.CompletedTime;
+
+        inc(db);
+      end;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, r_section, '[EXCEPTION] RanksProcess loop1: %s', [e.Message]);
+      end;
+    end;
+  end;
+
+  if (lcomplete = 0) or (fcomplete = 0) then exit; // if we didnt catch any announces
+  if db < Round(p.PazoSitesList.Count * config.ReadInteger(r_section, 'percent_of_sites_to_score', 30) / 100) then exit; // if we have not enough sites
+
+  minduration := MillisecondsBetween(fcomplete, p.added);
+  maxduration := MillisecondsBetween(lcomplete, p.added);
+
+  diff := maxduration - minduration;
+  if diff <= 0 then exit; // division by zero is fucked
+
+  // minduration  .. maxduration
+  // 9               1
+
+  for i := 0 to p.PazoSitesList.Count - 1 do
+  begin
+    try if i > p.PazoSitesList.Count then Break; except Break; end;
+    try
+      ps := TPazoSite(p.PazoSitesList[i]);
+      if ((ps.dirlist <> nil) and (ps.dirlist.CompletedTime <> 0)) then
+      begin
+        d := Millisecondsbetween(ps.dirlist.CompletedTime, p.added);
+        ranknew := 9 - Round((d - minduration) / diff * 8);
+        rankstatAdd(ps.name, p.rls.section, ranknew);
+      end;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, r_section, '[EXCEPTION] RanksProcess loop2: %s', [e.Message]);
+      end;
+    end;
+  end;
+end;
+
+procedure RanksRecalc(const aNetname, aChannel: String);
+var
+  i, fOldAvg, fNewAvg, fRankLockValue: Integer;
+  fSection, fSitename: String;
+  r: TRankStat;
+  s: TSite;
+begin
+  Debug(dpMessage, r_section, '--> Recalculating rank stats');
+
+  ranks_last_process := Now;
+  try
+    for i := 0 to glRanks.Count - 1 do
+    begin
+      try if i > glRanks.Count then Break; except Break; end;
+      r := TRankStat(glRanks[i]);
+      fSitename := r.sitename;
+      s := findSiteByName(aNetname, fSitename);
+      fSection := r.section;
+
+      fRankLockValue := s.getRankLock(fSection);
+      if fRankLockValue > 0 then
+        continue;
+
+      fNewAvg := NewAverage(fSitename, fSection);
+      if fNewAvg = 0 then
+        fNewAvg := 1;
+
+      fOldAvg := s.RCInteger('rank-' + fSection, 1);
+      if fNewAvg <> fOldAvg then
+      begin
+        s.WCInteger('rank-' + fSection, fNewAvg);
+        irc_SendRANKSTATS(Format('Changing rank of %s %s from %d to %d', [fSitename, fSection, fOldAvg, fNewAvg]));
+      end;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, r_section, '[EXCEPTION] RanksRecalc: %s', [e.Message]);
+    end;
+  end;
+
+  Debug(dpMessage, r_section, '<-- Recalculating rank stats');
+end;
+
+procedure RanksStart;
+var
+  x: TEncStringList;
+  i: Integer;
+  s: TRankStat;
+begin
+  x := TEncStringlist.Create(passphrase);
+  try
+    rankslock.Enter('RanksStart');
+    try
+      x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.ranks');
+      for i := 0 to x.Count - 1 do
+      begin
+        s := TRankStat.Create(x[i]);
+        RankStatAdd(s);
+      end;
+    finally
+      rankslock.Leave;
+    end;
+  finally
+    x.Free;
+  end;
+end;
+
+{ TRankStat }
+
+constructor TRankStat.Create(line: String);
+begin
+  sitename := Fetch(line, ' ', True, False);
+  section := Fetch(line, ' ', True, False);
+  score := StrToIntDef(Fetch(line, ' ', True, False), 0);
+end;
+
+constructor TRankStat.Create(const sitename, section: String; const score: Integer);
+begin
+  self.sitename := sitename;
+  self.section := section;
+  self.score := score;
+end;
+
+function TRankStat.ToString: String;
+begin
+  Result := Format('%s %s %d', [sitename, section, score]);
+end;
+
+procedure RankStatAdd(const sitename, section: String; const score: Integer); overload;
+var
+  s: TRankStat;
+begin
+  s := TRankStat.Create;
+  s.sitename := sitename;
+  s.section := section;
+  s.score := score;
+  RankStatAdd(s);
+end;
+
+procedure RankStatAdd(s: TRankStat); overload;
+begin
+  debug(dpSpam, r_section, 'Rankstat %s -> %s %d', [s.sitename, s.section, s.score]);
+
+  try
+    rankslock.Enter('RankStatAdd');
+    try
+      glRanks.Add(s);
+      while (glRanks.Count > max_entries) do
+      begin
+        glRanks.Delete(0);
+      end;
+    finally
+      rankslock.Leave;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, r_section, '[EXCEPTION] RankStatAdd: %s', [e.Message]);
+    end;
+  end;
+end;
+
+end.

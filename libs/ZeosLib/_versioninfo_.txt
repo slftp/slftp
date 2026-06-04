@@ -1,0 +1,5 @@
+a07183ff4a9fe7e91e963b0058e32d80bca26d34
+Fixes by dddwwwbbb in PR131 on Github
+
+
+## Original repository is located at https://sourceforge.net/projects/zeoslib/ ##

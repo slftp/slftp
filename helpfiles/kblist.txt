@@ -1,0 +1,3 @@
+Usage <cmd> [sectionname] [hits]
+Displays latest enries of the knowledge base.
+If you specify sectionname, results will be filtered.

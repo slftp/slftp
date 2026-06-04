@@ -1,0 +1,330 @@
+unit tagsTests;
+
+interface
+
+uses
+  {$IFDEF FPC}
+    TestFramework;
+  {$ELSE}
+    DUnitX.TestFramework, DUnitX.DUnitCompatibility;
+  {$ENDIF}
+
+type
+  TTestTags = class(TTestCase)
+  published
+    procedure TestTagComplete1;
+    procedure TestTagComplete2;
+    procedure TestTagComplete3;
+    procedure TestTagComplete4;
+    procedure TestTagComplete5;
+    procedure TestTagComplete6;
+    procedure TestTagComplete7;
+    procedure TestTagComplete8;
+    procedure TestTagComplete9;
+    procedure TestTagComplete10;
+    procedure TestTagComplete11;
+    procedure TestTagComplete12;
+    procedure TestTagComplete13;
+    procedure TestTagComplete14;
+    procedure TestTagComplete15;
+    procedure TestTagComplete16;
+    procedure TestTagExtractPercentReturnsValue;
+    procedure TestTagExtractPercentMissingReturnsFalse;
+    procedure TestTagExtractPercentMultipleValues;
+    procedure TestTagExtractPercent100WithSpaces;
+    procedure TestTagExtractPercent100WithFiles;
+    procedure TestTagExtractPercent18WithSpaces;
+    procedure TestTagExtractPercent80WithFiles;
+    procedure TestTagExtractPercent0WithSpaces;
+    procedure TestTagExtractPercent73InBrackets;
+    procedure TestTagExtractPercent100InParens;
+    procedure TestTagExtractPercent100Simple;
+    procedure TestTagExtractPercentEmptyString;
+    procedure TestTagExtractPercentInvalidOver100;
+    procedure TestTagExtractPercentWithLeadingSpaces;
+  end;
+
+implementation
+
+uses
+  SysUtils, tags;
+
+{ TTestTags }
+
+procedure TTestTags.TestTagComplete1;
+var
+  fExpected, fResult: Integer;
+begin
+  fExpected := Ord(tctCOMPLETE);
+  fResult := Ord(TagComplete('[##############] -  100% Complete - [xxx]'));
+  CheckEquals(fExpected, fResult);
+end;
+
+procedure TTestTags.TestTagComplete2;
+var
+  fExpected, fResult: Integer;
+begin
+  fExpected := Ord(tctCOMPLETE);
+  fResult := Ord(TagComplete('[ 23 of 23 files = 100% complete of 335.1MB]'));
+  CheckEquals(fExpected, fResult);
+end;
+
+procedure TTestTags.TestTagComplete3;
+var
+  fExpected, fResult: Integer;
+begin
+  fExpected := Ord(tctINCOMPLETE);
+  fResult := Ord(TagComplete('[##::::::::::::] -  18% Complete - [xxx]'));
+  CheckEquals(fExpected, fResult);
+end;
+
+procedure TTestTags.TestTagComplete4;
+var
+  fExpected, fResult: Integer;
+begin
+  fExpected := Ord(tctINCOMPLETE);
+  fResult := Ord(TagComplete('[8 of 10 files = 80% complete at 366.8MB]'));
+  CheckEquals(fExpected, fResult);
+end;
+
+procedure TTestTags.TestTagComplete5;
+var
+  fExpected, fResult: Integer;
+begin
+  fExpected := Ord(tctINCOMPLETE);
+  fResult := Ord(TagComplete('[::::::::::::::] -   0% Complete - [x]'));
+  CheckEquals(fExpected, fResult);
+end;
+
+procedure TTestTags.TestTagComplete6;
+var
+  fExpected, fResult: Integer;
+begin
+  fExpected := Ord(tctINCOMPLETE);
+  fResult := Ord(TagComplete('[ 73%]-[##########::::]-[729mb]'));
+  CheckEquals(fExpected, fResult);
+end;
+
+procedure TTestTags.TestTagComplete7;
+var
+  fExpected, fResult: Integer;
+begin
+  fExpected := Ord(tctCOMPLETE);
+  fResult := Ord(TagComplete('<<SL>> 11M 1F of House from 2017 COMPLETE'));
+  CheckEquals(fExpected, fResult);
+end;
+
+procedure TTestTags.TestTagComplete8;
+var
+  fExpected, fResult: Integer;
+begin
+  fExpected := Ord(tctCOMPLETE);
+  fResult := Ord(TagComplete('-> 8128M 86F - DONE <-'));
+  CheckEquals(fExpected, fResult);
+end;
+
+procedure TTestTags.TestTagComplete9;
+var
+  fExpected, fResult: Integer;
+begin
+  fExpected := Ord(tctCOMPLETE);
+  fResult := Ord(TagComplete('[>>>>>>>>>>>   ] -  83DONE'));
+  CheckEquals(fExpected, fResult);
+end;
+
+procedure TTestTags.TestTagComplete10;
+var
+  fExpected, fResult: Integer;
+begin
+  fExpected := Ord(tctCOMPLETE);
+  fResult := Ord(TagComplete('[Completed! - 1252M 27F]'));
+  CheckEquals(fExpected, fResult);
+end;
+
+procedure TTestTags.TestTagComplete11;
+var
+  fExpected, fResult: Integer;
+begin
+  fExpected := Ord(tctCOMPLETE);
+  fResult := Ord(TagComplete('( 122M 13F - COMPLETE )'));
+  CheckEquals(fExpected, fResult);
+end;
+
+procedure TTestTags.TestTagComplete12;
+var
+  fExpected, fResult: Integer;
+begin
+  fExpected := Ord(tctCOMPLETE);
+  fResult := Ord(TagComplete('[x] - ( 135M 2F - COMPLETE - Dance Hall 1990 ) - [x]'));
+  CheckEquals(fExpected, fResult);
+end;
+
+procedure TTestTags.TestTagComplete13;
+var
+  fExpected, fResult: Integer;
+begin
+  fExpected := Ord(tctCOMPLETE);
+  fResult := Ord(TagComplete('[x] - ( 145M 31F - COMPLETE ) - [x]'));
+  CheckEquals(fExpected, fResult);
+end;
+
+procedure TTestTags.TestTagComplete14;
+var
+  fExpected, fResult: Integer;
+begin
+  fExpected := Ord(tctCOMPLETE);
+  fResult := Ord(TagComplete('[SITE] - ( 2F 12MB 100% COMPLETE ) - ( Reggae from 1970 @ 251kbits VBR-NEW Joint Stereo ) - [SITE]'));
+  CheckEquals(fExpected, fResult);
+end;
+
+procedure TTestTags.TestTagComplete15;
+var
+  fExpected, fResult: Integer;
+begin
+  fExpected := Ord(tctCOMPLETE);
+  fResult := Ord(TagComplete('100% complete'));
+  CheckEquals(fExpected, fResult);
+end;
+
+procedure TTestTags.TestTagComplete16;
+var
+  fExpected, fResult: Integer;
+begin
+  fExpected := Ord(tctCOMPLETE);
+  fResult := Ord(TagComplete('[ 132M 8F - COMPLETE ]'));
+  CheckEquals(fExpected, fResult);
+end;
+
+procedure TTestTags.TestTagExtractPercentReturnsValue;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('[##::::::::::::] -  73% Complete - [xxx]', percent));
+  CheckEquals(73, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercentMissingReturnsFalse;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckFalse(TagExtractPercent('NO PERCENT HERE', percent));
+  CheckEquals(-1, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercentMultipleValues;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('[SRC 45%][DST 12% complete]', percent));
+  CheckEquals(45, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercent100WithSpaces;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('[##############] -  100% Complete - [xxx]', percent));
+  CheckEquals(100, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercent100WithFiles;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('[ 23 of 23 files = 100% complete of 335.1MB]', percent));
+  CheckEquals(100, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercent18WithSpaces;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('[##::::::::::::] -  18% Complete - [xxx]', percent));
+  CheckEquals(18, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercent80WithFiles;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('[8 of 10 files = 80% complete at 366.8MB]', percent));
+  CheckEquals(80, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercent0WithSpaces;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('[::::::::::::::] -   0% Complete - [x]', percent));
+  CheckEquals(0, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercent73InBrackets;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('[ 73%]-[##########::::]-[729mb]', percent));
+  CheckEquals(73, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercent100InParens;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('[SITE] - ( 2F 12MB 100% COMPLETE ) - ( Reggae from 1970 @ 251kbits VBR-NEW Joint Stereo ) - [SITE]', percent));
+  CheckEquals(100, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercent100Simple;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('100% complete', percent));
+  CheckEquals(100, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercentEmptyString;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckFalse(TagExtractPercent('', percent));
+  CheckEquals(-1, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercentInvalidOver100;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckFalse(TagExtractPercent('150% complete', percent));
+  CheckEquals(-1, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercentWithLeadingSpaces;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('[  50% ]', percent));
+  CheckEquals(50, percent);
+end;
+
+initialization
+  {$IFDEF FPC}
+    RegisterTest('tags', TTestTags.Suite);
+  {$ELSE}
+    TDUnitX.RegisterTestFixture(TTestTags);
+  {$ENDIF}
+end.

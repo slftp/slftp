@@ -1,0 +1,3 @@
+Usage: <cmd> [sitename] section [date] ripname multiplier reason
+Date is standard iso-1234 format: yyyy-mm-dd
+For examples and usage see NUKEBOT file included with slftp release.

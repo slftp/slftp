@@ -1,0 +1,4 @@
+Usage: <cmd> proxyname trigger value
+Trigger: Host, Port, User, Password, Status
+Example: <cmd> HQ Port 31337
+Example: <cmd> HQ Status 0

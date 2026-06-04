@@ -1,0 +1,19 @@
+Sets/modifes/removes the channel "role" for a channel.
+Usage: <cmd> netname #channel [role1 [role2]]
+You can bind ACL roles to channels using this command.
+
+For eg, if you want the bot to accept admin commands on chan 
+#chan1 and #chan2, and you want stats displayed on #chan2 only:
+<cmd> linknet #chan1 ADMIN
+<cmd> linknet #chan2 ADMIN STATS
+
+To display current roles of a channel, omit role parameters.
+To remove all roles of a channel, use - as role.
+
+Supported roles: 
+ADMIN, STATS, ERROR, INFO, INDEXER, GROUP, NUKE, IRCEVENT, KB, UPDATE,
+SPEEDSTATS, RACESTATS, RANKSTATS, PRECATCHSTATS, SKIPLOG, ROUTEINFOS,
+ADDPRE, ADDTVMAZE, ADDURL, ADDIMDB, ADDPREECHO, ADDGN
+
+Explanation of the roles:
+Please refer to the ircchanroles documentation, located in docs.

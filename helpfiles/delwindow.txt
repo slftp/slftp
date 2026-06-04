@@ -1,0 +1,2 @@
+Usage: <cmd> window title
+Closes a console window.

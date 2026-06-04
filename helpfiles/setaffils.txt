@@ -1,0 +1,6 @@
+_Replace_ the current sitename affils list with the provided ones
+Usage: <cmd> sitename [affil1] [affil3] [affil3] [...]
+
+Examples:
+<cmd> SITE <- remove all affils
+<cmd> SITE GRP1 GRP2 <- replace all previous set affils with GRP1 and GRP2

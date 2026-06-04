@@ -1,0 +1,73 @@
+                                     MASKS
+----------------------------------------------------------------------------
+slFtp supports masks in the precatcher mapping sections, in the skiplists,
+for TMP3Release, TIMDBRelease, TTVRelease, etc section settings and 
+the site rules conditions when using the =~ or !~ operator.
+
+Two type of masks are supported:
+- simple masks (Delphi's TMask), help quoted from the original Borland 
+  manual pages:
+  A valid mask consists of literal characters, sets, and wildcards.
+  Each literal character must match a single character in the string.
+  The comparison to literal characters is case-insensitive
+  Each set begins with an opening bracket ([) and ends with a closing
+  bracket (]). Between the brackets are the elements of the set.
+  Each element is a literal character or a range. Ranges are specified
+  by an initial value, a dash (-), and a final value. Do not use spaces or
+  commas to separate the elements of the set. A set must match a single
+  character in the string. The character matches the set if it's the same
+  as one of the literal characters in the set, or if it's in one of the
+  ranges in the set. A character is in a range if it matches the initial
+  value, the final value, or falls between the two values.
+  All comparisons are case-insensitive. If the first character after
+  the opening bracket of a set is an exclamation point (!),
+  then the set matches any character that is not in the set.
+  Wildcards are asterisks (*) or question marks (?). An asterisk
+  matches any number of characters. A question mark matches a single
+  arbitrary character.
+
+- regular expressions (perl style, quoted by slashes)
+  If a mask begins with / and ends with / or /i (means case-insensitive) then it
+  is being parsed as a regular expression (syntax: /<regex>/<regexflags>) (else it will be processed as
+  a simple mask, see above!).
+  For more info about regular expressions do a google query.
+
+
+Site rule examples:
+  if releasename =~ /-(grp1|grp2|grp3)$/i then ALLOW
+This is a case INsensitive regexp which matches those 3 groups.
+  if releasename !~ /-(grp1|grp2|grp3)$/i then DROP
+Same rule from above but with the negation operator.
+Both are basicly the same as:
+  if releasename in grp1, grp2, grp3 then ALLOW
+
+
+Skiplist examples:
+Simple mask:
+  allowedfiles=_ROOT_:*.sfv,*.mp3,*.jpg,*.jpeg,*.nfo,*.cue
+Same using regexps:
+  allowedfiles=_ROOT_:/\.(sfv|mp3|jpg|jpeg|nfo|cue)$/i
+Note: the example above is NOT really good, since slftp orders the
+queue tasks based on the matching position of the skiplist:
+In this case sfv files would be raced first, then mp3 and the other
+stuffs. If you use the regexp above, all the extensions get the same
+priority (and only file size matters, which means you will probably 
+send sfv at last). (deprecated)
+
+
+Precatcher mapping examples:
+  ;TV;/\.S\d{1,3}E\d{2,3}\..*(HDTV|PDTV)/,/\.\d+x\d{1,3}\..*(HDTV|PDTV)/
+These are two case sensitive regexpes which match TV rips season/episode tag
+(and maps the section to TV)
+Note: since parser is stupid, don't use comma inside the regexp here.
+Note: the two rules above are only examples, they are far to perfect/complete,
+you better not to use it in your tool.
+
+
+T*Release examples:
+Simple mask:
+  TTVRelease=TV-SD*,TV-HD*,TV-BLURAY
+Same using regex:
+  TTVRelease=/(TV-SD.*?|TV-HD.*?|TV-BLURAY)/i
+Note: If you have sections like TV-SD, TV-SD-FR, TV-SD-DE, ..., you don't need
+to add an own entry for all, it's enough to add TV-SD* which will match all.

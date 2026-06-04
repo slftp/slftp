@@ -1,0 +1,4 @@
+Usage: <cmd> Sitename
+This will display Incomming and Outgoing Routes.
+Example: <cmd> HQ1
+See also <prefix>routeset, <prefix>routesin, <prefix>routesout

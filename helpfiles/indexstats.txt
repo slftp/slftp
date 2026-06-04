@@ -1,0 +1,1 @@
+Simple displays the number of entries indexed.

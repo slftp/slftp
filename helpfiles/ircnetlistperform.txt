@@ -1,0 +1,2 @@
+Lists all defined Performs from an IRC Net
+Usage: <cmd> IRCNET

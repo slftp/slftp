@@ -1,0 +1,6 @@
+Usage: <cmd> sitename username password hostname:port [[hostname2:port2] [hostname3:port3] ...]
+Description: adds a site. Use <prefix>addbnc <prefix>delbnc to manage bnc's.
+Use <prefix>routeset to set in/out speeds of site.
+Use <prefix>sslfxp if site needs sslfxp turned on.
+Note: dont forget to <prefix>setpredir and <prefix>setprecmd on site, else tool would skip it on pre.
+Example: <cmd> MyHQ myuser mypass hostname1:1234

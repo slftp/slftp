@@ -1,0 +1,3 @@
+Sets/modifes/removes the channel key for a channel.
+Usage: <cmd> netname #channel [key]
+If key is omitted, association is removed.

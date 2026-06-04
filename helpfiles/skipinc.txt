@@ -1,0 +1,15 @@
+Usage: <cmd> sitename [value]
+Leave value blank to display current value.
+You can use * as sitename to list/set all sites skipinc values.
+
+When the site is used as a source site in a transfer, you can use this setting to manage whether 
+files that are still being uploaded and/or files that have size 0 are being transferred.
+This can prevent your transfers from being stuck on slow/incomplete files and eating
+credits for nothing.
+
+Valid options are:
+0: Skip 0byte files
+1: Skip 0byte files and being uploaded files (This actually works only with GLFTPD sites at the moment, files will be considered complete on other FTPD softwares.)
+2: Neither skip being uploaded files nor 0byte files
+
+If not set it will read global value skip_being_uploaded_files from slftp.ini.

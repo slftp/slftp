@@ -1,0 +1,4 @@
+Displays an entry of the knowledge base.
+It shows you in hindsight where a release was allowed, and if it wasn't allowed, it shows the reason why it was skipped.
+Usage: <cmd> section rlsname
+Use <cmdprefix>kblist to list latest entries of the kb.

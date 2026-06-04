@@ -1,0 +1,1847 @@
+{
+  This file is a part of the Open Source Synopse mORMot framework 2,
+  licensed under a MPL/GPL/LGPL three license - see LICENSE.md
+
+  The POSIX Sockets API is called via the libc, since SOCKDIRECTSYSCALL does not
+  make any difference in terms of stability or performance.
+}
+
+{$ifdef FPC}
+
+uses
+  baseunix,
+  termio,
+  sockets,
+  {$ifdef OSLINUXANDROID}
+  linux,   // for epoll
+  {$endif OSLINUXANDROID}
+  initc;  // link clib='c' for our socket purpose
+
+{$else}
+
+uses
+  Posix.Errno,  // to inline cerrno function
+  mormot.core.os.delphi;
+
+{$endif FPC}
+
+{$undef HASACCEPT4}
+{$ifdef OSLINUX}
+  {$ifndef OLDLIBC}
+    {$define HASACCEPT4} // use Linux-specific accept4() enhanced API call
+    // define OLDLIBC conditional to disable this API and fallback to accept()
+  {$endif OLDLIBC}
+{$endif OSLINUX}
+
+{$ifdef OSBSDDARWIN}
+  {$define USEPOLL} // epoll API is Linux-specific -> force use poll() on BSD
+{$endif OSBSDDARWIN}
+
+{.$define USEPOLL} // to validate poll API on Linux
+
+
+{ ******** Sockets Type Definitions }
+
+const
+  host_file = '/etc/hosts';
+
+  NI_MAXHOST = 1025;
+  NI_MAXSERV = 32;
+
+  WSATRY_AGAIN     = ESysEAGAIN;
+  WSAEADDRNOTAVAIL = ESysEADDRNOTAVAIL;
+  WSAECONNABORTED  = ESysECONNABORTED;
+  WSAECONNRESET    = ESysECONNRESET;
+  WSAETIMEDOUT     = ESysETIMEDOUT;
+  WSAEINVAL        = ESysEINVAL;
+  WSAEMFILE        = ESysEMFILE;
+  WSAECONNREFUSED  = ESysECONNREFUSED;
+  WSAEINPROGRESS   = ESysEINPROGRESS;
+  WSAIOPENDING     = ESysEALREADY;
+
+  {$ifdef OSLINUX}
+  SOCK_NONBLOCK = O_NONBLOCK; // see net.h
+  {$endif OSLINUX}
+
+  {$ifdef OSLINUXANDROID}
+  SO_REUSEPORT = 15; // available since Kernel 3.9 - not defined by FPC yet
+  {$endif OSLINUXANDROID}
+
+  {$ifdef OSFREEBSD}
+  NI_NUMERICHOST = 2;
+  NI_NUMERICSERV = 8;
+  {$else}
+  NI_NUMERICHOST = 1;
+  NI_NUMERICSERV = 2;
+  {$endif OSFREEBSD}
+
+  {$ifdef OSBSDDARWIN}
+
+    {$ifndef OSOPENBSD}
+    {$ifdef OSDARWIN}
+    SO_NOSIGPIPE = $1022;
+    SO_REUSEPORT = $0200;
+    AF_LINK      = 18;
+    {$else}
+    SO_NOSIGPIPE = $800;
+    {$endif OSDARWIN}
+    {$endif OSOPENBSD}
+
+    {$ifndef OSOPENBSD}
+    // Works under MAC OS X and FreeBSD, but is undocumented, so FPC doesn't include it
+    MSG_NOSIGNAL  = $20000;
+    {$else}
+    MSG_NOSIGNAL  = $400;
+    {$endif OSOPENBSD}
+  {$else}
+
+    {$ifdef SUNOS}
+    MSG_NOSIGNAL = $20000;
+    {$else}
+    MSG_NOSIGNAL = $4000; // don't generate SIGPIPE on Linux
+    {$endif SUNOS}
+
+  {$endif OSBSDDARWIN}
+
+  {$ifdef FPC} // or defined in mormot.core.os.delphi.pas
+
+  {$packrecords C}
+
+  FIONREAD = termio.FIONREAD;
+  FIONBIO  = termio.FIONBIO;
+
+  {$endif FPC}
+
+  _ST: array[TNetLayer] of cint = (
+    SOCK_STREAM,
+    SOCK_DGRAM,
+    SOCK_STREAM);
+  _IP: array[TNetLayer] of cint = (
+    IPPROTO_TCP,
+    IPPROTO_UDP,
+    0);
+  _SF: array[TNetFamily] of cint = (
+    0,
+    AF_INET,
+    AF_INET6,
+    AF_UNIX);
+
+type
+  /// a socket is always cint = 32-bit integer sized on POSIX
+  // - but we use PtrInt on POSIX to cast it as TNetSocket = ^PNetSocketWrap
+  TSocket = PtrInt;
+
+  // we redefined most of the sockaddr structs due to OpenBSD FPC RTL bug
+  // and to share the same fields between FPC and Delphi POSIX
+
+  {$ifdef SOCK_HAS_SINLEN} // as set in mormot.defines.inc (and FPC RTL)
+  sa_family_t = cuchar;    // 8-bit to follow a 8-bit sa_len field
+  {$else}
+  sa_family_t = cushort;   // 16-bit on Linux as on Windows
+  {$endif SOCK_HAS_SINLEN}
+
+  TSockAddrIn = packed record
+    {$ifdef SOCK_HAS_SINLEN}
+    sa_len: cuchar;   // could be 0 on FreeBSD/Darwin but properly set on OpenBSD
+    {$endif SOCK_HAS_SINLEN}
+    case integer of
+      0: (sa_family:  sa_family_t;
+          sa_data:    packed array[0..13] of cuchar);
+      1: (sin_family: sa_family_t;
+          sin_port:   cushort;
+          sin_addr:   TNetIP4;
+          sin_zero:   packed array[0..7] of cuchar);
+  end;
+  PSockAddrIn = ^TSockAddrIn;
+
+  TSockAddrIn6 = packed record
+    {$ifdef SOCK_HAS_SINLEN}
+    sin6_len: cuchar; // could be 0 on FreeBSD/Darwin but properly set on OpenBSD
+    {$endif SOCK_HAS_SINLEN}
+    sin6_family:   sa_family_t;
+    sin6_port:     cushort;
+    sin6_flowinfo: cuint;
+    sin6_addr:     TNetIP6;
+    sin6_scope_id: cuint;
+  end;
+  PSockAddrIn6 = ^TSockAddrIn6;
+
+  TSockAddrUnix = packed record
+    {$ifdef SOCK_HAS_SINLEN}
+    sun_len:    cuchar; // could be 0 on FreeBSD/Darwin but not on OpenBSD
+    {$endif SOCK_HAS_SINLEN}
+    sun_family: sa_family_t;
+    sun_path:   array[0..107] of AnsiChar;
+  end;
+  PSockAddrUnix = ^TSockAddrUnix;
+
+  // structure used by kernel to store most addresses
+  TSockAddr = TSockAddrIn;
+  PSockAddr = ^TSockAddr;
+
+  THostEnt = record
+    h_name: PAnsiChar;
+    h_aliases: PPAnsiChar;
+    h_addrtype: cint;
+    h_length: TSockLen;
+    case integer of
+       0: (h_addr_list: PPAnsiChar);
+       1: (h_addr:      ^PNetIP4);
+       2: (h_addr6:     ^PNetIP6);
+  end;
+  PHostEnt = ^THostEnt;
+
+const
+  // poll() flag when there is data to read
+  POLLIN       = $0001;
+  // poll() flag when there is urgent data to read
+  POLLPRI      = $0002;
+  // poll() flag when writing now will not block
+  POLLOUT      = $0004;
+  // poll() flag error condition (always implicitly polled for)
+  POLLERR      = $0008;
+  // poll() flag hung up (always implicitly polled for)
+  POLLHUP      = $0010;
+  // poll() flag invalid polling request (always implicitly polled for)
+  POLLNVAL     = $0020;
+  // poll() flag when normal data may be read
+  POLLRDNORM   = $0040;
+  // poll() flag when priority data may be read
+  POLLRDBAND   = $0080;
+  // poll() flag when writing now will not block
+  POLLWRNORM   = $0100;
+  // poll() flag when priority data may be written
+  POLLWRBAND   = $0200;
+  // poll() flag extension for Linux
+  POLLMSG      = $0400;
+
+type
+  /// polling request data structure for poll()
+  TPollFD = record
+    /// file descriptor to poll
+    fd: cint;
+    /// types of events poller cares about
+    // - mainly POLLIN and/or POLLOUT
+    events: cshort;
+    /// types of events that actually occurred
+    // - caller could just reset revents := 0 to reuse the structure
+    revents: cshort;
+  end;
+  PPollFD = ^TPollFD;
+
+
+{ ******** Sockets API calls via the libc }
+
+// note: POSIX sockets are fd = C int = 32-bit integer, not our TSocket = PtrInt
+//       so we use plain integer in the Sockets API calls below
+
+{.$define SOCKDIRECTSYSCALL} // no noticeable performance or stability change
+
+{$ifdef SOCKDIRECTSYSCALL}
+
+function gethostbyname(name: PAnsiChar): PHostEnt; cdecl;
+  external clib name 'gethostbyname' + LIBC_SUFFIX;
+  // no syscall available from FPC -> use libc wrapper anyway
+
+function socket(af, struct, protocol: integer): integer; inline;
+begin
+  result := fpsocket(af, struct, protocol);
+end;
+
+function setsockopt(s: integer; level, optname: integer;
+   optval: pointer; optlen: integer): integer; inline;
+begin
+  result := fpsetsockopt(s, level, optname, optval, optlen);
+end;
+
+function getsockopt(s: integer; level, optname: integer;
+   optval: pointer; optlen: pSocklen): integer; inline;
+begin
+  result := fpgetsockopt(s, level, optname, optval, optlen);
+end;
+
+function ioctlsocket(s: integer; cmd: cardinal; arg: PCardinal): integer; inline;
+begin
+  result := fpioctl(s, cmd, arg);
+end;
+
+function shutdown(s: integer; how: integer): integer; inline;
+begin
+  result := fpshutdown(s, how);
+end;
+
+function closesocket(s: integer): integer; inline;
+begin
+  result := FileClose(s);
+end;
+
+function getnameinfo(addr: PSockAddr; namelen: TSockLen; host: PAnsiChar;
+   hostlen: TSockLen; serv: PAnsiChar; servlen: TSockLen; flags: integer): integer; cdecl;
+  external clib name 'getnameinfo' + LIBC_SUFFIX;
+  // no syscall available from FPC
+
+function bind(s: integer; addr: PSockAddr; namelen: TSockLen): integer; inline;
+begin
+  result := fpbind(s, addr, namelen);
+end;
+
+function getsockname(s: integer; name: PSockAddr; var namelen: TSockLen): integer; inline;
+begin
+  result := fpgetsockname(s, name, @namelen);
+end;
+
+function listen(s: integer; backlog: integer): integer; inline;
+begin
+  result := fplisten(s, backlog);
+end;
+
+function accept(s: integer; addr: PSockAddr; var addrlen: TSockLen): integer; inline;
+begin
+  result := fpaccept(s, addr, @addrlen);
+end;
+
+{$ifdef HASACCEPT4}
+function accept4(s: integer; addr: PSockAddr; var addrlen: TSockLen; flags: integer): integer; cdecl;
+  external clib name 'accept4';
+  // no syscall available from FPC
+{$endif HASACCEPT4}
+
+function connect(s: integer; name: PSockAddr; namelen: TSockLen): integer; inline;
+  begin
+    result := fpconnect(s, name, namelen);
+  end;
+
+function select(nfds: integer; readfds, writefds, exceptfds: PFDSet;
+   timeout: PTimeVal): integer; inline;
+begin
+  result := fpselect(nfds, readfds, writefds, exceptfds, timeout);
+end;
+
+function recv(s: integer; Buf: pointer; len: size_t; flags: integer): ssize_t; inline;
+begin
+  result := fprecv(s, Buf, len, flags);
+end;
+
+function recvfrom(s: integer; Buf: pointer; len: size_t; flags: integer;
+   from: PSockAddr; fromlen: pSocklen): ssize_t; inline;
+begin
+ result := fprecvfrom(s, Buf, len, flags, from, fromlen);
+end;
+
+function send(s: integer; Buf: pointer; len: size_t; flags: integer): ssize_t; inline;
+begin
+  result := fpsend(s, Buf, len, flags);
+end;
+
+function sendto(s: integer; Buf: pointer; len: size_t; flags: integer;
+   addrto: PSockAddr; tolen: integer): ssize_t; inline;
+begin
+ result := fpsendto(s, Buf, len, flags, addrto, tolen);
+end;
+
+function getpeername(s: integer; name: PSockAddr; var namelen: TSockLen): integer; inline;
+begin
+  result := fpgetpeername(s, name, @namelen);
+end;
+
+{$else}
+
+// we use the libc rather than fp*() low-level functions because the libc
+// may be implemented via vDSO and avoid a syscall, and some high-level API
+// like gethostbyname() or accept4() are not available as fp* syscalls
+
+function gethostbyname(name: PAnsiChar): PHostEnt; cdecl;
+  external clib name 'gethostbyname' + LIBC_SUFFIX;
+
+function socket(af, struct, protocol: integer): integer; cdecl;
+  external clib name 'socket' + LIBC_SUFFIX;
+
+function setsockopt(s: integer; level, optname: integer;
+   optval: pointer; optlen: integer): integer; cdecl;
+  external clib name 'setsockopt' + LIBC_SUFFIX;
+
+function getsockopt(s: integer; level, optname: integer;
+   optval: pointer; optlen: PInteger): integer; cdecl;
+  external clib name 'getsockopt' + LIBC_SUFFIX;
+
+function ioctlsocket(s: integer; cmd: cardinal): integer; cdecl; varargs;
+  external clib name 'ioctl' + LIBC_SUFFIX;
+
+function shutdown(s: integer; how: integer): integer; cdecl;
+  external clib name 'shutdown' + LIBC_SUFFIX;
+
+function closesocket(s: integer): integer; cdecl;
+  external clib name 'close' + LIBC_SUFFIX;
+
+function getnameinfo(addr: PSockAddr; namelen: TSockLen; host: PAnsiChar;
+   hostlen: TSockLen; serv: PAnsiChar; servlen: TSockLen; flags: integer): integer; cdecl;
+  external clib name 'getnameinfo' + LIBC_SUFFIX;
+
+function bind(s: integer; addr: PSockAddr; namelen: TSockLen): integer; cdecl;
+  external clib name 'bind' + LIBC_SUFFIX;
+
+function getsockname(s: integer; name: PSockAddr; var namelen: TSockLen): integer; cdecl;
+  external clib name 'getsockname' + LIBC_SUFFIX;
+
+function listen(s: integer; backlog: integer): integer; cdecl;
+  external clib name 'listen' + LIBC_SUFFIX;
+
+function accept(s: integer; addr: PSockAddr; var addrlen: TSockLen): integer; cdecl;
+  external clib name 'accept' + LIBC_SUFFIX;
+
+{$undef ACCEPT4_SYSCALL}
+
+{$ifdef HASACCEPT4}
+
+function accept4(s: integer; addr: PSockAddr; var addrlen: TSockLen; flags: integer): integer;
+  cdecl; external clib name 'accept4'  // no LIBC_SUFFIX: libc 2.10 is required
+    {$ifdef FPC}{$ifdef OSLINUXINTEL} + '@GLIBC_2.10' {$endif}{$endif} ;
+
+{$endif HASACCEPT4}
+
+function connect(s: integer; name: PSockAddr; namelen: TSockLen): integer; cdecl;
+  external clib name 'connect' + LIBC_SUFFIX;
+
+{function select(nfds: integer; readfds, writefds, exceptfds: PFDSet;
+   timeout: PTimeVal): integer; cdecl;
+  external clib name 'select' + LIBC_SUFFIX;} // use poll() on POSIX
+
+function recv(s: integer; Buf: pointer; len: size_t; flags: integer): ssize_t; cdecl;
+  external clib name 'recv' + LIBC_SUFFIX;
+
+function recvfrom(s: integer; Buf: pointer; len: size_t; flags: integer;
+   from: PSockAddr; fromlen: Pinteger): ssize_t; cdecl;
+  external clib name 'recvfrom' + LIBC_SUFFIX;
+
+function send(s: integer; Buf: pointer; len: size_t; flags: integer): ssize_t; cdecl;
+  external clib name 'send' + LIBC_SUFFIX;
+
+function sendto(s: integer; Buf: pointer; len: size_t; flags: integer;
+   addrto: PSockAddr; tolen: integer): ssize_t; cdecl;
+  external clib name 'sendto' + LIBC_SUFFIX;
+
+function getpeername(s: integer; name: PSockAddr; var namelen: TSockLen): integer; cdecl;
+  external clib name 'getpeername' + LIBC_SUFFIX;
+
+{$endif SOCKDIRECTSYSCALL}
+
+{$ifdef OSDARWIN2}
+// circumvent linking issue on Mac OSX
+function poll(fds: PPollFD; nfds, timeout: integer): integer; inline;
+begin
+  result := fppoll(pointer(fds), nfds, timeout);
+end;
+{$else}
+function poll(fds: PPollFD; nfds, timeout: integer): integer; cdecl;
+  external clib name 'poll' + LIBC_SUFFIX;
+{$endif OSDARWIN}
+
+function RawSocketErrNo: integer;
+begin
+  result := cerrno; // thread-locale variable from libc
+end;
+
+{$ifdef HASACCEPT4}
+var
+  Accept4Unsupported: boolean;
+{$endif HASACCEPT4}
+
+function doaccept(s: TSocket; addr: PSockAddr; var async: boolean): integer;
+var
+  len: TSockLen;
+begin
+  len := SOCKADDR_SIZE;
+  {$ifdef HASACCEPT4}
+  if async and
+     not Accept4Unsupported then
+  begin
+    // see https://github.com/eudev-project/eudev/issues/7#issuecomment-10502344
+    result := accept4(s, addr, len, SOCK_NONBLOCK);
+    if (result < 0) and
+       ((cerrno = ESysENOSYS) or
+        (cerrno = ESysEOPNOTSUPP)) then
+    begin
+      Accept4Unsupported := true; // will fallback from now on on old systems
+      len := SOCKADDR_SIZE;
+      result := accept(s, addr, len);
+    end
+    else
+      async := false; // no need to call MakeAsync
+  end
+  else
+  {$endif HASACCEPT4}
+    result := accept(s, addr, len);
+end;
+
+
+{ ******** TNetSocket Cross-Platform Wrapper }
+
+{ TNetAddr }
+
+var
+  _gethostbynamesafe: TOSLightLock;
+  // gethostbyname() result is NOT thread-safe: we need to protect its calls;
+  // since this may take some time, we use a pthread mutex, not a TLightLock
+
+procedure TNetAddr.Clear;
+begin
+  PInteger(@Addr)^ := 0; // sa_len = sin_family = sin_port = 0
+end; // other fields are not supposed/required to be initialized on POSIX
+
+procedure TNetAddr.SetFamily(fam: cardinal);
+begin
+  PSockAddr(@Addr)^.sin_family := fam;
+  {$ifdef SOCK_HAS_SINLEN}
+  PSockAddr(@Addr)^.sa_len := Size; // for OpenBSD - FreeBSD/Darwin allow 0
+  {$endif SOCK_HAS_SINLEN}
+end;
+
+function TNetAddr.SetFrom(const address, addrport: RawUtf8;
+  layer: TNetLayer): TNetResult;
+var
+  h: PHostEnt;
+  ad4: TSockAddr absolute Addr;
+begin
+  Clear;
+  result := nrNotFound;
+  if address = '' then
+    exit;
+  // handle unix domain socket path from address (ignoring addrport)
+  if layer = nlUnix then
+  begin
+    // socket file name is just copied to the address struct
+    with PSockAddrUnix(@Addr)^ do
+      if length(address) >= SizeOf(sun_path) then
+        // avoid buffer overflow or truncated socket name
+        result := nrInvalidParameter
+      else
+      begin
+        sun_family := AF_UNIX;
+        {$ifdef SOCK_HAS_SINLEN}
+        sun_len := SOCKADDR_SIZE; // mandatory on OpenBSD - FreeBSD/Darwin allow 0
+        {$endif SOCK_HAS_SINLEN}
+        MoveFast(pointer(address)^, sun_path, length(address) + 1); // +1 for #0
+        result := nrOK;
+      end;
+    exit;
+  end;
+  // check supplied IP port
+  ad4.sin_port := bswap16(GetCardinal(pointer(addrport)));
+  if (ad4.sin_port = 0) and
+     (addrport <> '0') then // explicit '0' to get ephemeral port
+    exit;
+  // check most simple IPv4 resolution (maybe using mormot.net.dns)
+  result := nrOk;
+  if SetFromIP4(address, false) then
+    exit;
+  // use OS API (getaddrinfo is more recent, but addrinfo is not cross-platform)
+  _gethostbynamesafe.Lock;
+  try
+    h := gethostbyname(pointer(address));
+    if h = nil then
+      result := nrNotFound
+    else
+    begin
+      SetFamily(h^.h_addrtype);
+      case h^.h_addrtype of
+        AF_INET:
+           ad4.sin_addr := h^.h_addr^^;
+        AF_INET6:
+           PSockAddrIn6(@Addr)^.sin6_addr := h^.h_addr6^^;
+      else
+        result := nrNotImplemented;
+      end;
+    end;
+  finally
+    _gethostbynamesafe.UnLock;
+  end;
+end;
+
+
+{ TNetSocketWrap }
+
+procedure SetTimeVal(ms: PtrUInt; out tv: TTimeVal);
+var
+  d: PtrUInt;
+begin
+  if ms = 0 then
+  begin
+    tv.tv_sec := 0;
+    tv.tv_usec := 0;
+  end
+  else
+  begin
+    d := ms div 1000;
+    tv.tv_sec := d;
+    tv.tv_usec := (ms - (d * 1000)) * 1000;
+  end;
+end;
+
+procedure TNetSocketWrap.ReusePort;
+var
+  v: integer;
+begin
+  // see https://lwn.net/Articles/542629 for Linux (available since Kernel 3.9)
+  v := ord(true);
+  if @self <> nil then
+    setsockopt(TSocket(@self), SOL_SOCKET, SO_REUSEPORT, @v, SizeOf(v));
+  // don't call SetOpt() which raise ENetSock on old kernel without SO_REUSEPORT
+end;
+
+procedure TNetSocketWrap.SetSendTimeout(ms: integer);
+var
+  tv: TTimeVal; // POSIX uses a timeval (not Windows)
+begin
+  SetTimeVal(ms, tv);
+  SetOpt(SOL_SOCKET, SO_SNDTIMEO, @tv, SizeOf(tv));
+end;
+
+procedure TNetSocketWrap.SetReceiveTimeout(ms: integer);
+var
+  tv: TTimeVal;
+begin
+  SetTimeVal(ms, tv);
+  SetOpt(SOL_SOCKET, SO_RCVTIMEO, @tv, SizeOf(tv));
+end;
+
+procedure TNetSocketWrap.SetReuseAddrPort;
+var
+  v: integer;
+begin
+  v := ord(true);
+  {$ifdef OSBSDDARWIN}
+  SetOpt(SOL_SOCKET, SO_REUSEPORT, @v, SizeOf(v));
+  {$ifndef OSOPENBSD}
+  SetOpt(SOL_SOCKET, SO_NOSIGPIPE, @v, SizeOf(v));
+  {$endif OSOPENBSD}
+  {$else}
+  SetOpt(SOL_SOCKET, SO_REUSEADDR, @v, SizeOf(v));
+  {$endif OSBSDDARWIN}
+end;
+
+procedure TNetSocketWrap.SetLinger(linger: integer);
+var
+  v: TLinger;
+begin
+  v.l_linger := linger;
+  v.l_onoff := ord(linger >= 0);
+  SetOpt(SOL_SOCKET, SO_LINGER, @v, SizeOf(v));
+  if linger > 0 then
+    SetReuseAddrPort;
+end;
+
+procedure TNetSocketWrap.SetCork(cork: boolean);
+var
+  v: integer;
+begin
+  v := ord(cork);
+  {$ifdef OSLINUXANDROID}
+  SetOpt(IPPROTO_TCP, TCP_CORK, @v, SizeOf(v));
+  {$else}
+  {$ifdef OSBSDDARWIN}
+  SetOpt(IPPROTO_TCP, TCP_NOPUSH, @v, SizeOf(v));
+  {$endif OSBSDDARWIN}
+  {$endif OSLINUXANDROID}
+end;
+
+{$ifdef OSLINUXANDROID}
+procedure TNetSocketWrap.SetLowPriority;
+var
+  v: integer;
+begin
+  v := 0; // lowest priority
+  SetOpt(SOL_SOCKET, SO_PRIORITY, @v, SizeOf(v));
+end;
+{$else}
+procedure TNetSocketWrap.SetLowPriority;
+begin
+end;
+{$endif OSLINUXANDROID}
+
+function TNetSocketWrap.HasLowPriority: boolean;
+begin
+  result := false; // not applicable on POSIX
+end;
+
+function TNetSocketWrap.WaitFor(ms: integer; scope: TNetEvents;
+  loerr: PNetErrorInt): TNetEvents;
+var
+  res: integer;
+  p: TPollFD; // select() limits p.fd<FD_SETSIZE=1024 on POSIX -> use poll()
+  // https://moythreads.com/wordpress/2009/12/22/select-system-call-limitation
+begin
+  if loerr <> nil then
+    loerr^ := 0;
+  result := [neError];
+  if @self = nil then
+    exit;
+  p.fd := TSocket(@self);
+  p.events := 0;
+  if neRead in scope then
+    p.events := POLLIN or POLLPRI;
+  if neWrite in scope then
+    p.events := p.events or POLLOUT;
+  // POLLERR and POLLHUP are ignored in p.events: implicit [neError]
+  p.revents := 0;
+  res := poll(@p, 1, ms);
+  if res < 0 then
+  begin
+    res := cerrno;
+    if loerr <> nil then
+      loerr^ := res;
+    if res in [ESysEAGAIN, ESysEINTR] then
+      // timeout, not a true error
+      result := [];
+    exit;
+  end;
+  result := [];
+  if p.revents and (POLLIN or POLLPRI) <> 0 then
+    include(result, neRead);
+  if p.revents and POLLOUT <> 0 then
+    include(result, neWrite);
+  if p.revents and POLLERR <> 0 then
+    include(result, neError);
+  if p.revents and POLLHUP <> 0 then
+    include(result, neClosed); // may return neClosed + neRead e.g. on HTTP/1.0
+end;
+
+function NewUnixSocket(const path: RawUtf8; out netsocket: TNetSocket;
+  asstream: boolean): TNetResult;
+var
+  addr: TNetAddr;
+  sock: PtrUInt;
+  st: TStat;
+begin
+  netsocket := nil;
+  // first validate the address is an existing unix socket file
+  result := nrNotFound;
+  if (path = '') or
+     (fpStat(pointer(path), st) <> 0) or
+     not fpS_ISSOCK(st.st_mode) then
+    exit;
+  // compute the proper TNetAddr and create a unix DGRAM/STREAM socket
+  result := addr.SetFrom(path, '', nlUnix);
+  if result <> nrOk then
+    exit;
+  sock := SOCK_DGRAM;
+  if asstream then
+    sock := SOCK_STREAM;
+  sock := socket(AF_UNIX, sock, 0);
+  if sock = 0 then
+    result := NetLastError
+  // try to connect to this unix socket
+  else if connect(sock, @addr, addr.Size) = NO_ERROR then
+    netsocket := TNetSocket(sock)
+  else
+  begin
+    result := NetLastError;
+    closesocket(sock);
+  end;
+end;
+
+
+{ ******************** Mac and IP Addresses Support }
+
+const
+  IFF_UP        = $1;
+  IFF_BROADCAST = $2;
+  IFF_LOOPBACK  = $8;
+
+  {$ifdef OSBSDDARWIN}
+
+  // https://github.com/apple/darwin-xnu/blob/main/bsd/net/if_types.h
+  IFT_ETHER    = $06;
+  IFT_PPP      = $17;
+  IFT_CELLULAR = $ff;
+
+  {$else}
+
+const
+  // https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/if_arp.h
+  ARPHRD_ETHER     = 1;
+  ARPHRD_PPP       = 512;
+  ARPHRD_TUNNEL    = 768;
+  ARPHRD_TUNNEL6   = 769;
+  ARPHRD_IEEE80211 = 801;
+
+  ETH_P_IP  = $0800;
+  ETH_P_ARP = $0806;
+
+  ARPOP_REQUEST   = 1;  // ARP request
+  ARPOP_REPLY     = 2;  // ARP reply
+  ARPOP_RREQUEST  = 3;  // RARP request
+  ARPOP_RREPLY    = 4;  // RARP reply
+  ARPOP_InREQUEST = 8;  // InARP request
+  ARPOP_InREPLY   = 8;  // InARP reply
+  ARPOP_NAK       = 10; // (ATM)ARP NAK
+
+  {$endif OSBSDDARWIN}
+
+{$ifndef OSANDROID}
+  // on POSIX, use getifaddrs/freeifaddrs from libc
+  {$define USE_IFADDRS}
+{$endif OSANDROID}
+
+{$ifdef OSANDROIDARM64}
+  {$define USE_IFADDRS}
+  // Android BIONIC seems to implement it since Android N (API level 24)
+  // https://android.googlesource.com/platform/bionic/+/master/docs/status.md
+{$endif OSANDROIDARM64}
+
+{$ifdef OSLINUX}
+
+procedure RetrieveEnhancedInfo(var a: TMacAddress; var procnetroute: RawUtf8);
+var
+  fn: ShortString;
+  fnlen: AnsiChar;
+  s: RawUtf8;
+  p: PUtf8Char;
+  l: PtrInt;
+  ip: TNetIP4;
+begin
+  // see https://www.kernel.org/doc/Documentation/ABI/testing/fn-class-net
+  fn := '/sys/class/net/';
+  AppendShortAnsi7String(a.Name, fn);
+  fnlen := fn[0];
+  AppendShort('/ifalias'#0, fn);
+  LoadProcFileTrimed(@fn[1], a.FriendlyName);
+  fn[0] := fnlen;
+  AppendShort('/speed'#0, fn);
+  LoadProcFileTrimed(@fn[1], s);
+  a.Speed := GetCardinal(pointer(s));
+  fn[0] := fnlen;
+  AppendShort('/mtu'#0, fn);
+  LoadProcFileTrimed(@fn[1], s);
+  a.Mtu := GetCardinal(pointer(s));
+  // we retrieve the gateway from /proc/net/route
+  l := length(a.Name);
+  if procnetroute = '' then // get routes list once
+    procnetroute := StringFromFileNoSize('/proc/net/route');
+  p := pointer(procnetroute);
+  if p = nil then
+    exit;
+  repeat
+    if (MemCmp(pointer(p), pointer(a.Name), l) = 0) and
+       (p[l] in [#9, ' ']) then
+    begin
+      inc(p, l + 1);
+      if NetGetNextSpaced(p) = '00000000' then // destination=0.0.0.0
+      begin
+        ip := 0;
+        ParseHex(pointer(NetGetNextSpaced(p)), @ip, 4);
+        ip := bswap32(ip);
+        IP4Text(@ip, a.Gateway);
+        break;
+      end;
+    end;
+    p := GotoNextLineSmall(p);
+  until p^ = #0;
+end;
+
+{$endif OSLINUX}
+
+{$ifdef USE_IFADDRS}
+
+type
+  pifaddrs = ^ifaddrs;
+  ifaddrs = record
+    // Next item in list
+    ifa_next: pifaddrs;
+    // null-terminated interface name
+    ifa_name: PAnsiChar;
+    // mainly IFF_UP, IFF_BROADCAST and IFF_LOOPBACK
+    ifa_flags: cardinal;
+    // Address of interface
+    ifa_addr: PSockAddr;
+    // netmask associated with ifa_addr (may be nil)
+    ifa_netmask: PSockAddr;
+    // if IFF_BROADCAST is set, the broadcast address associated with ifa_addr
+    ifa_broadaddr: PSockAddr;
+    // address-family-specific data - e.g. statistics on AF_PACKET
+    ifa_data: pointer;
+  end;
+
+  {$ifdef OSBSDDARWIN} // from bsd/net/if_dl.h
+  PSockAddr_dl = ^SockAddr_dl;
+  SockAddr_dl = record
+    sdl_len: byte;         // Total length of TSockAddr
+    sdl_family: byte;      // AF_LINK
+    sdl_index: word;       // if != 0, system given index for interface
+    sdl_type: byte;        // interface type
+    sdl_nlen: byte;        // interface name length, no trailing 0 required
+    sdl_alen: byte;        // link level address length
+    sdl_slen: byte;        // link layer selector length
+    sdl_data: TByteToByte; // interface name + link level address
+  end;
+  {$else}
+  PSockAddr_ll = ^SockAddr_ll;
+  SockAddr_ll = record
+    sll_family: word;
+    sll_protocol: word;
+    sll_ifindex: integer;
+    sll_hatype: word;
+    sll_pkttype: byte;
+    sll_halen: byte;
+    sll_addr: array[0..7] of byte;
+  end;
+  {$endif OSBSDDARWIN}
+
+function getifaddrs(var ifap: pifaddrs): integer; cdecl;
+  external clib name 'getifaddrs';
+
+procedure freeifaddrs(ifap: pifaddrs); cdecl;
+  external clib name 'freeifaddrs';
+
+function GetIPAddresses(Kind: TIPAddress): TRawUtf8DynArray;
+var
+  list, info: pifaddrs;
+  n: PtrInt;
+  s: RawUtf8;
+begin
+  result := nil;
+  n := 0;
+  if getifaddrs(list) = NO_ERROR then
+  try
+    info := list;
+    repeat
+      if (info^.ifa_addr <> nil) and
+         (info^.ifa_flags and IFF_LOOPBACK = 0) and
+         (info^.ifa_flags and IFF_UP <> 0) then
+      begin
+        s := '';
+        case info^.ifa_addr^.sa_family of
+          AF_INET:
+            if IP4Filter(integer(info^.ifa_addr^.sin_addr), Kind) then
+              IP4Text(@info^.ifa_addr^.sin_addr,s);
+          AF_INET6:
+            if kind in [tiaAny, tiaIPv6] then
+              with PSockAddrIn6(info^.ifa_addr)^ do
+                if sin6_scope_id = 0 then // don't include scoped IPv6
+                  IP6Text(@sin6_addr, s);
+        end;
+        if s <> '' then
+        begin
+          if n = length(result) then
+            SetLength(result, NextGrow(n));
+          result[n] := s;
+          inc(n);
+        end;
+      end;
+      info := info^.ifa_next;
+    until info = nil;
+  finally
+    freeifaddrs(list);
+  end;
+  if n <> length(result) then
+    SetLength(result, n);
+end;
+
+function RetrieveMacAddresses(UpAndDown: boolean): TMacAddressDynArray;
+var
+  list, info: pifaddrs;
+  i, n: PtrInt;
+  mac: RawUtf8;
+  m: PMacAddress;
+  {$ifdef OSLINUX}
+  procnetroute: RawUtf8; // retrieve routes once for all MAC addresses
+  {$endif OSLINUX}
+begin
+  // https://github.com/zeromq/czmq/blob/899f81985961513c7f4e/src/ziflist.c#L210
+  result := nil;
+  if getifaddrs(list) = NO_ERROR then
+  try
+    // first loop to identify the main interfaces (AF_LINK/AF_PACKET)
+    n := 0;
+    info := list;
+    repeat
+      mac := '';
+      if (info^.ifa_name <> nil) and
+         (info^.ifa_flags and IFF_LOOPBACK = 0) and
+         (UpAndDown or
+          (info^.ifa_flags and IFF_UP <> 0)) and
+         ((info^.ifa_addr = nil) or
+      // see https://stackoverflow.com/a/51218583/458259
+      {$ifdef OSBSDDARWIN}
+          (info^.ifa_addr^.sa_family = AF_LINK)) then
+      begin
+        if info^.ifa_addr <> nil then
+          with PSockAddr_dl(info^.ifa_addr)^ do
+            if sdl_alen = 6 then
+              // #define LLADDR(s) ((caddr_t)((s)->sdl_data + (s)->sdl_nlen))
+              {$ifdef OSDARWIN}
+              if PCardinal(@sdl_data[sdl_nlen])^ <> 2 then
+                // iOS7+ return always 02:00:00:00:00:00 as MAC addresses :(
+              {$endif OSDARWIN}
+                mac := MacToText(@sdl_data[sdl_nlen]);
+      {$else}
+          (info^.ifa_addr^.sa_family = AF_PACKET)) then
+      begin
+        if info^.ifa_addr <> nil then
+          mac := MacToText(@PSockAddr_ll(info^.ifa_addr)^.sll_addr);
+      {$endif OSBSDDARWIN}
+        if mac = '' then
+          mac := '00:00:00:00:00:00' // for makSoftware (e.g. tunnel)
+        else
+          for i := 0 to n - 1 do
+            if result[i].Address = mac then
+            begin
+              mac := ''; // avoid any duplicate (paranoid)
+              break;
+            end;
+        if mac <> '' then
+        begin
+          if n = length(result) then
+            SetLength(result, NextGrow(n));
+          m := @result[n];
+          m^.Name := info^.ifa_name; // e.g. 'eth0' on Linux
+          m^.AdapterName := m^.Name;
+          m^.Address := mac;
+          if info^.ifa_addr <> nil then
+          begin
+            {$ifdef OSBSDDARWIN}
+            // BSD/DARWIN do name the networks from their manufacturer
+            // -> parse net.wlan.devices ?
+            m^.IfIndex := PSockAddr_dl(info^.ifa_addr)^.sdl_index;
+            case PSockAddr_dl(info^.ifa_addr)^.sdl_type of
+              IFT_ETHER:
+                m^.Kind := makEthernet;
+              IFT_PPP:
+                m^.Kind := makPpp;
+              IFT_CELLULAR:
+                m^.Kind := makCellular;
+            {$else}
+            m^.IfIndex := PSockAddr_ll(info^.ifa_addr)^.sll_ifindex;
+            case PSockAddr_ll(info^.ifa_addr)^.sll_hatype of
+              ARPHRD_ETHER:
+                begin
+                  m^.Kind := makEthernet;
+                  if m^.Name <> '' then
+                    // set also for some wifi adapters
+                    if PWord(m^.Name)^ = ord('w') + ord('l') shl 8 then
+                      m^.Kind := makWifi; // detect by convention
+                end;
+              ARPHRD_IEEE80211:
+                m^.Kind := makWifi;
+              ARPHRD_TUNNEL,
+              ARPHRD_TUNNEL6:
+                m^.Kind := makTunnel;
+              ARPHRD_PPP:
+                m^.Kind := makPpp;
+            {$endif OSBSDDARWIN}
+            else
+              // https://systemd.io/PREDICTABLE_INTERFACE_NAMES
+              if m^.Name <> '' then
+                case cardinal(PWord(m^.Name)^) of
+                  ord('e') + ord('t') shl 8,  // 'ethX'
+                  ord('e') + ord('n') shl 8:  // systemd v197 'enpXsX'
+                    m^.Kind := makEthernet;
+                  ord('w') + ord('l') shl 8:  // 'wlanX' and systemd v197 'wlX'
+                    m^.Kind := makWifi;
+                end;
+            end;
+          end
+          else
+          begin
+            m^.IfIndex := -1; // non physical interface
+            m^.Kind := makSoftware;
+          end;
+          {$ifdef OSLINUX} // retrieve e.g. m^.Gateway from /proc/net/route
+          if info^.ifa_flags and IFF_UP <> 0 then
+            RetrieveEnhancedInfo(m^, procnetroute);
+          {$endif OSLINUX}
+          // on POSIX, there is no such things as per-interface DNS
+          // on BSD, there is no standard way of knowing the Gateway
+          inc(n);
+        end;
+      end;
+      info := info^.ifa_next;
+    until info = nil;
+    if n <> 0 then
+      DynArrayFakeLength(result, n);
+    // retrieve the IP configuration (AF_INET) from a second loop
+    info := list;
+    repeat
+      if (info^.ifa_addr <> nil) and
+         (info^.ifa_flags and IFF_LOOPBACK = 0) and
+         (info^.ifa_flags and IFF_UP <> 0) and
+         (info^.ifa_addr^.sa_family = AF_INET) then
+        for i := 0 to n - 1 do
+          with result[i] do
+            if StrComp(pointer(Name), info^.ifa_name) = 0 then
+            begin
+              if IP = '' then // only return the first IPv4 (paranoid)
+              begin
+                IP4Text(@info^.ifa_addr^.sin_addr, IP);
+                if (info^.ifa_netmask <> nil) and
+                   (info^.ifa_netmask^.sa_family = AF_INET) then
+                  IP4Text(@info^.ifa_netmask^.sin_addr, NetMask);
+                if (info^.ifa_flags and IFF_BROADCAST <> 0) and
+                   (info^.ifa_broadaddr <> nil) and
+                   (info^.ifa_broadaddr^.sa_family = AF_INET) then
+                  IP4Text(@info^.ifa_broadaddr^.sin_addr, Broadcast);
+                  // don't use IP4Broadcast() because if the OS says there is
+                  // no broadcast address, then there is no broadcasting enabled
+              end;
+              break;
+            end;
+      info := info^.ifa_next;
+    until info = nil;
+  finally
+    freeifaddrs(list);
+  end;
+end;
+
+{$ifdef OSLINUX} // SOCK_RAW linux-specific code (requiring root or CAP_NET_RAW)
+
+type
+  // a low-level ARP frame binary content, with its SOCK_RAW ethernet header
+  TRawARP = packed record
+    Dest: TNetMac;
+    Src: TNetMac;
+    EType: word;
+    HType: word;
+    PType: word;
+    HLen: byte;
+    PLen: byte;
+    Op:  word;
+    SHA: TNetMac;
+    SPA: TNetIP4;
+    THA: TNetMac;
+    TPA: TNetIP4;
+  end;
+  PRawARP = ^TRawARP;
+
+const
+  MAC_BROADCAST: TNetMac = ($ff, $ff, $ff, $ff, $ff, $ff);
+  MAC_ZERO:      TNetMac = ($00, $00, $00, $00, $00, $00);
+
+var
+  SharedArpLock: TLightLock; // thread-safe reuse of a shared SOCK_RAW socket
+  SharedArpSock: TSocket;
+
+function GetRemoteMacAddress(const IP: RawUtf8; TimeoutMS: integer): RawUtf8;
+var
+  s: TSocket;
+  ns: TNetSocket absolute s;
+  local: TMacAddress;
+  arp: TRawARP;
+  addr: SockAddr_ll;
+  resp: RawByteString;
+  retry: integer;
+  start: Int64;
+begin
+  result := '';
+  // validate and prepare input parameters
+  if not NetIsIP4(pointer(IP), @arp.TPA) or
+     not GetLocalMacAddress(IP, local) or // ask the kernel routage table
+     not NetIsIP4(pointer(local.IP), @arp.SPA) or
+     not TextToMac(pointer(local.Address), @arp.Src) then
+    exit;
+  if arp.TPA = arp.SPA then
+  begin
+    result := local.Address; // handle case of self IP
+    exit;
+  end;
+  arp.Dest  := MAC_BROADCAST;
+  arp.EType := bswap16(ETH_P_ARP);
+  arp.HType := bswap16(ARPHRD_ETHER);
+  arp.PType := bswap16(ETH_P_IP);
+  arp.HLen  := SizeOf(TNetMac);
+  arp.PLen  := SizeOf(TNetIP4);
+  arp.Op    := bswap16(ARPOP_REQUEST);
+  arp.SHA   := arp.Src;
+  arp.THA   := MAC_ZERO;
+  FillCharFast(addr, SizeOf(addr), 0);
+  addr.sll_family   := AF_PACKET;
+  addr.sll_protocol := bswap16(ETH_P_ARP);
+  addr.sll_ifindex  := local.IfIndex;
+  addr.sll_halen    := SizeOf(MAC_BROADCAST);
+  PNetMac(@addr.sll_addr)^ := MAC_BROADCAST;
+  // acquire a SOCK_RAW - shared between calls since closesocket() is slow
+  if SharedArpLock.TryLock then
+  begin
+    if SharedArpSock = 0 then
+      SharedArpSock := socket(AF_PACKET, SOCK_RAW, bswap16(ETH_P_ARP));
+    s := SharedArpSock;
+    if s <= 0 then // typically not root or CAP_NET_RAW
+    begin
+      SharedArpLock.UnLock; // no retry any more since SharedArpSock=-1 now
+      exit;
+    end;
+  end
+  else
+  begin
+    s := socket(AF_PACKET, SOCK_RAW, bswap16(ETH_P_ARP)); // transient socket
+    if s <= 0 then
+      exit; // paranoid (e.g. fd exhaustion)
+  end;
+  // main send/recv loop
+  start := 0;
+  if TimeoutMS > 0 then
+    start := GetTickCount64;
+  for retry := 0 to 4 do // with some exponential backoff on network congestion
+  begin
+    if sendto(s, @arp, SizeOf(arp), 0, @addr, SizeOf(addr)) >= 0 then
+    begin
+      if ns.RecvWait(100 + retry * 50, resp) = nrOK then
+        repeat
+          if length(resp) >= SizeOf(TRawArp) then
+            with PRawARP(resp)^ do
+              if (Op = bswap16(ARPOP_REPLY)) and // reply
+                 (TPA = arp.SPA) and             // from expected IPs
+                 (SPA = arp.TPA) then
+              begin
+                result := MacToText(@SHA);
+                break;
+              end;
+        until ns.RecvWait(20, resp) <> nrOK; // get all responses
+      if result <> '' then
+        break; // found one
+    end
+    else if retry > 0 then
+      break; // allow one sendto() failure for the first occurence
+    SleepHiRes(50); // avoid mini flood detection between retries
+    if (TimeoutMS > 0) and
+       (GetTickCount64 - start > TimeoutMS) then
+      break; // don't wait too long
+  end;
+  // resource cleanup
+  if s = SharedArpSock then
+    SharedArpLock.UnLock // can be reused
+  else
+    ns.Close; // release transient socket - 35 ms on my Debian
+end;
+
+{$endif OSLINUX}
+
+{$else}
+
+function GetIPAddresses(Kind: TIPAddress): TRawUtf8DynArray;
+begin
+  result := nil;
+end;
+
+{$ifdef OSLINUX}
+// on Android, /sys/class/net is not readable from the standard user :(
+
+function RetrieveMacAddresses(UpAndDown: boolean): TMacAddressDynArray;
+var
+  n: integer;
+  SR: TSearchRec;
+  fn: ShortString;
+  fnlen: AnsiChar;
+  f, procnetroute: RawUtf8;
+begin
+  result := nil;
+  if FindFirst('/sys/class/net/*', faDirectory, SR) = 0 then
+  begin
+    n := 0;
+    repeat
+      if (SR.Name <> 'lo') and
+         SearchRecValidFolder(SR) then
+      begin
+        fn := '/sys/class/net/';
+        AppendShortAnsi7String(SR.Name, fn);
+        fnlen := fn[0];
+        AppendShort('/flags'#0, fn);
+        LoadProcFileTrimed(@fn[1], f);
+        if (length(f) > 2) and // e.g. '0x40' or '0x1043'
+           (ParseHex0x(pointer(f)) and (IFF_UP or IFF_LOOPBACK) = IFF_UP) then
+        begin
+          fn[0] := fnlen;
+          AppendShort('/address'#0, fn);
+          LoadProcFileTrimed(@fn[1], f);
+          if f <> '' then
+          begin
+            SetLength(result, n + 1);
+            result[n].Name := SR.Name;
+            result[n].Address := f;
+            RetrieveEnhancedInfo(result[n], procnetroute);
+            // sadly, retrieving IP and mask from /proc is very complex
+            // https://stackoverflow.com/a/14725655/458259
+            // a solution may be to use ioctl()
+            // https://github.com/zeromq/czmq/blob/899f81985961513c7f4e/src/ziflist.c#L277
+            inc(n);
+          end;
+        end;
+      end;
+    until FindNext(SR) <> 0;
+    FindClose(SR);
+  end;
+end;
+
+{$else}
+
+function RetrieveMacAddresses(UpAndDown: boolean): TMacAddressDynArray;
+begin
+  result := nil;
+end;
+
+{$endif OSLINUX}
+
+{$endif USE_IFADDRS}
+
+function GetLocalMacAddress(const Remote: RawUtf8; var Mac: TMacAddress): boolean;
+var
+  local: RawUtf8;
+  all: TMacAddressDynArray;
+  i: PtrInt;
+begin
+  result := false;
+  local := GetLocalIpAddress(Remote); // ask the kernel routage table
+  if local = '' then
+    exit;
+  all := GetMacAddresses; // fast refcnt threadsafe access, with a 65 secs cache
+  for i := 0 to high(all) do
+    if all[i].IP = local then
+    begin
+      mac := all[i];
+      result := true;
+      break;
+    end;
+end;
+
+var
+  EtcResolve, EtcResolveEnv: TCachedValue; // 64 seconds thread-safe cache
+
+function _GetDnsAddresses(usePosixEnv, getAD: boolean): TRawUtf8DynArray;
+var
+  resolv, one: RawUtf8;
+  p: PUtf8Char;
+  ok: boolean;
+begin
+  result := nil;
+  if usePosixEnv then
+    resolv := StringFromFileCached(GetSystemEnvString('ETC'), EtcResolveEnv);
+  if resolv = '' then
+    // all systems are likely to have or generate this file
+    // - even the libc seems to read it when implementing gethostname()
+    resolv := StringFromFileCached('/etc/resolv.conf', EtcResolve);
+  p := pointer(resolv);
+  if p = nil then
+    exit;
+  repeat
+    while p^ in [#9, ' '] do
+      inc(p);
+    if p^ in [#0, '#'] then
+      ok := false
+    else if getAD then
+      ok := NetStartWith(p, 'SEARCH ') or
+            NetStartWith(p, 'DOMAIN ')  // "domain" is used e.g. on MacOS
+    else
+      ok := NetStartWith(p, 'NAMESERVER ');
+    if ok then
+    begin
+      repeat
+        inc(p);
+      until p^ <= ' '; // go after search/domain/nameserver keyword
+      repeat
+        one := NetGetNextSpaced(p);
+        if one = '' then
+          break;
+        _addutf8(result, one);
+      until false;
+    end;
+    p := GotoNextLineSmall(p);
+  until p^ = #0;
+end;
+
+
+{ ******************** Efficient Multiple Sockets Polling }
+
+function PseToPollEvent(events: TPollSocketEvents): integer; inline;
+begin
+  if pseRead in events then
+    result := POLLIN or POLLPRI
+  else
+    result := 0;
+  if pseWrite in events then
+    result := result or POLLOUT;
+end;
+
+type
+  /// socket polling via the POSIX poll API
+  // - direct call of the Linux/POSIX poll() API
+  // - note: Windows WSAPoll() API is actually slower than plain Select()
+  TPollSocketPoll = class(TPollSocketAbstract)
+  protected
+    fFD: array of TPollFD; // fd=-1 for ignored fields
+    fTags: array of TPollSocketTag;
+    fFDCount: integer;
+    procedure FDVacuum;
+  public
+    constructor Create(aOwner: TPollSockets); override;
+    function Subscribe(socket: TNetSocket; events: TPollSocketEvents;
+      tag: TPollSocketTag): boolean; override;
+    function Unsubscribe(socket: TNetSocket): boolean; override;
+    function WaitForModified(var results: TPollSocketResults;
+      timeoutMS: integer): boolean; override;
+  end;
+
+constructor TPollSocketPoll.Create(aOwner: TPollSockets);
+begin
+  inherited Create(aOwner);
+  fMaxSockets := 20000;
+end;
+
+function TPollSocketPoll.Subscribe(socket: TNetSocket; events: TPollSocketEvents;
+  tag: TPollSocketTag): boolean;
+var
+  i, new: PtrInt;
+  n, e, fd, s: integer;
+  p: PPollFD;
+begin
+  result := false;
+  if (self = nil) or
+     (socket = nil) or
+     (byte(events) = 0) or
+     (fCount = fMaxSockets) then
+    exit;
+  e := PseToPollEvent(events);
+  s := PtrUInt(socket);
+  new := -1;
+  p := pointer(fFD);
+  if p <> nil then
+    if fFDCount = fCount then
+    begin
+      // no void entry
+      for i := 1 to fFDCount do
+        if p^.fd = s then
+          // already subscribed
+          exit
+        else
+          inc(p);
+    end
+    else
+      for i := 0 to fFDCount - 1 do
+      begin
+        fd := p^.fd;
+        if fd = s then
+          // already subscribed
+          exit
+        else if fd < 0 then
+          // found a void entry
+          new := i;
+      end;
+  if new < 0 then
+  begin
+    if fFDCount = length(fFD) then
+    begin
+      // add new entry to the array
+      n := NextGrow(fFDCount);
+      if n > fMaxSockets then
+        n := fMaxSockets;
+      SetLength(fFD, n);
+      SetLength(fTags, n);
+    end;
+    new := fFDCount;
+    inc(fFDCount);
+  end;
+  fTags[new] := tag;
+  with fFD[new] do
+  begin
+    fd := TSocket(socket);
+    events := e;
+    revents := 0;
+  end;
+  inc(fCount);
+  result := true;
+end;
+
+procedure TPollSocketPoll.FDVacuum;
+var
+  n, i: PtrInt;
+begin
+  n := 0;
+  for i := 0 to fFDCount - 1 do
+    if fFD[i].fd > 0 then
+    begin
+      if i <> n then
+      begin
+        fFD[n] := fFD[i];
+        fTags[n] := fTags[i];
+      end;
+      inc(n);
+    end;
+  fFDCount := n;
+end;
+
+function TPollSocketPoll.Unsubscribe(socket: TNetSocket): boolean;
+var
+  i: PtrInt;
+  s: integer;
+  p: PPollFD;
+begin
+  s := PtrUInt(socket);
+  p := pointer(fFD);
+  for i := 1 to fFDCount do
+    if p^.fd = s then
+    begin
+      p^.fd := -1;     // mark entry as void and reusable
+      p^.revents := 0; // quickly ignored in WaitForModified()
+      dec(fCount);
+      if fCount <= fFDCount shr 1 then
+        FDVacuum; // avoid too many void entries
+      result := true;
+      exit;
+    end
+    else
+      inc(p);
+  result := false;
+end;
+
+function PollEventToPse(r: integer): TPollSocketEvents; inline;
+begin
+  if r = POLLIN then
+    {$ifdef FPC}
+    byte(result) := byte([pseRead]) // optimized for the most common case
+    {$else}
+    result := [pseRead]
+    {$endif FPC}
+  else
+  begin
+    byte(result) := 0;
+    if r and (POLLIN or POLLPRI) <> 0 then
+      include(result, pseRead);
+    if r and POLLOUT <> 0 then
+      include(result, pseWrite);
+    if r and POLLERR <> 0 then
+      include(result, pseError);
+    if r and POLLHUP <> 0 then
+      include(result, pseClosed);
+  end;
+end;
+
+procedure PollConvert(p: PPollFD; d: PPollSocketResult; n: integer; t: PPollSocketTag);
+var
+  r: integer;
+begin
+  repeat
+    r := p^.revents;
+    if (r <> 0) and
+       (p^.fd > 0) then
+    begin
+      SetRes(d^, t^, PollEventToPse(r));
+      inc(d);
+      p^.revents := 0; // reset result flags for reuse
+    end;
+    inc(p);
+    inc(t);
+    dec(n);
+  until n = 0;
+end;
+
+function TPollSocketPoll.WaitForModified(var results: TPollSocketResults;
+  timeoutMS: integer): boolean;
+var
+  n: PtrInt;
+begin
+  result := false; // error
+  if (self = nil) or
+     (fCount = 0) then
+    exit;
+  // here fCount=0 would not permit next async subscription
+  n := poll(pointer(fFD), fFDCount, timeoutMS);
+  results.Count := n;
+  if n <= 0 then
+    exit;
+  if results.Events = nil then
+    SetLength(results.Events, n + 4) // optimized for a few items
+  else if n > length(results.Events) then
+  begin
+    results.Events := nil;
+    SetLength(results.Events, NextGrow(n + 64)); // more generous allocation
+  end;
+  PollConvert(pointer(fFD), pointer(results.Events), fFDCount, pointer(fTags));
+  result := true;
+end;
+
+function PollFewSockets: TPollSocketAbstract;
+begin
+  result := TPollSocketPoll.Create(nil);
+end;
+
+function WaitForSeveral(const Sockets: TPollSocketsSubscribeDynArray;
+  var results: TPollSocketResults; timeoutMS: integer): boolean;
+var
+  n, res: integer;
+  fd: array of TPollFD;
+  s: PPollSocketsSubscribe;
+  p: PPollFD;
+  r: PPollSocketResult;
+begin
+  result := false;
+  results.Count := 0;
+  n := length(Sockets);
+  if n = 0 then
+    exit;
+  SetLength(fd, n);
+  res := 0;
+  s := pointer(Sockets);
+  p := pointer(fd);
+  repeat
+    if pseRead in s^.events then
+    begin
+      p^.fd := PtrUInt(s^.socket);
+      p^.events := POLLIN or POLLPRI;
+      inc(p);
+      inc(res);
+    end;
+    inc(s);
+    dec(n);
+  until n = 0;
+  if res = 0 then
+    exit; // no pseRead to check
+  n := poll(pointer(fd), res, timeoutMS);
+  if n <= 0 then
+    exit;
+  results.Count := n;
+  SetLength(results.Events, n);
+  r := pointer(results.Events);
+  s := pointer(Sockets);
+  p := pointer(fd);
+  repeat
+    res := p^.revents;
+    if res <> 0 then
+    begin
+      SetRes(r^, s^.tag, PollEventToPse(res));
+      inc(r);
+      dec(n);
+      if n = 0 then
+        break;
+    end;
+    inc(s);
+    inc(p);
+  until false;
+  result := true;
+end;
+
+{$ifdef USEPOLL}
+
+function PollSocketClass: TPollSocketClass;
+begin
+  result := TPollSocketPoll;
+end;
+
+{$else}
+
+type
+  /// socket polling via Linux epoll optimized API
+  // - not available under Windows or BSD/Darwin
+  // - direct call of the epoll API in level-triggered (LT) mode
+  // - this class IS thread-safe, as the epoll API itself
+  TPollSocketEpoll = class(TPollSocketAbstract)
+  protected
+    fEPFD: integer;
+  public
+    constructor Create(aOwner: TPollSockets); override;
+    destructor Destroy; override;
+    // directly calls epoll's EPOLL_CTL_ADD control interface
+    function Subscribe(socket: TNetSocket; events: TPollSocketEvents;
+      tag: TPollSocketTag): boolean; override;
+    // directly calls epoll's EPOLL_CTL_DEL control interface
+    function Unsubscribe(socket: TNetSocket): boolean; override;
+    // directly calls epool_wait() function
+    function WaitForModified(var results: TPollSocketResults;
+      timeoutMS: integer): boolean; override;
+    // stop epolling
+    procedure Terminate; override;
+    // return true for epoll
+    class function FollowEpoll: boolean; override;
+    // read-only access to the low-level epoll_create file descriptor
+    property EPFD: integer
+      read fEPFD;
+  end;
+
+{$define POLLSOCKETEPOLL} // $ifdef in main mormot.net.sock.pas implementation
+// is defined for TPollSocketEpoll.FollowEpoll = true
+
+constructor TPollSocketEpoll.Create(aOwner: TPollSockets);
+begin
+  inherited Create(aOwner);
+  fEPFD := epoll_create(10000); // since 2.6.8 size is ignored
+end;
+
+destructor TPollSocketEpoll.Destroy;
+begin
+  Terminate;
+  inherited;
+end;
+
+procedure TPollSocketEpoll.Terminate;
+begin
+  if fEPFD <= 0 then
+    exit;
+  FileClose(fEPFD);
+  fEPFD := -1;
+end;
+
+class function TPollSocketEpoll.FollowEpoll: boolean;
+begin
+  result := true; // TPollSocketEpoll is thread-safe and has no size limit
+end;
+
+const
+  EPOLLRDHUP = $2000; // since 2.6.17 (not defined in FPC Linux.pp) = close
+  // note: EPOLLRDHUP in LT mode needs recv() len=0 so is not worth it
+  //                  in ET mode properly reflects connection close
+  EPOLLMODE_LT = 0;                     // Level Triggered mode
+  EPOLLMODE_ET = EPOLLET or EPOLLRDHUP; // Event Triggered mode + RDHUP
+  // "EPOLLET" edge triggered detection is not really consistent with select
+  // or poll and do not work as expected e.g. with TTestMultiThreadProcess
+  // -> PollForPendingEvents() will use fast O(n*m) MergePendingEvents()
+  EPOLLMODE = EPOLLMODE_LT;
+  // EPOLLRDHUP is relevant only in ET mode
+  EPOLLCLOSE = EPOLLHUP or (EPOLLMODE and EPOLLRDHUP);
+
+function TPollSocketEpoll.Subscribe(socket: TNetSocket; events: TPollSocketEvents;
+  tag: TPollSocketTag): boolean;
+var
+  e: TEPoll_Event;
+  err: integer;
+begin
+  result := false;
+  if (self = nil) or
+     (socket = nil) or
+     (fEPFD <= 0) or
+     (PtrUInt(socket) = PtrUInt(fEPFD)) or
+     (byte(events) = 0) then
+    exit;
+  e.data.ptr := pointer(tag); // don't use data.u64
+  if pseRead in events then
+    if pseWrite in events then
+      e.events := EPOLLIN or EPOLLPRI or EPOLLOUT or EPOLLMODE
+    else
+      e.events := EPOLLIN or EPOLLPRI or EPOLLMODE
+  else if pseWrite in events then
+    e.events := EPOLLOUT or EPOLLMODE
+  else
+    e.events := 0;
+  // EPOLLERR and EPOLLHUP are always implicitly tracked
+  repeat
+    err := epoll_ctl(fEPFD, EPOLL_CTL_ADD, TSocket(socket), @e);
+  until err <> ESysEINTR;
+  result := err >= NO_ERROR;
+  if not result then
+    exit;
+  LockedInc32(@fCount);
+  fMaxSockets := fCount;
+end;
+
+function TPollSocketEpoll.Unsubscribe(socket: TNetSocket): boolean;
+var
+  e: TEPoll_Event; // should be there even if not used (old kernel < 2.6.9)
+  err: integer;
+begin
+  if (self = nil) or
+     (socket = nil) or
+     (fEPFD <= 0) or
+     (PtrUInt(socket) = PtrUInt(fEPFD)) then
+    result := false
+  else
+  begin
+    repeat
+      err := epoll_ctl(fEPFD, EPOLL_CTL_DEL, TSocket(socket), @e);
+    until err <> ESysEINTR;
+    result := err >= NO_ERROR;
+    if result then
+    begin
+      LockedDec32(@fCount);
+      fMaxSockets := fCount;
+    end;
+    if (fOwner <> nil) and
+       fOwner.fUnsubscribeShutdownSocket then
+      socket.ShutdownAndClose({rdwr=}false);
+  end;
+end;
+
+function TPollSocketEpoll.WaitForModified(var results: TPollSocketResults;
+  timeoutMS: integer): boolean;
+var
+  e: TPollSocketEvents;
+  n: PtrInt;
+  ev: integer;
+  ee: PEPoll_Event;
+  er: PPollSocketResult;
+  tmp: array[byte] of TEPoll_Event; // up to 256 events at once seems fair
+begin
+  result := false; // error or nothing new
+  if (self = nil) or
+     (fEPFD <= 0) then
+    exit;
+  // we allow fCount=0 which enable background epoll_ctl subscription
+  n := epoll_wait(fEPFD, @tmp, length(tmp), timeoutMS);
+  // if pending > length(tmp): epoll_wait() would round-robin
+  results.Count := n;
+  if n <= 0 then
+    exit; // nothing new
+  // epoll notified some sockets
+  if results.Events = nil then
+    // temporary results.Events = new in PollForPendingEvents()
+    SetLength(results.Events, n + 4)
+  else if n > length(results.Events) then
+  begin
+    // results.Events reused between calls: allocate as much as possible
+    results.Events := nil;
+    SetLength(results.Events, length(tmp));
+  end;
+  ee := @tmp;
+  er := pointer(results.Events);
+  repeat
+    ev := ee^.events;
+    {$ifdef FPC}
+    byte(e) := byte([pseRead]); // optimized for the most common case
+    {$else}
+    e := [pseRead];
+    {$endif FPC}
+    if ev <> EPOLLIN then
+    begin
+      if ev and (EPOLLIN or EPOLLPRI) = 0 then
+        byte(e) := 0;
+      if ev and EPOLLOUT <> 0 then
+        include(e, pseWrite);
+      if ev and EPOLLERR <> 0 then
+        include(e, pseError);
+      if ev and EPOLLCLOSE <> 0 then
+        include(e, pseClosed);
+    end;
+    // inlined forward SetRes(er^, TPollSocketTag(ee^.data.ptr), e)
+    {$ifdef CPU32}
+    er^.B[4] := byte(e);
+    er^.Li := TPollSocketTag(ee^.data.ptr);
+    {$else}
+    er^ := PtrUInt(ee^.data.ptr) or (PtrUInt(byte(e)) shl 60);
+    {$endif CPU32}
+    inc(ee);
+    inc(er);
+    dec(n)
+  until n = 0;
+  result := true;
+end;
+
+function PollSocketClass: TPollSocketClass;
+begin
+  result := TPollSocketEpoll;
+end;
+
+{$endif USEPOLL}
+
+
+
+procedure InitializeUnit;
+begin
+  Join([OSVersionShort , {$ifdef USEPOLL} ' poll' {$else} ' epoll' {$endif}],
+    SocketAPIVersion);
+  _gethostbynamesafe.Init;
+end;
+
+procedure FinalizeUnit;
+begin
+  _gethostbynamesafe.Done;
+  {$ifdef OSLINUX}
+  if SharedArpSock <> 0 then
+    TNetSocket(SharedArpSock).Close;
+  {$endif OSLINUX}
+
+end;
+

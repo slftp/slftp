@@ -1,0 +1,3 @@
+Usage: <cmd> sitename [section] rlsname
+Description: deletes rlsname from each site added in chainname, EXCEPT sitename. Default section is PRE.
+Example: <cmd> HQ MyRip-GRP

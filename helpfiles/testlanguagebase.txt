@@ -1,0 +1,3 @@
+Usage: <cmd> rip
+Test the Languagebase, but only the NEW languagebase over regex, not the old one over words!
+Example: <cmd> No.Clue.GERMAN.2066.4K.x266-BLA

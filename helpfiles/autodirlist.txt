@@ -1,0 +1,10 @@
+Scans sections for new rips by dirlisting.
+Usage: <cmd> sitename [interval section1 section2 section3 ...]
+If interval is zero, autodirlist is turned off. Interval is seconds.
+WARNING: use age condition before adding an autodirlist to a not daydir based section
+else you will get a HUGE backfill
+Note: autodirlist starts races automaticly, its not affected by the 
+<cmdprefix>auto command.
+Note: special section REQUEST is handled differently, if a site has REQUEST section
+added to autodirlist, bot will try filling requests based on rips indexed by the 
+autoindex feature.

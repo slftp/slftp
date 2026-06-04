@@ -1,0 +1,4 @@
+Usage: <cmd> sitename text
+Sets the name of the site.
+Example: <cmd> HQ Head Quarter
+See also: Affils/users/shit section in <cmdprefix>help

@@ -1,0 +1,4 @@
+Usage: <cmd> Host:Port Username Password Databasename Tablename
+Save the mysql connection data. 
+Example: <cmd> 127.0.0.1:5555 root root predb preee
+

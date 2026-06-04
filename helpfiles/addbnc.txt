@@ -1,0 +1,3 @@
+Usage: <cmd> sitename hostname:port
+Description: adds a bouncer to the site.
+Example: <cmd> MyHQ hostname1:1234

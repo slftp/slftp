@@ -1,0 +1,7 @@
+Executes a raw ftp command.
+<cmd> sitename command
+Examples:
+<cmd> HQ SITE MSG READ
+<cmd> * SITE SEARCH MYRLS
+
+You can use the special sitename * as a wildcard for all sites.

@@ -1,0 +1,3 @@
+Usage: <cmd> sitename section pretime
+Set the max pretime per site per section.
+You can use * as site and section name. Pretime value in sec's.

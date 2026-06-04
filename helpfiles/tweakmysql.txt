@@ -1,0 +1,6 @@
+Usage: <cmd> Trigger Value
+Pimp the mysql data
+Triggers: Host, Port, User, Password, DBName, Table
+Example: <cmd> Port 3360
+Example: <cmd> DBName slpre
+

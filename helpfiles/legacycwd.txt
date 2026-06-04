@@ -1,0 +1,11 @@
+Usage: <cmd> sitename1,sitename2,sitename3 [0|1]
+If turned on, it uses CWD commands to change dir (recommended for cubnc, drftpd and glftpd v1 sites).
+If turned off, bot doesn't change working directory but uses full paths everywhere (recommended for glftpd v2).
+If 2nd parameter is omitted, current status is returned.
+
+Example: Remove following file: /inc/x264/rls/myfile.rar
+<cmd> HQ 0 <-- uses "DELE /inc/x264/rls/myfile.rar"
+<cmd> HQ 1 <-- uses "CWD /inc" + "CWD x264" + "CWD rls" + "DELE myfile.rar"
+As you see siteops need to link their dirs against correct $PWD, if they don't, you need to enable legacycwd!
+
+You can use the special sitename * as a wildcard for all sites.

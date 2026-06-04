@@ -1,0 +1,450 @@
+unit taskmvidunit;
+
+interface
+
+uses
+  Classes, pazo, taskrace, sltcp;
+
+type
+  TPazoMVIDTask = class(TPazoPlainTask)
+  private
+    ss: TStringStream;
+    attempt: Integer;
+  public
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const attempt: Integer);
+    destructor Destroy; override;
+    function Execute(slot: Pointer): Boolean; override;
+    function Name: String; override;
+
+    { Returns the amount of files in the SFV
+      @param(aSFV Text from SFV file)
+      @returns(Amount of files from SFV) }
+    class function GetFileCountFromSFV(const aSFV: String): Integer;
+
+    { Searches for @italic(Genre) and @italic(Subgenre) as a single line in aNFO and returns the genre(s) which are separated by each whitespace
+      @param(aNFO Text from NFO file)
+      @returns(List with all found Genres or empty if none found) }
+    class function TryToParseGenre(const aNFO: String): TArray<String>;
+
+    { Parses the NFO for the video region by searching for PAL/NTSC or the appropriate FPS
+      @param(aNFO Text from NFO file)
+      @returns(PAL, NTSC or empty string if nothing found) }
+    class function ParseVideoRegion(const aNFO: String): String;
+  end;
+
+implementation
+
+uses
+  SysUtils, SyncObjs, Contnrs, StrUtils, kb, kb.releaseinfo, debugunit, dateutils, queueunit, tags,
+  configunit, tasksunit, dirlist, mystrings, sitesunit, Regexpr, uLkJSON, cbftpclient, mormot.core.base, mormot.core.unicode;
+
+const
+  section = 'taskmvid';
+
+{ TPazoMVIDTask }
+
+constructor TPazoMVIDTask.Create(const netname, channel, site: String; pazo: TPazo; const attempt: Integer);
+begin
+  ss := TStringStream.Create('');
+  self.attempt := attempt;
+  self.wanted_dn := True;
+  inherited Create(netname, channel, site, '', pazo);
+end;
+
+destructor TPazoMVIDTask.Destroy;
+begin
+  ss.Free;
+  inherited;
+end;
+
+class function TPazoMVIDTask.GetFileCountFromSFV(const aSFV: String): Integer;
+var
+  i: Integer;
+  fLines: TArray<String>;
+  fStr: String;
+begin
+  Result := 0;
+
+  // lines always end with #10
+  fLines := aSFV.Split([#10]);
+
+  for fStr in fLines do
+  begin
+    // ignore comments
+    if not fStr.StartsWith(';') then
+      Inc(Result);
+  end;
+end;
+
+class function TPazoMVIDTask.TryToParseGenre(const aNFO: String): TArray<String>;
+const
+  OffsetForStringGenre = 5;
+  OffsetForStringSubGenre = 8;
+var
+  fPos: Integer;
+  fGenreLine: String;
+  fGenres, fSubgenres: String;
+
+  { extracts and cleans all genres found in a single line }
+  function ExtractGenres(const aNFOLine: String): String;
+  var
+    i: Integer;
+  begin
+    Result := aNFOLine;
+
+    for i := 1 to Length(Result) do
+    begin
+      if CharInSet(Result[i], [#13, #10]) then
+      begin
+        Result := Copy(Result, 1, i - 1);
+        Break;
+      end;
+
+      if not (IsALetter(Result[i])) then
+        Result[i] := ' ';
+    end;
+
+    Result := Result.Trim;
+    Result := Result.Replace('  ', ' ');
+  end;
+
+begin
+  Result := nil;
+  { search for Genre }
+  fPos := Pos('genre', LowerCase(aNFO));
+  if fPos = 0 then
+    Exit;
+  fGenreLine := Copy(aNFO, fPos + OffsetForStringGenre, 100);
+  fGenres := ExtractGenres(fGenreLine);
+
+  Result := fGenres.Split([' ']);
+
+  { search for Subgenre }
+  fPos := Pos('subgenre', LowerCase(aNFO));
+  if fPos = 0 then
+    Exit;
+  fGenreLine := Copy(aNFO, fPos + OffsetForStringSubGenre, 100);
+  fSubgenres := ExtractGenres(fGenreLine);
+
+  Result := Result + fSubgenres.Split([' ']);
+end;
+
+class function TPazoMVIDTask.ParseVideoRegion(const aNFO: String): String;
+var
+  rrx: TRegExpr;
+begin
+  Result := '';
+
+  rrx := TRegExpr.Create;
+  try
+    rrx.ModifierI := True;
+
+    rrx.Expression := '(NTSC|PAL)';
+    if rrx.Exec(aNFO) then
+    begin
+      Result := rrx.Match[0];
+      exit;
+    end;
+
+    rrx.Expression := '(23\.976|29\.970?|59\.940?)\s?FPS';
+    if rrx.Exec(aNFO) then
+    begin
+      Result := 'NTSC';
+      exit;
+    end;
+
+    rrx.Expression := '(25\.000)\s?FPS';
+    if rrx.Exec(aNFO) then
+    begin
+      Result := 'PAL';
+      exit;
+    end;
+  finally
+    rrx.Free;
+  end;
+end;
+
+function TPazoMVIDTask.Execute(slot: Pointer): boolean;
+label
+  ujra;
+var
+  s: TSiteSlot;
+  i: Integer;
+  de: TDirListEntry;
+  r: TPazoMVIDTask;
+  d: TDirList;
+  fSFVFile, fNFOFile: String;
+  fFilecount: Integer;
+  fGenreList: TArray<String>;
+  fVideoRegion: String;
+  mvr: TMVIDRelease;
+  ps: TPazoSite;
+  siteName, rlsPath: String;
+  resp: RawUtf8;
+  js: TlkJSONbase;
+  arr: TlkJSONlist;
+  obj: TlkJSONObject;
+  f, fType: TlkJSONbase;
+  fn, ft: String;
+  sfvData, nfoData: String;
+begin
+  Result := False;
+  s := slot;
+
+  if mainpazo.stopped then
+  begin
+    readyerror := True;
+    exit;
+  end;
+
+  if mainpazo.IsUDPEnabled then
+  begin
+    if GlCbftpClient = nil then
+    begin
+      readyerror := True;
+      exit;
+    end;
+
+    ps := FindMostCompleteSite(mainpazo);
+    if ps = nil then
+    begin
+      readyerror := True;
+      exit;
+    end;
+
+    siteName := ps.Name;
+    rlsPath := MyIncludeTrailingSlash(ps.maindir) + mainpazo.rls.rlsname;
+
+    Debug(dpMessage, section, 'UDP MVID: ' + mainpazo.rls.rlsname + ' on ' + siteName);
+
+    resp := GlCbftpClient.GetPath(StringToUtf8(siteName), StringToUtf8(rlsPath));
+    if resp = '' then
+    begin
+      readyerror := True;
+      exit;
+    end;
+
+    fSFVFile := '';
+    fNFOFile := '';
+
+    js := TlkJSON.ParseText(string(resp));
+    if js <> nil then
+    try
+      if js is TlkJSONlist then
+      begin
+        arr := TlkJSONlist(js);
+        for i := 0 to arr.Count - 1 do
+        begin
+          if arr.Child[i] is TlkJSONObject then
+          begin
+            obj := TlkJSONObject(arr.Child[i]);
+            f := obj.Field['name'];
+            fType := obj.Field['type'];
+            if (f <> nil) and (f.SelfType <> jsNull) and (fType <> nil) and (fType.Value <> 'DIR') then
+            begin
+              fn := string(f.Value);
+              if fn.EndsWith('.sfv', True) then
+                fSFVFile := fn;
+              if fn.EndsWith('.nfo', True) then
+                fNFOFile := fn;
+            end;
+          end;
+        end;
+      end;
+    finally
+      js.Free;
+    end;
+
+    if fSFVFile = '' then
+    begin
+      if attempt < config.readInteger(section, 'readd_attempts', 5) then
+      begin
+        Debug(dpSpam, section, 'UDP MVID READD: No SFV file available...');
+        r := TPazoMVIDTask.Create(netname, channel, getAdminSiteName, mainpazo, attempt + 1);
+        r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
+        AddTask(r);
+      end
+      else
+      begin
+        mainpazo.rls.aktualizalasfailed := True;
+        Debug(dpSpam, section, 'UDP MVID READD: Attempt limit for finding file reached...');
+      end;
+
+      ready := True;
+      Result := True;
+      exit;
+    end;
+
+    if fNFOFile = '' then
+    begin
+      if attempt < config.readInteger(section, 'readd_attempts', 5) then
+      begin
+        Debug(dpSpam, section, 'UDP MVID READD: No NFO file available...');
+        r := TPazoMVIDTask.Create(netname, channel, getAdminSiteName, mainpazo, attempt + 1);
+        r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
+        AddTask(r);
+      end
+      else
+      begin
+        mainpazo.rls.aktualizalasfailed := True;
+        Debug(dpSpam, section, 'UDP MVID READD: Attempt limit for finding file reached...');
+      end;
+
+      ready := True;
+      Result := True;
+      exit;
+    end;
+
+    // Fetch the SFV file content via REST API
+    sfvData := string(GlCbftpClient.GetFile(StringToUtf8(siteName), StringToUtf8(rlsPath + '/' + fSFVFile)));
+    if sfvData = '' then
+    begin
+      readyerror := True;
+      exit;
+    end;
+
+    fFilecount := GetFileCountFromSFV(sfvData);
+
+    // Fetch the NFO file content via REST API
+    nfoData := string(GlCbftpClient.GetFile(StringToUtf8(siteName), StringToUtf8(rlsPath + '/' + fNFOFile)));
+    if nfoData = '' then
+    begin
+      readyerror := True;
+      exit;
+    end;
+
+    fVideoRegion := ParseVideoRegion(nfoData);
+    fGenreList := TryToParseGenre(nfoData);
+
+    mvr := TMVIDRelease(mainpazo.rls);
+    mvr.SetValuesFromTask(fFilecount, (fVideoRegion = 'PAL'), (fVideoRegion = 'NTSC'), fGenreList);
+
+    kb_add(netname, channel, siteName, mainpazo.rls.section, '', kbeNEWDIR, mainpazo.rls.rlsname, '');
+
+    Result := True;
+    ready := True;
+    exit;
+  end;
+
+  Debug(dpMessage, section, Name);
+
+ujra:
+  if s.status <> ssOnline then
+  begin
+    if not s.ReLogin then
+    begin
+      readyerror := True;
+      exit;
+    end;
+  end;
+
+  if not s.Dirlist(MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname)) then
+  begin
+    if s.status = ssDown then
+      goto ujra;
+    readyerror := True; // <- there is no dir ...
+    exit;
+  end;
+
+  d := TDirlist.Create(s.Name, nil, nil, s.lastResponse);
+  try
+    d.dirlist_lock.Enter('s.Dirlist');
+    try
+      for de in d.entries.Values do
+      begin
+        if ((not de.Directory) and (de.IsSFV)) then
+          fSFVFile := de.filename;
+
+        if ((not de.Directory) and (de.IsNFO)) then
+          fNFOFile := de.filename;
+      end;
+    finally
+      d.dirlist_lock.Leave;
+    end;
+  finally
+    d.Free;
+  end;
+
+  if fSFVFile = '' then
+  begin
+    if attempt < config.readInteger(section, 'readd_attempts', 5) then
+    begin
+      Debug(dpSpam, section, 'READD: No SFV file available...');
+      r := TPazoMVIDTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
+      r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
+      AddTask(r);
+    end
+    else
+    begin
+      mainpazo.rls.aktualizalasfailed := True;
+      Debug(dpSpam, section, 'READD: Attempt limit for finding file reached...');
+    end;
+
+    ready := True;
+    Result := True;
+    exit;
+  end;
+
+  if fNFOFile = '' then
+  begin
+    if attempt < config.readInteger(section, 'readd_attempts', 5) then
+    begin
+      Debug(dpSpam, section, 'READD: No NFO file available...');
+      r := TPazoMVIDTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
+      r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
+      AddTask(r);
+    end
+    else
+    begin
+      mainpazo.rls.aktualizalasfailed := True;
+      Debug(dpSpam, section, 'READD: Attempt limit for finding file reached...');
+    end;
+
+    ready := True;
+    Result := True;
+    exit;
+  end;
+
+  // trying to get the SFV
+  i := s.LeechFile(ss, fSFVFile);
+  if (i < 0)  then
+  begin
+    readyerror := True;
+    exit;
+  end;
+  if i = 0 then goto ujra;
+
+  fFilecount := GetFileCountFromSFV(ss.DataString);
+  ss.Clear;
+
+  // trying to get the NFO
+  i := s.LeechFile(ss, fNFOFile);
+  if (i < 0)  then
+  begin
+    readyerror := true;
+    exit;
+  end;
+  if i = 0 then goto ujra;
+
+  fVideoRegion := ParseVideoRegion(ss.DataString);
+  fGenreList := TryToParseGenre(ss.DataString);
+
+  mvr := TMVIDRelease(mainpazo.rls);
+  mvr.SetValuesFromTask(fFilecount, (fVideoRegion = 'PAL'), (fVideoRegion = 'NTSC'), fGenreList);
+
+  kb_add(netname, channel, ps1.name, mainpazo.rls.section, '', kbeNEWDIR, mainpazo.rls.rlsname, '');
+
+  Result := True;
+  ready := True;
+end;
+
+function TPazoMVIDTask.Name: String;
+begin
+  try
+    Result := Format('MVID <b>%s : %s</b>: %d',[site1, slot1name, pazo_id]);
+  except
+    Result := 'MVID';
+  end;
+end;
+
+end.

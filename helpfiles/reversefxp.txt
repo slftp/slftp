@@ -1,0 +1,25 @@
+Usage: <cmd> <sitename> <mode> <value>
+Description: Enables reverse FXP for the given site and direction.
+If <value> (or <value> and <mode>) is omitted, the currently set value is displayed.
+
+Parameters:
+<sitename>
+  Site name
+<mode>
+  -s/--source use reverse FXP if the given site is the source
+  -d/--destination use reverse FXP if the given site is the destination
+<value>
+  '1' to enable, '0' to disable reverse FXP
+
+Examples:
+Enable reverse FXP if SITE is the source
+!reversefxp SITE -s 1
+
+Description:
+Usually when FXPing, the source site enters passive mode and the destination site
+uses the PORT command to connect to the source site. If reverse FXP is enabled for
+either source or destination site, this will be reversed and the destination site
+will use passive mode instead.
+
+For example if a site is behind NAT and therefore can't use passive mode, you
+would want to use reverse FXP if that site is the source.
