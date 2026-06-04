@@ -2071,12 +2071,12 @@ begin
             fPazoSite := fPazo.FindSite(aEvent.Site);
             if fPazoSite <> nil then
             begin
-              if aEvent.HasDownFields then
+              if aEvent.HasUpFields then
               begin
-                if aEvent.FilesDown > fPazoSite.CbftpFilesDone then
-                  fPazoSite.CbftpFilesDone := aEvent.FilesDown;
-                if aEvent.BytesDown > fPazoSite.CbftpBytesDone then
-                  fPazoSite.CbftpBytesDone := aEvent.BytesDown;
+                if aEvent.FilesUp > fPazoSite.CbftpFilesDone then
+                  fPazoSite.CbftpFilesDone := aEvent.FilesUp;
+                if aEvent.BytesUp > fPazoSite.CbftpBytesDone then
+                  fPazoSite.CbftpBytesDone := aEvent.BytesUp;
               end
               else
               begin
@@ -2116,10 +2116,10 @@ begin
             begin
               fPazoSite.status := rssComplete;
               fPazoSite.CbftpCompletedTime := fPazo.added + (aEvent.TimeSpentSeconds / 86400.0);
-              if aEvent.HasDownFields then
+              if aEvent.HasUpFields then
               begin
-                fPazoSite.CbftpFilesDone := aEvent.FilesDown;
-                fPazoSite.CbftpBytesDone := aEvent.BytesDown;
+                fPazoSite.CbftpFilesDone := aEvent.FilesUp;
+                fPazoSite.CbftpBytesDone := aEvent.BytesUp;
               end
               else
               begin

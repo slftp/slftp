@@ -29,10 +29,10 @@ type
     DstSite: string;
     FilesTotal: Integer;
     FilesDone: Integer;
-    FilesDown: Integer;
+    FilesUp: Integer;
     BytesTotal: Int64;
     BytesDone: Int64;
-    BytesDown: Int64;
+    BytesUp: Int64;
     SpeedMbps: Double;
     TimeSpentSeconds: Double;
     Status: string;
@@ -40,7 +40,7 @@ type
     Timestamp: Int64;
     Filename: string;
     Disabled: Boolean;
-    HasDownFields: Boolean;
+    HasUpFields: Boolean;
   end;
 
   TCbftpEventCallback = procedure(const aEvent: TCbftpEvent);
@@ -278,11 +278,11 @@ begin
       Result.BytesDone := _GetInt(obj, 'bytes_done');
       Result.SpeedMbps := _GetDouble(obj, 'speed_mbps');
       Result.Timestamp := _GetInt(obj, 'timestamp');
-      Result.HasDownFields := (obj.Field['files_down'] <> nil);
-      if Result.HasDownFields then
+      Result.HasUpFields := (obj.Field['files_up'] <> nil);
+      if Result.HasUpFields then
       begin
-        Result.FilesDown := _GetInt(obj, 'files_down');
-        Result.BytesDown := _GetInt(obj, 'bytes_down');
+        Result.FilesUp := _GetInt(obj, 'files_up');
+        Result.BytesUp := _GetInt(obj, 'bytes_up');
       end;
     end
     else if eventType = 'race_completed' then
@@ -294,11 +294,11 @@ begin
       Result.FilesDone := _GetInt(obj, 'files_done');
       Result.BytesDone := _GetInt(obj, 'bytes_done');
       Result.Timestamp := _GetInt(obj, 'timestamp');
-      Result.HasDownFields := (obj.Field['files_down'] <> nil);
-      if Result.HasDownFields then
+      Result.HasUpFields := (obj.Field['files_up'] <> nil);
+      if Result.HasUpFields then
       begin
-        Result.FilesDown := _GetInt(obj, 'files_down');
-        Result.BytesDown := _GetInt(obj, 'bytes_down');
+        Result.FilesUp := _GetInt(obj, 'files_up');
+        Result.BytesUp := _GetInt(obj, 'bytes_up');
       end;
     end
     else if eventType = 'race_done' then
