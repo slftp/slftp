@@ -701,7 +701,7 @@ var
   fQueue: TQueueThread;
   fResult: TTask;
 begin
-  fQueue := TQueueThread.Create('SRC');
+  fQueue := TQueueThread.Create('QUEUE_TEST');
   try
     fResult := fQueue.FindBestTask(Now);
     CheckTrue(fResult = nil, 'Empty queue should return nil');
@@ -717,7 +717,7 @@ var
   fWaitTask: TWaitTask;
   fResult: TTask;
 begin
-  fQueue := TQueueThread.Create('SRC');
+  fQueue := TQueueThread.Create('QUEUE_TEST');
   try
     fWaitTask := TWaitTask.Create('', '', 'SRC');
     fQueue.AddTask(fWaitTask);
@@ -736,7 +736,7 @@ var
   fLoginTask: TLoginTask;
   fResult: TTask;
 begin
-  fQueue := TQueueThread.Create('SRC');
+  fQueue := TQueueThread.Create('QUEUE_TEST');
   try
     fLoginTask := TLoginTask.Create('', '', 'SRC', False, False);
     fQueue.AddTask(fLoginTask);
@@ -756,7 +756,7 @@ var
   fWaitTask: TWaitTask;
   fResult: TTask;
 begin
-  fQueue := TQueueThread.Create('SRC');
+  fQueue := TQueueThread.Create('QUEUE_TEST');
   try
     fWaitTask := TWaitTask.Create('', '', 'SRC');
     fWaitTask.startat := Now + 1;
@@ -775,14 +775,14 @@ var
   fWaitTask: TWaitTask;
   fResult: TTask;
 begin
-  fQueue := TQueueThread.Create('SRC');
+  fQueue := TQueueThread.Create('QUEUE_TEST');
   try
     fWaitTask := TWaitTask.Create('', '', 'SRC');
     fWaitTask.slot1 := TObject.Create; // fake assigned
     fQueue.AddTask(fWaitTask);
     fResult := fQueue.FindBestTask(Now);
     CheckTrue(fResult = nil, 'Assigned task should be skipped');
-    fWaitTask.slot1.Free;
+    TObject(fWaitTask.slot1).Free;
   finally
     Queues.Remove(fQueue);
     fQueue.Free;

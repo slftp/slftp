@@ -1711,17 +1711,25 @@ begin
 
           // Phase 5b: Wake only source sites that have pending race tasks to this
           // destination, using the per-queue lazy-rebuilt index.
-          for fQueueThread in Queues do
+          if glQueuesLock <> nil then
           begin
-            fQueueThread.main_lock.Enter('Phase5b wakeup');
+            glQueuesLock.Enter;
             try
-              if fQueueThread.fPendingRaceDestinations.TryGetValue(site.Name, fPendingCount) and
-                 (fPendingCount > 0) then
+              for fQueueThread in Queues do
               begin
-                fQueueThread.QueueFire;
+                fQueueThread.main_lock.Enter('Phase5b wakeup');
+                try
+                  if fQueueThread.fPendingRaceDestinations.TryGetValue(site.Name, fPendingCount) and
+                     (fPendingCount > 0) then
+                  begin
+                    fQueueThread.QueueFire;
+                  end;
+                finally
+                  fQueueThread.main_lock.Leave;
+                end;
               end;
             finally
-              fQueueThread.main_lock.Leave;
+              glQueuesLock.Leave;
             end;
           end;
         end;

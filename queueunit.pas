@@ -55,7 +55,7 @@ public
     Read by TSiteSlot.Execute under main_lock to do targeted wakeups. }
   fPendingRaceDestinations: TDictionary<String, Integer>;
 
-  function FindBestTask(aNow: TDateTime): TTask;
+  function FindBestTask(aNow: TDateTime; aSkippedTasks: TList<TTask> = nil): TTask;
   procedure QueueFire;
 procedure QueueStart;
 procedure AddTask(t: TTask);
@@ -112,7 +112,7 @@ function _CalcMaxDirlistSlots(const aSlotCount: integer): integer;
 function _IsLowPriorityRaceTask(const aTask: TPazoRaceTask): Boolean;
 
 { @abstract(Checks if there are any important non-low-priority tasks waiting in the queue) }
-function _HasWaitingNonLowPriorityTasks(const aTasks: Contnrs.TObjectList; const aQueueLastRun: TDateTime): Boolean;
+function _HasWaitingNonLowPriorityTasks(const aTasks: Contnrs.TObjectList; const aQueueLastRun: TDateTime; aSkippedTasks: TList<TTask> = nil): Boolean;
 
 { @abstract(Calculates priority score for a task. Higher score = higher priority.) }
 function _ScoreTask(const aTask: TTask): Int64;
@@ -124,6 +124,7 @@ var
   GlDirlistRateMax: Double;
   { Global list of all queue threads. Used by Phase 5b for targeted wakeups. }
   Queues: TObjectList<TQueueThread>;
+  glQueuesLock: TCriticalSection;
   { max dirlist slots config value, e.g. '1', '50%' }
   glMaxDirlistSlots: string;
   { dir type priority values from slftp.ini, used by _ScoreTask and _IsLowPriorityRaceTask }
@@ -234,7 +235,7 @@ begin
   end;
 end;
 
-function _HasWaitingNonLowPriorityTasks(const aTasks: Contnrs.TObjectList; const aQueueLastRun: TDateTime): Boolean;
+function _HasWaitingNonLowPriorityTasks(const aTasks: Contnrs.TObjectList; const aQueueLastRun: TDateTime; aSkippedTasks: TList<TTask> = nil): Boolean;
 var
   i: Integer;
   fTask: TTask;
@@ -256,6 +257,10 @@ begin
       Debug(dpError, section, '_HasWaitingNonLowPriorityTasks: task at index %d is nil', [i]);
       Continue;
     end;
+
+    // Skip tasks in our skipped/tried list
+    if (aSkippedTasks <> nil) and (aSkippedTasks.IndexOf(fTask) >= 0) then
+      Continue;
 
     // Skip tasks that are already running or done
     if ((fTask.slot1 <> nil) or (fTask.slot2 <> nil) or fTask.ready or fTask.readyerror) then
@@ -379,7 +384,7 @@ begin
   end;
 end;
 
-function TQueueThread.FindBestTask(aNow: TDateTime): TTask;
+function TQueueThread.FindBestTask(aNow: TDateTime; aSkippedTasks: TList<TTask> = nil): TTask;
 var
   bestTask: TTask;
   bestScore: Int64;
@@ -393,10 +398,14 @@ begin
   bestScore := Low(Int64);
 
   // Pre-check: are there any important (non-low-priority) tasks waiting?
-  hasImportantWaiting := _HasWaitingNonLowPriorityTasks(tasks, aNow);
+  hasImportantWaiting := _HasWaitingNonLowPriorityTasks(tasks, aNow, aSkippedTasks);
 
   for t in tasks do
   begin
+    // Skip tasks in our skipped/tried list
+    if (aSkippedTasks <> nil) and (aSkippedTasks.IndexOf(t) >= 0) then
+      Continue;
+
     // Skip tasks that are already assigned, ready, or have errors
     if ((t.slot1 <> nil) or (t.slot2 <> nil) or t.ready or t.readyerror) then
       Continue;
@@ -463,14 +472,30 @@ begin
     FreeOnTerminate := True;
     fQueueStat := TQueueStat.Create();
     StatsList.Add(fQueueStat);
-    Queues.Add(self);
+    if glQueuesLock <> nil then
+    begin
+      glQueuesLock.Enter;
+      try
+        Queues.Add(self);
+      finally
+        glQueuesLock.Leave;
+      end;
+    end;
     fSiteName := aSiteName;
     fBusyDestinations := TDictionary<TObject, integer>.Create;
     fPendingRaceDestinations := TDictionary<String, Integer>.Create;
   except
     FreeAndNil(fPendingRaceDestinations);
     FreeAndNil(fBusyDestinations);
-    Queues.Extract(self);
+    if (Queues <> nil) and (glQueuesLock <> nil) then
+    begin
+      glQueuesLock.Enter;
+      try
+        Queues.Extract(self);
+      finally
+        glQueuesLock.Leave;
+      end;
+    end;
     if fQueueStat <> nil then
     begin
       StatsList.Remove(fQueueStat);
@@ -485,8 +510,15 @@ end;
 
 destructor TQueueThread.Destroy;
 begin
-  if Queues <> nil then
-    Queues.Extract(self);
+  if (Queues <> nil) and (glQueuesLock <> nil) then
+  begin
+    glQueuesLock.Enter;
+    try
+      Queues.Extract(self);
+    finally
+      glQueuesLock.Leave;
+    end;
+  end;
   if (fQueueStat <> nil) and (StatsList <> nil) then
   begin
     StatsList.Remove(fQueueStat);
@@ -1606,6 +1638,7 @@ var
   fWaitTimerTimeout: Cardinal;
   fCooldownTimeout: Cardinal;
   fPendingCount: Integer;
+  fSkippedTasks: TList<TTask>;
 begin
   while ((not slshutdown) and (not Terminated)) do
   begin
@@ -1824,35 +1857,42 @@ begin
           end;
         end;
 
-        ts.AcquireSlotsAssignmentLock('Queue iterate');
+        fSkippedTasks := TList<TTask>.Create;
         try
-          // Only scan for best task when slots are actually free
-          while ts.freeslots > 0 do
-          begin
-            fTask := FindBestTask(queue_last_run);
-            if fTask = nil then
+          ts.AcquireSlotsAssignmentLock('Queue iterate');
+          try
+            // Only scan for best task when slots are actually free
+            while ts.freeslots > 0 do
             begin
-              fNextTaskStartAt := MaxDateTime;
-              break;
-            end;
-
-            try
-              TryToAssignSlots(fTask);
-
-              // If assignment failed and task was not delayed, stop scanning
-              // to avoid spinning on the same unassignable task
-              if (fTask.slot1 = nil) and (fTask.startat <= queue_last_run) then
-                break;
-            except
-              on e: Exception do
+              fTask := FindBestTask(queue_last_run, fSkippedTasks);
+              if fTask = nil then
               begin
-                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (TryToAssignSlots) : %s', [e.Message]));
+                fNextTaskStartAt := MaxDateTime;
                 break;
               end;
+
+              try
+                TryToAssignSlots(fTask);
+
+                // If assignment failed and task was not delayed, record it in the skipped list
+                // to avoid spinning on the same unassignable task, then continue scanning
+                if (fTask.slot1 = nil) and (fTask.startat <= queue_last_run) then
+                begin
+                  fSkippedTasks.Add(fTask);
+                end;
+              except
+                on e: Exception do
+                begin
+                  Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (TryToAssignSlots) : %s', [e.Message]));
+                  fSkippedTasks.Add(fTask);
+                end;
+              end;
             end;
+          finally
+            ts.ReleaseSlotsAssignmentLock;
           end;
         finally
-          ts.ReleaseSlotsAssignmentLock;
+          fSkippedTasks.Free;
         end;
       finally
         main_lock.Leave;
@@ -1986,6 +2026,7 @@ begin
     begin
       { Event fired. Normal exit. }
       //Debug(dpSpam, section, Format('[QUEUEFIRE received : %s', [ts.Name]));
+      queueevent.ResetEvent;
     end
     else { Timeout reached — either startat task or 60s safety cap }
     begin
@@ -2024,6 +2065,7 @@ begin
 
   StatsList := TObjectList<TQueueStat>.Create(True);
   Queues := TObjectList<TQueueThread>.Create(False);
+  glQueuesLock := TCriticalSection.Create;
   GlDirlistCompletedCounter := TIdThreadSafeInt32.Create;
   GlDirlistRate := 0;
   GlDirlistRateMax := 0;
@@ -2036,6 +2078,7 @@ begin
   FreeAndNil(GlDirlistCompletedCounter);
   FreeAndNil(StatsList);
   FreeAndNil(Queues);
+  FreeAndNil(glQueuesLock);
 end;
 
 procedure TQueueThread.QueueClean(run_now: boolean = False);
