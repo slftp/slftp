@@ -20,7 +20,7 @@ type
 
 implementation
 
-uses SysUtils, StrUtils, kb, kb.releaseinfo, debugunit, dateutils, queueunit, tags, configunit, tasksunit, dirlist, mystrings, sitesunit, irc;
+uses SysUtils, StrUtils, kb, kb.releaseinfo, debugunit, dateutils, queueunit, tags, configunit, tasksunit, dirlist, mystrings, sitesunit, irc, uLkJSON, cbftpclient, mormot.core.base, mormot.core.unicode;
 
 const
   section = 'taskgenredirlist';
@@ -76,6 +76,14 @@ var
   r: TPazoGenreDirlistTask;
   d: TDirList;
   tagfile, genre: String;
+  ps: TPazoSite;
+  siteName, rlsPath: String;
+  resp: RawUtf8;
+  js: TlkJSONbase;
+  arr: TlkJSONlist;
+  obj: TlkJSONObject;
+  f: TlkJSONbase;
+  i: Integer;
 begin
   Result := False;
   s := slot;
@@ -85,8 +93,6 @@ begin
     readyerror := True;
     exit;
   end;
-
-  Debug(dpMessage, section, Name);
 
   // mp3genre already known?
   if (mainpazo.rls is TMP3Release) then
@@ -99,8 +105,103 @@ begin
     end;
   end;
 
+  if mainpazo.IsUDPEnabled then
+  begin
+    if GlCbftpClient = nil then
+    begin
+      readyerror := True;
+      exit;
+    end;
 
-ujra:
+    ps := FindMostCompleteSite(mainpazo);
+    if ps = nil then
+    begin
+      readyerror := True;
+      exit;
+    end;
+
+    siteName := ps.Name;
+    rlsPath := MyIncludeTrailingSlash(ps.maindir) + mainpazo.rls.rlsname;
+
+    Debug(dpMessage, section, 'UDP GENREDIRLIST: ' + mainpazo.rls.rlsname + ' on ' + siteName);
+
+    resp := GlCbftpClient.GetPath(StringToUtf8(siteName), StringToUtf8(rlsPath));
+    if resp = '' then
+    begin
+      readyerror := True;
+      exit;
+    end;
+
+    fTagCompleteType := tctUNMATCHED;
+    tagfile := '';
+
+    js := TlkJSON.ParseText(string(resp));
+    if js <> nil then
+    try
+      if js is TlkJSONlist then
+      begin
+        arr := TlkJSONlist(js);
+        for i := 0 to arr.Count - 1 do
+        begin
+          if arr.Child[i] is TlkJSONObject then
+          begin
+            obj := TlkJSONObject(arr.Child[i]);
+            f := obj.Field['name'];
+            if (f <> nil) and (f.SelfType <> jsNull) then
+            begin
+              fTagCompleteType := TagComplete(string(f.Value));
+              if fTagCompleteType <> tctUNMATCHED then
+              begin
+                tagfile := string(f.Value);
+                Break;
+              end;
+            end;
+          end;
+        end;
+      end;
+    finally
+      js.Free;
+    end;
+
+    genre := FetchGenre(tagfile);
+
+    if ((fTagCompleteType = tctUNMATCHED) or (genre = '')) then
+    begin
+      if attempt < config.readInteger(section, 'readd_attempts', 5) then
+      begin
+        Debug(dpSpam, section, 'UDP READD: No complete tag or genre yet...');
+        try
+          r := TPazoGenreDirlistTask.Create(netname, channel, getAdminSiteName, mainpazo, attempt + 1);
+          r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
+          AddTask(r);
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, section, Format('[Exception] in UDP TPazoGenreDirlistTask AddTask %s', [e.Message]));
+            readyerror := True;
+            exit;
+          end;
+        end;
+      end;
+    end
+    else
+    begin
+      try
+        kb_add(netname, channel, siteName, mainpazo.rls.section, genre, kbeUPDATE, mainpazo.rls.rlsname, '');
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[Exception] in UDP TPazoGenreDirlistTask kb_add %s', [e.Message]));
+          readyerror := True;
+          exit;
+        end;
+      end;
+    end;
+
+    Result := True;
+    ready := True;
+    exit;
+  end;
   if s.status <> ssOnline then
   begin
     if not s.ReLogin then

@@ -1,0 +1,213 @@
+================================================================================
+  slftp -- cbftp offload
+================================================================================
+
+  slftp brain + cbftp FTP engine
+  Requires the paid version of cbftp ;)
+
+--------------------------------------------------------------------------------
+
+This branch offloads all FTP operations to cbftp. slftp becomes the
+"brain" -- handling IRC announces, rule evaluation, routing decisions and
+race orchestration -- while cbftp executes the actual transfers.
+
+A REST API (mORMot2) and React-based Web UI remain included for monitoring,
+configuration, and operational control.
+
+--------------------------------------------------------------------------------
+ARCHITECTURE
+--------------------------------------------------------------------------------
+
+    +-------------+     IRC announces      +-------------+
+    |   IRC       | <--------------------> |   slftp     |
+    |  networks   |                        |  (brain)    |
+    +-------------+                        |             |
+                                           |  +-------+  |
+                                           |  | Rules |  |
+                                           |  | Engine|  |
+                                           |  +---+---|  |
+                                           |      |      |
+                                           |  +---v---+  |     UDP 5696    +-------------+
+                                           |  | Race  |  | --------------> |   cbftp     |
+                                           |  |Control|  |   Spread Jobs   |             |
+                                           |  +---+---|  |                 |  FTP Engine |
+                                           |      |      |                 |  Transfers  |
+                                           |  +---v---+  | <-------------- |  Connections|
+                                           |  | REST  |  |   UDP 5697      +-------------+
+                                           |  | API   |  |   Events
+                                           |  |(mORMot)| |
+                                           |  +---+---|  |
+                                           |      |      |
+                                           |  +---v---+  |
+                                           |  |Web UI |  |
+                                           |  |(React)|  |
+                                           |  +-------+  |
+                                           +-------------+
+
+Communication Flow:
+
+  1. IRC -> slftp     Announce parsing, rule evaluation, KB updates
+  2. slftp -> cbftp   Spread jobs via REST API (POST /spreadjobs) or UDP
+  3. cbftp -> slftp   Race events via UDP push:
+                      race_started, race_progress, race_completed,
+                      race_done, speed_sample, nfo_available, site_status
+  4. Web UI -> slftp  Dashboard, stats, file browser, cbftp job monitor
+  5. Web UI -> cbftp  Live site status, transfer jobs, routes (proxied)
+
+--------------------------------------------------------------------------------
+KEY DIFFERENCES FROM NATIVE slftp
+--------------------------------------------------------------------------------
+
+  Area                    Native slftp               cbftp offload
+  ----------------------  -------------------------  --------------------------
+  FTP Engine              Native slftp               Delegated to cbftp
+  Site Slots              Active FTP logins          Sites set to permdown
+  Race Control            slftp manages transfers    slftp sends spread jobs
+  Event Model             Internal task queue        UDP event push from cbftp
+  Stats / Ranks           Internal transfers         cbftp speed_sample events
+  NFO Download            Native FTP tasks           cbftp REST (GET /file)
+  Dirlist (genre/WebUI)   Native FTP LIST            cbftp REST (GET /path)
+  Raw Commands            Native FTP socket          Proxied via cbftp REST
+  Race Stats IRC          Native output              From cbftp events
+  SFV Verification        Native tasks               Disabled (cbftp handles)
+  Web UI File Browser     slftp BrowserService       cbftp /path API
+  Web UI cbftp Tab        Not present                Jobs, sites, routes
+
+--------------------------------------------------------------------------------
+CONFIGURATION
+--------------------------------------------------------------------------------
+
+Enable cbftp mode in slftp.ini:
+
+  [UDPConfig]
+  EnableUDP=1
+  IP=127.0.0.1
+  Port=5696
+  ApiPort=55477
+  Password=your_cbftp_api_password
+  EventPushBindIP=127.0.0.1
+  EventPushPort=5697
+  EncryptUDP=1
+
+In cbftp, configure the UDP push target in the cbftp Main Screen
+(Global Options -> UDP push target). Set IP and port to match
+slftp's EventPushBindIP / EventPushPort.
+
+Site Setup:
+
+  slftp displays site up/down status directly from cbftp via:
+    - UDP site_status events (pushed by cbftp)
+    - Live REST API polling (cbftp sites table in Web UI)
+
+  Sites can be kept active in slftp for BNC management, or set to
+  permdown to conserve resources:
+
+    !setpermdown * 1
+
+  Rules always evaluate regardless of permdown status when UDP is
+  enabled. cbftp handles all actual FTP connections and transfers.
+
+--------------------------------------------------------------------------------
+WHAT WORKS
+--------------------------------------------------------------------------------
+
+Core (unchanged):
+  - IRC announce processing and precatcher
+  - Rule evaluation (allow/block, section, affil, pretime)
+  - API-based rules (tvgenres, imdbgenre, imdbrating, etc.)
+  - Knowledge base and release tracking
+  - Route calculation and speed-based routing
+
+cbftp Integration:
+  - Spread Jobs: POST /spreadjobs with section, release, target sites
+  - UDP Events: race_started, race_progress, race_completed, race_done,
+                speed_sample, nfo_available, site_status
+  - Stats Processing: SpeedStatAdd, statsProcessRace, RanksProcess from events
+  - NFO Download: GET /file via cbftp REST, genre extraction
+  - Raw Commands: SITE INVITE, SITE RULES etc. proxied through cbftp
+  - Dirlist: GET /path for MP3/MVID genre lookups and Web UI file browser
+  - Auto-Invite: PermDown sites invited via cbftp REST
+  - Site Status Sync: cbftp disabled status reflected in slftp
+  - Completion Times: Millisecond-precision from cbftp TimeSpentSeconds
+  - cbftp Latency Tracking: Detection-to-spread timing per release
+
+IRC Output (cbftp event-driven):
+  - [CBFTP]   Spread job announcement with target sites
+  - [RACE]    Per-file transfer speed samples from cbftp
+  - [STATS]   Race completion stats with site times and speeds
+
+Web UI:
+  - Dashboard: cbftp version/uptime, active races, transfer counters
+  - Race Stats: Live and historical data from cbftp events
+  - File Browser: Browses sites via cbftp /path API
+  - cbftp Main Screen: Spread jobs (WORST/AVG/BEST, status, progress),
+                       live sites table with 5s polling
+  - Routes: Route matrix, speed/flag config, drag-and-drop site palette,
+            bulk operations, affiliated targets
+  - Active Tasks: Running races and queued transfers (live)
+
+--------------------------------------------------------------------------------
+WHAT CHANGES OR IS LIMITED
+--------------------------------------------------------------------------------
+
+  Feature                 Status   Notes
+  ----------------------  -------  ------------------------------------------
+  mp3genre rule           Works    Via TPazoGenreDirlistTask + cbftp GetPath
+  nfogenre rule           Works    Via cetNfoAvailable event + cbftp GetFile
+  mvidgenre rule          Works    Via TPazoMVIDTask + cbftp GetPath/GetFile
+  SFV verification        Disabled cbftp handles file integrity
+  Native race stats       Replaced By cbftp event-driven [STATS] / [RACE]
+  Native FTP racing       Disabled Tuzelj exits immediately with UDP
+  Normal race dirlist     Skipped  Not needed; cbftp handles dirlisting
+
+Genre / NFO Details:
+
+  The NFO download is now conditional: slftp only fetches NFOs when
+  active rules actually require them (mp3genre or nfogenre). This is
+  determined dynamically via RulesNeedNfo() rather than a fixed config.
+
+  mp3genre:
+    - Task: TPazoGenreDirlistTask is created in UDP mode
+    - Fetches dirlist via cbftp REST GetPath()
+    - Extracts genre from tags in the dirlist output
+
+  nfogenre:
+    - Native TPazoGenreNfoTask is NOT created in UDP mode
+    - Instead: cbftp sends nfo_available UDP event when NFO is ready
+    - slftp fetches the NFO via cbftp REST GetFile() and extracts genre
+
+  mvidgenre:
+    - Task: TPazoMVIDTask is created in UDP mode
+    - Fetches dirlist via cbftp REST GetPath()
+    - Downloads SFV + NFO via cbftp REST GetFile()
+    - Parses genre and video region from NFO content
+
+Code State:
+  This branch is functionally complete but still contains significant
+  legacy code from the native FTP engine (taskrace, tuzelj, native
+  dirlist tasks, SFV verification, etc.) that is no longer executed
+  in cbftp mode. A full cleanup of dead code paths is planned but
+  not yet complete.
+
+--------------------------------------------------------------------------------
+REST API ENDPOINTS
+--------------------------------------------------------------------------------
+
+cbftp Proxy (via slftp API):
+
+  GET  /api/cbftp/sites                 List all cbftp sites
+  GET  /api/cbftp/sites/:name           Site details + live stats
+  GET  /api/cbftp/sections              List sections
+  GET  /api/cbftp/spreadjobs            List spread jobs
+  GET  /api/cbftp/spreadjobs/:name      Spread job details
+  GET  /api/cbftp/transferjobs          List transfer jobs
+  POST /api/cbftp/raw                   Send raw FTP command
+  GET  /api/cbftp/info                  cbftp version & uptime
+  GET  /api/cbftp/path?site=X&path=Y    Directory listing
+
+slftp Native API:
+
+  GET /api/stats/races                  Race statistics
+  GET /api/tasks/active                 Active tasks (races + transfers)
+  GET /api/cbftp/enabled                Returns {"enabled":true/false}
+  GET /api/cbftp/main                   Cached cbftp jobs + sites

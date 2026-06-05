@@ -28,9 +28,10 @@ uses
   mormot.core.buffers,
   mormot.core.datetime,
   mormot.core.threads,
+  mormot.core.data,
   mormot.core.rtti,
   mormot.core.json,
-  mormot.core.data,
+  mormot.core.fmt,
   mormot.core.log,
   mormot.core.zip,
   mormot.net.http,
@@ -78,7 +79,8 @@ type
     fRedirect: TFileStreamEx;
     fRedirectSize, fNotifyStableTix: Int64;
     // copy of fService properties
-    fCmd, fEnv, fWrkDir, fRedirectFileName: TFileName;
+    fCmd, fEnv: TRunArg;
+    fWrkDir, fRedirectFileName: TFileName;
     fAbortRequested: boolean;
     fRunOptions: TRunOptions;
     procedure Execute; override;
@@ -132,8 +134,8 @@ type
     fStarted: RawUtf8;
     fRunner: TSynAngelizeRunner;
     fRunnerExitCode: integer;
+    fNextWatch: cardinal; // GetTickSec
     fAbortExitCodes: TIntegerDynArray;
-    fNextWatch: Int64;
     fLastNotify: TDoNotify;
     fLastNotifyMsg: RawUtf8;
     procedure SetState(NewState: TServiceState; const Fmt: RawUtf8;
@@ -328,11 +330,20 @@ type
 
 { ************ TSynAngelize Main Service Launcher and Watcher }
 
+  /// each main/shared potential option used by TSynAngelizeSettings.Options
+  // - saoNoWinJob will disable the main Windows Job created by default to
+  // synchronize all children services execution with this main service process
+  TSynAngelizeOption = (
+    saoNoWinJob);
+  /// the main/shared options used by TSynAngelizeSettings.Options
+  TSynAngelizeOptions = set of TSynAngelizeOption;
+
   /// define the main TSynAngelize daemon/service behavior
   TSynAngelizeSettings = class(TSynDaemonSettings)
   protected
     fFolder, fExt, fStateFile, fCommandFile: TFileName;
     fHtmlStateFileIdentifier, fSmtp, fSmtpFrom: RawUtf8;
+    fOptions: TSynAngelizeOptions;
     fHttpTimeoutMS, fStartDelayMS, fStartTimeoutSec: integer;
   public
     /// set the default values
@@ -386,6 +397,9 @@ type
     // - expects it to be not '' void - otherwise Smtp is ignored
     property SmtpFrom: RawUtf8
       read fSmtpFrom write fSmtpFrom;
+    /// define some global options shared by all TSynAngelize services
+    property Options: TSynAngelizeOptions
+      read fOptions write fOptions;
   end;
 
   /// used to serialize the current state of the services
@@ -405,7 +419,7 @@ type
     acDoWatch
   );
 
-  /// handle internal set of services definitions
+  /// handle an internal list of services definitions in a convenient way
   {$ifdef USERECORDWITHMETHODS}
   TSynAngelizeSet = record
   {$else}
@@ -417,6 +431,8 @@ type
     Levels: TIntegerDynArray;
     /// if any service needs actually some watching practice
     HasWatchs: boolean;
+    /// union of all Service[].StartOptions
+    UsedStartOptions: TStartOptions;
     /// fill the fields from Owner.Settings.Folder files content
     function LoadServices(Owner: TSynAngelize): integer;
     /// quick check a service from its internal name
@@ -445,7 +461,7 @@ type
     fStarted: array of TSynAngelizeService;
     fLastGetServicesStateFile: RawByteString;
     fWatchThread: TSynBackgroundThreadProcess;
-    fRunJob: THandle; // a single Windows Job to rule them all
+    fRunJobToClose: THandle; // a single Windows Job to rule them all
     fSmtp: TSmtpConnection;
     fCommandFile: TFileName;
     // TSynDaemon command line methods
@@ -536,9 +552,10 @@ begin
   fService.fRunnerExitCode := -777;
   fService.fRunner := self;
   // fService may be set to nil: make a local copy of all RunRedirect() params
-  fCmd := aCmd;
-  fEnv := aEnv;
+  fCmd := TRunArg(aCmd);
+  fEnv := TRunArg(aEnv);
   fWrkDir := aWrkDir;
+  // fRunOptions=[] without roWinNoProcessDetach to detach from main console
   if soWinJobCloseChildren in aService.StartOptions then
     include(fRunOptions, roWinJobCloseChildren); // just ignored on POSIX
   if not (soReplaceEnv in aService.StartOptions) then
@@ -587,14 +604,14 @@ begin
     if min > 0 then    // retry every 2 sec until 1 min
       if min < 5 then
         result := 15   // retry every 15 sec until 5 min
-      else if min > 10 then
+      else if min < 10 then
         result := 30   // retry every 30 sec until 10 min
-      else if min > 30 then
+      else if min < 30 then
         result := 60   // retry every min until 30 min
-      else if min > 60 then
+      else if min < 60 then
         result := 120  // retry every 2 min until 1 hour
       else
-        result := 240; // retry every 4 min
+        result := 240; // retry every 4 min until the eventual Apocalypse
   end;
 end;
 
@@ -617,7 +634,7 @@ var
 
 begin
   log := fLog.Add;
-  timeout := fService.RetryStableSec shl MilliSecsPerSecShl;
+  timeout := fService.RetryStableSec * MilliSecsPerSec; // need ms resolution for 1s
   sn := fService.Name;
   se := fService.AbortExitCodes;
   notifytix := false;
@@ -706,7 +723,7 @@ begin
   end;
   if fService <> nil then
     fService.fRunner := nil; // notify ended
-  log.NotifyThreadEnded; // as needed by TSynLog
+  TSynLog.NotifyThreadEnded; // as needed by TSynLog
 end;
 
 procedure TSynAngelizeRunner.PerformRotation;
@@ -874,7 +891,7 @@ begin
       // any exception on DoOne() should break the starting
       fOwner.DoOne(log, self, acDoStart, fStart[a]);
   if fWatch <> nil then
-    fNextWatch := GetTickCount64 + fWatchDelaySec * MilliSecsPerSec;
+    fNextWatch := GetTickSec + cardinal(fWatchDelaySec);
 end;
 
 function TSynAngelizeService.DoStop(log: TSynLog): boolean;
@@ -958,9 +975,9 @@ begin
     begin
       Utf8ToFileName(ExtractExecutableName(n), fn);
       if fn = '' then
-        res := -1 // this parametr seems invalid
+        res := -1 // this parameter seems invalid
       else if FileIsExecutable(fn) then
-        res := RunCommand(Utf8ToString(n), {waitfor=}true)
+        res := RunCommand(TRunArg(n), {waitfor=}true)
       else
       begin // append to text log file
         GetMemoryInfo(mem, false);
@@ -1027,6 +1044,7 @@ begin
   ObjArrayClear(Service);
   Finalize(Levels);
   HasWatchs := false;
+  UsedStartOptions := [];
 end;
 
 function SortByLevel(const A, B): integer; // run and display by increasing Level
@@ -1069,6 +1087,7 @@ begin
             AddSortedInteger(Levels, s.Level);
             if s.fWatch <> nil then
               HasWatchs := true;
+            UsedStartOptions := UsedStartOptions + s.StartOptions;
             s := nil; // don't Free - will be owned by Service[]
           end
           else // s.Level <= 0
@@ -1108,6 +1127,7 @@ begin
   if aServiceClass = nil then
     aServiceClass := TSynAngelizeService;
   fServiceClass := aServiceClass;
+  fAfterCreateLog := aLog;
   inherited Create(TSynAngelizeSettings,
     aWorkFolder, aSettingsFolder, aLogFolder, aSettingsExt, aSettingsName,
     aSettingsOptions, aSectionName);
@@ -1123,11 +1143,11 @@ begin
   if fSas.StateFile = '' then
     // if no StateFile supplied, set something
     if fsoDisableSaveIfNeeded in fSas.SettingsOptions then
-      // this random file name will be persisted in the settings
-      fSas.StateFile := TemporaryFileName
-    else
       // if no name can be persisted, use something consistent between calls
       fSas.StateFile := FormatString('%%-state', [fWorkFolderName, fSas.ServiceName])
+    else
+      // this random file name will be persisted in the settings
+      fSas.StateFile := TemporaryFileName
   else
     fSas.StateFile := ExpandFileName(FileNameExpand(fSas.StateFile)); // with %agl.xx%
   // validate command file name used e.g. for /reload
@@ -1151,28 +1171,17 @@ begin
   fSet.Done;
   fSettings.Free;
   {$ifdef OSWINDOWS}
-  if fRunJob <> 0 then
-    CloseHandle(fRunJob);
+  if fRunJobToClose <> 0 then
+    CloseHandle(fRunJobToClose);
   {$endif OSWINDOWS}
 end;
 
 // TSynDaemon command line methods
 
-const
-  AGL_CMD: array[0..7] of PAnsiChar = (
-    'LIST',
-    'SETTINGS',
-    'NEW',
-    'RETRY', // Windows Services API only
-    'RESUME',
-    'DISABLE',
-    'ENABLE',
-    nil);
-
 function TSynAngelize.CustomParseCmd(P: PUtf8Char): boolean;
 begin
-  result := true; // the command has been identified and processed
-  case IdemPPChar(P, @AGL_CMD) of
+  result := true; // true = the command has been identified and processed
+  case IdemPCharSep(P, 'LIST|SETTINGS|NEW|RETRY|RESUME|DISABLE|ENABLE|') of
     0: // --list
       ListServices;
     1: // --settings
@@ -1200,7 +1209,7 @@ begin
     6: // --enable <servicename>
       ServiceChangeState({disable=}false);
   else
-    result := false; // display syntax
+    result := false; // command not identified: display syntax
   end;
 end;
 
@@ -1246,7 +1255,8 @@ begin
     with fSet.Service[i] do
       if not Disabled then
         html := FormatUtf8('%<tr><td>%</td><td>%</td><td>%</td></tr>',
-          [html, HtmlEscape(Name), ToText(State)^, HtmlEscape(StateMessage)]);
+          [html, HtmlEscapeShort(Name), ToText(State)^,
+           HtmlEscapeShort(StateMessage)]);
   html := html + '</tbody></table></body></html>';
   FileFromString(html, fSas.StateFile + '.html');
 end;
@@ -1408,7 +1418,7 @@ type
     aaHttp,
     aaHttps,
     aaSleep,
-    aaService
+    aaService // Windows only by definition
   );
   TAglActions = set of TAglAction;
   TAglActionDynArray = array of TAglAction;
@@ -1490,8 +1500,8 @@ begin
   if not ToInteger(SplitRight(Param, '=', @p), expectedstatus) or
      (p = '') then
   begin
+    expectedstatus := -1; // mark <0 as "not set" to use default
     p := Param; // was not a valid "http:...=200" input
-    expectedstatus := 0; // e.g. executable file exitcode = 0 as success
   end;
   if p = '' then
     p := Service.Run; // "exec" = "exec:%run%" (exename or servicename)
@@ -1500,11 +1510,18 @@ begin
     aaWait,
     aaStart,
     aaStop:
-      fn := NormalizeFileName(Utf8ToString(p));
+      begin
+        fn := NormalizeFileName(Utf8ToString(p));
+        if expectedstatus < 0 then
+          expectedstatus := 0; // default executable file exitcode
+      end;
     aaHttp,
     aaHttps:
-      if expectedstatus = 0 then // not overriden by ToInteger()
-        expectedstatus := HTTP_SUCCESS;
+      if expectedstatus < 0 then
+        expectedstatus := HTTP_SUCCESS; // default response is 200
+    aaService: // Windows only by definition
+      if expectedstatus < 0 then
+        expectedstatus := ord(ssRunning); // = 4
   end;
   result := false;
   Status := 0;
@@ -1512,7 +1529,7 @@ begin
     aaExec,
     aaWait:
       begin
-        status := RunCommand(fn{%H-}, Action = aaWait);
+        status := RunCommand(TRunArg(fn{%H-}), Action = aaWait);
         if status <> expectedstatus then
           StatusFailed;
       end;
@@ -1565,7 +1582,7 @@ begin
             else
               sec := sec * 3; // wait up to 3 gracefull ending phases
             Log.Log(sllTrace, 'Stop: % wait for ending up to % sec', [p, sec], Sender);
-            endtix := GetTickCount64 + sec shl MilliSecsPerSecShl;
+            endtix := GetTickCount64 + sec * MilliSecsPerSec; // need ms resolution for sec=1
             repeat
               SleepHiRes(10);
               if Service.fRunner = nil then
@@ -1612,9 +1629,17 @@ begin
               sc.Start([]);
             acDoStop:
               sc.Stop;
+            acDoWatch:
+              begin
+                status := ord(sc.State);
+                // e.g. notinstalled=0 stopped=1 running=4 failed=8
+                if (status <> expectedstatus) and
+                   (status <> ord(ssErrorRetrievingState)) then
+                  StatusFailed;
+              end;
           end;
-          Service.SetState(sc.State,
-            'As Windows Service "%"', [p], {resetmessage=}true);
+          Service.SetState(sc.State, // current state (acDoWatch may restart)
+            'Windows Service "%"', [p], {resetmessage=}true);
         finally
           sc.Free;
         end;
@@ -1656,7 +1681,8 @@ function TSynAngelize.DoHttpGet(const aUri: RawUtf8): integer;
 begin
   result := 0;
   try
-    HttpGet(aUri, nil, false, @result, fSas.HttpTimeoutMS, {forcesocket:}true);
+    HttpGet(aUri, nil, false, @result, fSas.HttpTimeoutMS,
+      {forcesocket:}true, {ignoretlserror:}true);
   except
     result := -500; // e.g. on TCP or TLS connection error
   end;
@@ -1739,7 +1765,7 @@ begin
 end;
 
 const
-  ENDI: array[boolean] of string[3] = ('en', 'dis');
+  ENDI: array[boolean] of TShort3 = ('en', 'dis');
 
 procedure TSynAngelize.ServiceChangeState(disable: boolean);
 var
@@ -1854,11 +1880,13 @@ begin
   if Assigned(log) then // log=nil if LogClass=nil or sllEnter is not enabled
     one := log.Instance;
   {$ifdef OSWINDOWS}
-  // initialize a main Windows Job to kill all sub-process when main is killed
-  if fRunJob = 0 then
+  // setup a main Windows Job to kill all sub-processes when Angelize is killed
+  if (fRunJobToClose = 0) and
+     not (saoNoWinJob in fSas.Options) then
   begin
-    fRunJob := CreateJobToClose(GetCurrentProcessId);
-    AssignJobToProcess(fRunJob, GetCurrentProcess, 'CloseWithParent');
+    fRunJobToClose := CreateJobToClose(GetCurrentProcessId, 'CloseWithParent');
+    if fRunJobToClose <> 0 then
+      AssignJobToProcess(fRunJobToClose, GetCurrentProcess, 'CloseWithParent');
     // all sub-processes will now be part of this Windows Job
     // unless soWinJobCloseChildren is set, so RunRedirect() will use the
     // CREATE_BREAKAWAY_FROM_JOB flag, then create its own new Windows Job
@@ -1896,7 +1924,7 @@ begin
   begin
     log.Log(sllTrace, 'StartServices: wait % sec for level #% start',
       [sec, level], self);
-    endtix := GetTickCount64 + sec shl MilliSecsPerSecShl;
+    endtix := GetTickCount64 + sec * MilliSecsPerSec; // need ms resolution for sec=1
     for i := 0 to high(fStarted) do
     begin
       s := fStarted[i];
@@ -1968,7 +1996,7 @@ end;
 procedure TSynAngelize.WatchEverySecond(Sender: TSynBackgroundThreadProcess);
 var
   i, a: PtrInt;
-  tix: Int64;
+  tix32: cardinal;
   s: TSynAngelizeService;
   cmd: RawUtf8;
   log: ISynLog;
@@ -1987,7 +2015,7 @@ begin
   // note that a process monitored from a "Start": [ "start:/path/to/file" ]
   // previous command is watched in its monitoring thread, not here
   one := nil;
-  tix := GetTickCount64;
+  tix32 := GetTickSec;
   // check all pending watch steps
   for i := 0 to high(fSet.Service) do // ordered by s.Level
   begin
@@ -1995,7 +2023,7 @@ begin
     s := fSet.Service[i];
     if s.Disabled or
        (s.fNextWatch = 0) or
-       (tix < s.fNextWatch) then
+       (tix32 < s.fNextWatch) then
       continue;
     EnsureLogExists;
     // execute all "Watch":[...,...,...] actions
@@ -2007,8 +2035,8 @@ begin
           one.Log(sllWarning, 'WatchEverySecond: DoWatch(%,%) raised %',
             [s.Name, s.fWatch[a], PClass(E)^], self);
       end;
-    tix := GetTickCount64; // may have changed during DoWatch() progress
-    s.fNextWatch := tix + s.WatchDelaySec * MilliSecsPerSec;
+    tix32 := GetTickSec; // may have changed during DoWatch() progress
+    s.fNextWatch := tix32 + cardinal(s.WatchDelaySec);
   end;
   // command line support
   if FileExists(fSas.CommandFile) then

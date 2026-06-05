@@ -32,6 +32,7 @@ uses
   mormot.core.rtti,
   mormot.core.json,
   mormot.core.buffers,
+  mormot.core.interfaces,
   mormot.crypt.core,
   mormot.crypt.ecc,
   mormot.crypt.secure, // IProtocol definition
@@ -356,6 +357,7 @@ var
 begin
   if (hfConnectionUpgrade in ClientSock.Http.HeaderFlags) and
      ClientSock.KeepAliveClient and
+     (ClientSock.Method <> '') and
      IsGet(ClientSock.Method) and
      PropNameEquals(ClientSock.Http.Upgrade, 'websocket') then
   begin
@@ -449,7 +451,7 @@ begin
   temp.opcode := aFrame.opcode;
   temp.content := aFrame.content;
   len := length(aFrame.payload);
-  tix := GetTickCount64 shr MilliSecsPerSecShl;
+  tix := GetTickSec;
   fWebSocketConnections.Safe.ReadOnlyLock;
   try
     ws := pointer(fWebSocketConnections.List);

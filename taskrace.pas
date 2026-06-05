@@ -127,6 +127,9 @@ begin
   begin
     mainpazo.racetasks.Increment;
     ps1.s_racetasks.Increment;
+    if mainpazo.FTasksCreatedTick = 0 then
+      mainpazo.FTasksCreatedTick := GetTickCount64;
+    mainpazo.FLastTaskCreatedTick := GetTickCount64;
   end;
   if ClassType = TPazoMkdirTask then
   begin
@@ -137,6 +140,8 @@ begin
   begin
     mainpazo.dirlisttasks.Increment;
     ps1.s_dirlisttasks.Increment;
+    if mainpazo.FDirlistRequestedTick = 0 then
+      mainpazo.FDirlistRequestedTick := GetTickCount64;
   end;
 end;
 
@@ -229,6 +234,29 @@ begin
 
     Debug(dpSpam, c_section, '<-- ' + tname);
     exit;
+  end;
+
+  // Check if dirlist has been marked as errored (e.g. 550 Permission denied)
+  try
+    if ((ps1.dirlist <> nil) and ps1.dirlist.error) then
+    begin
+      readyerror := True;
+      mainpazo.errorreason := Format('Dirlist error on %s', [site1]);
+      Debug(dpSpam, c_section, '<-- ' + tname);
+      exit;
+    end;
+
+    d := ps1.dirlist.FindDirlist(dir);
+    if ((d <> nil) and d.error) then
+    begin
+      readyerror := True;
+      mainpazo.errorreason := Format('Dirlist error on %s for %s', [site1, dir]);
+      Debug(dpSpam, c_section, '<-- ' + tname);
+      exit;
+    end;
+  except
+    on e: Exception do
+      Debug(dpError, c_section, '[EXCEPTION] TPazoDirlistTask dirlist error check: %s', [e.Message]);
   end;
 
   // Count errors and exit if too many
@@ -402,6 +430,24 @@ begin
           end
           else
           begin
+            // 550 Permission denied is not a transient error, don't waste retries
+            if ((0 < Pos('Permission denied', s.lastResponse)) or (0 < Pos('Permission Denied', s.lastResponse))) then
+            begin
+              try
+                d := ps1.dirlist.FindDirlist(dir);
+                if (d <> nil) then
+                  d.error := True;
+              except
+                on e: Exception do
+                  Debug(dpError, c_section, '[EXCEPTION] (dirlist permission denied handling): %s', [e.Message]);
+              end;
+
+              readyerror := True;
+              mainpazo.errorreason := Format('Permission denied on %s', [site1]);
+              Debug(dpMessage, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+              exit;
+            end;
+
             Debug(dpSpam, c_section, '[DIRLIST FAILED] %s: %d %s', [tname, s.lastResponseCode, s.lastResponse]);
             goto TryAgain;
           end;
@@ -416,6 +462,9 @@ begin
   end
   else
   begin
+    if GlDirlistCompletedCounter <> nil then
+      GlDirlistCompletedCounter.Increment;
+
     try
       itwasadded := ps1.ParseDirlist(netname, channel, dir, s.lastResponse, is_pre);
     except
@@ -681,6 +730,12 @@ end;
 function TPazoDirlistTask.Name: String;
 begin
   try
+    if (mainpazo = nil) or (mainpazo.rls = nil) then
+    begin
+      Result := Format('DIRLIST : %d <b>%s</b> %s', [pazo_id, site1, dir]);
+      exit;
+    end;
+
     if is_pre then
       Result := Format('DIRLIST : %d <b>%s</b> <b>PRE</b> %s %s %s %s', [pazo_id, site1, mainpazo.rls.section,
         mainpazo.rls.rlsname, dir, ScheduleText])
@@ -698,6 +753,12 @@ var
   secondsSinceLastChange: Int64;
 begin
   baseValue := GetNewdirDirlistReaddValue();
+
+  // Site-specific override takes precedence over global default
+  if (aSite <> nil) and (aSite.newdir_dirlist_readd > 0) then
+    baseValue := aSite.newdir_dirlist_readd;
+
+  baseValue := GetNewdirDirlistReaddLoadAdjustedValue(baseValue);
 
   if (aSite <> nil) and (aDirlist <> nil) then
   begin
@@ -1119,6 +1180,10 @@ begin
         Result := True;
         exit;
       end;
+      ps1.MkdirError(dir);
+      readyerror := True;
+      Result := True;
+      exit;
     end;
 
     ps1.MkdirReady(dir);
@@ -1134,7 +1199,8 @@ begin
 
   try
     // echo race info
-    irc_SendRACESTATS(tname);
+    if spamcfg.ReadBool(c_section, 'mkdir', True) then
+      irc_SendRACESTATS(tname);
   except
     on e: Exception do
     begin
@@ -1152,6 +1218,12 @@ end;
 function TPazoMkdirTask.Name: String;
 begin
   try
+    if (mainpazo = nil) or (mainpazo.rls = nil) then
+    begin
+      Result := Format('MKDIR : %d <b>%s</b> %s', [pazo_id, site1, dir]);
+      exit;
+    end;
+
     Result := Format('MKDIR : %d <b>%s</b> %s %s', [pazo_id, site1, mainpazo.rls.rlsname, dir]);
   except
     Result := 'MKDIR';
@@ -3490,6 +3562,14 @@ begin
     if slotInfo = '' then
       siteInfo := Format(' <b>%s</b>-><b>%s</b>', [site1, site2]);
 
+    if mainpazo = nil then
+    begin
+      Debug(dpError, c_section, 'CRITICAL LOG: TPazoRaceTask.Name called but mainpazo is nil!');
+      Result := Format('<c7>[RACE]</c> #%d%s%s : <c10>%s</c> <c7>(%d)</c>',
+        [pazo_id, siteInfo, slotInfo, filename, rank]);
+      exit;
+    end;
+
     if mainpazo.rls = nil then
       Result := Format('<c7>[RACE]</c> #%d%s%s : <c10>%s</c> <c7>(%d)</c>',
         [pazo_id, siteInfo, slotInfo, filename, rank])
@@ -3500,7 +3580,12 @@ begin
     on e: Exception do
     begin
       Result := 'RACE';
-      Debug(dpError, c_section, Format('[EXCEPTION] TPazoRaceTask.Name SlotInfo: %s', [e.Message]));
+      try
+        Debug(dpError, c_section, Format('[EXCEPTION] TPazoRaceTask.Name SlotInfo: %s | pazo_id:%d site1:%s site2:%s filename:%s rank:%d slot1name:%s slot2name:%s', [
+          e.Message, pazo_id, site1, site2, filename, rank, slot1name, slot2name]));
+      except
+        Debug(dpError, c_section, Format('[EXCEPTION] TPazoRaceTask.Name SlotInfo: %s', [e.Message]));
+      end;
     end;
   end;
 end;

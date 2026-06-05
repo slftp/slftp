@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, kb.releaseinfo, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections, IniFiles, sfv, slcriticalsection2,
-  routeconfig;
+  routeconfig, cbftpclient, cbftpevents;
 
 type
   TQueueNotifyEvent = procedure(Sender: TObject; Value: integer) of object;
@@ -70,6 +70,7 @@ type
 
     delay_leech: integer; //< value of delay for leeching from site in seconds
     delay_upload: integer; //< value of delay for uploading to site in seconds
+    newdir_dirlist_readd: integer; //< site-specific override for newdir dirlist readd delay; 0 = use global default
 
     s_dirlisttasks: TIdThreadSafeInt32;
     s_racetasks: TIdThreadSafeInt32;
@@ -91,10 +92,19 @@ type
 
     speed_from: TList<TSpeedFromRouteInfo>;
 
+    { cbftp engine progress tracking }
+    CbftpFilesDone: Integer;
+    CbftpFilesTotal: Integer;
+    CbftpBytesDone: Int64;
+    CbftpFilesTotalDone: Integer;
+    CbftpBytesTotalDone: Int64;
+    CbftpCompletedTime: TDateTime;
+
     property dirlistgaveup: boolean read GetDirlistGaveUp write SetDirListGaveUp; //< gets or sets a value indicating whether dirlisting have been given up for this site
     property Destinations: TList<TDestinationRank> read FDestinations; //< destination sites and ranks
     property ActiveTransferCount: Int32 read GetActiveTransferCount;
 
+    function IsPureSource: Boolean;
     function StatusRealPreOrShouldPre: boolean;  //< returns @true if its a pre or at least it should be one
     function Source: boolean;
     function Complete: boolean;
@@ -169,21 +179,26 @@ type
     lastannounceconsole: String;
     lastannounceirc: String; //< last announce string for [STATS] after race
     lastannounceroutes: String; //< last announce string from @link(TPazo.RoutesText)
+    FcbftpSitesSent: String; //< Comma-separated list of sites already sent to cbftp
     FExcludeFromIncfiller: boolean; //< @true if the incomplete filler should ignore this TPazo (e.g. already handled once), @false otherwise.
     FUniqueFileListOfRelease_cs: TSlCriticalSection2; //< Critical section for Add calls to @link(FUniqueFileListOfRelease)
     FUniqueFileListOfRelease: TDictionary<String, Int64>; //< Dictionary with files (including subdirs) and corresponding filesize (biggest value seen on any site) for this release, Key="dir + '/' + filename" and Value=filesize
     FPazoSFV: TPazoSFV;
+    FUDPEnabled: Boolean;
+    FUDPIp: String;
+    FUDPPort: Integer;
+    FUDPPassword: String;
+    FUDPConfigLoaded: Boolean;
+    FEncryptUDP: Boolean;
 
     { Creates/Updates the filesize for given subdir and filename combination
       @param(aDir Location of the file inside releasedir)
       @param(de The TDirListEntry of the file)
       @returns(filesize in bytes which could be @link(aFilesize) or bigger if seen somewhere else) }
     function PRegisterFile(const aDir: String; const de: TDirListEntry): Int64;
-    { Returns the amount of files for the release, includes files in subdirs
-      @returns(Total file count of @link(rls)) }
-    function GetCountOfCachedFiles: integer;
 
     procedure QueueEvent(Sender: TObject; Value: integer);
+    procedure LoadUDPConfig;
 
   public
     pazo_id: integer;
@@ -203,6 +218,12 @@ type
     readyerror: boolean;
     errorreason: String;
     lastTouch: TDateTime;
+    FDetectedUTC: TDateTime; //< UTC timestamp of release detection
+    FDetectedTick: Int64;    //< GetTickCount64 at detection time
+    FAddedTick: Int64;       //< GetTickCount64 at pazo creation time
+    FDirlistRequestedTick: Int64;  //< GetTickCount64 when first dirlist was requested
+    FTasksCreatedTick: Int64;      //< GetTickCount64 when first tasks were created
+    FLastTaskCreatedTick: Int64;   //< GetTickCount64 when most recent task was created
 
     PazoSitesList: TObjectList<TPazoSite>; //< list of @link(TPazoSite) which are part of this @link(TPazo) due to calling @link(AddSites)
     sl: TSkipList;
@@ -225,6 +246,8 @@ type
     function AsText: String;
     { Show headline for [ROUTES] announce and print infos for each item in @link(PazoSitesList) if different then previous @link(lastannounceroutes) }
     function RoutesText: String;
+    { @abstract(Returns true if UDP announce is enabled and configured) }
+    function IsUDPEnabled: Boolean;
     function Stats(const console: boolean; withdirlist: boolean = True): String;
     { Generate site completion times statistics relative to pazo added time
       @param(console @true if output is for console, @false for IRC)
@@ -246,6 +269,10 @@ type
       @param(aFilename Name of the file)
       @returns(filesize in bytes, -1 if not found or unknown file) }
     function PFileSize(const aDir, aFilename: String): Int64;
+    { Returns the amount of files for the release, includes files in subdirs
+      @returns(Total file count of @link(rls)) }
+    function GetCountOfCachedFiles: integer;
+    procedure RegisterCbftpFile(const aFilename: String; const aFilesize: Int64);
 
     property ExcludeFromIncfiller: Boolean read FExcludeFromIncfiller write FExcludeFromIncfiller;
     property PazoSFV: TPazoSFV read FPazoSFV;
@@ -256,12 +283,23 @@ procedure PazoInit;
 
 function FindMostCompleteSite(pazo: TPazo): TPazoSite;
 
+type
+  TCbftpLatencyEntry = record
+    PreTime: TDateTime;
+    UdpTime: TDateTime;
+    LatencyMs: Int64;
+  end;
+
+procedure CbftpLatencyAdd(const aRelease: String; const aPreTime, aUdpTime: TDateTime; const aLatencyMs: Int64);
+function CbftpLatencyGetJson: String;
+
 implementation
 
 uses
   SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
   taskrace, mystrings, irc, sltcp, slhelper, Math, taskpretime, configunit,
-  mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv;
+  mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv,
+  mormot.core.base, mormot.core.unicode, mormot.net.sock, mycrypto;
 
 const
   section = 'pazo';
@@ -271,6 +309,36 @@ var
   glMaxBadcrcEvents: integer; //< max number of bad crc events read from config
   glPazoPreTimeLookupMode: TPretimeLookupMode;
   glShowCompleteTimeStats: boolean;
+  GCbftpLatencyMap: TDictionary<String, TCbftpLatencyEntry>;
+  GCbftpLatencyLock: TSlCriticalSection2;
+
+function RlsStatusToString(const aStatus: TRlsSiteStatus): String;
+begin
+  case aStatus of
+    rssNotAllowed: Result := 'not_allowed';
+    rssNotAllowedButItsThere: Result := 'not_allowed_present';
+    rssAllowed: Result := 'allowed';
+    rssShouldPre: Result := 'should_pre';
+    rssRealPre: Result := 'real_pre';
+    rssComplete: Result := 'complete';
+    rssNuked: Result := 'nuked';
+  else
+    Result := 'unknown';
+  end;
+end;
+
+function SiteStatusToString(const aStatus: TSiteStatus): String;
+begin
+  case aStatus of
+    sstUnknown: Result := 'unknown';
+    sstUp: Result := 'up';
+    sstDown: Result := 'down';
+    sstTempDown: Result := 'tempdown';
+    sstMarkedAsDownByUser: Result := 'markeddown';
+  else
+    Result := 'other';
+  end;
+end;
 
 
 constructor TDestinationRank.Create(const aPazoSite: TPazoSite; const aRank: integer);
@@ -393,10 +461,95 @@ begin
   end;
 end;
 
+procedure TPazo.LoadUDPConfig;
+var
+  rawEnable: String;
+begin
+  FUDPEnabled := False;
+  FUDPConfigLoaded := False;
+  FUDPIp := '';
+  FUDPPort := 0;
+  FUDPPassword := '';
+  FEncryptUDP := True;
+
+  if not Assigned(config) then
+  begin
+    Debug(dpMessage, section, 'TPazo.LoadUDPConfig: config not initialised, retrying later');
+    Exit;
+  end;
+
+  rawEnable := Trim(config.ReadString('UDPConfig', 'EnableUDP', 'False'));
+  FUDPIp := Trim(config.ReadString('UDPConfig', 'IP', ''));
+  FUDPPort := config.ReadInteger('UDPConfig', 'Port', 0);
+  FUDPPassword := config.ReadString('UDPConfig', 'Password', '');
+  FUDPEnabled := True;
+  FEncryptUDP := config.ReadBool('UDPConfig', 'EncryptUDP', True);
+
+  if not (SameText(rawEnable, 'True') or SameText(rawEnable, '1')) then
+    Debug(dpMessage, section, 'TPazo.LoadUDPConfig: Standalone FTP engine is deprecated. Running in cbftp-only mode.');
+
+  if (FUDPPort < 1) or (FUDPPort > 65535) then
+  begin
+    Debug(dpMessage, section, Format('TPazo.LoadUDPConfig: invalid cbftp port %d', [FUDPPort]));
+  end;
+
+  if FUDPIp = '' then
+  begin
+    Debug(dpMessage, section, 'TPazo.LoadUDPConfig: cbftp IP is empty');
+  end;
+
+
+
+  FUDPConfigLoaded := True;
+end;
+
 function PazoAdd(const rls: TRelease): TPazo;
 begin
   Result := TPazo.Create(rls, local_pazo_id);
   Inc(local_pazo_id);
+end;
+
+procedure CbftpLatencyAdd(const aRelease: String; const aPreTime, aUdpTime: TDateTime; const aLatencyMs: Int64);
+var
+  fEntry: TCbftpLatencyEntry;
+begin
+  GCbftpLatencyLock.Enter('CbftpLatencyAdd');
+  try
+    fEntry.PreTime := aPreTime;
+    fEntry.UdpTime := aUdpTime;
+    fEntry.LatencyMs := aLatencyMs;
+    GCbftpLatencyMap.AddOrSetValue(aRelease, fEntry);
+  finally
+    GCbftpLatencyLock.Leave;
+  end;
+end;
+
+function CbftpLatencyGetJson: String;
+var
+  fPairs: TArray<TPair<String, TCbftpLatencyEntry>>;
+  fPair: TPair<String, TCbftpLatencyEntry>;
+  fFirst: Boolean;
+begin
+  GCbftpLatencyLock.Enter('CbftpLatencyGetJson');
+  try
+    Result := '[';
+    fFirst := True;
+    fPairs := GCbftpLatencyMap.ToArray;
+    for fPair in fPairs do
+    begin
+      if not fFirst then
+        Result := Result + ',';
+      fFirst := False;
+      Result := Result + Format('{"name":"%s","latency_ms":%d,"pre_time":"%s","udp_time":"%s"}',
+        [StringReplace(StringReplace(fPair.Key, '\', '\\', [rfReplaceAll]), '"', '\"', [rfReplaceAll]),
+         fPair.Value.LatencyMs,
+         FormatDateTime('yyyy-mm-dd hh:nn:ss.zzz', fPair.Value.PreTime),
+         FormatDateTime('yyyy-mm-dd hh:nn:ss.zzz', fPair.Value.UdpTime)]);
+    end;
+    Result := Result + ']';
+  finally
+    GCbftpLatencyLock.Leave;
+  end;
 end;
 
 procedure PazoInit;
@@ -420,6 +573,26 @@ begin
     dirlist.DirlistGaveUp := aGaveUp;
 end;
 
+function TPazoSite.IsPureSource: Boolean;
+var
+  otherPs: TPazoSite;
+  destRank: TDestinationRank;
+begin
+  Result := True;
+  if pazo = nil then Exit;
+  for otherPs in pazo.PazoSitesList do
+  begin
+    for destRank in otherPs.destinations do
+    begin
+      if destRank.PazoSite.Name = self.Name then
+      begin
+        Result := False;
+        Exit;
+      end;
+    end;
+  end;
+end;
+
 function TPazoSite.Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>): boolean;
 // de is TDirListEntry from sourcesite
 // dstdl is TDirList on destination site
@@ -436,6 +609,8 @@ var
   s: TSite;
   fd: String;
 begin
+  if pazo.FUDPEnabled then exit(False);
+
   Result := False;
   dst := nil;
   dstdl := nil;
@@ -490,7 +665,7 @@ begin
       except
         on e: Exception do
         begin
-          Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj General: %s', [e.Message]));
+          DebugException(dpError, section, 'TPazoSite.Tuzelj General', e);
           Break;
         end;
       end;
@@ -519,7 +694,7 @@ begin
         except
           on e: Exception do
           begin
-            Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj dstdl.Find: %s', [e.Message]));
+            DebugException(dpError, section, 'TPazoSite.Tuzelj dstdl.Find', e);
             Continue;
           end;
         end;
@@ -565,7 +740,7 @@ begin
             except
               on e: Exception do
               begin
-                Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj AddTask(pm): %s', [e.Message]));
+                DebugException(dpError, section, 'TPazoSite.Tuzelj AddTask(pm)', e);
                 Break;
               end;
             end;
@@ -585,7 +760,7 @@ begin
           except
             on e: Exception do
             begin
-              Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj AddTask(pd): %s', [e.Message]));
+              DebugException(dpError, section, 'TPazoSite.Tuzelj AddTask(pd)', e);
               Break;
             end;
           end;
@@ -643,6 +818,13 @@ begin
                 pr.startat := IncSecond(Now, dst.delay_upload);
             end;
 
+            if pr = nil then
+              Debug(dpError, section, 'CRITICAL LOG: pr (TPazoRaceTask) is nil right before AddTask!')
+            else if pr.mainpazo = nil then
+              Debug(dpError, section, 'CRITICAL LOG: pr.mainpazo is nil right before AddTask!')
+            else if pr.ssite1 = nil then
+              Debug(dpError, section, 'CRITICAL LOG: pr.ssite1 is nil right before AddTask! (file: %s)', [pr.filename]);
+
             // finally we can add the task
             try
               AddTask(pr);
@@ -650,7 +832,12 @@ begin
             except
               on e: Exception do
               begin
-                Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj (AddTask(pr)): %s', [e.Message]));
+                try
+                  Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj (AddTask(pr)) src:%s dst:%s file:%s pr_addr:%p ssite1:%p ssite2:%p site1:%s site2:%s', [
+                    Self.Name, dst.Name, de.filename, Pointer(pr), pr.ssite1, pr.ssite2, pr.site1, pr.site2]));
+                except
+                end;
+                DebugException(dpError, section, 'TPazoSite.Tuzelj (AddTask(pr))', e);
                 Break;
               end;
             end;
@@ -660,7 +847,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj (Loop): %s', [e.Message]));
+        DebugException(dpError, section, 'TPazoSite.Tuzelj (Loop)', e);
         Break;
       end;
     end;
@@ -724,13 +911,79 @@ end;
 function TPazo.RoutesText: String;
 var
   ps: TPazoSite;
+  cbftpLine: String;
+  sitelist: String;
+  shouldSendUDP: Boolean;
+  tempSiteList: TStringList;
+  i: Integer;
+  siteName: String;
+  hasNewSite: Boolean;
 begin
+  if rls = nil then
+  begin
+    Result := '';
+    Exit;
+  end;
+
   Result := Format('<c3>[ROUTES]</c> : <b>%s</b> (%d sites)', [rls.rlsname, PazoSitesList.Count]);
   Result := Result + #13#10;
 
   for ps in PazoSitesList do
   begin
-    Result := Result + ps.RoutesText;
+    if not (ps.status in [rssNotAllowed, rssNotAllowedButItsThere]) then
+      Result := Result + ps.RoutesText;
+  end;
+
+  cbftpLine := '';
+  sitelist := '';
+  shouldSendUDP := False;
+
+  if not FUDPConfigLoaded then
+    LoadUDPConfig;
+
+  if FUDPEnabled then
+  begin
+    for ps in PazoSitesList do
+    begin
+      if (ps.status in [rssAllowed, rssShouldPre, rssRealPre]) then
+      begin
+        sitelist := sitelist + ps.Name + ',';
+      end;
+    end;
+
+    if sitelist <> '' then
+    begin
+      SetLength(sitelist, Length(sitelist) - 1);
+
+      hasNewSite := False;
+      tempSiteList := TStringList.Create;
+      try
+        tempSiteList.CommaText := sitelist;
+        for i := 0 to tempSiteList.Count - 1 do
+        begin
+          siteName := tempSiteList[i];
+          if Pos(',' + siteName + ',', ',' + FcbftpSitesSent) = 0 then
+          begin
+            hasNewSite := True;
+            FcbftpSitesSent := FcbftpSitesSent + siteName + ',';
+          end;
+        end;
+      finally
+        tempSiteList.Free;
+      end;
+
+      if hasNewSite then
+      begin
+        cbftpLine := Format('<c3>[CBFTP]</c> : <b>%s %s</b> %s', [rls.section, rls.rlsname, sitelist]);
+        cbftpLine := cbftpLine + #13#10;
+        Result := Result + cbftpLine;
+        shouldSendUDP := True;
+      end
+      else
+        Debug(dpSpam, section, 'TPazo.RoutesText: no new sites in sitelist, skipping cbftp start spread job');
+    end
+    else
+      Debug(dpMessage, section, 'TPazo.RoutesText: no eligible sites for UDP, skipping send');
   end;
 
   if (Result <> lastannounceroutes) then
@@ -740,6 +993,30 @@ begin
   else
   begin
     Result := '';
+    shouldSendUDP := False;
+  end;
+
+  if shouldSendUDP then
+  begin
+    // Use REST API instead of UDP to start spread job
+    try
+      if not cbftpclient_StartSpreadJob(rls.section, rls.rlsname, sitelist) then
+      begin
+        Debug(dpSpam, section, 'cbftp REST spread job start failed');
+        lastannounceroutes := '';
+        Exit;
+      end;
+
+      if (rls <> nil) and (rls.DetectedTick > 0) then
+        CbftpLatencyAdd(rls.rlsname, rls.DetectedUTC, Now, GetTickCount64 - rls.DetectedTick);
+      irc_SendROUTEINFOS(Format('<c10>[<b>CBFTP</b>]</c> %s %s %s', [rls.section, rls.rlsname, sitelist]));
+    except
+      on E: Exception do
+      begin
+        DebugException(dpSpam, section, 'TPazo.RoutesText: cbftp REST operation failed', E);
+        lastannounceroutes := '';
+      end;
+    end;
   end;
 end;
 
@@ -777,7 +1054,7 @@ begin
     FUniqueFileListOfRelease_cs.Leave;
   end;
 
-  if fWasAdded And de.IsSFV and self.rls.IsSFVRelease and not FPazoSFV.HasSFV(aDir) then
+  if fWasAdded And de.IsSFV and self.rls.IsSFVRelease and not FPazoSFV.HasSFV(aDir) and not IsUDPEnabled then
   begin
     if FPazoSFV.RegisterSFV(aDir) then
     begin
@@ -802,6 +1079,26 @@ begin
   Result := FUniqueFileListOfRelease.Count;
 end;
 
+procedure TPazo.RegisterCbftpFile(const aFilename: String; const aFilesize: Int64);
+begin
+  if (aFilename = '') or (aFilesize <= 0) then
+    Exit;
+  FUniqueFileListOfRelease_cs.Enter('RegisterCbftpFile');
+  try
+    if not FUniqueFileListOfRelease.ContainsKey(aFilename) then
+      FUniqueFileListOfRelease.Add(aFilename, aFilesize);
+  finally
+    FUniqueFileListOfRelease_cs.Leave;
+  end;
+end;
+
+function TPazo.IsUDPEnabled: Boolean;
+begin
+  if not FUDPConfigLoaded then
+    LoadUDPConfig;
+  Result := FUDPEnabled;
+end;
+
 constructor TPazo.Create(const rls: TRelease; const pazo_id: integer);
 begin
   if rls <> nil then
@@ -817,6 +1114,20 @@ begin
   end;
 
   added := Now;
+  FAddedTick := GetTickCount64;
+  FDirlistRequestedTick := 0;
+  FTasksCreatedTick := 0;
+  FLastTaskCreatedTick := 0;
+  if rls <> nil then
+  begin
+    FDetectedTick := rls.DetectedTick;
+    FDetectedUTC := rls.DetectedUTC;
+  end
+  else
+  begin
+    FDetectedTick := 0;
+    FDetectedUTC := 0;
+  end;
   queuenumber := TIdThreadSafeInt32WithEvent.Create;
   queuenumber.OnChange := QueueEvent;
   dirlisttasks := TIdThreadSafeInt32.Create;
@@ -829,22 +1140,37 @@ begin
   stopped := False;
   ready := False;
   lastTouch := Now();
-  FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_' + rls.Name + '_' + IntToStr(pazo_id));
+  if rls <> nil then
+    FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_' + rls.Name + '_' + IntToStr(pazo_id))
+  else
+    FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_SPEEDTEST_' + IntToStr(pazo_id));
   FUniqueFileListOfRelease := TDictionary<String, Int64>.Create;
 
   self.stated := False;
   self.cleared := False;
+  FcbftpSitesSent := '';
 
   FExcludeFromIncfiller := False;
-  if rls.IsSFVRelease then
+  if (rls <> nil) and rls.IsSFVRelease then
     FPazoSFV := TPazoSFV.Create;
+
+  FUDPConfigLoaded := False;
+  FUDPEnabled := False;
+  FUDPIp := '';
+  FUDPPort := 0;
+  FUDPPassword := '';
+
+  LoadUDPConfig;
 
   inherited Create;
 end;
 
 destructor TPazo.Destroy;
 begin
-  Debug(dpSpam, section, 'TPazo.Destroy: %s', [rls.rlsname]);
+  if rls <> nil then
+    Debug(dpSpam, section, 'TPazo.Destroy: %s', [rls.rlsname])
+  else
+    Debug(dpSpam, section, 'TPazo.Destroy: SPEEDTEST');
   Clear;
   PazoSitesList.Free;
   queuenumber.Free;
@@ -876,7 +1202,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazo.FindSite: %s', [e.Message]));
+      DebugException(dpError, section, 'TPazo.FindSite', e);
       Result := nil;
     end;
   end;
@@ -911,6 +1237,7 @@ begin
           lastannounceconsole := s;
         end;
 
+        // display race stats on irc
         s := Stats(False, False);
         if ((lastannounceirc <> s) and (s <> '')) then
         begin
@@ -964,6 +1291,15 @@ begin
         else
           Result := CompareDateTime(pazo1.dirlist.CompletedTime, pazo2.dirlist.CompletedTime);
       end
+    else if (pazo1.CbftpCompletedTime <> 0) or (pazo2.CbftpCompletedTime <> 0) then
+      begin
+        if (pazo1.CbftpCompletedTime = 0) then
+          Result := 1
+        else if (pazo2.CbftpCompletedTime = 0) then
+          Result := -1
+        else
+          Result := CompareDateTime(pazo1.CbftpCompletedTime, pazo2.CbftpCompletedTime);
+      end
     else
       Result := 0;
   end;
@@ -999,21 +1335,49 @@ begin
         if s.noannounce and not console then
           Continue;
 
+        // Filter out zero-transfer/nuller sites
+        if not (ps.status in [rssRealPre, rssShouldPre, rssNotAllowed]) then
+        begin
+          if IsUDPEnabled then
+          begin
+            if ps.CbftpFilesTotalDone = 0 then
+              Continue;
+          end
+          else
+          begin
+            if (ps.dirlist <> nil) and (ps.dirlist.FilesRacedByMe(True) = 0) then
+              Continue;
+          end;
+        end;
+
         if Result <> '' then
           Result := Result + ', ';
 
-        if ((ps.status in [rssRealPre, rssShouldPre, rssNotAllowed]) or ps.DirlistGaveUpAndSentNoFiles or (ps.dirlist.CompletedTime = 0)) then
+        if ((ps.status in [rssRealPre, rssShouldPre, rssNotAllowed]) or
+            (ps.DirlistGaveUpAndSentNoFiles and not IsUDPEnabled) or
+            ((ps.dirlist <> nil) and (ps.dirlist.CompletedTime = 0) and not IsUDPEnabled)) then
           Result := Result + '"' + ps.Stats + '"'
         else
         begin
           if CompleteTimeReference = 0 then
           begin
             Result := Concat(Result, '"', IntToStr(numComplete), '. ', ps.Stats, '"');
-            completeTimeReference := ps.dirlist.CompletedTime;
+            if ps.dirlist <> nil then
+              completeTimeReference := ps.dirlist.CompletedTime
+            else if ps.CbftpCompletedTime <> 0 then
+              completeTimeReference := ps.CbftpCompletedTime
+            else
+              completeTimeReference := Now; // cbftp mode fallback
           end
           else
           begin
-            secondsAfter := SecondsBetween(completeTimeReference, ps.dirlist.CompletedTime);
+            if ps.dirlist <> nil then
+              secondsAfter := SecondsBetween(completeTimeReference, ps.dirlist.CompletedTime)
+            else if ps.CbftpCompletedTime <> 0 then
+              secondsAfter := SecondsBetween(completeTimeReference, ps.CbftpCompletedTime)
+            else
+              secondsAfter := SecondsBetween(completeTimeReference, Now); // cbftp mode fallback
+
             if secondsAfter <> 0 then
               Result := Concat(Result, '"', IntToStr(numComplete), '. ', ps.Stats, ' (+', IntToStr(secondsAfter), 's)"')
             else
@@ -1024,7 +1388,7 @@ begin
       except
         on e: Exception do
         begin
-          Debug(dpError, section, Format('[EXCEPTION] TPazo.Stats: %s', [e.Message]));
+          DebugException(dpError, section, 'TPazo.Stats', e);
           Continue;
         end;
       end;
@@ -1073,6 +1437,27 @@ begin
           Continue;
         end;
 
+        // Filter out zero-transfer/nuller sites
+        if not (ps.status in [rssRealPre, rssShouldPre, rssNotAllowed]) then
+        begin
+          if IsUDPEnabled then
+          begin
+            if ps.CbftpFilesTotalDone = 0 then
+            begin
+              Debug(dpSpam, section, Format('[TIMING DEBUG] SKIPPED: %s - Reason: CbftpFilesTotalDone is 0 (nuller)', [ps.Name]));
+              Continue;
+            end;
+          end
+          else
+          begin
+            if (ps.dirlist <> nil) and (ps.dirlist.FilesRacedByMe(True) = 0) then
+            begin
+              Debug(dpSpam, section, Format('[TIMING DEBUG] SKIPPED: %s - Reason: FilesRacedByMe is 0 (nuller)', [ps.Name]));
+              Continue;
+            end;
+          end;
+        end;
+
         if ps.status in [rssRealPre, rssShouldPre] then
         begin
           if Result <> '' then
@@ -1093,21 +1478,31 @@ begin
           Continue;
         end;
 
-        if ps.DirlistGaveUpAndSentNoFiles or (ps.dirlist.CompletedTime = 0) then
+        if ps.DirlistGaveUpAndSentNoFiles or ((ps.dirlist <> nil) and (ps.dirlist.CompletedTime = 0)) then
         begin
-          Debug(dpSpam, section, Format('[TIMING DEBUG] SKIPPED: %s - Reason: GaveUp or no CompletedTime (GaveUp: %s, CompletedTime: %s)',
-            [ps.Name, BoolToStr(ps.DirlistGaveUpAndSentNoFiles, True),
-            FormatDateTime('hh:nn:ss.zzz', ps.dirlist.CompletedTime)]));
-          Continue;
+          if (ps.dirlist <> nil) then
+            Debug(dpSpam, section, Format('[TIMING DEBUG] SKIPPED: %s - Reason: GaveUp or no CompletedTime (GaveUp: %s, CompletedTime: %s)',
+              [ps.Name, BoolToStr(ps.DirlistGaveUpAndSentNoFiles, True),
+              FormatDateTime('hh:nn:ss.zzz', ps.dirlist.CompletedTime)]))
+          else if ps.CbftpCompletedTime = 0 then
+          begin
+            Debug(dpSpam, section, Format('[TIMING DEBUG] SKIPPED: %s - Reason: No cbftp completion time', [ps.Name]));
+            Continue;
+          end;
+          if ps.CbftpCompletedTime = 0 then
+            Continue;
         end;
 
         if Result <> '' then
           Result := Result + ' ';
 
-        secondsFromAddpre := MilliSecondsBetween(added, ps.dirlist.CompletedTime) / 1000.0;
+        if (ps.dirlist <> nil) then
+          secondsFromAddpre := MilliSecondsBetween(added, ps.dirlist.CompletedTime) / 1000.0
+        else
+          secondsFromAddpre := MilliSecondsBetween(added, ps.CbftpCompletedTime) / 1000.0;
 
-        Debug(dpSpam, section, Format('[TIMING DEBUG] Site: %s | ADDPRE: %s | Completed: %s | Diff: %.3fs | Status: %d',
-          [ps.Name, FormatDateTime('hh:nn:ss.zzz', added), FormatDateTime('hh:nn:ss.zzz', ps.dirlist.CompletedTime),
+        Debug(dpSpam, section, Format('[TIMING DEBUG] Site: %s | ADDPRE: %s | Diff: %.3fs | Status: %d',
+          [ps.Name, FormatDateTime('hh:nn:ss.zzz', added),
           secondsFromAddpre, Ord(ps.status)]));
 
         Result := Concat(Result, '<c9>', IntToStr(numComplete), '.</c> ', ps.Name, ' <c8>(', Format('%.3f', [secondsFromAddpre]), 's)</c>');
@@ -1115,7 +1510,7 @@ begin
       except
         on e: Exception do
         begin
-          Debug(dpSpam, section, Format('[EXCEPTION] TPazo.SiteCompleteTimesStats: %s', [e.Message]));
+          DebugException(dpSpam, section, 'TPazo.SiteCompleteTimesStats', e);
           Continue;
         end;
       end;
@@ -1159,7 +1554,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, '[EXCEPTION] TPazo.Clear : %s', [e.Message]);
+      DebugException(dpError, section, 'TPazo.Clear ', e);
       exit;
     end;
   end;
@@ -1177,19 +1572,22 @@ var
   sectiondir: String;
   ps: TPazoSite;
 begin
+  if not FUDPConfigLoaded then
+    LoadUDPConfig;
+
   Result := False;
   for i := sitesunit.sites.Count - 1 downto 0 do
   begin
     try
       s := TSite(sitesunit.sites[i]);
-      if not (s.WorkingStatus in [sstUnknown, sstUp]) then
+      if (not FUDPEnabled) and (not (s.WorkingStatus in [sstUnknown, sstUp])) then
         Continue;
-      if s.PermDown then
+      if (not FUDPEnabled) and s.PermDown then
         Continue;
       if aIsSpreadJob then
       begin
         if s.SkipPre then
-          Continue;
+        Continue;
       end;
 
       sectiondir := s.sectiondir[rls.section];
@@ -1230,7 +1628,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] TPazo.AddSites: %s', [e.Message]));
+        DebugException(dpError, section, 'TPazo.AddSites', e);
         Continue;
       end;
     end;
@@ -1273,7 +1671,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] TPazoSite.AddDestination: %s', [e.Message]));
+        DebugException(dpError, section, 'TPazoSite.AddDestination', e);
         Result := False;
       end;
     end;
@@ -1317,7 +1715,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.AddDestination: %s', [e.Message]));
+      DebugException(dpError, section, 'TPazoSite.AddDestination', e);
       Result := False;
     end;
   end;
@@ -1349,6 +1747,12 @@ begin
   ts := 0;
   firesourcesinstead := False;
   badcrcevents := 0;
+  CbftpFilesDone := 0;
+  CbftpFilesTotal := 0;
+  CbftpBytesDone := 0;
+  CbftpFilesTotalDone := 0;
+  CbftpBytesTotalDone := 0;
+  CbftpCompletedTime := 0;
 
   FDestinations := TList<TDestinationRank>.Create(TComparer<TDestinationRank>.Construct(_CompareDestinationRanks));
   destinations_cs := TCriticalSection.Create;
@@ -1367,6 +1771,11 @@ begin
   s_mkdirtasks := TIdThreadSafeInt32.Create;
 
   speed_from := fSite.Speed_From;
+
+  if fSite <> nil then
+    newdir_dirlist_readd := fSite.NewdirDirlistReadd
+  else
+    newdir_dirlist_readd := 0;
 
   Debug(dpSpam, section, 'TPazoSite.Create: %s', [Name]);
 end;
@@ -1494,7 +1903,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ParseDirlist (dirlist.FindDirlist): %s', [e.Message]));
+      DebugException(dpError, section, 'TPazoSite.ParseDirlist (dirlist.FindDirlist)', e);
       exit;
     end;
   end;
@@ -1509,7 +1918,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, '[EXCEPTION] TPazoSite.ParseDirlist (d.ParseDirlist): %s', [e.Message]);
+      DebugException(dpError, section, 'TPazoSite.ParseDirlist (d.ParseDirlist)', e);
       exit;
     end;
   end;
@@ -1620,7 +2029,7 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.SetFileError: %s', [e.Message]));
+      DebugException(dpError, section, 'TPazoSite.SetFileError', e);
       Result := False;
     end;
   end;
@@ -1719,7 +2128,7 @@ begin
     except
       on E: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ParseDupe: %s', [e.Message]));
+        DebugException(dpError, section, 'TPazoSite.ParseDupe', e);
       end;
     end;
   finally
@@ -1744,7 +2153,7 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ParseDupe: %s', [e.Message]));
+      DebugException(dpError, section, 'TPazoSite.ParseDupe', e);
     end;
   end;
 end;
@@ -1774,7 +2183,7 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ProcessXDupeResponse: %s', [e.Message]));
+      DebugException(dpError, section, 'TPazoSite.ProcessXDupeResponse', e);
     end;
   end;
 end;
@@ -1797,64 +2206,85 @@ begin
 
   Result := fsname;
 
-  if ( (not (status in [rssRealPre, rssShouldPre, rssNotAllowed])) and (dirlist <> nil) ) then
+  if not (status in [rssRealPre, rssShouldPre, rssNotAllowed]) then
   begin
-    if dirlist.FilesRacedByMe(True) >= 1 then
+    if pazo.IsUDPEnabled then
     begin
-      // we send some files
-      fsize := dirlist.SizeRacedByMe(True) / 1024;
-      RecalcSizeValueAndUnit(fsize, fsizetrigger, 1);
-
-      if not dirlist.Complete then
-        fsname := Format('<c11>%s</c>', [fsname]); //Light Blue(name); || release is incomplete (0byte files, dupefiles, etc) but we raced some files
-
-      Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, dirlist.FilesRacedByMe(True), fsize, fsizetrigger]);
-
-      // TODO: Find out why it is negative sometimes + try to fix
-      // note: seems that de.filesize is negative as this is sum up in SizeRacedByMe() and shows -1 as result
-      if fsize < 0 then
+      // cbftp engine mode: use cbftp progress data (takes priority over dirlist)
+      if CbftpFilesDone = 0 then
       begin
-        Debug(dpError, section, Format('[NEGATIVE BYTES]: %f for %s with SizeRacedByMe(True) = %d, dirname : %s, full path : %s, CompleteDirTag : %s',
-          [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.Dirname, dirlist.FullPath, dirlist.CompleteDirTag]));
+        Result := fsname;
+      end
+      else
+      begin
+        fsize := CbftpBytesDone / 1024;
+        RecalcSizeValueAndUnit(fsize, fsizetrigger, 1);
 
-        // get more infos about dirlist entries
-        sum := 0;
-        dirlist.dirlist_lock.Enter('TPazoSite.Stats');
-        try
-          for de in dirlist.entries.Values do
-          begin
-            try
-              if (de.RacedByMe and not de.IsAsciiFiletype) then
-                Inc(sum, de.filesize);
-              //if ((de.directory) and (de.subdirlist <> nil)) then inc(sum, de.subdirlist.SizeRacedByMe(True));
+        if not Complete then
+          fsname := Format('<c11>%s</c>', [fsname]); // incomplete
 
-              Debug(dpError, section, Format('%s -- filename %s filesize %d byme %s IsAsciiFiletype %s (sum: %d)',
-                [fsname, de.filename, de.filesize, BoolToStr(de.RacedByMe, True), BoolToStr(de.IsAsciiFiletype, True), sum]));
-            except
-              on E: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Stats: %s', [e.Message]));
-                Continue;
-              end;
-            end;
-          end;
-        finally
-          dirlist.dirlist_lock.Leave;
-        end;
-
+        Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, CbftpFilesDone, fsize, fsizetrigger]);
       end;
     end
-    else
+    else if (dirlist <> nil) then
     begin
-      // we didn't send some files
-      if (destinations.Count = 0) then
-        Result := Format('<c5>%s</c>', [fsname]) //Brown(name); || not used to race from because no destination(s) added
-      else if not dirlist.Complete then
-        Result := Format('<c11>%s</c>', [fsname]) //Light Blue(name); || release is incomplete (0byte files, dupefiles, etc) but we didn't raced any files
-      else if (dirlistgaveup) then
-        Result := Format('<c13>%s</c>', [fsname]) //Pink(name); || dirlisting was stopped because there was an error (mkdir denied, out of space, etc) or race took too long
+      if dirlist.FilesRacedByMe(True) >= 1 then
+      begin
+        // we send some files
+        fsize := dirlist.SizeRacedByMe(True) / 1024;
+        RecalcSizeValueAndUnit(fsize, fsizetrigger, 1);
+
+        if not dirlist.Complete then
+          fsname := Format('<c11>%s</c>', [fsname]); //Light Blue(name); || release is incomplete (0byte files, dupefiles, etc) but we raced some files
+
+        Result := Format('%s-(<b>%d</b>F @ <b>%.2f</b>%s)', [fsname, dirlist.FilesRacedByMe(True), fsize, fsizetrigger]);
+
+        // TODO: Find out why it is negative sometimes + try to fix
+        // note: seems that de.filesize is negative as this is sum up in SizeRacedByMe() and shows -1 as result
+        if fsize < 0 then
+        begin
+          Debug(dpError, section, Format('[NEGATIVE BYTES]: %f for %s with SizeRacedByMe(True) = %d, dirname : %s, full path : %s, CompleteDirTag : %s',
+            [fsize, fsname, dirlist.SizeRacedByMe(True), dirlist.Dirname, dirlist.FullPath, dirlist.CompleteDirTag]));
+
+          // get more infos about dirlist entries
+          sum := 0;
+          dirlist.dirlist_lock.Enter('TPazoSite.Stats');
+          try
+            for de in dirlist.entries.Values do
+            begin
+              try
+                if (de.RacedByMe and not de.IsAsciiFiletype) then
+                  Inc(sum, de.filesize);
+                //if ((de.directory) and (de.subdirlist <> nil)) then inc(sum, de.subdirlist.SizeRacedByMe(True));
+
+                Debug(dpError, section, Format('%s -- filename %s filesize %d byme %s IsAsciiFiletype %s (sum: %d)',
+                  [fsname, de.filename, de.filesize, BoolToStr(de.RacedByMe, True), BoolToStr(de.IsAsciiFiletype, True), sum]));
+              except
+                on E: Exception do
+                begin
+                  DebugException(dpError, section, 'TPazoSite.Stats', e);
+                  Continue;
+                end;
+              end;
+            end;
+          finally
+            dirlist.dirlist_lock.Leave;
+          end;
+
+        end;
+      end
       else
-        Result := Format('<c14>%s</c>', [fsname]); //Grey(name); || site was used but we didn't raced something
+      begin
+        // we didn't send some files
+        if (destinations.Count = 0) then
+          Result := Format('<c5>%s</c>', [fsname]) //Brown(name); || not used to race from because no destination(s) added
+        else if not dirlist.Complete then
+          Result := Format('<c11>%s</c>', [fsname]) //Light Blue(name); || release is incomplete (0byte files, dupefiles, etc) but we didn't raced any files
+        else if (dirlistgaveup) then
+          Result := Format('<c13>%s</c>', [fsname]) //Pink(name); || dirlisting was stopped because there was an error (mkdir denied, out of space, etc) or race took too long
+        else
+          Result := Format('<c14>%s</c>', [fsname]); //Grey(name); || site was used but we didn't raced something
+      end;
     end;
   end;
 
@@ -1863,7 +2293,10 @@ end;
 function TPazoSite.Complete: boolean;
 begin
   // xperia test if dirlist is complete
-  Result := (status in [rssRealPre, rssComplete]) or (dirlist.Complete);
+  if pazo.IsUDPEnabled then
+    Result := (status in [rssRealPre, rssComplete])
+  else
+    Result := (status in [rssRealPre, rssComplete]) or ((dirlist <> nil) and (dirlist.Complete));
 end;
 
 function TPazoSite.Source: boolean;
@@ -2009,7 +2442,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Clear: %s', [e.Message]));
+      DebugException(dpError, section, 'TPazoSite.Clear', e);
     end;
   end;
 end;
@@ -2031,7 +2464,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.MarkSiteAsFailed: %s', [e.Message]));
+      DebugException(dpError, section, 'TPazoSite.MarkSiteAsFailed', e);
     end;
   end;
 
@@ -2071,7 +2504,7 @@ begin
     except
       on E: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] TSite.RemoveActiveTransfer: %s', [E.Message]));
+        DebugException(dpError, section, 'TSite.RemoveActiveTransfer', E);
       end;
     end;
   finally
@@ -2113,5 +2546,13 @@ begin
     FActiveTransfersCS.Leave;
   end;
 end;
+
+initialization
+  GCbftpLatencyMap := TDictionary<String, TCbftpLatencyEntry>.Create;
+  GCbftpLatencyLock := TSlCriticalSection2.Create('CbftpLatency');
+
+finalization
+  GCbftpLatencyMap.Free;
+  GCbftpLatencyLock.Free;
 
 end.

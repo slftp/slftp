@@ -1,8 +1,9 @@
 SHELL = bash
 SLFTPPATH = ~/slftp
 CC = fpc
-CFLAGS = -MDelphi -O3 -Xs
-CINCLUDES = -Fuirccommands -Furules -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline -Fulibs/lkJSON -Fulibs/TRegExpr -Fulibs/pasmp -Fulibs/Indy10/* -Fulibs/Indy10/Protocols -Fulibs/Indy10/Protocols/OpenSSL -Fulibs/Indy10/Protocols/OpenSSL/* -Fulibs/LibTar -Fulibs/mORMot2/src/core -Fulibs/mORMot2/src/lib -Fulibs/mORMot2/src/crypt -Fulibs/mORMot2/src/db -Fulibs/mORMot2/src/orm -Fulibs/mORMot2/src/rest -Fulibs/mORMot2/src/soa -Fulibs/ZeosLib/* -Fulibs/mORMot2/src/net/
+CFLAGS = -MDelphi -O3 -Xs -gl
+CINCLUDES = -Fuapi -Fuirccommands -Furules -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline -Fulibs/lkJSON -Fulibs/TRegExpr -Fulibs/pasmp -Fulibs/Indy10/* -Fulibs/Indy10/Protocols -Fulibs/Indy10/Protocols/OpenSSL -Fulibs/Indy10/Protocols/OpenSSL/* -Fulibs/LibTar -Fulibs/mORMot2/src/core -Fulibs/mORMot2/src/lib -Fulibs/mORMot2/src/crypt -Fulibs/mORMot2/src/db -Fulibs/mORMot2/src/orm -Fulibs/mORMot2/src/rest -Fulibs/mORMot2/src/soa -Fulibs/ZeosLib/* -Fulibs/mORMot2/src/net/
+WEB_DEPLOY_DIR = $(SLFTPPATH)/web-ui
 CTESTINCLUDES = -Futests/* -Futests/fptest/*
 CDBFLAGS = -dDEBUG -MDelphi -gl -gp -gw3
 # flag for heaptrace output
@@ -83,6 +84,7 @@ slftp_debug_vtune:	FORCE
 
 test:	FORCE
 	$(MAKE) clean
+	@mkdir -p tests/databases
 	$(CC) $(CFLAGS) $(CINCLUDES) $(CTESTINCLUDES) tests/slftpUnitTests.lpr
 	./tests/slftpUnitTests
 	$(MAKE) cleanuptestdir
@@ -98,6 +100,7 @@ cleanuptestdir:
 	@find tests -name "*.o" -type f -delete
 	@rm -f tests/*.ppu tests/*.o tests/slftpUnitTests tests/*.exe
 	@rm -f tests/*.res tests/*.or
+	@rm -rf tests/databases
 
 install:
 	@cp slftp $(SLFTPPATH)/slftp
@@ -108,7 +111,7 @@ FORCE:
 # patch used HEAD git-hash into slftp.inc
 revpatch: FORCE
 	@if [ -d ".git" ]; then \
-        GIT_COMMIT=$(shell git rev-parse --short HEAD) ;\
+        GIT_COMMIT=DEADC0DE-$(shell git rev-parse --short HEAD) ;\
 		echo "patching SL_REV entry to $$GIT_COMMIT" ;\
 		perl replace_git_commit.pl $$GIT_COMMIT ;\
     fi
@@ -118,3 +121,22 @@ revpatchrevert: FORCE
 	@if [ -d ".git" ]; then \
         perl replace_git_commit.pl ;\
     fi
+
+# Build web UI (requires Node.js and npm)
+web-ui-build: FORCE
+	cd web-ui && npm install && npm run build
+
+# Deploy built web UI to deployment directory
+web-ui-deploy: FORCE
+	if [ -z "$(WEB_DEPLOY_DIR)" ]; then echo "WEB_DEPLOY_DIR not set"; exit 1; fi
+	mkdir -p $(WEB_DEPLOY_DIR)
+	cp -r web-ui/dist/* $(WEB_DEPLOY_DIR)/
+
+# Build and deploy web UI
+web-ui-prod: web-ui-build web-ui-deploy
+
+# Alias for web-ui-prod (shorthand)
+webui-deploy: web-ui-prod
+
+# Build slftp and web UI together
+all-with-ui: slftp web-ui-prod

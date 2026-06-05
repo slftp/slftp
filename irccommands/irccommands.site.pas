@@ -80,6 +80,7 @@ var
   spd, sup, sdn, suk: TStringList;
   scount: integer;
 begin
+  SyncSitesFromCbftp;
   scount := sites.Count - 1;
 
   sup := TStringList.Create;
@@ -516,6 +517,9 @@ begin
   s.WCString('bnc_host-' + IntToStr(i), bnchost);
   s.WCInteger('bnc_port-' + IntToStr(i), bncport);
 
+  if sitesdat <> nil then
+    sitesdat.UpdateFile;
+
   Result := True;
 end;
 
@@ -581,6 +585,9 @@ begin
     irc_addtext(Netname, Channel, 'Bnc not found.');
     exit;
   end;
+
+  if sitesdat <> nil then
+    sitesdat.UpdateFile;
 
   Result := True;
 end;
@@ -725,6 +732,109 @@ var
   sname: String;
   svalue: String;
   ivalue: integer;
+  i: integer;
+
+  procedure ApplyPermdown(const aSite: TSite; const aValue: boolean);
+  begin
+    if aSite = nil then
+      Exit;
+    if aSite.Name = getAdminSiteName then
+      Exit;
+
+    if aValue then
+    begin
+      try
+        aSite.RemoveAutoIndex;
+        aSite.RemoveAutoBnctest;
+        aSite.RemoveAutoRules;
+        aSite.RemoveAutoNuke;
+        aSite.RemoveAutoDirlist;
+      except
+        on E: Exception do
+          irc_AddText(Netname, Channel, '<c4>[Exception]</c> in remove auto tasks: %s', [E.Message]);
+      end;
+
+      try
+        aSite.WorkingStatus := sstMarkedAsDownByUser;
+      except
+        on E: Exception do
+          irc_AddText(Netname, Channel, '<c4>[Exception]</c> in mark as down: %s', [E.Message]);
+      end;
+
+      try
+        QueueEmpty(aSite.Name);
+      except
+        on E: Exception do
+          irc_AddText(Netname, Channel, '<c4>[Exception]</c> in QueueEmpty: %s', [E.Message]);
+      end;
+      try
+        // rewrite config value
+        aSite.WCInteger('disabled_autonuke', aSite.AutoNukeInterval);
+        aSite.WCInteger('disabled_autoindex', aSite.AutoIndexInterval);
+        aSite.WCInteger('disabled_autobnctest', aSite.AutoBncTestInterval);
+        aSite.WCInteger('disabled_autorules', aSite.AutoRulesStatus);
+        aSite.WCInteger('disabled_autodirlist', aSite.AutoDirlistInterval);
+        // aSite.WCInteger('disabled_autologin',aSite.RCInteger('autologin',0));
+      except
+        on E: Exception do
+          irc_AddText(Netname, Channel, Format('<c4>[Exception]</c> in rewrite value: %s', [E.Message]));
+      end;
+
+      try
+        aSite.DeleteKey('autonuke');
+        aSite.DeleteKey('autoindex');
+        aSite.DeleteKey('autobnctest');
+        aSite.DeleteKey('autorules');
+        aSite.DeleteKey('autodirlist');
+        // sitesdat.DeleteKey('site-'+aSite.name,'autologin');
+        // sitesdat.UpdateFile;
+      except
+        on E: Exception do
+          irc_AddText(Netname, Channel, '<c4>[Exception]</c> in delete old value: %s', [E.Message]);
+      end;
+    end
+    else
+    begin
+      try
+        // rewrite config value
+        aSite.AutoNukeInterval := aSite.RCInteger('disabled_autonuke', 0);
+        aSite.AutoIndexInterval := aSite.RCInteger('disabled_autoindex', 0);
+        aSite.AutoBncTestInterval := aSite.RCInteger('disabled_autobnctest', 0);
+        aSite.AutoRulesStatus := aSite.RCInteger('disabled_autorules', 0);
+        aSite.AutoDirlistInterval := aSite.RCInteger('disabled_autodirlist', 0);
+        // aSite.WCInteger('autologin',aSite.RCInteger('disabled_autologin',0));
+      except
+        on E: Exception do
+          irc_AddText(Netname, Channel, '<c4>[Exception]</c> in rewrite orig. value: %s', [E.Message]);
+      end;
+
+      try
+        aSite.DeleteKey('disabled_autonuke');
+        aSite.DeleteKey('disabled_autoindex');
+        aSite.DeleteKey('disabled_autobnctest');
+        aSite.DeleteKey('disabled_autorules');
+        aSite.DeleteKey('disabled_autodirlist');
+        // sitesdat.DeleteKey('site-'+aSite.name,'autologin');
+        // sitesdat.UpdateFile;
+      except
+        on E: Exception do
+          irc_AddText(Netname, Channel, '<c4>[Exception]</c> in delete disabled value: %s', [E.Message]);
+      end;
+
+      try
+        aSite.AutoIndex;
+        aSite.AutoBnctest;
+        aSite.AutoRules;
+        aSite.AutoNuke;
+        aSite.AutoDirlist;
+      except
+        on E: Exception do
+          irc_AddText(Netname, Channel, Format('<c4>[Exception]</c> in start auto tasks: %s', [E.Message]));
+      end;
+    end;
+
+    aSite.PermDown := aValue;
+  end;
 begin
   Result := False;
   sname := UpperCase(SubString(params, ' ', 1));
@@ -745,6 +855,17 @@ begin
     exit;
   end;
 
+  if (sname = '*') or (sname = '!ALL!') then
+  begin
+    for i := 0 to sites.Count - 1 do
+    begin
+      s := TSite(sites[i]);
+      ApplyPermdown(s, boolean(ivalue));
+    end;
+    Result := True;
+    exit;
+  end;
+
   s := FindSiteByName('', sname);
 
   if s = nil then
@@ -753,99 +874,7 @@ begin
     exit;
   end;
 
-  if boolean(ivalue) then
-  begin
-    try
-      s.RemoveAutoIndex;
-      s.RemoveAutoBnctest;
-      s.RemoveAutoRules;
-      s.RemoveAutoNuke;
-      s.RemoveAutoDirlist;
-    except
-      on E: Exception do
-        irc_AddText(Netname, Channel, '<c4>[Exception]</c> in remove auto tasks: %s', [E.Message]);
-    end;
-
-    try
-      s.WorkingStatus := sstDown;
-    except
-      on E: Exception do
-        irc_AddText(Netname, Channel, '<c4>[Exception]</c> in mark as down: %s', [E.Message]);
-    end;
-
-    try
-      QueueEmpty(s.Name);
-    except on E: Exception do
-        irc_AddText(Netname, Channel, '<c4>[Exception]</c> in QueueEmpty: %s', [E.Message]);
-    end;
-    try
-      // rewrite config value
-      s.WCInteger('disabled_autonuke', s.AutoNukeInterval);
-      s.WCInteger('disabled_autoindex', s.AutoIndexInterval);
-      s.WCInteger('disabled_autobnctest', s.AutoBncTestInterval);
-      s.WCInteger('disabled_autorules', s.AutoRulesStatus);
-      s.WCInteger('disabled_autodirlist', s.AutoDirlistInterval);
-      // s.WCInteger('disabled_autologin',s.RCInteger('autologin',0));
-    except
-      on E: Exception do
-        irc_AddText(Netname, Channel, Format('<c4>[Exception]</c> in rewrite value: %s', [E.Message]));
-    end;
-
-    try
-      s.DeleteKey('autonuke');
-      s.DeleteKey('autoindex');
-      s.DeleteKey('autobnctest');
-      s.DeleteKey('autorules');
-      s.DeleteKey('autodirlist');
-      // sitesdat.DeleteKey('site-'+s.name,'autologin');
-      // sitesdat.UpdateFile;
-    except
-      on E: Exception do
-        irc_AddText(Netname, Channel, '<c4>[Exception]</c> in delete old value: %s', [E.Message]);
-    end;
-  end
-  else
-  begin
-
-    try
-      // rewrite config value
-      s.AutoNukeInterval := s.RCInteger('disabled_autonuke', 0);
-      s.AutoIndexInterval := s.RCInteger('disabled_autoindex', 0);
-      s.AutoBncTestInterval := s.RCInteger('disabled_autobnctest', 0);
-      s.AutoRulesStatus := s.RCInteger('disabled_autorules', 0);
-      s.AutoDirlistInterval := s.RCInteger('disabled_autodirlist', 0);
-      // s.WCInteger('autologin',s.RCInteger('disabled_autologin',0));
-    except
-      on E: Exception do
-        irc_AddText(Netname, Channel, '<c4>[Exception]</c> in rewrite orig. value: %s', [E.Message]);
-    end;
-
-    try
-      s.DeleteKey('disabled_autonuke');
-      s.DeleteKey('disabled_autoindex');
-      s.DeleteKey('disabled_autobnctest');
-      s.DeleteKey('disabled_autorules');
-      s.DeleteKey('disabled_autodirlist');
-      // sitesdat.DeleteKey('site-'+s.name,'autologin');
-      // sitesdat.UpdateFile;
-    except
-      on E: Exception do
-        irc_AddText(Netname, Channel, '<c4>[Exception]</c> in delete disabled value: %s', [E.Message]);
-    end;
-
-    try
-      s.AutoIndex;
-      s.AutoBnctest;
-      s.AutoRules;
-      s.AutoNuke;
-      s.AutoDirlist;
-    except
-      on E: Exception do
-        irc_AddText(Netname, Channel, Format('<c4>[Exception]</c> in start auto tasks: %s', [E.Message]));
-    end;
-  end;
-
-  s.PermDown := boolean(ivalue);
+  ApplyPermdown(s, boolean(ivalue));
 
   Result := True;
 end;
@@ -2245,20 +2274,6 @@ begin
   Result := True;
 end;
 
-function _IrcKillSingleSite(const netname, channel: String; s: TSite): boolean;
-begin
-  Result := False;
-  if s = nil then
-    exit;
-  if (s.Name = getAdminSiteName) then
-    exit;
-
-  if _Bnctest(Netname, Channel, s, nil, True) then
-    s.QueueFire;
-
-  Result := True;
-end;
-
 function IrcKill(const netname, channel, params: String): boolean;
 var
   sitename: String;
@@ -2277,8 +2292,14 @@ begin
     for i := 0 to sites.Count - 1 do
     begin
       s := TSite(sites.Items[i]);
-      if _IrcKillSingleSite(netname, channel, s) then
+      if s.Name = getAdminSiteName then
+        Continue;
+
+      if _Bnctest(Netname, Channel, s, nil, True) then
+      begin
+        s.QueueFire;
         Inc(killCount);
+      end;
     end;
 
     if killCount > 0 then
@@ -2295,7 +2316,13 @@ begin
     exit;
   end;
 
-  Result := _IrcKillSingleSite(netname, channel, s);
+  if (s.Name = getAdminSiteName) then
+    exit;
+
+  if _Bnctest(Netname, Channel, s, nil, True) then
+    s.QueueFire;
+
+  Result := True;
 end;
 
 function IrcRebuildSlot(const netname, channel, params: String): boolean;

@@ -7,8 +7,8 @@ unit mormot.script.core;
   *****************************************************************************
 
    Abstract Types for Generic Scripting Integration
-    - Generic Execution Engine Parent class
-    - 
+    - Generic TThreadSafeEngine Parent class
+    - Generic TThreadSafeManager Parent class
 
   *****************************************************************************
 }
@@ -32,7 +32,7 @@ uses
   mormot.lib.static;
 
 
-{ ******************* }
+{ ******************* Generic TThreadSafeEngine Parent class }
 
 type
   /// exception class raised from scripting fatal issues
@@ -97,18 +97,22 @@ type
     fManager: TThreadSafeManager;
     fThreadData: pointer;
     fContentVersion: cardinal;
+    fNeverExpire: boolean;
     fCreateTix: Int64;
     fTag: PtrInt;
     fPrivateDataForDebugger: pointer;
-    fNeverExpire: boolean;
     fNameForDebug, fWebAppRootDir: RawUtf8;
     fAtomCache: TRawUtf8List; // hashed list of objects=TScriptAtom
     fDoInteruptInOwnThread: TThreadMethod;
     fRequestFpuBackup: array[0..3] of cardinal;
     function AtomCacheFind(const Name: RawUtf8): TScriptAtom; // nil = not found
       {$ifdef HASINLINE} inline; {$endif}
-    procedure AtomCacheAdd(const Name: RawUtf8; Atom: TScriptAtom);
+    function AtomCacheAdd(const Name: RawUtf8; Atom: TScriptAtom): TScriptAtom;
+    function AtomCacheGet(const Name: RawUtf8): TScriptAtom;
     { following methods should be overriden with the proper scripting API }
+    // would raise EScriptException
+    function AtomNew(const Name: RawUtf8): TScriptAtom; virtual;
+    procedure AtomFree(Atom: TScriptAtom); virtual;
     // from ThreadSafeCall(): FPU mask + multi-threading (SM)
     procedure DoBeginRequest; virtual;
     procedure DoEndRequest; virtual;
@@ -202,6 +206,9 @@ type
   /// meta-class of our thread-safe engines
   TThreadSafeEngineClass = class of TThreadSafeEngine;
 
+
+{ ******************* Generic TThreadSafeManager Parent }
+
   /// abstract parent class mananing a list of a per-Thread (Java)Script engines
   // - one TThreadSafeEngine will be maintained per thread
   // - never use this abstract class, but inherited implementations
@@ -223,7 +230,7 @@ type
     fRemoteDebugger: IRemoteDebugger;
     fWorkerManager: IWorkerManager;
     fOnLog: TSynLogProc;
-    function ThreadEngineIndex(aThreadID: TThreadID): PtrInt;
+    function GetThreadEngineIndex(aThreadID: TThreadID): PtrInt;
       {$ifdef HASINLINE} inline; {$endif}
     function GetPauseDebuggerOnFirstStep: boolean;
     procedure SetPauseDebuggerOnFirstStep(aPauseDebuggerOnFirstStep: boolean);
@@ -358,6 +365,7 @@ type
 
 implementation
 
+{ ******************* Generic TThreadSafeManager Parent }
 
 { TThreadSafeManager }
 
@@ -395,12 +403,12 @@ begin
 end;
 
 {$ifdef THREADID32}
-function TThreadSafeManager.ThreadEngineIndex(aThreadID: TThreadID): PtrInt;
+function TThreadSafeManager.GetThreadEngineIndex(aThreadID: TThreadID): PtrInt;
 begin // use SSE2 on i386/x86_64
   result := IntegerScanIndex(pointer(fEngineID), fEngines.Count, cardinal(aThreadID));
 end;
 {$else}
-function TThreadSafeManager.ThreadEngineIndex(aThreadID: TThreadID): PtrInt;
+function TThreadSafeManager.GetThreadEngineIndex(aThreadID: TThreadID): PtrInt;
 var
   e: ^TThreadID;
 begin
@@ -427,7 +435,7 @@ begin
   result := nil;
   tid := GetCurrentThreadId;
   fEngines.Safe.ReadLock; // no try..finally for exception-safe code
-  existing := ThreadEngineIndex(tid);
+  existing := GetThreadEngineIndex(tid);
   if existing >= 0 then
   begin
     result := fEngines.List[existing];
@@ -451,7 +459,7 @@ begin
   try // some exceptions may occur from now on
     if (existing > fEngines.Count) or
        (fEngines.List[existing] <> result) then
-      existing := ThreadEngineIndex(tid); // paranoid
+      existing := GetThreadEngineIndex(tid); // paranoid
     if existing >= 0 then
     begin
       // the engine is expired or its content changed -> remove and recreate
@@ -512,7 +520,7 @@ begin
     exit;
   fEngines.Safe.ReadLock;
   try
-    i := ThreadEngineIndex(aThreadID);
+    i := GetThreadEngineIndex(aThreadID);
     if i >= 0 then
       result := fEngines.List[i];
   finally
@@ -645,6 +653,8 @@ begin
 end;
 
 
+{ ******************* Generic TThreadSafeEngine Parent class }
+
 { TThreadSafeEngine }
 
 constructor TThreadSafeEngine.Create(aManager: TThreadSafeManager;
@@ -662,23 +672,30 @@ begin
     if Assigned(fManager.fOnGetName) then
       fNameForDebug := fManager.fOnGetName(self);
     if fNameForDebug = '' then
-      FormatUtf8('% %', [ToHexShort(@fThreadId, SizeOf(fThreadId)),
-        CurrentThreadNameShort^], fNameForDebug);
+      ShortStringToAnsi7String(GetCurrentThreadInfo, fNameForDebug);
     if Assigned(fManager.fOnGetWebAppRootPath) then
-      fWebAppRootDir := fManager.fOnGetWebAppRootPath(self)
-    else
+      fWebAppRootDir := fManager.fOnGetWebAppRootPath(self);
+    if fWebAppRootDir = '' then
       StringToUtf8(Executable.ProgramFilePath, fWebAppRootDir);
   end;
   // TThreadSafeManager will now call AfterCreate outside of its main lock
 end;
 
 destructor TThreadSafeEngine.Destroy;
+var
+  i: PtrInt;
 begin
+  if Assigned(fAtomCache) then
+  begin
+    for i := 0 to fAtomCache.Count - 1 do
+      AtomFree(TScriptAtom(fAtomCache.ObjectPtr[i]));
+    FreeAndNil(fAtomCache);
+  end;
   BeforeDestroy;
-  if Assigned(fManager.RemoteDebugger) then
+  if Assigned(fManager) and
+     Assigned(fManager.RemoteDebugger) then
     fManager.RemoteDebugger.StopDebugCurrentThread(self);
   inherited Destroy;
-  fAtomCache.Free;
 end;
 
 procedure TThreadSafeEngine.ThreadSafeCall(const Event: TEngineEvent);
@@ -702,11 +719,29 @@ begin
     result := fAtomCache.GetObjectFrom(Name);
 end;
 
-procedure TThreadSafeEngine.AtomCacheAdd(const Name: RawUtf8; Atom: TScriptAtom);
+function TThreadSafeEngine.AtomCacheAdd(const Name: RawUtf8; Atom: TScriptAtom): TScriptAtom;
 begin
   if fAtomCache = nil then
     fAtomCache := TRawUtf8List.CreateEx([fCaseSensitive, fNoDuplicate]);
   fAtomCache.AddObject(Name, Atom);
+  result := Atom;
+end;
+
+function TThreadSafeEngine.AtomCacheGet(const Name: RawUtf8): TScriptAtom;
+begin
+  result := AtomCacheFind(Name);
+  if result = nil then
+    result := AtomCacheAdd(Name, AtomNew(Name)); // may trigger EScriptException
+end;
+
+function TThreadSafeEngine.{%H-}AtomNew(const Name: RawUtf8): TScriptAtom;
+begin
+  raise EScriptException.CreateUtf8('%.AtomNew: unsupported', [self]);
+end;
+
+procedure TThreadSafeEngine.AtomFree(Atom: TScriptAtom);
+begin
+  raise EScriptException.CreateUtf8('%.AtomFree: unsupported', [self]);
 end;
 
 procedure TThreadSafeEngine.DoBeginRequest;

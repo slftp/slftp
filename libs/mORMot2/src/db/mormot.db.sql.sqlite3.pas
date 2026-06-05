@@ -41,9 +41,9 @@ type
   /// will implement properties shared by the SQLite3 engine
   TSqlDBSQLite3ConnectionProperties = class(TSqlDBConnectionProperties)
   private
-    fUseMormotCollations: boolean;
     fExistingDB: TSqlDatabase;
-    procedure SetUseMormotCollations(const Value: boolean);
+    procedure SetUseMormotCollations(flag: TSqlDBConnectionPropertiesFlag;
+      value: boolean);
     function GetMainDB: TSqlDataBase;
   protected
     /// initialize fForeignKeys content with all foreign keys of this DB
@@ -81,7 +81,7 @@ type
     // SQLite collations for TEXT: it will make interaction with other programs
     // more compatible, at database file level
     property UseMormotCollations: boolean
-      read fUseMormotCollations write SetUseMormotCollations;
+      index cpfSQliteUseMormotCollations read GetFlag write SetUseMormotCollations;
   end;
 
   /// implements a direct connection to the SQLite3 engine
@@ -144,10 +144,11 @@ type
     fStatement: TSqlRequest;
     fLogSQLValues: TVariantDynArray;
     fUpdateCount: integer;
-    fShouldLogSQL: boolean; // sllSQL in SynDBLog.Level -> set fLogSQLValues[]
     // retrieve the inlined value of a given parameter, e.g. 1 or 'name'
     procedure AddParamValueAsText(Param: integer; Dest: TJsonWriter;
       MaxCharCount: integer); override;
+    property fShouldLogSQL: boolean // sllSQL in SynDBLog.Level -> set fLogSQLValues[]
+      index dsfShouldLogSQL read GetFlag write SetFlag;
   public
     /// create a SQLite3 statement instance, from an existing SQLite3 connection
     // - the Execute method can be called once per TSqlDBSQLite3Statement instance,
@@ -295,7 +296,6 @@ implementation
 
 { TSqlDBSQLite3ConnectionProperties }
 
-procedure TSqlDBSQLite3ConnectionProperties.SetUseMormotCollations(const Value: boolean);
 const
   SQLITE3_FIELDS: array[boolean] of TSqlDBFieldTypeDefinition = (
    (' INTEGER',                       // ftUnknown = int32
@@ -314,8 +314,11 @@ const
     ' TEXT COLLATE ISO8601',          // ftDate
     ' TEXT COLLATE SYSTEMNOCASE',     // ftUtf8 with our SYSTEMNOCASE collation
     ' BLOB'));                        // ftBlob
+
+procedure TSqlDBSQLite3ConnectionProperties.SetUseMormotCollations(
+  flag: TSqlDBConnectionPropertiesFlag; value: boolean);
 begin
-  fUseMormotCollations := Value;
+  SetFlag(flag, value);
   fSqlCreateField := SQLITE3_FIELDS[Value];
 end;
 
@@ -600,7 +603,7 @@ end;
 procedure TSqlDBSQLite3Statement.ColumnToJson(Col: integer; W: TJsonWriter);
 begin
   fStatement.FieldToJson(W,
-    sqlite3.column_value(fStatement.Request, Col), fForceBlobAsNull);
+    sqlite3.column_value(fStatement.Request, Col), dsfForceBlobAsNull in fFlags);
 end;
 
 function TSqlDBSQLite3Statement.ColumnType(Col: integer;
@@ -706,7 +709,7 @@ begin
      (cardinal(Param) < cardinal(length(fLogSQLValues))) then
   begin
     v := @fLogSQLValues[Param];
-    if v^.vtype = varString then
+    if cardinal(v^.VType) = varString then
       Dest.AddQuotedStr(v^.VAny, length(RawUtf8(v^.VAny)), '''', MaxCharCount)
     else
       Dest.AddVariant(PVariant(v)^);
@@ -804,10 +807,10 @@ begin
   begin
     W.AddProp(sqlite3.column_name(fStatement.Request, col)); // '"ColumnName":'
     fStatement.FieldToJson(W,
-      sqlite3.column_value(fStatement.Request, col), fForceBlobAsNull);
+      sqlite3.column_value(fStatement.Request, col), dsfForceBlobAsNull in fFlags);
     W.AddComma;
   end;
-  W.CancelLastComma('}');
+  W.ReplaceLastComma('}');
 end;
 
 

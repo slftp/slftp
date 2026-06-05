@@ -253,9 +253,15 @@ begin
   Extra.Clear;
 end;
 
+procedure RaiseIMAP4Error(const AExtraText: String);
+  {$IFDEF USE_NORETURN}noreturn;{$ENDIF}
+begin
+  raise EIdReplyIMAP4Error.Create(AExtraText);
+end;
+
 procedure TIdReplyIMAP4.RaiseReplyError;
 begin
-  raise EIdReplyIMAP4Error.Create(Extra.Text); {do not localize}
+  RaiseIMAP4Error(Extra.Text);
 end;
 
 {CC: The following decides if AValue is a valid command sequence number like C41...}
@@ -517,7 +523,7 @@ begin
   if AnOffendingLine <> '' then begin
     LMsg := LMsg + ', offending line: ' + AnOffendingLine;  {do not localize}
   end;
-  raise EIdReplyIMAP4Error.Create(LMsg);
+  RaiseIMAP4Error(LMsg);
 end;
 
 { TIdRepliesIMAP4 }

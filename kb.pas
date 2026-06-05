@@ -6,7 +6,8 @@ unit kb;
 interface
 
 uses
-  Classes, SyncObjs, slcriticalsection2, kb.releaseinfo, pazo;
+  Classes, SyncObjs, slcriticalsection2, kb.releaseinfo, pazo,
+  speedstatsunit, statsunit;
 
 type
   TKBThread = class(TThread)
@@ -21,7 +22,7 @@ type
 
 function renameCheck(const pattern, i, len: integer; const rls: String): boolean;
 function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String;
-  dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
+  dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0; aDetectedTick: Int64 = 0): integer;
 function FindReleaseInKbList(const rls: String): String;
 
 { Finds a release in latest KB list
@@ -47,6 +48,12 @@ function FindSectionHandler(const section: String): TCRelease;
       @returns(The number of items in the KB) }
 function GetKBCount: integer;
 
+{ @abstract(Returns a reference to the KB list for direct read access - caller must hold KB lock) }
+function GetKBList: TStringList;
+
+{ @abstract(Returns a reference to the KB lock for thread-safe access) }
+function GetKBLock: TSlCriticalSection2;
+
 { Lists all KB entries to IRC which match the given section
       @param(section The section to show the KB entries of.)
       @param(hits The limit of how many entries should be listed.) }
@@ -58,6 +65,7 @@ procedure KB_start;
 procedure kb_Init;
 procedure kb_Uninit;
 procedure kb_Stop;
+procedure SyncSitesFromCbftp;
 
 function kb_reloadsections: boolean;
 
@@ -73,8 +81,8 @@ uses
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup, encinifile,
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
-  mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
-  globalskipunit, irccommandsunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles, mormot.core.unicode,
+  globalskipunit, irccommandsunit, slapi.issueshook, cbftpclient, cbftpevents, cbftpmaincache, uLkJSON, Generics.Collections, Generics.Defaults {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   rsections = 'kb';
@@ -84,6 +92,7 @@ var
   kb_last_saved: TDateTime;
   kb_list: TStringList;
   kb_lock: TSLCriticalSection2;
+  GlRaceCompletions: TObjectDictionary<string, TList<TCbftpEvent>>;
 
   // TODO: Using THashedStringList does fuckup cleaning because it does not have a constant index which is used to delete oldest (latest) entries
   // but it's much faster and as we use it very often it's worth it...but maybe there is a better solution
@@ -111,6 +120,16 @@ function GetKBCount: integer;
 begin
   // access to Count is thread safe, so no lock required
   Result := kb_list.Count;
+end;
+
+function GetKBList: TStringList;
+begin
+  Result := kb_list;
+end;
+
+function GetKBLock: TSlCriticalSection2;
+begin
+  Result := kb_lock;
 end;
 
 function FindSectionHandler(const section: String): TCRelease;
@@ -178,7 +197,7 @@ begin
   Result := False;
 end;
 
-function kb_AddB(const netname, channel, sitename, section, genre: String; event: TKBEventType; rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
+function kb_AddB(const netname, channel, sitename, section, genre: String; event: TKBEventType; rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0; aDetectedTick: Int64 = 0): integer;
 var
   i, j, len: integer;
   r: TRelease;
@@ -193,17 +212,33 @@ var
   l: TLoginTask;
   fPretimeLookupTask: TPazoPretimeLookupTask;
 
+  function IsUDPEnabled: Boolean;
+  var
+    rawEnable: String;
+    udpIp: String;
+    udpPort: Integer;
+  begin
+    rawEnable := Trim(config.ReadString('UDPConfig', 'EnableUDP', 'False'));
+    udpIp := Trim(config.ReadString('UDPConfig', 'IP', ''));
+    udpPort := config.ReadInteger('UDPConfig', 'Port', 0);
+    Result := (SameText(rawEnable, 'True') or SameText(rawEnable, '1')) and
+      (udpIp <> '') and (udpPort >= 1) and (udpPort <= 65535);
+  end;
+
   { Removes the oldest knowledge base entries }
   procedure KbListsCleanUp;
   begin
     try
-      i := kb_trimmed_rls.Count - 1;
-      if i > 200 then
+      if Assigned(kb_trimmed_rls) then
       begin
-        while i > 150 do
+        i := kb_trimmed_rls.Count - 1;
+        if i > 200 then
         begin
-          kb_trimmed_rls.Delete(0);
-          i := kb_trimmed_rls.Count - 1;
+          while i > 150 do
+          begin
+            kb_trimmed_rls.Delete(0);
+            i := kb_trimmed_rls.Count - 1;
+          end;
         end;
       end;
     except
@@ -214,13 +249,16 @@ var
     end;
 
     try
-      i := kb_groupcheck_rls.Count - 1;
-      if i > 200 then
+      if Assigned(kb_groupcheck_rls) then
       begin
-        while i > 150 do
+        i := kb_groupcheck_rls.Count - 1;
+        if i > 200 then
         begin
-          kb_groupcheck_rls.Delete(0);
-          i := kb_groupcheck_rls.Count - 1;
+          while i > 150 do
+          begin
+            kb_groupcheck_rls.Delete(0);
+            i := kb_groupcheck_rls.Count - 1;
+          end;
         end;
       end;
     except
@@ -231,13 +269,16 @@ var
     end;
 
     try
-      i := kb_latest.Count - 1;
-      if i > 200 then
+      if Assigned(kb_latest) then
       begin
-        while i > 150 do
+        i := kb_latest.Count - 1;
+        if i > 200 then
         begin
-          kb_latest.Delete(i);
-          i := kb_latest.Count - 1;
+          while i > 150 do
+          begin
+            kb_latest.Delete(i);
+            i := kb_latest.Count - 1;
+          end;
         end;
       end;
     except
@@ -248,13 +289,16 @@ var
     end;
 
     try
-      i := kb_skip.Count - 1;
-      if i > 300 then
+      if Assigned(kb_skip) then
       begin
-        while i > 250 do
+        i := kb_skip.Count - 1;
+        if i > 300 then
         begin
-          kb_skip.Delete(i);
-          i := kb_skip.Count - 1;
+          while i > 250 do
+          begin
+            kb_skip.Delete(i);
+            i := kb_skip.Count - 1;
+          end;
         end;
       end;
     except
@@ -274,7 +318,7 @@ begin
   psource := nil;
   try
     // deny adding of a release twice with different section
-    if (section <> '') then
+    if (section <> '') and Assigned(kb_latest) then
     begin
       i := kb_latest.IndexOfName(rls);
       if i <> -1 then
@@ -286,25 +330,26 @@ begin
             irc_addadmin(Format('<b><c4>%s</c> @ %s </b>was caught as section %s but is already in KB with section %s', [rls, sitename, section, ss]));
           exit;
         end;
-      end
+      end;
     end;
 
     // check if rls already skiped
-    if kb_skip.IndexOf(rls) <> -1 then
+    if Assigned(kb_skip) and (kb_skip.IndexOf(rls) <> -1) then
     begin
       if spamcfg.readbool(rsections, 'skipped_release', True) then
         irc_addadmin(format('<b><c4>%s</c> @ %s </b>is in skipped releases list!', [rls, sitename]));
       exit;
     end;
 
-    if trimmed_shit_checker then
+    if trimmed_shit_checker and Assigned(kb_trimmed_rls) then
     begin
       try
         i := kb_trimmed_rls.IndexOf(section + '-' + rls);
         if i <> -1 then
         begin
           irc_addadmin(Format('<b><c4>%s</c> @ %s is trimmed shit!</b>', [rls, sitename]));
-          kb_skip.Insert(0, rls);
+          if Assigned(kb_skip) then
+            kb_skip.Insert(0, rls);
           exit;
         end;
 
@@ -318,7 +363,7 @@ begin
       end;
     end;
 
-    if renamed_group_checker then
+    if renamed_group_checker and Assigned(kb_groupcheck_rls) then
     begin
       try
         grp := GetGroupname(rls);
@@ -332,14 +377,16 @@ begin
           begin
             if spamcfg.readbool(rsections, 'renamed_group', True) then
               irc_addadmin(format('<b><c4>%s</c> @ %s </b>is renamed group shit! %s vs. %s', [rls, sitename, grp, ss]));
-            kb_skip.Insert(0, rls);
+            if Assigned(kb_skip) then
+              kb_skip.Insert(0, rls);
             exit;
           end;
           if grp <> ss then
           begin
             if spamcfg.readbool(rsections, 'renamed_group', True) then
               irc_addadmin(format('<b><c4>%s</c> @ %s </b>is changed case group shit! %s vs. %s', [rls, sitename, grp, ss]));
-            kb_skip.Insert(0, rls);
+            if Assigned(kb_skip) then
+              kb_skip.Insert(0, rls);
             exit;
           end;
         end;
@@ -353,7 +400,7 @@ begin
 
     // don't even enter the checking code if the release is already in kb_latest, because then we already handled it and it's clean
     // because kb_skip would've prevented kb_addb being called from kb_add
-    if (kb_latest.IndexOfName(rls) = -1) then
+    if Assigned(kb_latest) and (kb_latest.IndexOfName(rls) = -1) then
     begin
       if (renamed_release_checker) then
       begin
@@ -378,7 +425,8 @@ begin
                   // release is brand-new but a rename of an already existing release
                   kb_latest.Insert(0, rls + '=' + section);
                   // gonna insert this anyway, because there are sometimes renames of renames
-                  kb_skip.Insert(0, rls);
+                  if Assigned(kb_skip) then
+                    kb_skip.Insert(0, rls);
                   exit;
                 end;
               end;
@@ -405,12 +453,16 @@ begin
 
   kb_lock.Enter('kb_AddB_2');
   try
+    if not Assigned(kb_list) then
+      exit;
     i := kb_list.IndexOf(section + '-' + rls);
     if i = -1 then
     begin
       if (event = kbeNUKE) then
       begin
         // nuking an old rls not in kb
+        IssueLog('NUKE', section, rls, sitename, 'not in kb', KBEventTypeToString(event),
+          'NUKE|' + sitename + '|' + rls);
         irc_Addstats(Format('<c4>[NUKE]</c> %s %s @ %s (not in kb)',
           [section, rls, '<b>' + sitename + '</b>']));
         exit;
@@ -419,8 +471,9 @@ begin
       if (event = kbeCOMPLETE) then
       begin
         // complet an old rls not in kb
-        irc_Addstats(Format('<c7>[COMPLETE]</c> %s %s @ %s (not in kb)',
-          [section, rls, '<b>' + sitename + '</b>']));
+        if not IsUDPEnabled then
+          irc_Addstats(Format('<c7>[COMPLETE]</c> %s %s @ %s (not in kb)',
+            [section, rls, '<b>' + sitename + '</b>']));
         exit;
       end;
 
@@ -455,6 +508,9 @@ begin
       begin
         r := rc.Create(rls, section);
       end;
+
+      if aDetectedTick > 0 then
+        r.DetectedTick := aDetectedTick;
 
       r.kb_event := event;
 
@@ -634,7 +690,12 @@ begin
 
         if ((sitename <> getAdminSiteName) and (not s.PermDown) and (s.WorkingStatus in [sstUnknown, sstUp])) then
         begin
-          irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, KBEventTypeToString(event)]));
+          if (p.rls.section <> '') and (s.sectiondir[p.rls.section] = '') then
+          begin
+            irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, KBEventTypeToString(event)]));
+            IssueLog('MISSING_SECTION', p.rls.section, p.rls.rlsname, sitename, '', KBEventTypeToString(event),
+              'MISSING_SECTION|' + sitename + '|' + p.rls.section, 300);
+          end;
         end;
       end;
 
@@ -655,8 +716,18 @@ begin
     end;
 
     s := FindSiteByName(netname, psource.Name);
-    if ((s <> nil) and (not (s.WorkingStatus in [sstUnknown, sstUp]))) then
+    if ((s <> nil) and (not p.IsUDPEnabled) and (not (s.WorkingStatus in [sstUnknown, sstUp]))) then
       exit;
+
+    if (s <> nil) and (sitename <> getAdminSiteName) and (not s.PermDown) and (s.WorkingStatus in [sstUnknown, sstUp]) then
+    begin
+      if (p.rls.section <> '') and (s.sectiondir[p.rls.section] = '') then
+      begin
+        irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, KBEventTypeToString(event)]));
+        IssueLog('MISSING_SECTION', p.rls.section, p.rls.rlsname, sitename, '', KBEventTypeToString(event),
+          'MISSING_SECTION|' + sitename + '|' + p.rls.section, 300);
+      end;
+    end;
 
     psource.ircevent := True;
 
@@ -689,6 +760,8 @@ begin
     if (event = kbeNUKE) then
     begin
       psource.Status := rssNuked;
+      IssueLog('NUKE', p.rls.section, p.rls.rlsname, psource.Name, '', KBEventTypeToString(event),
+        'NUKE|' + psource.Name + '|' + p.rls.rlsname);
       irc_Addstats(Format('<c4>[NUKE]</c> %s %s @ <b>%s</b>',
         [section, rls, sitename]));
       try
@@ -728,11 +801,15 @@ begin
     begin
       if (rule_result = raDrop) and (spamcfg.ReadBool('kb', 'skip_rls', True)) then
       begin
+        IssueLog('SKIP', p.rls.section, p.rls.rlsname, psource.Name, psource.reason, KBEventTypeToString(event),
+          'SKIP|' + psource.Name + '|' + p.rls.rlsname);
         irc_Addstats(Format('<c5>[SKIP]</c> : %s %s @ %s "%s" (%s)',
           [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, KBEventTypeToString(event)]));
       end
       else if (rule_result = raDontmatch) and (spamcfg.ReadBool('kb', 'dont_match_rls', True)) then
       begin
+        IssueLog('DONT_MATCH', p.rls.section, p.rls.rlsname, psource.Name, psource.reason, KBEventTypeToString(event),
+          'DONT_MATCH|' + psource.Name + '|' + p.rls.rlsname);
         irc_Addstats(Format('<c5>[DONT MATCH]</c> : %s %s @ %s "%s" (%s)',
           [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, KBEventTypeToString(event)]));
       end;
@@ -793,10 +870,11 @@ begin
     exit;
 
   // status changed
-  ss := p.RoutesText;
-  if ss <> '' then
+  if (event <> kbeNUKE) then
   begin
-    irc_SendROUTEINFOS(ss);
+    ss := p.RoutesText;
+    if (ss <> '') and (not p.IsUDPEnabled) then
+      irc_SendROUTEINFOS(ss);
   end;
 
   if (psource <> nil) and (psource.Status = rssNotAllowed) then
@@ -804,56 +882,61 @@ begin
     psource.Status := rssNotAllowedButItsThere;
   end;
 
-  // now add dirlist
+  // now add dirlist (skip when UDP is enabled)
   try
     if (event in [kbeNEWDIR, kbePRE, kbeSPREAD, kbeADDPRE, kbeUPDATE]) then
     begin
-      for i := p.PazoSitesList.Count - 1 downto 0 do
+      if not p.IsUDPEnabled then
       begin
-        try
-          if i < 0 then
+        for i := p.PazoSitesList.Count - 1 downto 0 do
+        begin
+          try
+            if i < 0 then
+              Break;
+          except
             Break;
-        except
-          Break;
-        end;
-        try
-          ps := TPazoSite(p.PazoSitesList[i]);
-
-          // dirlist not available
-          if ps.dirlist = nil then
-          begin
-            Debug(dpError, section, 'ERROR: ps.dirlist = nil');
-            Continue;
           end;
+          try
+            ps := TPazoSite(p.PazoSitesList[i]);
 
-          // dirlist task already added
-          if (ps.dirlist.dirlistadded) and (event <> kbeUPDATE) then
-            Continue;
+            // dirlist not available
+            if ps.dirlist = nil then
+            begin
+              Debug(dpError, section, 'ERROR: ps.dirlist = nil');
+              Continue;
+            end;
 
-          // Source site is PRE site for this group
-          if ps.status in [rssShouldPre, rssRealPre] then
-          begin
-            r.PredOnAnySite := True;
-            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
-            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
-            ps.dirlist.dirlistadded := True;
-            AddTask(dlt, true);
-          end;
+            // dirlist task already added or failed
+            if (ps.dirlist.error) then
+              Continue;
+            if (ps.dirlist.dirlistadded) and (event <> kbeUPDATE) then
+              Continue;
 
-          // Source site is _not_ a PRE site for this group
-          if ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete] then
-          begin
-            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
-            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
-            ps.dirlist.dirlistadded := True;
-            AddTask(dlt, true);
-          end;
+            // Source site is PRE site for this group
+            if ps.status in [rssShouldPre, rssRealPre] then
+            begin
+              r.PredOnAnySite := True;
+              dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
+              irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
+              ps.dirlist.dirlistadded := True;
+              AddTask(dlt, true);
+            end;
 
-        except
-          on E: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] kb_Add add dirlist iterate: %s', [e.Message]));
-            continue;
+            // Source site is _not_ a PRE site for this group
+            if ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete] then
+            begin
+              dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
+              irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
+              ps.dirlist.dirlistadded := True;
+              AddTask(dlt, true);
+            end;
+
+          except
+            on E: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] kb_Add add dirlist iterate: %s', [e.Message]));
+              continue;
+            end;
           end;
         end;
       end;
@@ -871,7 +954,7 @@ begin
     integer(forceFire)]);
 end;
 
-function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
+function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0; aDetectedTick: Int64 = 0): integer;
 begin
   Result := 0;
   if (Trim(sitename) = '') then
@@ -887,7 +970,7 @@ begin
     Debug(dpMessage, 'kb', '--> ' + Format('%s: %s %s @ %s (%s%s)',
       [KBEventTypeToString(event), section, rls, sitename, genre, cdno]));
     Result := kb_AddB(netname, channel, sitename, section, genre,
-      event, rls, cdno, dontFire, forceFire, ts);
+      event, rls, cdno, dontFire, forceFire, ts, aDetectedTick);
     Debug(dpMessage, 'kb', '<-- ' + Format('%s: %s %s @ %s (%s%s)',
       [KBEventTypeToString(event), section, rls, sitename, genre, cdno]));
   except
@@ -1044,7 +1127,10 @@ end;
 
 function FindPazoByName(const section, rlsname: String): TPazo;
 begin
-  Result := FindPazoByKey(section + '-' + rlsname);
+  if section = '' then
+    Result := FindPazoByRls(rlsname)
+  else
+    Result := FindPazoByKey(section + '-' + rlsname);
 end;
 
 procedure AddPazoToKB(const aKey: String; const aPazo: TPazo);
@@ -1094,11 +1180,130 @@ end;
 
 {!--- KB Utils ---?}
 
+procedure SyncSitesFromCbftp;
+var
+  jsonStr: AnsiString;
+  js: TlkJSONbase;
+  arr: TlkJSONlist;
+  obj: TlkJSONObject;
+  i: Integer;
+  siteName: String;
+  disabled: Boolean;
+  fSite: TSite;
+  f: TlkJSONbase;
+  maxLogins: Integer;
+  currentLogins: Integer;
+begin
+  if GlCbftpClient = nil then
+    Exit;
+
+  GlSitesSyncing := True;
+  try
+    try
+      jsonStr := AnsiString(GlCbftpClient.GetSites('detailed=true'));
+      if jsonStr = '' then
+      begin
+        Debug(dpError, 'kb', '[cbftp] SyncSites: GetSites returned empty response');
+        Exit;
+      end;
+
+      js := TlkJSON.ParseText(jsonStr);
+      if js = nil then
+      begin
+        Debug(dpError, 'kb', '[cbftp] SyncSites: failed to parse JSON');
+        Exit;
+      end;
+
+      try
+        if js is TlkJSONlist then
+        begin
+          arr := TlkJSONlist(js);
+          for i := 0 to arr.Count - 1 do
+          begin
+            if arr.Child[i] is TlkJSONObject then
+            begin
+              obj := TlkJSONObject(arr.Child[i]);
+              
+              // Get name
+              f := obj.Field['name'];
+              if (f <> nil) and (f.SelfType <> jsNull) then
+                siteName := f.Value
+              else
+                siteName := '';
+
+              // Get disabled
+              f := obj.Field['disabled'];
+              disabled := False;
+              if (f <> nil) and (f.SelfType <> jsNull) then
+              begin
+                disabled := (f.Value = True) or (f.Value = 'true') or (f.Value = '1');
+              end;
+
+              // Get max_logins
+              f := obj.Field['max_logins'];
+              maxLogins := 0;
+              if (f <> nil) and (f.SelfType <> jsNull) then
+                maxLogins := StrToIntDef(f.Value, 0);
+
+              // Get current_logins
+              f := obj.Field['current_logins'];
+              currentLogins := 0;
+              if (f <> nil) and (f.SelfType <> jsNull) then
+                currentLogins := StrToIntDef(f.Value, 0);
+
+              if siteName <> '' then
+              begin
+                fSite := FindSiteByName('', siteName);
+                if fSite <> nil then
+                begin
+                  if disabled then
+                  begin
+                    if fSite.WorkingStatus <> sstMarkedAsDownByUser then
+                      fSite.WorkingStatus := sstMarkedAsDownByUser;
+                  end
+                  else
+                  begin
+                    if fSite.WorkingStatus <> sstUp then
+                      fSite.WorkingStatus := sstUp;
+                  end;
+
+                  // Update slot sizes and free slots to match cbftp settings
+                  if maxLogins > 0 then
+                  begin
+                    fSite.SyncSlots(maxLogins, currentLogins);
+                  end;
+                end;
+              end;
+            end;
+          end;
+          Debug(dpMessage, 'kb', Format('[cbftp] Successfully synchronized %d sites status from cbftp', [arr.Count]));
+        end
+        else
+        begin
+          Debug(dpError, 'kb', '[cbftp] SyncSites: expected JSON list');
+        end;
+      finally
+        js.Free;
+      end;
+    except
+      on E: Exception do
+        DebugException(dpError, 'kb', 'SyncSitesFromCbftp failed', E);
+    end;
+  finally
+    GlSitesSyncing := False;
+  end;
+end;
+
 procedure KB_start;
 var
   x: TEncStringlist;
   i: integer;
   last: TDateTime;
+  cbftpIp: String;
+  cbftpApiPort: Integer;
+  cbftpUdpPort: Integer;
+  cbftpUdpBindIp: String;
+  cbftpPassword: String;
 
   procedure AddKbPazo(const line: String);
   var
@@ -1138,6 +1343,39 @@ var
   end;
 
 begin
+  // Initialize global cbftp REST client and start events thread
+  if Assigned(config) then
+  begin
+    if SameText(Trim(config.ReadString('UDPConfig', 'EnableUDP', 'False')), 'True') or
+       SameText(Trim(config.ReadString('UDPConfig', 'EnableUDP', 'False')), '1') then
+    begin
+      try
+        cbftpIp := Trim(config.ReadString('UDPConfig', 'IP', '127.0.0.1'));
+        cbftpApiPort := config.ReadInteger('UDPConfig', 'ApiPort', 0);
+        if cbftpApiPort <= 0 then
+          cbftpApiPort := config.ReadInteger('UDPConfig', 'Port', 55477); // fallback
+        cbftpPassword := config.ReadString('UDPConfig', 'Password', '');
+
+        cbftpclient_Init(StringToUtf8(cbftpIp), cbftpApiPort, StringToUtf8(cbftpPassword));
+        Debug(dpMessage, 'kb', Format('cbftp REST client initialized globally: %s:%d', [cbftpIp, cbftpApiPort]));
+        SyncSitesFromCbftp;
+
+        // Start UDP push listener instead of HTTP long-poll
+        // Use EventPushPort if configured, otherwise default to 5697 to avoid
+        // conflict with cbftp's own RemoteCommandHandler on 5696
+        cbftpUdpBindIp := Trim(config.ReadString('UDPConfig', 'EventPushBindIP', '127.0.0.1'));
+        if cbftpUdpBindIp = '' then
+          cbftpUdpBindIp := '127.0.0.1';
+        cbftpUdpPort := config.ReadInteger('UDPConfig', 'EventPushPort', 5697);
+        CbftpUdpEventsStart(cbftpUdpBindIp, cbftpUdpPort);
+        Debug(dpMessage, 'kb', Format('cbftp UDP event listener started on %s:%d', [cbftpUdpBindIp, cbftpUdpPort]));
+      except
+        on E: Exception do
+          DebugException(dpError, 'kb', 'cbftp global REST client/events init failed', E);
+      end;
+    end;
+  end;
+
   kb_reloadsections;
 
   // itt kell betoltenunk az slftp.kb -t
@@ -1219,7 +1457,11 @@ begin
           x.Add(GetKbPazoInfoLine(p));
       end;
     except
-      exit;
+      on e: Exception do
+      begin
+        Debug(dpError, rsections, '[EXCEPTION] kb_Save (collecting pazos): %s', [e.Message]);
+        exit;
+      end;
     end;
     x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.kb');
   finally
@@ -1237,7 +1479,11 @@ begin
         x.Add(kb_skip[i]);
       end;
     except
-      exit;
+      on e: Exception do
+      begin
+        Debug(dpError, rsections, '[EXCEPTION] kb_Save (collecting renames): %s', [e.Message]);
+        exit;
+      end;
     end;
     x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.renames');
   finally
@@ -1249,21 +1495,23 @@ procedure kb_FreeList;
 var
   i: integer;
 begin
-  for i := 0 to kb_list.Count - 1 do
+  if Assigned(kb_list) then
   begin
-    try
-      if kb_List.Objects[i] <> nil then
-      begin
-        kb_List.Objects[i].Free;
-        kb_List.Objects[i] := nil;
+    for i := 0 to kb_list.Count - 1 do
+    begin
+      try
+        if kb_List.Objects[i] <> nil then
+        begin
+          kb_List.Objects[i].Free;
+          kb_List.Objects[i] := nil;
+        end;
+      except
+        continue;
       end;
-    except
-      continue;
     end;
+    FreeAndNil(kb_list);
   end;
-
-  kb_list.Free;
-  kb_trimmed_rls.Free;
+  FreeAndNil(kb_trimmed_rls);
 end;
 
 function kb_reloadsections: boolean;
@@ -1309,6 +1557,8 @@ begin
   Result := True;
 end;
 
+procedure _CbftpEventHandler(const aEvent: TCbftpEvent); forward;
+
 procedure kb_Init;
 begin
   kb_last_saved := Now();
@@ -1318,6 +1568,7 @@ begin
   addpreechocmd := config.ReadString('dbaddpre', 'addpreechocmd', '!sitepre');
 
   kb_lock := TSLCriticalSection2.Create('kb_lock');
+  GlRaceCompletions := TObjectDictionary<string, TList<TCbftpEvent>>.Create([doOwnsValues]);
 
   kb_trimmed_rls := THashedStringList.Create;
   kb_trimmed_rls.CaseSensitive := False;
@@ -1330,6 +1581,8 @@ begin
   kb_sections := TStringList.Create;
   kb_sections.Sorted := True;
   kb_sections.Duplicates := dupIgnore;
+
+  CbftpEventsSetHandler(_CbftpEventHandler);
 
   rename_patterns := 4;
 
@@ -1354,6 +1607,8 @@ end;
 
 procedure kb_Stop;
 begin
+  CbftpEventsSetHandler(nil);
+  CbftpUdpEventsStop;
   while (kb_thread <> nil) do
     sleep(100);
 end;
@@ -1361,14 +1616,15 @@ end;
 procedure kb_Uninit;
 begin
   Debug(dpSpam, rsections, 'Uninit1');
-  kb_sections.Free;
-  kb_latest.Free;
-  kb_skip.Free;
-  kb_groupcheck_rls.Free;
+  FreeAndNil(kb_sections);
+  FreeAndNil(kb_latest);
+  FreeAndNil(kb_skip);
+  FreeAndNil(kb_groupcheck_rls);
 
   KbReleaseUninit;
 
-  kb_lock.Free;
+  FreeAndNil(kb_lock);
+  FreeAndNil(GlRaceCompletions);
 
   Debug(dpSpam, rsections, 'Uninit2');
 end;
@@ -1633,15 +1889,34 @@ begin
             if p.stated and (fTryToCompleteTimeReached and not fIncFillPazos.Contains(p)) and ((kb_save_entries <= 0) Or (SecondsBetween(Now, p.added) > kb_keep_entries)) then
             begin
               kb_list.Delete(i);
-              j := kb_latest.IndexOf(p.rls.rlsname);
-              if j <> -1 then
+              if (p.rls <> nil) and (kb_latest <> nil) then
               begin
-                kb_latest.Delete(j);
+                j := kb_latest.IndexOf(p.rls.rlsname);
+                if j <> -1 then
+                begin
+                  kb_latest.Delete(j);
+                end;
               end;
               fDeletedPazos.Add(p);
             end;
 
           end;
+
+          for p in fDeletedPazos do
+          begin
+            try
+              p.Free;
+            except
+              on e: Exception do
+              begin
+                if p.rls <> nil then
+                  Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute FreePazo(pazo_id=%d, rls=%s): %s', [p.pazo_id, p.rls.rlsname, e.Message]))
+                else
+                  Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute FreePazo(pazo_id=%d, rls=nil): %s', [p.pazo_id, e.Message]));
+              end;
+            end;
+          end;
+          fDeletedPazos.Clear;
         finally
           kb_lock.Leave;
         end;
@@ -1669,29 +1944,26 @@ begin
             except
               on e: Exception do
               begin
-                Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute RanksProcess(p) : %s', [e.Message]));
+                if p.rls <> nil then
+                  Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute RanksProcess(pazo_id=%d, rls=%s) : %s', [p.pazo_id, p.rls.rlsname, e.Message]))
+                else
+                  Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute RanksProcess(pazo_id=%d, rls=nil) : %s', [p.pazo_id, e.Message]));
               end;
             end;
           end;
 
-          p.Clear;
+          kb_lock.Enter('kb_clear_pazo');
+          try
+            p.Clear;
+          finally
+            kb_lock.Leave;
+          end;
           p.stated := True;
         end;
         fFinishedPazos.Clear;
         fFinishedRankCalcPazos.Clear;
 
-        for p in fDeletedPazos do
-        begin
-          try
-            p.Free;
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, rsections, '[EXCEPTION] TKBThread.Execute FreePazo: %s', [e.Message]);
-            end;
-          end;
-        end;
-        fDeletedPazos.Clear;
+        // fDeletedPazos is now freed and cleared inside kb_lock above to avoid race conditions
 
       except
         on e: Exception do
@@ -1724,6 +1996,526 @@ begin
     fFinishedPazos.Free;
     fFinishedRankCalcPazos.Free;
     fDeletedPazos.Free;
+  end;
+end;
+
+{ cbftp event handler }
+function _CompareCbftpEvents({$IFDEF FPC}constref{$ELSE}const{$ENDIF} e1, e2: TCbftpEvent): Integer;
+begin
+  if e1.TimeSpentSeconds < e2.TimeSpentSeconds then
+    Result := -1
+  else if e1.TimeSpentSeconds > e2.TimeSpentSeconds then
+    Result := 1
+  else
+    Result := 0;
+end;
+
+procedure _CbftpEventHandler(const aEvent: TCbftpEvent);
+var
+  fPazo: TPazo;
+  fPazoSite: TPazoSite;
+  nfoData: String;
+  genre: String;
+  s: String;
+  i: Integer;
+  List: TList<TCbftpEvent>;
+  Ev: TCbftpEvent;
+  fSite: TSite;
+  pazoId: Integer;
+  sectionStr: String;
+  fsize: Double;
+  racebw: Double;
+  timeSpent: Double;
+  speed_stat: String;
+  tname: String;
+  siteInfo: String;
+  rank: Integer;
+  js: TlkJSONbase;
+  jsObj: TlkJSONObject;
+  jsSites: TlkJSONlist;
+  jsIncSites: TlkJSONlist;
+  jsProgress: TlkJSONbase;
+  jsSiteProg: TlkJSONbase;
+  siteName: String;
+  fSiteName: String;
+  fFilesDone, fFilesTotal: Integer;
+  fBytesDone, fBytesTotal: Int64;
+  fsizeDummy: Int64;
+  disabled: Boolean;
+  needsNfo: Boolean;
+  rlsSection: String;
+begin
+  try
+    case aEvent.EventType of
+      cetRaceStarted:
+      begin
+        Debug(dpMessage, rsections, Format('[cbftp] race_started: %s/%s', [aEvent.Section, aEvent.Name]));
+        CbftpMainCacheAddJob(aEvent.Name, aEvent.Section, Now);
+        if GlRaceCompletions <> nil then
+          GlRaceCompletions.Remove(aEvent.Name);
+        fPazo := FindPazoByName(aEvent.Section, aEvent.Name);
+        if fPazo <> nil then
+        begin
+          // cbftp has taken over routing for this release
+        end;
+      end;
+
+      cetRaceProgress:
+      begin
+        CbftpMainCacheUpdateJobProgress(aEvent.Name, aEvent.Site, aEvent.FilesDone, aEvent.FilesTotal, aEvent.BytesDone, aEvent.BytesTotal);
+        kb_lock.Enter('cetRaceProgress');
+        try
+          fPazo := FindPazoByName('', aEvent.Name);
+          if (fPazo <> nil) and (not fPazo.cleared) then
+          begin
+            fPazoSite := fPazo.FindSite(aEvent.Site);
+            if fPazoSite <> nil then
+            begin
+              if aEvent.HasUpFields then
+              begin
+                if aEvent.FilesUp > fPazoSite.CbftpFilesDone then
+                  fPazoSite.CbftpFilesDone := aEvent.FilesUp;
+                if aEvent.BytesUp > fPazoSite.CbftpBytesDone then
+                  fPazoSite.CbftpBytesDone := aEvent.BytesUp;
+              end
+              else
+              begin
+                if aEvent.FilesDone > fPazoSite.CbftpFilesDone then
+                  fPazoSite.CbftpFilesDone := aEvent.FilesDone;
+                if aEvent.BytesDone > fPazoSite.CbftpBytesDone then
+                  fPazoSite.CbftpBytesDone := aEvent.BytesDone;
+              end;
+              fPazoSite.CbftpFilesTotal := aEvent.FilesTotal;
+              if aEvent.FilesDone > fPazoSite.CbftpFilesTotalDone then
+                fPazoSite.CbftpFilesTotalDone := aEvent.FilesDone;
+              if aEvent.BytesDone > fPazoSite.CbftpBytesTotalDone then
+                fPazoSite.CbftpBytesTotalDone := aEvent.BytesDone;
+              Debug(dpSpam, rsections, Format('[cbftp] progress %s on %s: %d/%d files, %d/%d bytes',
+                [aEvent.Name, aEvent.Site, aEvent.FilesDone, aEvent.FilesTotal,
+                 aEvent.BytesDone, aEvent.BytesTotal]));
+            end;
+          end;
+        finally
+          kb_lock.Leave;
+        end;
+      end;
+
+      cetRaceCompleted:
+      begin
+        Debug(dpMessage, rsections, Format('[cbftp] race_completed: %s on %s (%.2fs)',
+          [aEvent.Name, aEvent.Site, aEvent.TimeSpentSeconds]));
+        CbftpMainCacheUpdateJobCompleted(aEvent.Name, aEvent.Site, Round(aEvent.TimeSpentSeconds * 1000), aEvent.FilesDone, aEvent.BytesDone);
+
+        kb_lock.Enter('cetRaceCompleted');
+        try
+          fPazo := FindPazoByName('', aEvent.Name);
+          if (fPazo <> nil) and (not fPazo.cleared) then
+          begin
+            fPazoSite := fPazo.FindSite(aEvent.Site);
+            if fPazoSite <> nil then
+            begin
+              fPazoSite.status := rssComplete;
+              fPazoSite.CbftpCompletedTime := fPazo.added + (aEvent.TimeSpentSeconds / 86400.0);
+              if aEvent.HasUpFields then
+              begin
+                fPazoSite.CbftpFilesDone := aEvent.FilesUp;
+                fPazoSite.CbftpBytesDone := aEvent.BytesUp;
+              end
+              else
+              begin
+                fPazoSite.CbftpFilesDone := aEvent.FilesDone;
+                fPazoSite.CbftpBytesDone := aEvent.BytesDone;
+              end;
+              fPazoSite.CbftpFilesTotalDone := aEvent.FilesDone;
+              fPazoSite.CbftpBytesTotalDone := aEvent.BytesDone;
+            end;
+          end;
+        finally
+          kb_lock.Leave;
+        end;
+        if GlRaceCompletions <> nil then
+        begin
+          if not GlRaceCompletions.TryGetValue(aEvent.Name, List) then
+          begin
+            List := TList<TCbftpEvent>.Create;
+            GlRaceCompletions.Add(aEvent.Name, List);
+          end;
+          List.Add(aEvent);
+        end;
+      end;
+
+      cetRaceDone:
+      begin
+        Debug(dpMessage, rsections, Format('[cbftp] race_done: %s status=%s',
+          [aEvent.Name, aEvent.Status]));
+        CbftpMainCacheUpdateJobDone(aEvent.Name, aEvent.Status);
+
+        { Fetch spread job details once; used for both cache and Pazo sync }
+        js := nil;
+        jsObj := nil;
+        if GlCbftpClient <> nil then
+        begin
+          try
+            s := string(GlCbftpClient.GetSpreadJob(StringToUtf8(aEvent.Name)));
+            Debug(dpMessage, rsections, Format('[cbftp] race_done GetSpreadJob len=%d for %s',
+              [Length(s), aEvent.Name]));
+            if s <> '' then
+            begin
+              js := TlkJSON.ParseText(s);
+              if (js <> nil) and (js is TlkJSONObject) then
+                jsObj := TlkJSONObject(js);
+            end;
+          except
+            on E: Exception do
+              Debug(dpError, rsections, Format('[cbftp] race_done REST sync error: %s', [E.Message]));
+          end;
+        end;
+
+        { Cache sync: per-site progress (independent of Pazo) }
+        try
+          if jsObj <> nil then
+          begin
+            jsProgress := jsObj.Field['progress'];
+            if (jsProgress <> nil) and (jsProgress is TlkJSONObject) then
+            begin
+              Debug(dpMessage, rsections, Format('[cbftp] race_done progress sites=%d for %s',
+                [TlkJSONobject(jsProgress).Count, aEvent.Name]));
+              for i := 0 to TlkJSONobject(jsProgress).Count - 1 do
+              begin
+                fSiteName := string(TlkJSONobject(jsProgress).NameOf[i]);
+                jsSiteProg := TlkJSONobject(jsProgress).Child[i];
+                if (jsSiteProg <> nil) and (jsSiteProg is TlkJSONObject) then
+                begin
+                  fFilesDone := TlkJSONobject(jsSiteProg).getInt('files_done');
+                  fFilesTotal := TlkJSONobject(jsSiteProg).getInt('total_files');
+                  fBytesDone := StrToInt64Def(TlkJSONobject(jsSiteProg).getString('bytes_done'), 0);
+                  fBytesTotal := StrToInt64Def(TlkJSONobject(jsSiteProg).getString('bytes_total'), 0);
+                  { For DONE jobs ensure completion pct is 100%. cbftp may have
+                    already cleaned up internal state so progress numbers can
+                    be slightly stale. }
+                  if SameText(aEvent.Status, 'DONE') then
+                  begin
+                    if fBytesDone < fBytesTotal then
+                      fBytesDone := fBytesTotal;
+                    if fFilesDone < fFilesTotal then
+                      fFilesDone := fFilesTotal;
+                  end;
+                  Debug(dpMessage, rsections, Format('[cbftp] race_done progress %s: fd=%d ft=%d bd=%d bt=%d',
+                    [fSiteName, fFilesDone, fFilesTotal, fBytesDone, fBytesTotal]));
+                  CbftpMainCacheUpdateJobProgress(aEvent.Name, fSiteName,
+                    fFilesDone, fFilesTotal, fBytesDone, fBytesTotal);
+                end
+                else
+                  Debug(dpMessage, rsections, Format('[cbftp] race_done progress %s: not an object', [fSiteName]));
+              end;
+            end
+            else
+              Debug(dpMessage, rsections, Format('[cbftp] race_done progress missing for %s', [aEvent.Name]));
+          end;
+        except
+          on E: Exception do
+            Debug(dpError, rsections, Format('[cbftp] race_done Cache sync JSON parsing exception: %s', [E.Message]));
+        end;
+
+        { Pazo sync }
+        kb_lock.Enter('cetRaceDone_PazoSync');
+        try
+          fPazo := FindPazoByName('', aEvent.Name);
+          if (fPazo <> nil) and (not fPazo.cleared) then
+          begin
+            try
+              if jsObj <> nil then
+              begin
+                jsSites := nil;
+                if (jsObj.Field['sites'] <> nil) and (jsObj.Field['sites'] is TlkJSONlist) then
+                  jsSites := TlkJSONlist(jsObj.Field['sites']);
+
+                jsIncSites := nil;
+                if (jsObj.Field['sites_incomplete'] <> nil) and (jsObj.Field['sites_incomplete'] is TlkJSONlist) then
+                  jsIncSites := TlkJSONlist(jsObj.Field['sites_incomplete']);
+
+                if jsSites <> nil then
+                begin
+                  for i := 0 to jsSites.Count - 1 do
+                  begin
+                    siteName := jsSites.Child[i].Value;
+                    fPazoSite := fPazo.FindSite(siteName);
+                    if fPazoSite <> nil then
+                    begin
+                      disabled := False;
+                      if jsIncSites <> nil then
+                      begin
+                        for pazoId := 0 to jsIncSites.Count - 1 do
+                        begin
+                          if jsIncSites.Child[pazoId].Value = siteName then
+                          begin
+                            disabled := True;
+                            Break;
+                          end;
+                        end;
+                      end;
+
+                      if not disabled then
+                      begin
+                        fPazoSite.status := rssComplete;
+                        if fPazoSite.CbftpCompletedTime = 0 then
+                          fPazoSite.CbftpCompletedTime := Now;
+
+                        if (fPazoSite.CbftpFilesDone > 0) and (fPazoSite.CbftpFilesTotal = 0) then
+                          fPazoSite.CbftpFilesTotal := fPazo.GetCountOfCachedFiles;
+
+                        if fPazoSite.CbftpFilesTotal < fPazoSite.CbftpFilesDone then
+                          fPazoSite.CbftpFilesTotal := fPazoSite.CbftpFilesDone;
+                      end;
+                    end;
+                  end;
+                end;
+              end;
+            except
+              on E: Exception do
+                Debug(dpError, rsections, Format('[cbftp] race_done Pazo sync JSON parsing exception: %s', [E.Message]));
+            end;
+
+            { Fallback: ensure all participating sites have a completion time.
+              If the REST call above failed, returned empty, or didn't list all
+              sites, any site still without CbftpCompletedTime gets Now.
+              Sites with rssNotAllowed are skipped. }
+            if (GlCbftpClient <> nil) and Assigned(fPazo.PazoSitesList) then
+            begin
+              for pazoId := 0 to fPazo.PazoSitesList.Count - 1 do
+              begin
+                fPazoSite := TPazoSite(fPazo.PazoSitesList[pazoId]);
+                if (fPazoSite <> nil) and (fPazoSite.status <> rssNotAllowed) and (fPazoSite.CbftpCompletedTime = 0) then
+                begin
+                  { Stagger fallback timestamps by 1s per site so STATS shows
+                    meaningful +Xs deltas even when cbftp didn't send per-site
+                    race_completed events. }
+                  fPazoSite.CbftpCompletedTime := Now + (pazoId / 86400.0);
+                  if fPazoSite.status = rssAllowed then
+                    fPazoSite.status := rssComplete;
+                end;
+              end;
+            end;
+
+            s := fPazo.Stats(False, False);
+            if s <> '' then
+            begin
+              irc_addstats(Format('<c10>[<b>STATS</b>]</c> %s %s (%d):', [fPazo.rls.section, fPazo.rls.rlsname, fPazo.GetCountOfCachedFiles]));
+              irc_AddstatsB(fPazo.Stats(False, True));
+            end
+            else
+            begin
+              sectionStr := fPazo.rls.section;
+              irc_Addstats(Format('<c10>[<b>STATS</b>]</c> %s <b>%s</b> : Race Done! [Status: <b>%s</b>]', [sectionStr, aEvent.Name, aEvent.Status]));
+            end;
+
+            // Update ranks when cbftp race is fully complete
+            try
+              RanksProcess(fPazo);
+            except
+              on E: Exception do
+                Debug(dpError, rsections, Format('[cbftp] ranks update error: %s', [E.Message]));
+            end;
+          end
+          else
+          begin
+            sectionStr := FindReleaseInLatestKBList(aEvent.Name);
+            if sectionStr = '' then
+              sectionStr := 'UNKNOWN';
+            irc_Addstats(Format('<c10>[<b>STATS</b>]</c> %s <b>%s</b> : Race Done! [Status: <b>%s</b>]', [sectionStr, aEvent.Name, aEvent.Status]));
+          end;
+        finally
+          kb_lock.Leave;
+        end;
+
+        if js <> nil then
+          js.Free;
+
+        if GlRaceCompletions <> nil then
+          GlRaceCompletions.Remove(aEvent.Name);
+      end;
+
+      cetSpeedSample:
+      begin
+        Debug(dpSpam, rsections, Format('[cbftp] speed %s -> %s: %.2f Mbps (file %d bytes)',
+          [aEvent.SrcSite, aEvent.DstSite, aEvent.SpeedMbps, aEvent.FileSize]));
+        
+        pazoId := 0;
+        rank := 1;
+        kb_lock.Enter('cetSpeedSample');
+        try
+          fPazo := FindPazoByName('', aEvent.Name);
+          if (fPazo <> nil) and (not fPazo.cleared) then
+          begin
+            pazoId := fPazo.pazo_id;
+            if (aEvent.Filename <> '') and (aEvent.FileSize > 0) then
+            begin
+              fPazo.RegisterCbftpFile(aEvent.Filename, aEvent.FileSize);
+            end;
+
+            fPazoSite := fPazo.FindSite(aEvent.DstSite);
+            if fPazoSite <> nil then
+            begin
+              Inc(fPazoSite.CbftpFilesDone);
+              Inc(fPazoSite.CbftpBytesDone, aEvent.FileSize);
+            end;
+
+            fPazoSite := fPazo.FindSite(aEvent.SrcSite);
+            if fPazoSite <> nil then
+            begin
+              { NOTE: Do NOT set Source site to rssComplete here. }
+            end;
+          end;
+        finally
+          kb_lock.Leave;
+        end;
+
+        if (aEvent.FileSize > 0) and (aEvent.SpeedMbps > 0) then
+        begin
+          fsize := aEvent.FileSize / 1024.0; // kB
+          racebw := (aEvent.SpeedMbps / 8.0) * 1024.0; // kB/s
+          timeSpent := fsize / racebw;
+
+          if (aEvent.FileSize > 1024) then
+          begin
+            if (racebw > 1024) then
+              speed_stat := Format('<b>%.2f</b>mB in <b>%.2f</b>s @ <b>%.2f</b>mB/s', [fsize / 1024.0, timeSpent, racebw / 1024.0])
+            else
+              speed_stat := Format('<b>%.2f</b>mB in <b>%.2f</b>s @ <b>%.2f</b>kB/s', [fsize / 1024.0, timeSpent, racebw]);
+          end
+          else
+          begin
+            if (racebw > 1024) then
+              speed_stat := Format('<b>%.2f</b>kB in <b>%.2f</b>s @ <b>%.2f</b>mB/s', [fsize, timeSpent, racebw / 1024.0])
+            else
+              speed_stat := Format('<b>%.2f</b>kB in <b>%.2f</b>s @ <b>%.2f</b>kB/s', [fsize, timeSpent, racebw]);
+          end;
+        end
+        else
+          speed_stat := 'ZERO FILESIZE!';
+
+        siteInfo := Format(' <c9>[%s -> %s]</c>', [aEvent.SrcSite, aEvent.DstSite]);
+        tname := Format('<c7>[RACE]</c> #%d%s : <c10><b>%s</b></c> <c7>%s</c> <c7>(%d)</c>',
+          [pazoId, siteInfo, aEvent.Name, aEvent.Filename, rank]);
+
+        irc_Addstats(tname + ' ' + speed_stat);
+        // Feed cbftp speed samples into slftp stats system
+        kb_lock.Enter('cetSpeedSample_Stats');
+        try
+          s := FindReleaseInLatestKBList(aEvent.Name);
+        finally
+          kb_lock.Leave;
+        end;
+        if s = '' then
+          s := 'UNKNOWN';
+        try
+          SpeedStatAdd(aEvent.SrcSite, aEvent.DstSite, aEvent.SpeedMbps, s, aEvent.Name);
+          statsProcessRace(aEvent.SrcSite, aEvent.DstSite, s, aEvent.Name, aEvent.Filename, aEvent.FileSize);
+        except
+          on E: Exception do
+            Debug(dpError, rsections, Format('[cbftp] stats write error: %s', [E.Message]));
+        end;
+      end;
+
+      cetNfoAvailable:
+      begin
+        Debug(dpMessage, rsections, Format('[cbftp] nfo_available: %s on %s (path=%s, size=%d)',
+          [aEvent.Name, aEvent.Site, aEvent.Section, aEvent.FileSize]));
+        if (last_addnfo <> nil) and (last_addnfo.IndexOf(aEvent.Name) <> -1) then
+        begin
+          Debug(dpMessage, rsections, Format('[cbftp] NFO for %s already downloaded, skipping.', [aEvent.Name]));
+          exit;
+        end;
+        
+        needsNfo := False;
+        rlsSection := '';
+        kb_lock.Enter('cetNfoAvailable');
+        try
+          fPazo := FindPazoByName('', aEvent.Name);
+          if (fPazo <> nil) and (not fPazo.cleared) and (fPazo.rls <> nil) then
+          begin
+            if RulesNeedNfo(fPazo) then
+            begin
+              needsNfo := True;
+              rlsSection := fPazo.rls.section;
+            end;
+          end;
+        finally
+          kb_lock.Leave;
+        end;
+
+        if needsNfo and (GlCbftpClient <> nil) then
+        begin
+          nfoData := string(GlCbftpClient.GetFile(StringToUtf8(aEvent.Site), StringToUtf8(aEvent.Section)));
+          if nfoData <> '' then
+          begin
+            dbaddnfo_SaveNfo(aEvent.Name, aEvent.Section, nfoData);
+            // Extract genre from NFO and update release
+            genre := '';
+            i := Pos('genre', LowerCase(nfoData));
+            if i > 0 then
+            begin
+              genre := Copy(nfoData, i + 5, 100);
+              for i := 1 to Length(genre) do
+              begin
+                if CharInSet(genre[i], [#13, #10]) then
+                begin
+                  genre := Copy(genre, 1, i - 1);
+                  Break;
+                end;
+                if not CharInSet(genre[i], ['a'..'z', 'A'..'Z']) then
+                  genre[i] := ' ';
+              end;
+              while True do
+              begin
+                s := ReplaceText(genre, '  ', ' ');
+                if s = genre then Break;
+                genre := s;
+              end;
+              genre := Trim(genre);
+            end;
+            if genre <> '' then
+              kb_Add('', '', aEvent.Site, rlsSection, genre, kbeUPDATE, aEvent.Name, '');
+          end
+          else
+          begin
+            Debug(dpError, rsections, Format('[cbftp] Failed to download NFO for %s from %s', [aEvent.Name, aEvent.Site]));
+          end;
+        end;
+      end;
+
+      cetHeartbeat:
+      begin
+        Debug(dpSpam, rsections, '[cbftp] heartbeat');
+      end;
+
+      cetSiteStatus:
+      begin
+        Debug(dpMessage, rsections, Format('[cbftp] site_status event: %s disabled=%d',
+          [aEvent.Site, Ord(aEvent.Disabled)]));
+        CbftpMainCacheUpdateSiteDisabled(aEvent.Site, aEvent.Disabled);
+        fSite := FindSiteByName('', aEvent.Site);
+        if fSite <> nil then
+        begin
+          if aEvent.Disabled then
+          begin
+            if fSite.WorkingStatus <> sstMarkedAsDownByUser then
+              fSite.WorkingStatus := sstMarkedAsDownByUser;
+          end
+          else
+          begin
+            if fSite.WorkingStatus <> sstUp then
+              fSite.WorkingStatus := sstUp;
+          end;
+        end;
+      end;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, rsections, Format('[EXCEPTION] _CbftpEventHandler (eventType=%d, name=%s): %s', [Ord(aEvent.EventType), aEvent.Name, E.Message]));
+      raise;
+    end;
   end;
 end;
 

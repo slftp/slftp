@@ -33,7 +33,9 @@ implementation
 
 uses
   SysUtils, Classes, StrUtils, Types, Contnrs, irc, sitesunit, ircchansettings,
-  ircblowfish.ECB, ircblowfish.CBC, configunit, mainthread, mystrings, irccommandsunit;
+  ircblowfish.ECB, ircblowfish.CBC, configunit, mainthread, mystrings, irccommandsunit,
+  versioninfo, slssl, mormot.db.raw.sqlite3, mormot.core.base, IdGlobal, ZClasses, FLRE, RegExpr,
+  cbftpclient;
 
 const
   section = 'irccommands.irc';
@@ -43,6 +45,11 @@ var
   i: integer;
   th: TMyIrcThread;
 begin
+  irc_addtext(Netname, Channel, GetFullVersionString);
+  irc_addtext(Netname, Channel, 'FPC: ' + {$I %FPCVERSION%} + ' | mORMot2: ' + SYNOPSE_FRAMEWORK_VERSION + ' | OpenSSL: ' + GetOpenSSLShortVersion);
+  irc_addtext(Netname, Channel, 'SQLite3: ' + UTF8ToString(sqlite3.VersionText) + ' | Indy10: ' + gsIdVersion + ' | ZeosLib: ' + ZEOS_VERSION);
+  irc_addtext(Netname, Channel, 'FLRE: ' + FLREVersionString + ' | TRegExpr: ' + IntToStr(TRegExpr.VersionMajor) + '.' + IntToStr(TRegExpr.VersionMinor));
+
   for i := 0 to myIrcThreads.Count - 1 do
   begin
     th := TMyIrcThread(myIrcThreads[i]);
@@ -1028,7 +1035,7 @@ begin
         Continue;
       if Uppercase(s.Name) = getAdminSiteName then
         Continue;
-      if s.PermDown then
+      if s.PermDown and (GlCbftpClient = nil) then
         Continue;
 
       if s.IRCNick = '' then
@@ -1064,7 +1071,7 @@ begin
           begin
             if Uppercase(s.Name) = getAdminSiteName then
               Continue;
-            if s.PermDown then
+            if s.PermDown and (GlCbftpClient = nil) then
               Continue;
 
             if s.IRCNick = '' then

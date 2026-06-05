@@ -175,6 +175,8 @@ type
       Token: SpiUtf8;
     end;
     /// how many times THttpClientSocket/TWinHttp should redirect 30x responses
+    // - TCurlHttp would only check for RedirectMax > 0 with no exact count
+    // - TWinINet won't support this parameter
     RedirectMax: integer;
     /// allow to customize the User-Agent header
     // - for TWinHttp, should be set at constructor level
@@ -187,7 +189,7 @@ type
     procedure AuthorizeBasic(const UserName: RawUtf8; const Password: SpiUtf8);
     /// setup web authentication using the Digest access algorithm
     procedure AuthorizeDigest(const UserName: RawUtf8; const Password: SpiUtf8);
-    /// setup web authentication using Kerberos/NTLM via SSPI/GSSAPI and credentials
+    /// setup web authentication using Kerberos via SSPI/GSSAPI and credentials
     // - if you want to authenticate with the current logged user, just set
     // ! Auth.Scheme := wraNegotiate;
     procedure AuthorizeSspiUser(const UserName: RawUtf8; const Password: SpiUtf8);
@@ -259,14 +261,19 @@ type
   THttpPartial = record
     /// genuine 31-bit positive identifier, 0 if empty/recyclable
     ID: THttpPartialID;
+    /// the state of this partial download
+    Flags: set of (pFinished);
     /// the expected full size of this download
     FullSize: Int64;
+    /// the timestamp to be affected to the file, when it is fully downloaded
+    EventualTime: TUnixTime;
     /// the partial file name currently downloaded
     PartFile: TFileName;
-    /// up to 512-bit of raw binary hash, precessed by hash algo byte
-    Digest: THashDigest;
     /// background HTTP requests which are waiting for data on this download
     HttpContext: array of PHttpRequestContext;
+    /// up to 512-bit of raw binary hash, prefixed by THashAlgo identifier
+    // - actual file hash for THttpPeerCache, but URI hash for THttpProxyServer
+    Digest: THashDigest;
   end;
   PHttpPartial = ^THttpPartial;
 
@@ -298,18 +305,23 @@ type
       {$ifdef HASINLINE} inline; {$endif}
     /// thread-safe register a new partial download and its associated HTTP request
     function Add(const Partial: TFileName; ExpectedFullSize: Int64;
-      const Hash: THashDigest; Http: PHttpRequestContext = nil): THttpPartialID;
+      Hash: PHashDigest = nil; Http: PHttpRequestContext = nil;
+      EventualTime: TUnixTime = 0): THttpPartialID;
     /// search for given partial file name and size, from its hash
     function Find(const Hash: THashDigest; out Size: Int64;
-      aID: PHttpPartialID = nil): TFileName;
+      aID: PHttpPartialID = nil; Http: PHttpRequestContext = nil): TFileName;
     /// search for given partial file name from its ID, returning its file name
     // - caller should eventually run Safe.ReadUnLock
     function FindReadLocked(ID: THttpPartialID): TFileName;
     /// search for a given partial file name
-    function HasFile(const FileName: TFileName): boolean;
+    // - and optionally return the expected final file size, and/or associate
+    // this partial with a given HTTP connection
+    function HasFile(const FileName: TFileName; FileExpectedSize: PInt64 = nil;
+      Http: PHttpRequestContext = nil): boolean;
     /// register a HTTP request to an existing partial
     function Associate(const Hash: THashDigest; Http: PHttpRequestContext): boolean;
     /// fill Dest buffer from up to MaxSize bytes from Ctxt.ProgressiveID
+    // - this method is one of the two called from THttpServerSocketGeneric
     function ProcessBody(var Ctxt: THttpRequestContext;
       var Dest: TRawByteStringBuffer; MaxSize: PtrInt): THttpRequestProcessBody;
     /// notify a partial file name change, when download is complete
@@ -322,11 +334,95 @@ type
     // - returns the number of removed HTTP requests
     function Abort(ID: THttpPartialID): integer;
     /// unregister a HTTP request to a given partial
-    // - called when the request is finished e.g. via
-    // THttpServerSocketGeneric.DoProgressiveRequestFree private method
+    // - this method is one of the two called from THttpServerSocketGeneric,
+    // when the request is finished
     procedure Remove(Sender: PHttpRequestContext);
   end;
 
+  /// exception raised by THttpCacheFiles process
+  EHttpCacheFiles = class(ESynException);
+
+  /// compute the truncated THttpCached 128-bit hash from a local filename
+  TOnComputeHashFromFileName = function(const LocalFile: TFileName;
+    out Hash: THash128): boolean of object;
+
+  /// store the metadata of one cached file, from its hash, as 32 bytes
+  // - used by THttpCacheFiles to delete deprecated cache entries
+  THttpCached = packed record
+    /// file hash, truncated to 128-bit, i.e. 16 bytes
+    // - 128-bit truncation of a cryptographic hash (SHA-256 or SHA-3) is enough
+    // to ensure no collision, as it is the case from HttpRequestHashBase32()
+    // or THttpProxyServer.OnGetHeadRemoteUri()
+    // - may be e.g. from the real file content hash (for PeerCache), or 128-bit
+    // of the SHA-256 hashed URI (for THttpProxyServer)
+    Hash: THash128;
+    /// the last time this file was accessed - used to delete deprecated files
+    LastAccess: TUnixTimeMinimal;
+  end;
+  /// point to one cached file metadata
+  PHttpCached = ^THttpCached;
+  /// store several cached file metadata
+  THttpCachedArray = array of THttpCached;
+
+  /// efficient in-memory storage of some file metadata
+  // - files are identified and searched by their binary hash
+  // - hashes are store in memory, associated with their expiration timestamps
+  THttpCacheFiles = class(TObjectOSLightLock)
+  protected
+    fCount: integer;
+    fModified, fSubFolderScan: boolean;
+    fItem: THttpCachedArray;
+    fItems: TDynArrayHashed;
+    fFileName: TFileName;
+    fFolder: TFileName;
+    fOnFileToHash: TOnComputeHashFromFileName;
+    fLog: TSynLogProc;
+    procedure ValidateSubFolder(valid: pointer; subfolder: AnsiChar);
+    function ValidateSubFolders: boolean;
+  public
+    /// initialize this instance
+    // - will open the file on disk for real-time efficient update
+    // - if aFileName = '', all process will be done in memory
+    // - will read all fields in aFolderName (+aSubFolderScan) to validate the
+    // internal list using aFileToHash callback for file lookup
+    constructor Create(const aFileName, aFolderName: TFileName;
+      const aLog: TSynLogProc; aSubFolderScan: boolean;
+      const aFileToHash: TOnComputeHashFromFileName); reintroduce;
+    /// finalize this instance, writing the file to disk
+    destructor Destroy; override;
+    /// reload the persisted file on disk
+    function LoadFromFile: boolean;
+    /// persist the whole in-memory list on disk - all will be written at once
+    // - is expected to be called e.g. once a few seconds
+    function SaveToFile: boolean;
+    /// update (or add) a file entry LastAccess, identified from its hash
+    // - to be called when a cached file is accessed and served
+    procedure Touch(const hash: THashDigest; len: PtrInt); overload;
+    /// update (or add) a file entry LastAccess, identified from its 160-bit hash
+    procedure Touch(const hash: THash128); overload;
+    /// update (or add) a file entry LastAccess, identified from its file name
+    procedure Touch(const fn: TFileName); overload;
+    /// explictly remove a file entry, identified from its hash
+    // - to be called e.g. after FileDelete()
+    function Remove(const hash: THashDigest; len: PtrInt): boolean; overload;
+    /// explictly remove a file entry, identified from its hash
+    function Remove(const hash: THash128): boolean; overload;
+    /// explictly remove a file entry, identified from its hash
+    function Remove(const fn: TFileName): boolean; overload;
+    /// the file name of the actual storage on disk
+    property FileName: TFileName
+      read fFileName;
+    /// the local folder where the cached files are stored
+    // - may be with one sub-folder level
+    property FolderName: TFileName
+      read fFolder;
+    /// raw access to the internal metadata storage, in range Items[0..Count-1]
+    property Item: THttpCachedArray
+      read fItem;
+    /// how many entries are currently stored in Items[]
+    property Count: integer
+      read fCount;
+  end;
 
 type
   THttpClientSocket = class;
@@ -471,6 +567,13 @@ type
       sockettimeout: cardinal = 10000; redirectmax: integer = 0): TFileName;
   end;
 
+  /// the flags as returned by IWGetAlternate.State
+  // - gasProcessing will be set e.g. if THttpServer.CurrentProcess > 0
+  // - gasPartials will be set e.g. if THttpPartials.IsVoid = false
+  TWGetAlternateState = set of (
+    gasProcessing,
+    gasPartials);
+
   /// interface called by THttpClientSocket.WGet() for alternate download
   // - THttpPeerCache implements e.g. a local peer-to-peer download cache
   // - as set to THttpClientSocketWGet.Alternate optional parameter
@@ -517,6 +620,8 @@ type
     /// check if the network interface defined in Settings did actually change
     // - you may want to recreate the alternate downloading instance
     function NetworkInterfaceChanged: boolean;
+    /// returns the current state of this instance
+    function State: TWGetAlternateState;
   end;
 
   /// internal low-level execution context for THttpClientSocket.Request
@@ -549,6 +654,7 @@ type
     var Context: THttpClientRequest): boolean of object;
 
   /// callback used e.g. by THttpClientSocket.Request to process any custom protocol
+  // - http.CommandResp contains the full URI, e.g. 'file:///C:/folder/file.txt'
   TOnHttpClientRequest = function(
     var http: THttpRequestContext): integer of object;
 
@@ -564,7 +670,8 @@ type
   // - on any error (timeout, connection closed) will retry once to get the value
   // - note that this client is not thread-safe: either use a critical section
   // (as we do in TRestClientUri), or create one instance per thread
-  // - don't forget to use Free procedure when you are finished
+  // - don't forget to use the Free method when you are finished, or consider
+  // using IJsonClient/TJsonClient for a higher level REST client
   THttpClientSocket = class(THttpSocket)
   protected
     fExtendedOptions: THttpRequestExtendedOptions;
@@ -572,6 +679,8 @@ type
     fAccept: RawUtf8;
     fProcessName: RawUtf8;
     fRedirected: RawUtf8;
+    fProxyAuthHeader: RawUtf8;
+    fRequestContext: RawUtf8;
     fRangeStart, fRangeEnd: Int64;
     fAuthDigestAlgo: TDigestAlgo;
     fOnAuthorize, fOnProxyAuthorize: TOnHttpClientSocketAuthorize;
@@ -599,9 +708,8 @@ type
     /// constructor to create a client connection to a given URI
     // - returns TUri.Address as parsed from aUri
     // - overriden to support custom RegisterNetClientProtocol()
-    constructor OpenUri(const aUri: RawUtf8; out aAddress: RawUtf8;
-      const aTunnel: RawUtf8 = ''; aTimeOut: cardinal = 10000;
-      aTLSContext: PNetTlsContext = nil); override;
+    constructor OpenUri(const aUri: TUri; const aUriFull, aTunnel: RawUtf8;
+      aTimeOut: cardinal; aTLSContext: PNetTlsContext); override;
     /// constructor to create a client connection to a given TUri and options
     // - will use specified options, including TLS and Auth members, just like
     // the overloaded THttpRequest.Create(TUri,PHttpRequestExtendedOptions)
@@ -609,6 +717,11 @@ type
     // - as used e.g. by TSimpleHttpClient
     constructor OpenOptions(const aUri: TUri;
       var aOptions: THttpRequestExtendedOptions; const aOnLog: TSynLogProc = nil);
+    /// after Create(), open or bind to a given server port
+    // - overriden to support HTTP proxy without CONNECT
+    procedure OpenBind(const aServer, aPort: RawUtf8; doBind: boolean;
+      aTLS: boolean = false; aLayer: TNetLayer = nlTcp;
+      aSock: TNetSocket = NO_SOCKET; aReusePort: boolean = false); override;
     /// compare TUri and its options with the actual connection
     // - returns true if no new instance - i.e. Free + OpenOptions() - is needed
     // - only supports HTTP/HTTPS, not any custom RegisterNetClientProtocol()
@@ -621,7 +734,7 @@ type
     // ACCEPT-ENCODING: header was already registered
     // - you can specify a minimal size (in bytes) before which the content won't
     // be compressed (1024 by default, corresponding to a MTU of 1500 bytes)
-    // - the first registered algorithm will be the prefered one for compression
+    // - the first registered algorithm will be the preferred one for compression
     // within each priority level (the lower aPriority first)
     function RegisterCompress(aFunction: THttpSocketCompress;
       aCompressMinSize: integer = 1024; aPriority: integer = 10): boolean;
@@ -629,7 +742,8 @@ type
     // - called by all Get/Head/Post/Put/Delete REST methods
     // - after an Open(server,port), return 200,202,204 if OK, or an http
     // status error otherwise
-    // - retry is usually false, but could be recursively recalled as true
+    // - AsRetry is to be kept as false, because this method already retries by
+    // itself - but could be recursively recalled as true on very specific cases
     // - use either Data or InStream for sending its body request (with its MIME
     // content type as DataMimeType e.g. JSON_CONTENT_TYPE)
     // - response body will be either in Content or in OutStream
@@ -637,7 +751,7 @@ type
     // and RedirectMax handling
     function Request(const url, method: RawUtf8; KeepAlive: cardinal;
       const Header: RawUtf8; const Data: RawByteString = '';
-      const DataMimeType: RawUtf8 = ''; retry: boolean = false;
+      const DataMimeType: RawUtf8 = ''; AsRetry: boolean = false;
       InStream: TStream = nil; OutStream: TStream = nil): integer; virtual;
     /// low-level processing method called from Request()
     // - can be used e.g. when implementing callbacks like OnAuthorize or
@@ -686,23 +800,28 @@ type
     procedure AuthorizeDigest(const UserName: RawUtf8; const Password: SpiUtf8;
       Algo: TDigestAlgo = daMD5_Sess);
     {$ifdef DOMAINRESTAUTH}
-    /// setup web authentication using Kerberos/NTLM via SSPI/GSSAPI for this instance
+    /// setup web authentication using Kerberos via SSPI/GSSAPI for this instance
     // - will store the user/paswword credentials, and set OnAuthorizeSspi callback
     // - if Password is '', will search for an existing Kerberos token on UserName
+    // - set UserName='' and Password='FILE:/path/to/my.keytab' to use a keytab
     // - an in-memory token will be used to authenticate the connection
+    // - KerberosSpn could be only a 'MYDOMAIN.TLD' domain name - this method
+    // will compute the full 'HTTP/server@MYDOMAIN.TLD' SPN
+    // - if KerberosSpn is not set, 'HTTP/server@MYDOMAIN.TLD' will be used,
+    // trying to extract MYDOMAIN.TLD either from UserName of Password's keytab
     // - WARNING: on MacOS, the default system GSSAPI stack seems to create a
     // session-wide token (like kinit), not a transient token in memory - you
     // may prefer to load a proper libgssapi_krb5.dylib instead
     procedure AuthorizeSspiUser(const UserName: RawUtf8; const Password: SpiUtf8;
       const KerberosSpn: RawUtf8 = '');
-    /// web authentication callback of the current logged user using Kerberos/NTLM
+    /// web authentication callback of the current logged user using Kerberos
     // - calling the Security Support Provider Interface (SSPI) API on Windows,
     // or GSSAPI on Linux (only Kerboros)
     // - match the OnAuthorize: TOnHttpClientSocketAuthorize callback signature
     // - see also ClientForceSpn() and AuthorizeSspiSpn property
     class function OnAuthorizeSspi(Sender: THttpClientSocket;
       var Context: THttpClientRequest; const Authenticate: RawUtf8): boolean;
-    /// proxy authentication callback of the current logged user using Kerberos/NTLM
+    /// proxy authentication callback of the current logged user using Kerberos
     // - calling the Security Support Provider Interface (SSPI) API on Windows,
     // or GSSAPI on Linux (only Kerboros)
     // - match the OnProxyAuthorize: TOnHttpClientSocketAuthorize signature
@@ -712,7 +831,8 @@ type
     /// the Kerberos Service Principal Name, as registered in domain
     // - e.g. 'mymormotservice/myserver.mydomain.tld@MYDOMAIN.TLD'
     // - used by class procedure OnAuthorizeSspi/OnProxyAuthorizeSspi callbacks
-    // - on Linux/GSSAPI either this property or ClientForceSpn() is mandatory
+    // - on Linux/GSSAPI either this property or ClientForceSpn() is mandatory,
+    // unless you use a user@TLD or a keytab and the domain is extracted from it
     property AuthorizeSspiSpn: RawUtf8
       read fAuthorizeSspiSpn write fAuthorizeSspiSpn;
     {$endif DOMAINRESTAUTH}
@@ -726,7 +846,7 @@ type
     /// the associated process name, to be set and used by the external context
     property ProcessName: RawUtf8
       read fProcessName write fProcessName;
-    /// optional begining position of a request
+    /// optional beginning position of a request
     // - is reset once the Request has been sent
     property RangeStart: Int64
       read fRangeStart write fRangeStart;
@@ -789,6 +909,11 @@ type
     /// contain the body type retrieved from the server
     property ContentType: RawUtf8
       read Http.ContentType;
+    /// human-readable text information filled during the last HTTP request
+    // - typically one or several lines of 'DoRetry ...' context and/or
+    // some redirection / exception information
+    property RequestContext: RawUtf8
+      read fRequestContext;
   end;
 
   /// class-reference type (metaclass) of a HTTP client socket access
@@ -798,9 +923,9 @@ type
 
 /// returns the HTTP User-Agent header value of a mORMot client including
 // the Instance class name in its minified/uppercase-only translation
-// - typical value is "Mozilla/5.0 (Linux x64; mORMot) HCS/2 Tests/3"
-// for THttpClientSocket from a Tests.exe application in version 3.x
-// - framework is identified as '/2' with no release number, for security
+// - typical value is "Mozilla/5.0 (Linux x64; mORMot) HCS/3 Tests/1" for
+// THttpClientSocket 2.3 from a Tests.exe application in version 1.x
+// - framework branch is identified as '/3' with no build number, for security
 // - note: the framework would identify the 'mORMot' pattern in the user-agent
 // header to enable advanced behavior e.g. about JSON transmission
 function DefaultUserAgent(Instance: TObject): RawUtf8;
@@ -836,6 +961,7 @@ function WGet(const url: RawUtf8; const destfile: TFileName;
 
 function ToText(wgs: TWGetStep): PShortString; overload;
 function ToText(wgs: TWGetSteps; trimmed: boolean = true): RawUtf8; overload;
+function ToText(st: TWGetAlternateState; trimmed: boolean = true): RawUtf8; overload;
 
 var
   /// global overriden value for the GetSystemProxyUri() function
@@ -845,6 +971,13 @@ var
 
   /// force GetProxyForUri(fromSystem=true) in GetSystemProxyUri() function
   DefaultHttpClientSocketProxyAuto: boolean;
+
+  /// disable proxy for any IPv4 '1.2.3.4' address in GetSystemProxyUri() function
+  DefaultHttpClientSocketProxyNotForIp4: boolean;
+
+  /// global debug hook for all THttpClientSocket instances - assign TSynLog.DoLog
+  // - see also the more global OnCrtSocketLog hook in mormot.net.sock
+  OnHttpClientSocketLog: TSynLogProc;
 
 
 /// ask the Operating System to return the Tunnel/Proxy settings for a given URI
@@ -932,8 +1065,8 @@ type
     fOnDownloadProgress: TOnHttpRequestProgress;
     class function InternalREST(const url, method: RawUtf8;
       const data: RawByteString; const header: RawUtf8;
-      aIgnoreTlsCertificateErrors: boolean; timeout: integer;
-      outHeaders: PRawUtf8; outStatus: PInteger): RawByteString;
+      aIgnoreTlsCertificateErrors: boolean; timeout: integer; outHeaders: PRawUtf8;
+      outStatus: PInteger; outError: PString = nil): RawByteString;
     // inherited class should override those abstract methods
     procedure InternalConnect(ConnectionTimeOut, SendTimeout, ReceiveTimeout: cardinal); virtual; abstract;
     procedure InternalCreateRequest(const aMethod, aUrl: RawUtf8); virtual; abstract;
@@ -1042,7 +1175,7 @@ type
     // ACCEPT-ENCODING: header was already registered
     // - you can specify a minimal size (in bytes) below which the content won't
     // be compressed (1024 by default, corresponding to a MTU of 1500 bytes)
-    // - the first registered algorithm will be the prefered one for compression
+    // - the first registered algorithm will be the preferred one for compression
     // within each priority level (the lower aPriority first)
     function RegisterCompress(aFunction: THttpSocketCompress;
       aCompressMinSize: integer = 1024; aPriority: integer = 10): boolean;
@@ -1079,7 +1212,7 @@ type
       write fExtendedOptions.UserAgent;
     /// how many 3xx status code redirections are allowed
     // - default is 0 - i.e. no redirection
-    // - implemented for TWinHttp only
+    // - recognized by TWinHttp and TCurlHttp, but not by TWinINet
     property RedirectMax: integer
       read fExtendedOptions.RedirectMax write fExtendedOptions.RedirectMax;
     /// internal structure used to store extended options
@@ -1238,7 +1371,7 @@ type
   TWinINet = class(TWinHttpApi)
   protected
     // those internal methods will raise an EWinINet exception on error
-    procedure RaiseFromLastError;
+    procedure RaiseFromLastError(const ctxt: ShortString);
     procedure InternalConnect(ConnectionTimeOut, SendTimeout,
       ReceiveTimeout: cardinal); override;
     procedure InternalCreateRequest(const aMethod, aUrl: RawUtf8); override;
@@ -1503,6 +1636,7 @@ type
     fHttps: THttpRequest;
     fOnlyUseClientSocket: boolean;
     {$endif USEHTTPREQUEST}
+    fOnLog: TSynLogProc;
   public
     /// initialize the instance
     // - aOnlyUseClientSocket=true will use THttpClientSocket even for HTTPS
@@ -1517,6 +1651,9 @@ type
     /// low-level connection point of this instance, using an TUri as input
     // - rather use the Connected() more usable method
     procedure RawConnect(const Server: TUri); override;
+    /// optional verbose log output, transmitted to THttpClientSocket
+    property OnLog: TSynLogProc
+      read fOnLog write fOnLog;
     // IHttpClient methods
     procedure Close; override;
     function Options: PHttpRequestExtendedOptions; override;
@@ -1579,6 +1716,7 @@ type
     jcoHttpExceptionIntercept,
     jcoHttpErrorRaise,
     jcoPayloadWithoutVoid,
+    jcoPayloadDateTimeWithZ,
     jcoParseTolerant,
     jcoParseErrorClear,
     jcoParseErrorRaise);
@@ -1631,6 +1769,10 @@ type
     /// set Http.Options^.Auth.Token/Scheme with a given wraBearer token
     // - will disable authentication if Token = ''
     procedure SetBearer(const Token: SpiUtf8);
+    /// can specify an additional default header to the HTTP request
+    // - could be used e.g. as
+    // ! Client.AddDefaultHeader('Authorization', 'Wawi '+ GetApiKey);
+    procedure AddDefaultHeader(const Name, Value: RawUtf8);
     /// Request execution, with no JSON parsing using RTTI
     procedure Request(const Method, Action: RawUtf8;
       const CustomError: TOnJsonClientError = nil); overload;
@@ -1668,6 +1810,7 @@ type
       var Response: TJsonResponse);
     /// can specify a cookie value to the HTTP request
     // - is void by default
+    // - specify a fully constructed 'cookiename: cookievalue; path=...' content
     property Cookies: RawUtf8
       read GetCookies write SetCookies;
     /// can specify a default header to the HTTP request
@@ -1727,6 +1870,7 @@ type
     procedure SetDefaultHeaders(const Value: RawUtf8); virtual; abstract;
     function Http: IHttpClient; virtual; abstract;
     procedure SetBearer(const Token: SpiUtf8); virtual;
+    procedure AddDefaultHeader(const Name, Value: RawUtf8); virtual; abstract;
     function Connected: string; virtual; abstract;
     procedure RawRequest(const Method, Action, InType, InBody, InHeaders: RawUtf8;
       var Response: TJsonResponse); virtual; abstract;
@@ -1797,6 +1941,7 @@ type
     procedure SetCookies(const Value: RawUtf8); override;
     function GetDefaultHeaders: RawUtf8; override;
     procedure SetDefaultHeaders(const Value: RawUtf8); override;
+    procedure AddDefaultHeader(const Name, Value: RawUtf8); override;
     function Http: IHttpClient; override;
     function Connected: string; override;
     procedure RawRequest(const Method, Action, InType, InBody, InHeaders: RawUtf8;
@@ -1879,6 +2024,7 @@ type
 // - this method will use a low-level THttpClientSock socket for plain http URI,
 // or TWinHttp/TCurlHttp for any https URI, or if forceNotSocket is set to true
 // - see also OpenHttpGet() for direct THttpClientSock call
+// - try INetClientProtocol if aUri does not start with http:// or https://
 function HttpGet(const aUri: RawUtf8; outHeaders: PRawUtf8 = nil;
   forceNotSocket: boolean = false; outStatus: PInteger = nil;
   timeout: integer = 0; forceSocket: boolean = false;
@@ -1887,11 +2033,18 @@ function HttpGet(const aUri: RawUtf8; outHeaders: PRawUtf8 = nil;
 /// retrieve the content of a web page, using the HTTP/1.1 protocol and GET method
 // - this method will use a low-level THttpClientSock socket for plain http URI,
 // or TWinHttp/TCurlHttp for any https URI
+// - try INetClientProtocol if aUri does not start with http:// or https://
 function HttpGet(const aUri: RawUtf8; const inHeaders: RawUtf8;
   outHeaders: PRawUtf8 = nil; forceNotSocket: boolean = false;
   outStatus: PInteger = nil; timeout: integer = 0; forceSocket: boolean = false;
   ignoreTlsCertError: boolean = false): RawByteString; overload;
 
+/// retrieve the content of a web page, with ignoreTlsCertError=true for https
+// - typically used to retrieve reference material online for testing
+// - can optionally use a local file as convenient offline cache
+// - try INetClientProtocol if aUri does not start with http:// or https://
+function HttpGetWeak(const aUri: RawUtf8; const aLocalFile: TFileName = '';
+  outStatus: PInteger = nil): RawByteString;
 
 
 { ************** Send Email using the SMTP Protocol }
@@ -2096,7 +2249,7 @@ procedure RegisterNetClientProtocol(
 var
   m: TMethod;
 begin
-  if NetClientProtocols.FindAndExtract(Name, m) then
+  if NetClientProtocols.FindAndExtract(Name, m) then // remove any existing
     TObject(m.Data).Free; // was owned by this unit
   if Assigned(OnRequest) then
     NetClientProtocols.Add(Name, OnRequest);
@@ -2145,9 +2298,11 @@ begin
   // header to enable advanced behavior e.g. about JSON transmission
   vers[0] := #0;
   if Executable.Version.Major <> 0 then
-    FormatShort16('/%', [Executable.Version.Major], vers);
-  FormatUtf8('Mozilla/5.0 (' + OS_TEXT + ' ' + CPU_ARCH_TEXT + '; mORMot) %/2 %%',
+    FormatShort('/%', [Executable.Version.Major], vers);
+  FormatUtf8('Mozilla/5.0 (' + OS_TEXT + ' ' + CPU_ARCH_TEXT + '; mORMot) %/' +
+    SYNOPSE_FRAMEWORK_BRANCH + ' %%',
     [name, Executable.ProgramName, vers], result);
+  // 'Mozilla/5.0 (Linux x64; mORMot) HCS/4 Tests/1' for THttpClientSocket 2.4
 end;
 
 
@@ -2211,8 +2366,19 @@ begin
   OnLog(sllTrace, '% used=%/%', [txt, fUsed, length(fDownload)], self);
 end;
 
+function RawAssociate(http: PHttpRequestContext; partial: PHttpPartial): integer;
+  {$ifdef HASINLINE} inline; {$endif}
+begin
+  result := 0;
+  if http = nil then
+    exit;
+  http^.ProgressiveID := partial^.ID;
+  PtrArrayAdd(partial^.HttpContext, http);
+  result := length(partial^.HttpContext);
+end;
+
 function THttpPartials.Add(const Partial: TFileName; ExpectedFullSize: Int64;
-  const Hash: THashDigest; Http: PHttpRequestContext): THttpPartialID;
+  Hash: PHashDigest; Http: PHttpRequestContext; EventualTime: TUnixTime): THttpPartialID;
 var
   n: PtrInt;
   p: PHttpPartial;
@@ -2224,35 +2390,39 @@ begin
   Safe.WriteLock;
   try
     inc(fLastID);
-    inc(fUsed);
     result := fLastID; // returns 1,2,3... THttpPartialID (process specific)
+    inc(fUsed);
     p := FromID(0); // try to reuse an empty slot
     if p = nil then
     begin
       n := length(fDownload);
-      SetLength(fDownload, n + 1); // need a new slot
+      SetLength(fDownload, n + 1); // need a new slot (seldom called)
       p := @fDownload[n];
+    end
+    else
+    begin
+      p^.HttpContext := nil; // force reset
+      FillCharFast(p^.Digest, SizeOf(p^.Digest), 0); // clean but not mandatory
     end;
     p^.ID := result;
-    p^.Digest := Hash;
     p^.FullSize := ExpectedFullSize;
+    p^.EventualTime := EventualTime;
     p^.PartFile := Partial;
-    p^.HttpContext := nil;
-    if Http <> nil then
-    begin
-      PtrArrayAdd(p^.HttpContext, Http);
-      Http^.ProgressiveID := p^.ID;
-    end;
+    if Hash <> nil then
+      MoveFast(Hash^, p^.Digest, HASH_SIZE[Hash^.Algo] + 1);
+    n := RawAssociate(Http, p);
   finally
     Safe.WriteUnLock;
   end;
-  DoLog('Add(%,%)=%', [Partial, ExpectedFullSize, result]);
+  DoLog('Add(%,size=%)=% n=%', [Partial, ExpectedFullSize, result, n]);
 end;
 
 function THttpPartials.Find(const Hash: THashDigest; out Size: Int64;
-  aID: PHttpPartialID): TFileName;
+  aID: PHttpPartialID; Http: PHttpRequestContext): TFileName;
 var
   p: PHttpPartial;
+  n: integer;
+  id: THttpPartialID;
 begin
   Size := 0;
   result := '';
@@ -2269,9 +2439,13 @@ begin
     result := p^.PartFile;
     if aID <> nil then
       aID^ := p^.ID;
+    id := p^.ID;
+    n := RawAssociate(Http, p);
   finally
     Safe.ReadUnLock;
   end;
+  if n <> 0 then
+    DoLog('Find(%)=% added n=%', [result, id, n]);
 end;
 
 function THttpPartials.FindReadLocked(ID: THttpPartialID): TFileName;
@@ -2292,7 +2466,12 @@ begin
   end;
 end;
 
-function THttpPartials.HasFile(const FileName: TFileName): boolean;
+function THttpPartials.HasFile(const FileName: TFileName;
+  FileExpectedSize: PInt64; Http: PHttpRequestContext): boolean;
+var
+  p: PHttpPartial;
+  n: integer;
+  id: THttpPartialID;
 begin
   result := false;
   if IsVoid or
@@ -2300,15 +2479,30 @@ begin
     exit;
   Safe.ReadLock;
   try
-    result := FromFile(FileName) <> nil;
+    p := FromFile(FileName);
+    if p = nil then
+      exit;
+    if assigned(Http) and
+       (pFinished in p^.Flags) then
+      exit; // file is complete - no need of Ctxt.SetOutProgressiveFile()
+    result := true;
+    if FileExpectedSize <> nil then
+      FileExpectedSize^ := p^.FullSize;
+    id := p^.ID;
+    n := RawAssociate(Http, p);
   finally
     Safe.ReadUnLock; // keep ReadLock if a file name was found
   end;
+  if n <> 0 then
+    DoLog('HasFile(%)=% added n=%', [FileName, id, n]);
 end;
 
 function THttpPartials.Associate(const Hash: THashDigest; Http: PHttpRequestContext): boolean;
 var
   p: PHttpPartial;
+  n: integer;
+  id: THttpPartialID;
+  fn: TFileName;
 begin
   result := false;
   if IsVoid or
@@ -2319,12 +2513,14 @@ begin
     p := FromHash(Hash);
     if p = nil then
       exit;
-    PtrArrayAdd(p^.HttpContext, Http);
-    Http^.ProgressiveID := p^.ID;
     result := true;
+    id := p^.ID;
+    fn := p^.PartFile;
+    n := RawAssociate(Http, p);
   finally
     Safe.WriteUnLock;
   end;
+  DoLog('Associate(%)=% n=%', [fn, id, n]);
 end;
 
 function THttpPartials.ProcessBody(var Ctxt: THttpRequestContext;
@@ -2340,7 +2536,7 @@ begin
      not (rfProgressiveStatic in Ctxt.ResponseFlags) then
     exit;
   // prepare to wait for the data to be available
-  tix := GetTickCount64 shr MilliSecsPerSecShl;
+  tix := GetTickSec;
   if Ctxt.ProgressiveTix = 0 then
     Ctxt.ProgressiveTix := tix + STATICFILE_PROGTIMEOUTSEC; // first seen
   // retrieve the file name to be processed
@@ -2384,8 +2580,10 @@ end;
 procedure THttpPartials.ReleaseSlot(p: PHttpPartial);
 begin
   p^.ID := 0; // reuse this slot at next Add()
+  byte(p^.Flags) := 0;
   p^.PartFile := '';
   p^.HttpContext := nil;
+  p^.EventualTime := 0;
   dec(fUsed);
   if (fUsed = 0) and
      (length(fDownload) > 16) then
@@ -2395,11 +2593,13 @@ end;
 function THttpPartials.DoneLocked(const OldFile, NewFile: TFileName): boolean;
 var
   p: PHttpPartial;
+  n: integer;
 begin
   result := false;
   if IsVoid or
      (OldFile = '') then
     exit;
+  n := 0;
   p := FromFile(OldFile);
   if p <> nil then
   begin
@@ -2407,29 +2607,36 @@ begin
     if p^.HttpContext = nil then
       ReleaseSlot(p)
     else
+    begin
       p^.PartFile := NewFile; // notify any pending background process
+      n := length(p^.HttpContext);
+    end;
   end;
-  DoLog('Done(%,%)=%', [OldFile, NewFile, result]);
+  DoLog('Done(%,%)=% n=%', [OldFile, NewFile, result, n]);
 end;
 
 function THttpPartials.DoneLocked(ID: THttpPartialID): boolean;
 var
   p: PHttpPartial;
+  n: integer;
 begin
   result := false;
   if IsVoid or
      (ID = 0) or
      (cardinal(ID) > fLastID) then
     exit;
+  n := 0;
   p := FromID(ID);
   if p <> nil then
   begin
     result := true;
     if p^.HttpContext = nil then
-      ReleaseSlot(p); // associated to no background download
-    // keep p^.PartFile which may still be available
+      ReleaseSlot(p) // associated to no background download
+    else
+      // keep p^.PartFile which may still be available
+      n := length(p^.HttpContext);
   end;
-  DoLog('Done(%)=%', [ID, result]);
+  DoLog('Done(%)=% n=%', [ID, result, n]);
 end;
 
 function THttpPartials.Abort(ID: THttpPartialID): integer;
@@ -2472,26 +2679,240 @@ end;
 procedure THttpPartials.Remove(Sender: PHttpRequestContext);
 var
   p: PHttpPartial;
+  err: TShort23;
+  n: integer;
 begin
   // nominal case, when the partial retrieval has eventually successed
   if IsVoid or
      (Sender = nil) or
-     (Sender.ProgressiveID = 0) then
+     (Sender.ProgressiveID = 0) then // e.g. for HEAD with no actual download
     exit;
+  n := 0;
+  err[0] := #0;
   Safe.WriteLock;
   try
     p := FromID(Sender.ProgressiveID);
     if p <> nil then
     begin
+      if not (pFinished in p^.Flags) then // file has just been fully downloaded
+      begin
+        include(p^.Flags, pFinished);  // mark file as fully available
+        if p^.EventualTime <> 0 then   // e.g. for THttpProxyServer
+          if FileSetDateFromUnixUtc(p^.PartFile, p^.EventualTime) then
+            err := ' FileSetDate'
+          else
+            err := ' FileSetDate failed';
+      end;
       PtrArrayDelete(p^.HttpContext, Sender);
       if p^.HttpContext = nil then
-        ReleaseSlot(p);
+        ReleaseSlot(p) // release this partial for the last http usage
+      else
+        n := length(p^.HttpContext);
     end;
   finally
     Safe.WriteUnLock;
   end;
-  DoLog('Remove(%)=%', [Sender.ProgressiveID, (p <> nil)]);
+  DoLog('Remove(%)=% n=%%', [Sender.ProgressiveID, BOOL_STR[p <> nil], n, err]);
 end;
+
+
+{ THttpCacheFiles }
+
+constructor THttpCacheFiles.Create(const aFileName, aFolderName: TFileName;
+  const aLog: TSynLogProc; aSubFolderScan: boolean;
+  const aFileToHash: TOnComputeHashFromFileName);
+begin
+  inherited Create; // TOSLightLock.Init
+  fItems.InitSpecific(TypeInfo(THttpRequestCacheDynArray), fItem, ptHash128, @fCount);
+  fLog := aLog;
+  fFileName := aFileName;
+  fFolder := aFolderName;
+  fSubFolderScan := aSubFolderScan;
+  if (fFileName <> '') and
+     not LoadFromFile then
+    EHttpCacheFiles.RaiseUtf8('%.Create: unexpected % file', [self, fFileName]);
+  if not ValidateSubFolders then
+    fItems.ForceReHash; // should always be done at least once at startup
+end;
+
+destructor THttpCacheFiles.Destroy;
+begin
+  if fModified then
+    SaveToFile;
+  inherited Destroy;
+end;
+
+function THttpCacheFiles.LoadFromFile: boolean;
+var
+  size, start: Int64;
+begin
+  if Assigned(fLog) then
+    QueryPerformanceMicroSeconds(start);
+  result := false;
+  size := FileSize(fFileName);
+  if size > 0 then
+  begin
+    fCount := size div SizeOf(THttpCached);
+    result := (Int64(fCount) * SizeOf(THttpCached) = size);
+    if result then
+    begin
+      SetLength(fItem, fCount);
+      result := BufferFromFile(fFileName, pointer(fItem), size);
+    end;
+  end;
+  if Assigned(fLog) then
+    fLog(sllTrace, 'LoadFromFile(%)=% (count=%) in %',
+      [fFileName, BOOL_STR[result], fCount, MicroSecFrom(start{%H-})], self);
+end;
+
+function THttpCacheFiles.ValidateSubFolders: boolean;
+var
+  s, d: PHttpCached;
+  valid: TBytesDynArray;
+  c: AnsiChar;
+  i, n: PtrInt;
+  start: Int64;
+begin
+  if Assigned(fLog) then
+    QueryPerformanceMicroSeconds(start);
+  SetLength(valid, (fCount shr 3) + 1); // all filled with 0/false
+  ValidateSubFolder(pointer(valid), #0);
+  if fSubFolderScan then
+  begin // include subfolders per base-32 char hash partitioning
+    for c := 'a' to 'z' do
+      ValidateSubFolder(pointer(valid), c);
+    for c := '2' to '7' do
+      ValidateSubFolder(pointer(valid), c);
+  end;
+  s := pointer(fItem);
+  d := s;
+  for i := 0 to fCount - 1 do
+  begin
+    if GetBitPtr(pointer(valid), i) then
+    begin
+      if d <> s then
+      begin
+        d^ := s^;
+        fModified := true; // would be persisted on next Idle pass
+      end;
+      inc(d);
+    end;
+    inc(s);
+  end;
+  n := (PtrUInt(d) - PtrUInt(fItem)) div SizeOf(fItem[0]);
+  result := n <> fCount;
+  if Assigned(fLog) then
+    fLog(sllTrace, 'ValidateSubFolders=% (count=%) in %',
+      [BOOL_STR[result], fCount, MicroSecFrom(start{%H-})], self);
+  if not result then
+    exit;
+  fCount := n;
+  fItems.ForceReHash;
+end;
+
+procedure THttpCacheFiles.ValidateSubFolder(valid: pointer; subfolder: AnsiChar);
+var
+ // files: TFileNameDynArray;
+  fn: TFileName;
+begin
+  fn := fFolder;
+  if subfolder <> #0 then
+    fn := MakeString([fn, subfolder]);
+  if not DirectoryExists(fn) then
+    exit;
+//  PosixFileNames();
+end;
+
+function THttpCacheFiles.SaveToFile: boolean;
+begin
+  result := false;
+  if (self = nil) or
+     (fFileName = '') or
+     not fModified then
+    exit;
+  fSafe.Lock;
+  try
+    result := FileFromBuffer(pointer(fItem), fCount * SizeOf(THttpCached), fFileName);
+    fModified := false;
+  finally
+    fSafe.UnLock;
+  end;
+end;
+
+procedure HashNormalize(const hash: THashDigest; len: PtrInt; var norm: THash128);
+var
+  pad: PtrInt;
+begin
+  if len = 0 then
+    len := HASH_SIZE[hash.Algo];
+  len := MinPtrInt(SizeOf(norm), len); // e.g. from THttpPeerCache
+  MoveFast(hash.Bin, norm, len); // assume crypto hash -> truncation is fine
+  pad := SizeOf(norm) - len;
+  if pad <> 0 then
+    FillCharFast(norm[len], pad, len); // normalized padding (unlikely)
+end;
+
+procedure THttpCacheFiles.Touch(const hash: THashDigest; len: PtrInt);
+var
+  h: THash128;
+begin
+  HashNormalize(hash, len, h);
+  Touch(h);
+end;
+
+procedure THttpCacheFiles.Touch(const hash: THash128);
+var
+  new: THttpCached;
+begin
+  new.Hash := hash;
+  new.LastAccess := UnixTimeMinimalUtc; // outside of the lock
+  fSafe.Lock;
+  try
+    fItems.FindHashedAndUpdate(new, {addifnotexist=}true);
+    fModified := true;
+  finally
+    fSafe.UnLock;
+  end;
+end;
+
+procedure THttpCacheFiles.Touch(const fn: TFileName);
+var
+  h: THash128;
+begin
+  if Assigned(fOnFileToHash) and
+     fOnFileToHash(fn, h) then
+    Touch(h);
+end;
+
+function THttpCacheFiles.Remove(const hash: THash128): boolean;
+begin
+  fSafe.Lock;
+  try
+    result := fItems.FindHashedAndDelete(hash) >= 0;
+    if result then
+      fModified := true;
+  finally
+    fSafe.UnLock;
+  end;
+end;
+
+function THttpCacheFiles.Remove(const fn: TFileName): boolean;
+var
+  h: THash128;
+begin
+  result := Assigned(fOnFileToHash) and
+            fOnFileToHash(fn, h) and
+            Remove(h);
+end;
+
+function THttpCacheFiles.Remove(const hash: THashDigest; len: PtrInt): boolean;
+var
+  h: THash128;
+begin
+  HashNormalize(hash, len, h);
+  result := Remove(h);
+end;
+
 
 
 { THttpClientSocketWGet }
@@ -2574,10 +2995,10 @@ begin
   result := GetSetName(TypeInfo(TWGetSteps), wgs, trimmed);
 end;
 
-var
-  _PROXYSETFROMENV: boolean; // retrieve environment variables only once
-  _PROXYSAFE: TLightLock;
-  _PROXY: array[{https:}boolean] of RawUtf8;
+function ToText(st: TWGetAlternateState; trimmed: boolean): RawUtf8;
+begin
+  result := GetSetName(TypeInfo(TWGetAlternateState), st, trimmed);
+end;
 
 function GetProxyForUri(const uri: RawUtf8; fromSystem: boolean): RawUtf8;
 {$ifdef USEWININET}
@@ -2585,17 +3006,9 @@ var
   pi: TProxyInfo;
 {$endif USEWININET}
 begin
-  if not _PROXYSETFROMENV then
-  begin
-    _PROXYSAFE.Lock;
-    StringToUtf8(GetEnvironmentVariable('HTTP_PROXY'),  _PROXY[false]);
-    StringToUtf8(GetEnvironmentVariable('HTTPS_PROXY'), _PROXY[true]);
-    if _PROXY[true] = '' then
-      _PROXY[true] := _PROXY[false];
-    _PROXYSETFROMENV := true;
-    _PROXYSAFE.UnLock;
-  end;
-  result := _PROXY[IdemPChar(pointer(uri), 'HTTPS://')];
+  if not IdemPChar(pointer(uri), 'HTTPS://') or
+     not GetSystemEnv('HTTPS_PROXY', result{%H-}) then // from cache
+    result := GetSystemEnv('HTTP_PROXY');
   {$ifdef USEWININET}
   if (result = '') and
      fromsystem then
@@ -2607,7 +3020,13 @@ end;
 
 function GetSystemProxyUri(const uri, proxy: RawUtf8; var temp: TUri): PUri;
 begin
-  if IsNone(proxy) then
+  if IsNone(proxy) or
+     (not temp.From(uri)) or
+     (temp.Address = '') or
+     (not (temp.UriScheme in [usHttp, usHttps])) or
+     IsLocalHost(pointer(temp.Address)) or // no proxy for "127.x.x.x"
+     (DefaultHttpClientSocketProxyNotForIp4 and
+      NetIsIP4(pointer(temp.Address))) then  // plain "1.2.3.4" IP has no proxy
     result := nil
   else if (proxy <> '') and
           temp.From(proxy) then
@@ -2649,6 +3068,9 @@ constructor THttpClientSocket.Create(aTimeOut: integer);
 begin
   if aTimeOut = 0 then
     aTimeOut := HTTP_DEFAULT_RECEIVETIMEOUT;
+  if Assigned(OnHttpClientSocketLog) and
+     not Assigned(OnLog) then
+    OnLog := OnHttpClientSocketLog;
   inherited Create(aTimeOut);
   if fExtendedOptions.UserAgent = '' then
     fExtendedOptions.UserAgent := DefaultUserAgent(self);
@@ -2661,23 +3083,17 @@ begin
   inherited Destroy;
 end;
 
-constructor THttpClientSocket.OpenUri(const aUri: RawUtf8;
-  out aAddress: RawUtf8; const aTunnel: RawUtf8; aTimeOut: cardinal;
-  aTLSContext: PNetTlsContext);
-var
-  u: TUri;
+constructor THttpClientSocket.OpenUri(const aUri: TUri; const aUriFull,
+  aTunnel: RawUtf8; aTimeOut: cardinal; aTLSContext: PNetTlsContext);
 begin
-  if (u.From(aUri) or // e.g. 'file:///path/to' returns false but is valid
-      (u.Address <> '')) and
-     not IdemPChar(pointer(u.Scheme), 'HTTP') and
-     NetClientProtocols.FindAndCopy(u.Scheme, fOnProtocolRequest) then
-    begin
-      Create(aTimeOut); // no socket involved
-      fOpenUriFull := aUri; // e.g. to call PatchCreateFromUrl() Windows API
-      aAddress := u.Address;
-    end
+  if not (aUri.UriScheme in [usHttp .. usUdp]) and
+     NetClientProtocols.FindAndCopy(aUri.Scheme, fOnProtocolRequest) then
+  begin
+    Create(aTimeOut); // no socket involved - but keep Request() logic
+    fOpenUriFull := aUriFull;  // e.g. to call PatchCreateFromUrl() WinAPI
+  end
   else
-    inherited OpenUri(aUri, aAddress, aTunnel, aTimeOut, aTLSContext);
+    inherited OpenUri(aUri, aUriFull, aTunnel, aTimeOut, aTLSContext);
 end;
 
 constructor THttpClientSocket.OpenOptions(const aUri: TUri;
@@ -2714,13 +3130,50 @@ begin
   aOptions.TLS := TLS; // copy back Peer information after connection
 end;
 
+procedure THttpClientSocket.OpenBind(const aServer, aPort: RawUtf8; doBind,
+  aTLS: boolean; aLayer: TNetLayer; aSock: TNetSocket; aReusePort: boolean);
+var
+  bak: TUri;
+begin
+  if doBind then
+    EHttpSocket.RaiseUtf8('%.OpenBind with doBind=true', [self]);
+  fProxyAuthHeader := '';
+  if (not aTLS) and // proxy to https:// destination requires CONNECT
+     (Tunnel.Server <> '') and
+     (Tunnel.Server <> aServer) then
+  begin
+    // plain http:// proxy is implemented in RequestSendHeader not via CONNECT
+    bak := Tunnel;
+    try
+      Tunnel.Clear; // no CONNECT
+      inherited OpenBind(bak.Server, bak.Port, false, bak.Https, bak.Layer);
+      fProxyUrl := bak.URI;
+      if bak.User <> '' then
+        Join(['Proxy-Authorization: Basic ', bak.UserPasswordBase64], fProxyAuthHeader);
+      fSocketLayer := aLayer;
+      include(fFlags, fProxyHttp);
+      if Assigned(OnLog) then
+        OnLog(sllTrace, 'Open(%:%) via proxy %', [aServer, aPort, fProxyUrl], self);
+    finally
+      // always restore server and tunnel params for proper retry
+      fServer := aServer;
+      fPort := aPort; // good enough to keep '' for default port 80
+      exclude(fFlags, fServerTlsEnabled); // any TLS was about the proxy
+      Tunnel := bak;
+    end;
+  end
+  else
+    // regular socket creation if no proxy or toward https://
+    inherited OpenBind(aServer, aPort, {doBind=}false, aTLS, aLayer);
+end;
+
 function THttpClientSocket.SameOpenOptions(const aUri: TUri;
   const aOptions: THttpRequestExtendedOptions): boolean;
 var
   tun: TUri;
 begin
-  result := IdemPChar(pointer(aUri.Scheme), 'HTTP') and
-            aUri.Same(Server, Port, TLS.Enabled) and
+  result := (aUri.UriScheme in HTTP_SCHEME) and
+            aUri.Same(Server, Port, ServerTls) and
             SameNetTlsContext(TLS, aOptions.TLS) and
             fExtendedOptions.SameAuth(@aOptions.Auth);
   if result then
@@ -2744,9 +3197,10 @@ procedure THttpClientSocket.RequestInternal(var ctxt: THttpClientRequest);
   procedure DoRetry(const Fmt: RawUtf8; const Args: array of const;
     FatalErrorCode: integer = HTTP_CLIENTERROR);
   var
-    msg: RawUtf8;
+    msg: ShortString;
   begin
-    FormatUtf8(Fmt, Args, msg);
+    FormatShort(Fmt, Args, msg);
+    AppendLine(fRequestContext, ['DoRetry ',  msg]);
     //writeln('DoRetry ',byte(ctxt.Retry), ' ', FatalErrorCode, ' / ', msg);
     if Assigned(OnLog) then
        OnLog(sllTrace, 'DoRetry % socket=% fatal=% retry=%',
@@ -2758,21 +3212,25 @@ procedure THttpClientSocket.RequestInternal(var ctxt: THttpClientRequest);
       ctxt.Status := FatalErrorCode
     else
       try
-        // recreate the connection and try again
+        // recreate the connection and try again - like TCrtSocket.ReOpen()
         Close;
-        OpenBind(fServer, fPort, {bind=}false, TLS.Enabled);
+        OpenBind(fServer, fPort, {bind=}false, ServerTls);
         HttpStateReset;
         include(ctxt.Retry, rMain);
         RequestInternal(ctxt); // retry once
       except
-        on Exception do
+        on E: Exception do
+        begin
+          AppendLine(fRequestContext, [E, ':', E.Message]);
           ctxt.Status := FatalErrorCode;
+        end;
       end;
   end;
 
 var
   cmd: PUtf8Char;
   pending: TCrtSocketPending;
+  res: TNetResult;
   bodystream: TStream;
   loerr, buflen: integer;
   dat: RawByteString;
@@ -2791,7 +3249,7 @@ begin
           not SockIsDefined then
     DoRetry('connection closed (keepalive timeout or max)', [])
   else if not fSock.Available(@loerr) then
-    DoRetry('connection broken (socketerror=%)', [loerr])
+    DoRetry('connection broken (socketerror=%)', [NetErrorText(loerr)])
   else if not SockConnected then
     DoRetry('getpeername() failed', [])
   else
@@ -2812,9 +3270,9 @@ begin
           not IsHead(ctxt.Method)) then
         CompressDataAndWriteHeaders(ctxt.DataMimeType, dat, ctxt.InStream);
       if ctxt.Header <> '' then
-        SockSendHeaders(pointer(ctxt.Header)); // normalizing CRLF
+        SockSendHeaders(ctxt.Header); // normalizing CRLF
       if Http.CompressList <> nil then
-        SockSendHeaders(pointer(Http.CompressList^.AcceptEncoding));
+        SockSendHeaders(Http.CompressList^.AcceptEncodingClient); // advertise
       SockSendCRLF;
       // flush headers and Data/InStream body
       SockSendFlush(dat);
@@ -2824,8 +3282,10 @@ begin
       begin
         // InStream may be a THttpMultiPartStream -> Seek(0) calls Flush
         ctxt.InStream.Seek(0, soBeginning);
-        if SockSendStream(ctxt.InStream, 1 shl 20,
-             {noraise=}false, {checkrecv=}true) = nrRetry then
+        res := SockSendStream(ctxt.InStream, 1 shl 20,
+             {noraise=}false, {checkrecv=}true);
+        AppendLine(fRequestContext, [ctxt.InStream, ' = ', _NR[res]]);
+        if res = nrRetry then
         begin
           // the server interrupted the upload by sending something (e.g. 413)
           if Assigned(OnLog) then
@@ -2834,19 +3294,28 @@ begin
           include(Http.HeaderFlags, hfConnectionClose); // socket state is wrong
         end;
       end;
-      // wait and retrieve HTTP command line response
+      // wait for the HTTP response
       pending := SockReceivePending(Timeout, @loerr); // select/poll
       case pending of
         cspDataAvailable:
           ; // ok
         cspDataAvailableOnClosedSocket:
-          include(Http.HeaderFlags, hfConnectionClose); // socket is closed
+          begin
+            include(Http.HeaderFlags, hfConnectionClose); // socket is closed
+            if (fSecure = nil) and
+               not Sock.Available(@loerr, {nowait=}true) then // e.g. on Windows
+            begin
+              DoRetry('Closed FIN/RST during headers', [NetErrorText(loerr)]);
+              exit;
+            end;
+          end;
         cspNoData:
           if SockConnected then // getpeername()=nrOK
           begin
             // timeout may happen not because the server took its time, but
             // because the network is down: sadly, the socket is still reported
             // as OK by the OS (on both Windows and POSIX)
+            AppendLine(fRequestContext, ['NoData ms=', Timeout]);
             // -> no need to retry
             ctxt.Status := HTTP_TIMEOUT;
             // -> close the socket, since this HTTP request is clearly aborted
@@ -2861,10 +3330,11 @@ begin
       else // cspSocketError, cspSocketClosed
         begin
           DoRetry('% % waiting %ms for headers',
-            [ToText(pending)^, CardinalToHexShort(loerr), TimeOut]);
+            [ToText(pending)^, NetErrorText(loerr), TimeOut]);
           exit;
         end;
       end;
+      // retrieve HTTP command line response
       SockRecvLn(Http.CommandResp); // will raise ENetSock on any error
       cmd := pointer(Http.CommandResp);
       if IdemPChar(cmd, 'HTTP/1.') and
@@ -2876,7 +3346,10 @@ begin
         ctxt.Status := GetCardinal(cmd + 9);
         if (ctxt.Status < 200) or
            (ctxt.Status > 599) then // the HTTP standard requires three digits
+        begin
+          AppendLine(fRequestContext, ['Invalid ', Http.CommandResp]);
           exit; // abort but returns the received number (may be 0)
+        end;
       end
       else
       begin
@@ -2888,7 +3361,8 @@ begin
         exit;
       end;
       // retrieve all HTTP headers
-      GetHeader(hroHeadersUnfiltered in Http.Options);
+      GetHeader((hroHeadersUnfiltered in Http.Options) or
+                IsHead(ctxt.Method));
       if (rfHttp10 in Http.ResponseFlags) and // implicit keepalive in HTTP/1.1
          not (hfConnectionKeepAlive in Http.HeaderFlags) then
         include(Http.HeaderFlags, hfConnectionClose);
@@ -2914,6 +3388,8 @@ begin
           end
           else
             bodystream := nil; // don't append any HTML server error message
+        if bodystream <> nil then
+          AppendLine(fRequestContext, [ctxt.Status, ' over ', bodystream]);
         // retrieve whole response body
         GetBody(bodystream);
       end;
@@ -2928,8 +3404,11 @@ begin
           DoRetry('% raised after % [%]',
             [E, ToText(ENetSock(E).LastError)^, E.Message])
         else
+        begin
           // propagate custom exceptions to the caller (e.g. from progression)
+          AppendLine(fRequestContext, [E, ':', E.Message]);
           raise;
+        end;
     end;
   finally
     if Assigned(OnLog) then
@@ -2943,26 +3422,41 @@ end;
 procedure THttpClientSocket.RequestSendHeader(const url, method: RawUtf8);
 var
   secret: SpiUtf8;
+  noport: boolean;
 begin
   if not SockIsDefined then
     exit;
-  if SockIn = nil then // done once
+  if SockIn = nil then
     CreateSockIn; // use SockIn by default if not already initialized: 2x faster
+  // append command line
+  noport := (fPort = '') or // = '' for fProxyHttp on port 80
+            (fPort = DEFAULT_PORT[ServerTls]);
   fSndBufLen := 0;
+  SockSendRaw([method, ' ']);
+  if fProxyHttp in fFlags then
+  begin
+    // absolute-URI 'GET http://www.example.org/pub/TheProject.html HTTP/1.1'
+    // see https://datatracker.ietf.org/doc/html/rfc7230#section-5.3.2
+    SockSendRaw(['http://', fServer]);
+    if not noport then
+      SockSendRaw([':', fPort]);
+  end;
   if (url = '') or
      (url[1] <> '/') then
-    SockSendLine([method, ' /', url, ' HTTP/1.1']) // should always start with /
-  else
-    SockSendLine([method, ' ', url, ' HTTP/1.1']);
+    EnsureSockSend(1)^ := '/'; // should always start with /
+  SockSendLine([url, ' HTTP/1.1']);
+  // append main headers
   {$ifdef OSPOSIX}
   if SocketLayer = nlUnix then
-    SockSend('Host: unix')
+    SockSend('Host: unix') // not part of the HTTP standard anyway
   else
   {$endif OSPOSIX}
-  if Port = DEFAULT_PORT[TLS.Enabled] then
-    SockSendLine(['Host: ', Server])
+  if noport then
+    SockSendLine(['Host: ', fServer])
   else
-    SockSendLine(['Host: ', Server, ':', Port]);
+    SockSendLine(['Host: ', fServer, ':', fPort]);
+  if fProxyAuthHeader <> '' then
+    SockSend(fProxyAuthHeader);
   if (fRangeStart > 0) or
      (fRangeEnd > 0) then
     if fRangeEnd > fRangeStart then
@@ -2995,12 +3489,13 @@ end;
 
 function THttpClientSocket.Request(const url, method: RawUtf8;
   KeepAlive: cardinal; const Header: RawUtf8; const Data: RawByteString;
-  const DataMimeType: RawUtf8; retry: boolean; InStream, OutStream: TStream): integer;
+  const DataMimeType: RawUtf8; AsRetry: boolean; InStream, OutStream: TStream): integer;
 var
   ctxt: THttpClientRequest;
   newuri: TUri;
 begin
   // prepare the execution
+  fRequestContext := '';
   ctxt.Url := url;
   if (url = '') or
      (url[1] <> '/') then
@@ -3021,7 +3516,7 @@ begin
     ctxt.OutStreamInitialPos := OutStream.Position;
   ctxt.Status := 0;
   ctxt.Redirected := 0;
-  if retry then
+  if AsRetry then
     ctxt.Retry := [rMain]
   else
     ctxt.Retry := [];
@@ -3034,9 +3529,9 @@ begin
     begin
       // emulate a custom protocol (e.g. 'file://') into a HTTP request
       if Http.ParseAll(ctxt.InStream, ctxt.Data,
-          FormatUtf8('% % HTTP/1.0', [method, ctxt.Url]), ctxt.Header) then
+        Join([method, ' ', ctxt.Url, ' HTTP/1.0']), ctxt.Header) then
       begin
-        Http.CommandResp := fOpenUriFull;
+        Http.CommandResp := fOpenUriFull; // e.g. 'file:///C:/folder/file.txt'
         ctxt.Status := fOnProtocolRequest(Http);
         if StatusCodeIsSuccess(ctxt.Status) then
           ctxt.Status := Http.ContentToOutput(ctxt.Status, ctxt.OutStream);
@@ -3058,6 +3553,7 @@ begin
       begin
         if Assigned(OnLog) then
           OnLog(sllTrace, 'Request(% %)=%', [ctxt.Method, url, ctxt.Status], self);
+        AppendLine(fRequestContext, [ctxt.Status]);
         if rAuth in ctxt.Retry then
           break; // avoid infinite recursion
         include(ctxt.Retry, rAuth);
@@ -3069,6 +3565,7 @@ begin
       begin
         if Assigned(OnLog) then
           OnLog(sllTrace, 'Request(% %)=%', [ctxt.Method, url, ctxt.Status], self);
+        AppendLine(fRequestContext, [ctxt.Status]);
         if rAuthProxy in ctxt.Retry then
           break;
         include(ctxt.Retry, rAuthProxy);
@@ -3081,11 +3578,12 @@ begin
          (ctxt.Status > 399) or              // 400.. are errors
          (ctxt.Redirected >= fExtendedOptions.RedirectMax) then
         break;
-      if retry then
+      if AsRetry then
         ctxt.Retry := [rMain]
       else
         ctxt.Retry := [];
       ctxt.Url := Http.HeaderGetValue('LOCATION');
+      AppendLine(fRequestContext, [ctxt.Status, ' into ', ctxt.Url]);
       case ctxt.Status of
         // https://developer.mozilla.org/en-US/docs/Web/HTTP/Redirections
         HTTP_MOVEDPERMANENTLY,
@@ -3106,20 +3604,25 @@ begin
       if Assigned(fOnRedirect) then
         if not fOnRedirect(self, ctxt) then
           break;
-      if IdemPChar(pointer(ctxt.Url), 'HTTP') and
-         newuri.From(ctxt.Url) then
+      if IsHttp(ctxt.Url) and
+         newuri.From(ctxt.Url) then // relocated to another server
       begin
         fRedirected := newuri.Address;
         if (hfConnectionClose in Http.HeaderFlags) or
            (newuri.Server <> Server) or
            (newuri.Port <> Port) or
-           (newuri.Https <> TLS.Enabled) then
+           (newuri.Https <> ServerTls) then
         begin
           Close; // relocated to another server -> reset the TCP connection
           try
+            AppendLine(fRequestContext, ['ReOpen ', newuri.URI]);
             OpenBind(newuri.Server, newuri.Port, {bind=}false, newuri.Https);
           except
-            ctxt.Status := HTTP_CLIENTERROR; // more explicit than 404 or 501
+            on E: Exception do
+            begin
+              AppendLine(fRequestContext, [E, ': ', E.Message]);
+              ctxt.Status := HTTP_CLIENTERROR; // more explicit than 404 or 501
+            end;
           end;
           HttpStateReset;
           ctxt.Url := newuri.Address;
@@ -3354,10 +3857,11 @@ begin
   if not Assigned(params.Hasher) then
     params.Hasher := TStreamRedirect; // no hash by default
   if FileExists(result) then
-    if not DeleteFile(result) or
-       FileExists(result) then
-      EHttpSocket.RaiseUtf8(
-        '%.WGet: impossible to delete deprecated %', [self, result]);
+    if not DeleteFile(result) then
+      EHttpSocket.RaiseUtf8('%.WGet: impossible to delete deprecated % [%]',
+        [self, result, OsErrorShort])
+    else if FileExists(result) then
+      EHttpSocket.RaiseUtf8('%.WGet: Delete(%) failed', [self, result]);
   part := result + '.part';
   size := FileSize(part);
   RequestClear; // reset Range from any previous failed request
@@ -3442,8 +3946,8 @@ begin
     // valid .part file can now be converted into the result file
     if FileExists(part) then // if not already done in Alternate.OnDownloaded()
       if not RenameFile(part, result) then
-        EHttpSocket.RaiseUtf8(
-          '%.WGet: impossible to rename % as %', [self, part, result]);
+        EHttpSocket.RaiseUtf8('%.WGet: impossible to rename % as % [%]',
+          [self, part, result, OsErrorShort]);
     // set part='' to notify fully downloaded into result file name
     part := '';
   finally
@@ -3566,9 +4070,9 @@ var
   channelbindingtemp: THash512Rec;
 begin
   if (Sender = nil) or
-     not IdemPChar(pointer(Authenticate), pointer(SECPKGNAMEHTTP_UPPER)) then
+     not IdemPChar(pointer(Authenticate), SECPKGNAMEHTTP_UPPER) then
     exit;
-  unauthstatus := Context.status; // either 401 or 407
+  unauthstatus := Context.status; // either 401 (http auth) or 407 (proxy auth)
   bak := Context.header;
   InvalidateSecContext(sc);
   try
@@ -3580,7 +4084,7 @@ begin
     repeat
       FindNameValue(Sender.Http.Headers, pointer(InHeaderUp), RawUtf8(datain));
       datain := Base64ToBin(TrimU(datain));
-      if Sender.fExtendedOptions.Auth.UserName <> '' then // from AuthorizeSspiUser()
+      if Sender.fExtendedOptions.Auth.Password <> '' then // from AuthorizeSspiUser()
         ClientSspiAuthWithPassword(sc, datain, Sender.fExtendedOptions.Auth.UserName,
           Sender.fExtendedOptions.Auth.Password, Sender.AuthorizeSspiSpn, dataout)
       else                               // use current logged user
@@ -3620,11 +4124,23 @@ begin
       [self, SECPKGNAMEAPI]);
   fOnAuthorize := nil;
   fExtendedOptions.AuthorizeSspiUser(UserName, Password);
-  if UserName = '' then
-    exit;
   fOnAuthorize := OnAuthorizeSspi;
+  // prepare a Service Principal Name (SPN) - maybe partial
   if KerberosSpn <> '' then
-    fAuthorizeSspiSpn := KerberosSpn;
+    if (PosExChar('@', KerberosSpn) <> 0) or
+       (PosExChar('/', KerberosSpn) <> 0) then
+      // full 'HTTP/server@TLD' form - 'HTTP/server' is enough on Windows/SSPI
+      fAuthorizeSspiSpn := KerberosSpn
+    else
+      // here KerberosSpn is likely to be only the TLD
+      Join(['HTTP/', LowerCase(fServer), '@', UpperCase(KerberosSpn)], fAuthorizeSspiSpn)
+  else
+  begin
+    fAuthorizeSspiSpn := ClientForcedSpn;
+    if fAuthorizeSspiSpn = '' then
+      // set at least service name - @TLD extracted later from UserName or keytab
+      Join(['HTTP/', LowerCase(fServer)], fAuthorizeSspiSpn);
+  end;
 end;
 
 class function THttpClientSocket.OnProxyAuthorizeSspi(Sender: THttpClientSocket;
@@ -3668,21 +4184,14 @@ begin
   end;
 end;
 
-function OpenHttpGet(const server, port, url, inHeaders: RawUtf8;
-  outHeaders: PRawUtf8; aLayer: TNetLayer; aTLS: boolean;
-  outStatus: PInteger; aTimeout: integer; ignoreTlsCertError: boolean): RawByteString;
+function DoHttpGet(http: THttpClientSocket; const url, inHeaders: RawUtf8;
+  outHeaders: PRawUtf8; outStatus: PInteger): RawByteString;
 var
-  Http: THttpClientSocket;
   status: integer;
-  tls: TNetTlsContext;
 begin
-  result := '';
-  InitNetTlsContext(tls);
-  tls.IgnoreCertificateErrors := ignoreTlsCertError;
-  Http := OpenHttp(server, port, aTLS, aLayer, '', aTimeout, @tls);
   if Http <> nil then
   try
-    Http.RedirectMax := 5;
+    Http.RedirectMax := 5; // fair enough
     status := Http.Get(url, 0, inHeaders);
     if outStatus <> nil then
       outStatus^ := status;
@@ -3695,6 +4204,17 @@ begin
   finally
     Http.Free;
   end;
+end;
+
+function OpenHttpGet(const server, port, url, inHeaders: RawUtf8;
+  outHeaders: PRawUtf8; aLayer: TNetLayer; aTLS: boolean;
+  outStatus: PInteger; aTimeout: integer; ignoreTlsCertError: boolean): RawByteString;
+var
+  tmp: TNetTlsContext;
+begin
+  result := DoHttpGet(OpenHttp(server, port, aTLS, aLayer, '', aTimeout,
+                        GetTlsContext(aTLS, ignoreTlsCertError, tmp)),
+              url, inHeaders, outHeaders, outStatus);
 end;
 
 
@@ -3720,7 +4240,8 @@ begin
   Auth.UserName := UserName;
   Auth.Password := Password;
   Auth.Token := '';
-  if UserName = '' then
+  if (UserName = '') and
+     not (Scheme in [wraNegotiate, wraNegotiateChannelBinding]) then
     Scheme := wraNone;
   Auth.Scheme := Scheme;
 end;
@@ -3841,13 +4362,14 @@ begin
     'te', TLS.Enabled,
     'ti', TLS.IgnoreCertificateErrors,
     'ta', TLS.AllowDeprecatedTls,
+    'td', TLS.DisableTls13,
     'tu', TLS.ClientAllowUnsafeRenegotation,
     'cf', TLS.CertificateFile,
     'ca', TLS.CACertificatesFile,
     'pf', TLS.PrivateKeyFile], JSON_FAST, {dontAddDefault=}true);
   if (TLS.PrivateKeyFile <> '') and
      (TLS.PrivatePassword <> '') then
-    TDocVariantData(result).AddValueFromText('pp',
+    TDocVariantData(result).AddValueText('pp',
       BinToBase64uri(CryptDataWithSecret(TLS.PrivatePassword,
         [TLS.PrivateKeyFile, TLS.CertificateFile, Secret], TLS_ROUNDS, TLS_SALT)));
 end;
@@ -3858,6 +4380,7 @@ begin
   V.GetAsBoolean('te', TLS.Enabled);
   V.GetAsBoolean('ti', TLS.IgnoreCertificateErrors);
   V.GetAsBoolean('ta', TLS.AllowDeprecatedTls);
+  V.GetAsBoolean('td', TLS.DisableTls13);
   V.GetAsBoolean('tu', TLS.ClientAllowUnsafeRenegotation);
   V.GetAsRawUtf8('cf', TLS.CertificateFile);
   V.GetAsRawUtf8('ca', TLS.CACertificatesFile);
@@ -3875,7 +4398,7 @@ end;
 
 class function THttpRequest.InternalREST(const url, method: RawUtf8;
   const data: RawByteString; const header: RawUtf8; aIgnoreTlsCertificateErrors: boolean;
-  timeout: integer; outHeaders: PRawUtf8; outStatus: PInteger): RawByteString;
+  timeout: integer; outHeaders: PRawUtf8; outStatus: PInteger; outError: PString): RawByteString;
 var
   uri: TUri;
   outh: RawUtf8;
@@ -3898,7 +4421,12 @@ begin
         Free;
       end;
     except
-      result := '';
+      on E: Exception do
+      begin
+        if outError <> nil then
+          outError^ := E.Message;
+        result := '';
+      end;
     end;
 end;
 
@@ -3994,8 +4522,8 @@ begin
       if comp <> nil then
         InternalAddHeader(Join(['Content-Encoding: ', comp^.Name]));
     end;
-    if fCompressList.AcceptEncoding <> '' then
-      InternalAddHeader(fCompressList.AcceptEncoding);
+    if fCompressList.AcceptEncodingClient <> '' then
+      InternalAddHeader(fCompressList.AcceptEncodingClient);
     upload:= IsPost(method) or IsPut(method);
     // send request to remote server
     if Assigned(fOnUpload) and
@@ -4081,7 +4609,7 @@ begin
     {$endif USELIBCURL}
     {$endif USEWININET}
     if _MainHttpClass = nil then
-      raise EHttpSocket.Create('MainHttpClass: No THttpRequest class known!');
+      EHttpSocket.RaiseU('MainHttpClass: No THttpRequest class known!');
   end;
   result := _MainHttpClass;
 end;
@@ -4117,7 +4645,7 @@ begin
   if Assigned(fOnProgress) then
     fOnProgress(self, 0, ContentLength); // initial notification
   if Assigned(fOnDownload) then
-    // download per-chunk using calback event
+    // download per-chunk using callback event
     repeat
       Bytes := InternalQueryDataAvailable;
       if Bytes = 0 then
@@ -4247,7 +4775,8 @@ begin
   if not WinHttpApi.SetTimeouts(fSession, HTTP_DEFAULT_RESOLVETIMEOUT,
      ConnectionTimeOut, SendTimeout, ReceiveTimeout) then
     RaiseFromLastError('SetTimeouts');
-  if fHttps then
+  if fHttps or
+     (fExtendedOptions.RedirectMax > 0) then // may redirect from http to https
   begin
     protocols := InternalGetProtocols;
     if not WinHttpApi.SetOption(fSession, WINHTTP_OPTION_SECURE_PROTOCOLS,
@@ -4363,7 +4892,7 @@ begin
         wraNegotiate,
         wraNegotiateChannelBinding:
           winAuth := WINHTTP_AUTH_SCHEME_NEGOTIATE;
-      else // no RaiseUtf8 to avoid "winAUth not initialized" error on Delphi
+      else // no RaiseUtf8 to avoid "winAuth not initialized" error on Delphi
         raise EWinHttp.CreateUtf8('%: unsupported AuthScheme=% on % %:%',
           [self, ToText(AuthScheme)^, aMethod, fServer, fPort]);
       end;
@@ -4377,11 +4906,12 @@ begin
         FillZero(pwd);
       end;
     end;
-  if fHttps and
-     IgnoreTlsCertificateErrors then
-    if not WinHttpApi.SetOption(fRequest, WINHTTP_OPTION_SECURITY_FLAGS,
-       @SECURITY_FLAG_IGNORE_CERTIFICATES, SizeOf(cardinal)) then
-      RaiseFromLastError('SetOption');
+  if IgnoreTlsCertificateErrors then
+    if fHttps or
+       (fExtendedOptions.RedirectMax > 0) then // may redirect from http to https
+      if not WinHttpApi.SetOption(fRequest, WINHTTP_OPTION_SECURITY_FLAGS,
+         @SECURITY_FLAG_IGNORE_CERTIFICATES, SizeOf(cardinal)) then
+        RaiseFromLastError('SetOption(ignorecert)');
   if fExtendedOptions.RedirectMax > 0 then
     if WinHttpApi.SetOption(fRequest, WINHTTP_OPTION_REDIRECT_POLICY,
          @REDIRECT_POLICY_ALWAYS, SizeOf(cardinal)) then
@@ -4391,14 +4921,15 @@ begin
   if _SendRequest(L) and
      WinHttpApi.ReceiveResponse(fRequest, nil) then
     exit; // success
-  if fHttps and
+  if (fHttps or
+      (fExtendedOptions.RedirectMax > 0)) and
      (GetLastError = ERROR_WINHTTP_CLIENT_AUTH_CERT_NEEDED) and
      IgnoreTlsCertificateErrors and
      WinHttpApi.SetOption(fRequest, WINHTTP_OPTION_SECURITY_FLAGS,
        @SECURITY_FLAG_IGNORE_CERTIFICATES, SizeOf(cardinal)) and
      WinHttpApi.SetOption(fRequest, WINHTTP_OPTION_CLIENT_CERT_CONTEXT,
        pointer(WINHTTP_NO_CLIENT_CERT_CONTEXT), 0) and
-     _SendRequest(L) and
+     _SendRequest(L) and // retry
      WinHttpApi.ReceiveResponse(fRequest, nil) then
     exit; // success with no certificate validation
   // if we reached here, an error occurred
@@ -4423,7 +4954,7 @@ begin
       if not WinHttpApi.QueryHeaders(fRequest, Info, nil, tmp.buf, dwSize, dwIndex) then
         exit;
     end;
-    Win32PWideCharToUtf8(tmp.buf, dwSize shr 1, result);
+    Unicode_ToUtf8(tmp.buf, dwSize shr 1, result);
   finally
     tmp.Done;
   end;
@@ -4471,21 +5002,22 @@ var
 begin
   err := GetLastError;
   EWinHttp.RaiseUtf8('%: % error [%] (%) on %:%',
-    [self, ctxt, WinErrorText(err, winhttpdll), err, fServer, fPort]);
+    [self, ctxt, WinApiErrorShort(err, WinHttpApi.LibraryHandle),
+     err, fServer, fPort]);
 end;
 
 
 { TWinINet }
 
-procedure TWinINet.RaiseFromLastError;
+procedure TWinINet.RaiseFromLastError(const ctxt: ShortString);
 var
   err: integer;
   E: EWinINet;
 begin
   // see http://msdn.microsoft.com/en-us/library/windows/desktop/aa383884
   err := GetLastError;
-  E := EWinINet.CreateUtf8('%: % (%) on %:%',
-    [self, SysErrorMessageWinInet(err), err, fServer, fPort]);
+  E := EWinINet.CreateUtf8('%: % error [%] (%) on %:%',
+    [self, ctxt, SysErrorMessageWinInet(err), err, fServer, fPort]);
   E.fLastError := err;
   raise E;
 end;
@@ -4504,7 +5036,7 @@ begin
   fSession := InternetOpenA(pointer(fExtendedOptions.UserAgent), OpenType,
     pointer(fProxyName), pointer(fProxyByPass), 0);
   if fSession = nil then
-    RaiseFromLastError;
+    RaiseFromLastError('Open');
   InternetSetOption(fConnection, INTERNET_OPTION_CONNECT_TIMEOUT,
     @ConnectionTimeOut, SizeOf(ConnectionTimeOut));
   InternetSetOption(fConnection, INTERNET_OPTION_SEND_TIMEOUT,
@@ -4514,7 +5046,7 @@ begin
   fConnection := InternetConnectA(fSession, pointer(fServer), fPort,
     nil, nil, INTERNET_SERVICE_HTTP, 0, 0);
   if fConnection = nil then
-    RaiseFromLastError;
+    RaiseFromLastError('Connect');
 end;
 
 procedure TWinINet.InternalCreateRequest(const aMethod, aUrl: RawUtf8);
@@ -4535,7 +5067,7 @@ begin
   FRequest := HttpOpenRequestA(FConnection, pointer(aMethod), pointer(aUrl),
     nil, nil, ACCEPT_TYPES[fNoAllAccept], Flags, 0);
   if FRequest = nil then
-    RaiseFromLastError;
+    RaiseFromLastError('OpenRequest');
 end;
 
 procedure TWinINet.InternalCloseRequest;
@@ -4552,7 +5084,7 @@ begin
   if (hdr <> '') and
      not HttpAddRequestHeadersA(fRequest, pointer(hdr), length(hdr),
        HTTP_ADDREQ_FLAG_COALESCE) then
-    RaiseFromLastError;
+    RaiseFromLastError('AddHeader');
 end;
 
 procedure TWinINet.InternalSendRequest(const aMethod: RawUtf8; const aData:
@@ -4569,7 +5101,7 @@ begin
     buff.dwStructSize := SizeOf(buff);
     buff.dwBufferTotal := Length(aData);
     if not HttpSendRequestExA(fRequest, @buff, nil, 0, 0) then
-      RaiseFromLastError;
+      RaiseFromLastError('SendRequest');
     datapos := 0;
     while datapos < datalen do
     begin
@@ -4581,18 +5113,18 @@ begin
         Bytes := max;
       if not InternetWriteFile(fRequest,
          @PByteArray(aData)[datapos], Bytes, BytesWritten) then
-        RaiseFromLastError;
+        RaiseFromLastError('WriteFile');
       inc(datapos, BytesWritten);
       if not fOnUpload(Self, datapos, datalen) then
         raise EWinINet.CreateFmt('OnUpload Canceled %s', [aMethod]);
     end;
     if not HttpEndRequest(fRequest, nil, 0, 0) then
-      RaiseFromLastError;
+      RaiseFromLastError('EndRequest');
   end
   else
     // blocking send with no callback
     if not HttpSendRequestA(fRequest, nil, 0, pointer(aData), length(aData)) then
-      RaiseFromLastError;
+      RaiseFromLastError('SendRequest');
 end;
 
 function TWinINet.InternalGetInfo(Info: cardinal): RawUtf8;
@@ -4613,7 +5145,7 @@ begin
       if not HttpQueryInfoW(fRequest, Info, tmp.buf, dwSize, dwIndex) then
         exit;
     end;
-    Win32PWideCharToUtf8(tmp.buf, dwSize shr 1, result);
+    Unicode_ToUtf8(tmp.buf, dwSize shr 1, result);
   finally
     tmp.Done;
   end;
@@ -4633,14 +5165,14 @@ end;
 function TWinINet.InternalQueryDataAvailable: cardinal;
 begin
   if not InternetQueryDataAvailable(fRequest, result, 0, 0) then
-    RaiseFromLastError;
+    RaiseFromLastError('QueryDataAvailable');
 end;
 
 function TWinINet.InternalReadData(var Data: RawByteString;
   Read: PtrInt; Size: cardinal): cardinal;
 begin
   if not InternetReadFile(fRequest, @PByteArray(Data)[Read], Size, result) then
-    RaiseFromLastError;
+    RaiseFromLastError('ReadData');
 end;
 
 destructor TWinINet.Destroy;
@@ -4721,7 +5253,8 @@ const
   CERT_PEM: RawUtf8 = 'PEM';
 begin
   fIn.URL := fRootURL + aUrl;
-  curl.easy_setopt(fHandle, coFollowLocation, 1); // url redirection (as TWinHttp)
+  if fExtendedOptions.RedirectMax > 0 then // url redirection (as TWinHttp)
+    curl.easy_setopt(fHandle, coFollowLocation, 1);
   //curl.easy_setopt(fHandle,coTCPNoDelay,0); // disable Nagle
   if fLayer = nlUnix then
     curl.easy_setopt(fHandle, coUnixSocketPath, pointer(fServer));
@@ -4729,7 +5262,9 @@ begin
   if (fProxyName <> '') and
      not IsNone(fProxyName) then
     curl.easy_setopt(fHandle, coProxy, pointer(fProxyName));
-  if fHttps then
+  if fHttps or
+     (fExtendedOptions.RedirectMax > 0) then // may redirect from http to https
+    // see https://curl.haxx.se/libcurl/c/simplessl.html
     if IgnoreTlsCertificateErrors then
     begin
       curl.easy_setopt(fHandle, coSSLVerifyPeer, 0);
@@ -4737,23 +5272,19 @@ begin
       //curl.easy_setopt(fHandle,coProxySSLVerifyPeer,0);
       //curl.easy_setopt(fHandle,coProxySSLVerifyHost,0);
     end
-    else
+    else if fTls.CertFile <> '' then
     begin
-      // see https://curl.haxx.se/libcurl/c/simplessl.html
-      if fTls.CertFile <> '' then
-      begin
-        curl.easy_setopt(fHandle, coSSLCertType, pointer(CERT_PEM));
-        curl.easy_setopt(fHandle, coSSLCert, pointer(fTls.CertFile));
-        if fTls.PassPhrase <> '' then
-          curl.easy_setopt(fHandle, coSSLCertPasswd, pointer(fTls.PassPhrase));
-        curl.easy_setopt(fHandle, coSSLKeyType, nil);
-        curl.easy_setopt(fHandle, coSSLKey, pointer(fTls.KeyName));
-        curl.easy_setopt(fHandle, coCAInfo, pointer(fTls.CACertFile));
-        curl.easy_setopt(fHandle, coSSLVerifyPeer, 1);
-      end
-      else if fTls.CACertFile <> '' then
-        curl.easy_setopt(fHandle, coCAInfo, pointer(fTls.CACertFile));
-    end;
+      curl.easy_setopt(fHandle, coSSLCertType, pointer(CERT_PEM));
+      curl.easy_setopt(fHandle, coSSLCert, pointer(fTls.CertFile));
+      if fTls.PassPhrase <> '' then
+        curl.easy_setopt(fHandle, coSSLCertPasswd, pointer(fTls.PassPhrase));
+      curl.easy_setopt(fHandle, coSSLKeyType, nil);
+      curl.easy_setopt(fHandle, coSSLKey, pointer(fTls.KeyName));
+      curl.easy_setopt(fHandle, coCAInfo, pointer(fTls.CACertFile));
+      curl.easy_setopt(fHandle, coSSLVerifyPeer, 1);
+    end
+    else if fTls.CACertFile <> '' then
+      curl.easy_setopt(fHandle, coCAInfo, pointer(fTls.CACertFile));
   curl.easy_setopt(fHandle, coUserAgent, pointer(fExtendedOptions.UserAgent));
   curl.easy_setopt(fHandle, coWriteFunction, @CurlWriteRawByteString);
   curl.easy_setopt(fHandle, coHeaderFunction, @CurlWriteRawByteString);
@@ -5013,6 +5544,8 @@ begin
        (fHttps.Server <> Server.Server) or
        (fHttps.Port <> Server.PortInt) then
     begin
+      if Assigned(fOnLog) then
+        fOnLog(sllDebug, 'RawConnect(%:%)', [Server.Server, Server.Port], self);
       Close; // need a new https connection
       fHttps := MainHttpClass.Create(Server, @fConnectOptions); // connect
     end;
@@ -5025,8 +5558,12 @@ begin
      (fHttp.Port <> Server.Port) or
      not fHttp.SockConnected then
   begin
+    if Assigned(fOnLog) then
+      fOnLog(sllDebug, 'RawConnect(%:%)', [Server.Server, Server.Port], self);
     Close;
-    fHttp := THttpClientSocket.OpenOptions(Server, fConnectOptions); // connect
+    fHttp := THttpClientSocket.OpenOptions(
+      Server, fConnectOptions, fOnLog); // connect
+    include(fHttp.Http.Options, hroHeadersUnfiltered); // least astonishment
   end;
 end;
 
@@ -5076,7 +5613,7 @@ begin
     begin
       // if we reached here, plain http or fOnlyUseClientSocket or fHttps failed
       result := fHttp.Request(
-        Uri.Address, Method, KeepAlive, Header, Data, DataMimeType, {retry=}true);
+        Uri.Address, Method, KeepAlive, Header, Data, DataMimeType);
       fBody := fHttp.Http.Content;
       fHeaders := fHttp.Http.Headers;
     end;
@@ -5257,12 +5794,15 @@ begin
   begin
     two := [];
     if jcoPayloadWithoutVoid in fOptions then
-      two := [twoIgnoreDefaultInRecord];
+      include(two, twoIgnoreDefaultInRecord);
+    if jcoPayloadDateTimeWithZ in fOptions then
+      include(two, twoDateTimeWithZ);
     SaveJson(Payload^, PayloadInfo, two, b);
   end;
   if Assigned(fOnLog) then
-    fOnLog(sllServiceCall, FMT_REQ[((jcoLogFullRequest in fOptions) or
-      (length(b) < 1024))], [Method, Action, b], self);
+    fOnLog(sllServiceCall,
+      FMT_REQ[((jcoLogFullRequest in fOptions) or (length(b) < 1024))],
+      [Method, Action, b], self);
   if Assigned(fOnBefore) then
     fOnBefore(self, Method, Action, b);
   j := nil;
@@ -5437,6 +5977,12 @@ begin
   result := fDefaultHeaders;
 end;
 
+procedure TJsonClient.AddDefaultHeader(const Name, Value: RawUtf8);
+begin
+  AppendLine(fDefaultHeaders, [Name, ': ', Value]);
+  SetInHeaders;
+end;
+
 function TJsonClient.HttpOptions: PHttpRequestExtendedOptions;
 begin
   result := fHttp.Options;
@@ -5600,7 +6146,8 @@ function HttpGet(const aUri: RawUtf8; const inHeaders: RawUtf8;
 var
   uri: TUri;
 begin
-  if uri.From(aUri) then
+  if uri.From(aUri) and // has a valid uri.Server field
+     (uri.UriScheme in HTTP_SCHEME) then
     if (uri.Https or
         forceNotSocket) and
        not forceSocket then
@@ -5623,14 +6170,41 @@ begin
       result := OpenHttpGet(uri.Server, uri.Port, uri.Address,
         inHeaders, outHeaders, uri.Layer, uri.Https, outStatus,
         timeout, ignoreTlsCertError)
-    else
-      result := '';
+  else if uri.Scheme = '' then
+    result := '' // a clearly invalid URI
+  else // try custom RegisterNetClientProtocol()
+    result := DoHttpGet(THttpClientSocket.OpenUri(uri, aUri, '', timeout, nil),
+      uri.Address, inHeaders, outHeaders, outStatus);
   {$ifdef LINUX_RAWDEBUGVOIDHTTPGET}
   if result = '' then
     writeln('HttpGet returned VOID for ',uri.server,':',uri.Port,' ',uri.Address);
   {$endif LINUX_RAWDEBUGVOIDHTTPGET}
 end;
 
+function HttpGetWeak(const aUri: RawUtf8; const aLocalFile: TFileName;
+  outStatus: PInteger): RawByteString;
+var
+  status: integer;
+begin
+  if aLocalFile <> '' then // try from local cache
+  begin
+    result := StringFromFile(aLocalFile); // useful e.g. during regression tests
+    if result <> '' then
+    begin
+      if outStatus <> nil then
+        outStatus^ := HTTP_SUCCESS; // emulates proper download
+      exit;
+    end;
+  end;
+  result := HttpGet(aUri, {inhead=}'', {outhead=}nil, {notsock=}false,
+    @status, {timeout=}0, {forcesocket=}false, {ignorecerterror=}true);
+  if outStatus <> nil then
+    outStatus^ := status;
+  if (status = HTTP_SUCCESS) and
+     (aLocalFile <> '') and
+     (result <> '') then
+    FileFromString(result, aLocalFile);
+end;
 
 
 { ************** Send Email using the SMTP Protocol }
@@ -5669,8 +6243,6 @@ begin
     TLS or (Server.Port = '465') or (Server.Port = '587'), TLSIgnoreCertError);
 end;
 
-{$I-}
-
 function SendEmail(const Server, From, CsvDest, Subject: RawUtf8;
   const Text: RawByteString; const Headers, User, Pass, Port, TextCharSet: RawUtf8;
   TLS, TLSIgnoreCertError: boolean): boolean;
@@ -5682,9 +6254,7 @@ var
     res: RawUtf8;
   begin
     repeat
-      readln(sock.SockIn^, res);
-      if ioresult <> 0 then
-        ESendEmail.RaiseUtf8('read error for %', [res]);
+      sock.SockRecvLn(res);
     until (Length(res) < 4) or
           (res[4] <> '-'); // - indicates there are other headers following
     if IdemPChar(pointer(res), pointer(answer)) then
@@ -5699,8 +6269,6 @@ var
   begin
     sock.SockSend(Command);
     sock.SockSendFlush;
-    if ioresult <> 0 then
-      ESendEmail.RaiseUtf8('Write error for %', [Command]);
     Expect(answer)
   end;
 
@@ -5715,7 +6283,7 @@ begin
   sock := SocketOpen(Server, Port, TLS, nil, nil, TLSIgnoreCertError);
   if sock <> nil then
   try
-    sock.CreateSockIn; // we use SockIn for readln in Expect()
+    sock.CreateSockIn; // we use SockIn for buffered SockRecvLn() in Expect()
     Expect('220');
     if (User <> '') and
        (Pass <> '') then
@@ -5754,18 +6322,16 @@ begin
         'Content-Type: text/plain;charset=', TextCharSet, #13#10 +
         'Content-Transfer-Encoding: 8bit']);
     if head <> '' then
-      sock.SockSendHeaders(pointer(head)); // normalizing CRLF
-    sock.SockSendCRLF;                     // end of headers
+      sock.SockSendHeaders(head); // normalizing CRLF
+    sock.SockSendCRLF;            // end of headers
     sock.SockSend(Text);
     Exec('.', '25');
     Exec('QUIT', '22');
-    result := ioresult = 0;
+    result := true;
   finally
     sock.Free;
   end;
 end;
-
-{$I+}
 
 function SendEmailSubject(const Text: string): RawUtf8;
 begin
@@ -5789,6 +6355,7 @@ type
     // INewSocketAddressCache methods
     function Search(const Host: RawUtf8; out NetAddr: TNetAddr): boolean;
     procedure Add(const Host: RawUtf8; const NetAddr: TNetAddr);
+    procedure Force(const Host, IP: RawUtf8);
     procedure Flush(const Host: RawUtf8);
     procedure SetTimeOut(aSeconds: integer);
   end;
@@ -5817,6 +6384,17 @@ procedure TNewSocketAddressCache.Add(const Host: RawUtf8;
 begin
   fData.DeleteDeprecated;   // flush cache only when we may need some new space
   fData.Add(Host, NetAddr); // do nothing if already added in another thread
+end;
+
+procedure TNewSocketAddressCache.Force(const Host, IP: RawUtf8);
+var
+  addr: TNetAddr;
+begin
+  if not NetIsIP4(pointer(IP)) or
+     not addr.SetFromIP4(IP, true) then
+    exit;
+  fData.DeleteDeprecated;   // flush cache only when we may need some new space
+  fData.AddOrUpdate(Host, addr); // force change
 end;
 
 procedure TNewSocketAddressCache.Flush(const Host: RawUtf8);
@@ -5861,4 +6439,5 @@ finalization
   FinalizeUnit;
 
 end.
+
 

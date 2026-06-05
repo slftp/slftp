@@ -218,7 +218,7 @@ type
   TColorPalette = packed record
     Flags: UINT;
     Count: UINT;
-    Entries: array [0..0] of cardinal;
+    Entries: array[0..0] of cardinal;
   end;
   PColorPalette = ^TColorPalette;
 
@@ -295,7 +295,7 @@ const
 
 const
   /// the corresponding file extension for every saving format type
-  GdipPictureExt: array [TGdipPictureType] of TFileName = (
+  GdipPictureExt: array[TGdipPictureType] of TFileName = (
     '.gif',
     '.png',
     '.jpg',
@@ -395,13 +395,13 @@ type
   // - is dynamically loaded, so application could start e.g. on plain XP
   TGdiPlus = class(TSynLibrary)
   protected
+    fSafe: TOSLock;
     fToken: THandle;
     fStartupHook: record
       Hook: TGdiPlusHookProc;
       Unhook: TGdiPlusUnhookProc;
     end;
     fStartupHookToken: THandle;
-    fLock: TRTLCriticalSection;
   public
     // Picture related API calls of the GDI+ class hierarchy
     Startup: function(var Token: THandle; var Input, Output): TGdipStatus; stdcall;
@@ -990,7 +990,7 @@ var
   {$endif GDIPLUS_USEENCODERS}
   error: string;
 begin
-  InitializeCriticalSection(fLock);
+  fSafe.Init;
   // first try and search the best library name
   if (aDllFileName = '') or
      not FileExists(aDllFileName) then
@@ -1033,7 +1033,7 @@ begin
            'Gdip', @GDIP_ENTRIES, @@Startup, nil, @error) then
     exit;
   // EMF conversion API is available only on GDI+ 1.1
-  ConvertToEmfPlus11 := GetProcAddress(fHandle, 'GdipConvertToEmfPlus');
+  ConvertToEmfPlus11 := LibraryResolve(fHandle, 'GdipConvertToEmfPlus');
   // setup the libray
   FillcharFast(Input, SizeOf(Input), 0);
   Input.Version := 1;
@@ -1063,17 +1063,17 @@ begin
     fToken := 0;
   end;
   inherited Destroy;
-  DeleteCriticalSection(fLock);
+  fSafe.Done;
 end;
 
 procedure TGdiPlus.Lock;
 begin
-  EnterCriticalSection(fLock);
+  fSafe.Lock;
 end;
 
 procedure TGdiPlus.UnLock;
 begin
-  LeaveCriticalSection(fLock);
+  fSafe.UnLock;
 end;
 
 

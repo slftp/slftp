@@ -69,7 +69,7 @@ implementation
 
 {$IF DEFINED(ENABLE_PROXY) AND DEFINED(ENABLE_INTERNAL_PROXY)}
 
-uses SysUtils, {$IFNDEF NO_SAFECALL}ActiveX, ComObj,{$ENDIF} SOAPHTTPClient, ZExceptions, SOAPHTTPTrans, Types {$IFDEF TCERTIFICATE_HAS_PUBLICKEY}, Net.URLClient, Net.HttpClient{$ENDIF};
+uses SysUtils, ZClasses, {$IFNDEF NO_SAFECALL}ActiveX, ComObj,{$ENDIF} SOAPHTTPClient, ZExceptions, SOAPHTTPTrans, Types {$IFDEF HAVE_UNIT_URLCLIENT}, Net.URLClient, Net.HttpClient, System.Net.HttpClientComponent, ZLib{$ENDIF HAVE_UNIT_URLCLIENT}, Math;
 
 type
   TZDbcProxy = class(TInterfacedObject, IZDbcProxy{$IFNDEF NO_SAFECALL}, ISupportErrorInfo{$ENDIF})
@@ -77,6 +77,11 @@ type
       FService: IZeosProxy;
       FConnectionID: WideString;
       FValidPublicKeys: TStringList;
+      {$IFDEF HAVE_UNIT_URLCLIENT}
+      HttpClient: THTTPClient;
+      {$ENDIF}
+      CBORUrl: String;
+      FTOFU: Boolean;
       procedure CheckConnected;
       // this is necessary for safecall exception handling
       {$IFNDEF NO_SAFECALL}
@@ -101,6 +106,7 @@ type
       procedure Rollback; {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
       function SetProperties(const Properties : WideString): WideString; {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
       function ExecuteStatement(const SQL, Parameters: WideString; const MaxRows: LongWord): WideString; {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
+      function ExecuteStatementCb(const SQL, Parameters: WideString; const MaxRows: LongWord): {$IFDEF NO_SAFECALL}TStream{$ELSE}IStream{$ENDIF}; {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
       function GetTables(const Catalog, SchemaPattern, TableNamePattern, Types: WideString): WideString; {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
       function GetSchemas: WideString; {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
       function GetCatalogs: WideString; {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
@@ -126,6 +132,37 @@ type
       destructor Destroy; override;
   end;
 
+  TBuffer = Class
+    public
+      MinByte: LongInt;
+      MaxByte: LongInt;
+      LastByte: LongInt;
+      Position: Integer;
+      Buffer: Array[1..1024] of Byte;
+  end;
+
+  TStreamBuffer = Class(TStream)
+    private
+    protected
+      FBaseStream: TStream;
+      MinPos: Cardinal;
+      MaxPos: Cardinal;
+      Buffer1: TBuffer;
+      Buffer2: TBuffer;
+      CurrentBuf: TBuffer;
+      OtherBuf: TBuffer;
+      FPosition: Int64;
+      function GetSize: Int64; override;
+      procedure SwapBuffers;
+      procedure PrepareBuffer(TargetPos: LongInt);
+    public
+      function Read(var Buffer; Count: Longint): Longint; override;
+      function Write(const Buffer; Count: Longint): Longint; override;
+      function Seek(Offset: Longint; Origin: Word): Longint; override;
+      function CopyFrom(Source: TStream; Count: Int64): Int64;
+      constructor Create(BaseStream: TStream);
+      destructor Destroy; override;
+  End;
 
 var
   LastErrorStr: UnicodeString;
@@ -197,7 +234,10 @@ end;
 
 procedure TZDbcProxy.BeforePostData(const HTTPReqResp: THTTPReqResp; Client: THTTPClient);
 begin
-  HTTPReqResp.HTTP.OnValidateServerCertificate := ValidateServerCertificate;
+  if FTOFU then
+    HTTPReqResp.HTTP.OnValidateServerCertificate := ValidateServerCertificate;
+  HTTPReqResp.AutomaticDecompression := [THTTPCompressionMethod.Deflate, THTTPCompressionMethod.GZip];
+  //HTTPReqResp.HTTP.AcceptEncoding := 'gzip, deflate';
 end;
 {$ENDIF}
 
@@ -210,6 +250,7 @@ var
   MyDbInfo: UnicodeString;
   PropList: TStringList;
   Certs: String;
+  x: Integer;
 begin
   FRIO := THTTPRIO.Create(nil);
   Url := ServiceEndpoint;
@@ -218,8 +259,9 @@ begin
   try
     PropList.DelimitedText := Properties;
     {$IFDEF TCERTIFICATE_HAS_PUBLICKEY}
-    if PropList.IndexOfName('TofuPubKeys') > 0 then begin
-      FRIO.HTTPWebNode.OnBeforePost := BeforePostData;
+    FTOFU := PropList.IndexOfName('TofuPubKeys') > 0;
+    FRIO.HTTPWebNode.OnBeforePost := BeforePostData;
+    if FTOFU then begin
       Certs := LowerCase(Trim(PropList.Values['TofuPubKeys']));
       if Certs <> 'yes' then
         FValidPublicKeys.DelimitedText := Certs;
@@ -234,6 +276,20 @@ begin
     FConnectionID := FService.Connect(UserName, Password, DbName, MyInProperties, MyOutProperties, MyDbInfo);
     Properties := MyOutProperties;
     DbInfo := MyDbInfo;
+    {$IFDEF HAVE_UNIT_URLCLIENT}
+    HttpClient := THttpClient.Create;
+    HttpClient.AcceptEncoding := 'deflate';
+    HttpClient.CustomHeaders['Authorization'] := 'Bearer ' + FConnectionID;
+    x := Pos(WideString('://'), ServiceEndpoint);
+    x := Pos('/', ServiceEndpoint, x + 3);
+    if x > 0 then begin
+      CBORUrl := copy(ServiceEndpoint, 1, x);
+      CBORUrl := CBORUrl + 'ZeosProxy/cborquery';
+    end;
+    {$IFDEF TCERTIFICATE_HAS_PUBLICKEY}
+    HttpClient.OnValidateServerCertificate := ValidateServerCertificate;
+    {$ENDIF}
+    {$ENDIF}
   end else begin
     FreeAndNil(FRIO);
   end;
@@ -244,6 +300,10 @@ begin
  CheckConnected;
  try
    FService.Disconnect(FConnectionID);
+   {$IFDEF HAVE_UNIT_URLCLIENT}
+   if Assigned(HttpClient) then
+     FreeAndNil(HttpClient);
+   {$ENDIF}
  finally
    FConnectionID := '';
  end;
@@ -283,6 +343,50 @@ function TZDbcProxy.ExecuteStatement(const SQL, Parameters: WideString; const Ma
 begin
   CheckConnected;
   Result := FService.ExecuteStatement(FConnectionID, SQL, Parameters, MaxRows);
+end;
+
+function TZDbcProxy.ExecuteStatementCb(const SQL, Parameters: WideString; const MaxRows: LongWord): {$IFDEF NO_SAFECALL}TStream{$ELSE}IStream{$ENDIF}; {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
+{$IFDEF HAVE_UNIT_URLCLIENT}
+var
+  Query: String;
+  Req: TStringStream;
+  Res: TMemoryStream;
+  Rsp: IHTTPResponse;
+{$ENDIF}
+begin
+  {$IFDEF HAVE_UNIT_URLCLIENT}
+  try
+    Res := TMemoryStream.Create;
+    Query := '<query><sql>';
+    Query := Query + XMLEncode(SQL) + '</sql>';
+    Query := Query + Parameters;
+    Query := Query + '</query>';
+    Req := TStringStream.Create(Query, CP_UTF8);
+    try
+      Rsp := HttpClient.Put(CBORUrl, Req, Res);
+    finally
+      FreeAndNil(Req);
+    end;
+
+    if Assigned(Res) then
+      {$IFNDEF NO_SAFECALL}
+      if Rsp.ContentEncoding = 'deflate' then
+        Result := TStreamAdapter.Create(TStreamBuffer.Create(TZDecompressionStream.Create(Res, -15, True)), soOwned)
+      else
+        Result := TStreamAdapter.Create(Res, soOwned)
+      {$ELSE}
+      Result := Res
+      {$ENDIF}
+    else
+      Result := nil;
+  except
+    if Assigned(Res) then
+      FreeAndNil(Res);
+    raise;
+  end;
+  {$ELSE}
+  raise Exception.Create('Cannot execute CBOR query in this version of Delphi.');
+  {$ENDIF}
 end;
 
 function TZDbcProxy.GetTables(const Catalog, SchemaPattern, TableNamePattern, Types: WideString): WideString; {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
@@ -411,6 +515,155 @@ begin
     Result := MyService.GetPublicKeys
   else
     FreeAndNil(FRIO);
+end;
+
+{------------------------------------------------------------------------------}
+
+constructor TStreamBuffer.Create(BaseStream: TStream);
+begin
+  inherited Create;
+  FBaseStream := BaseStream;
+  Buffer1 := TBuffer.Create;
+  Buffer1.Position := 1;
+  Buffer2 := TBuffer.Create;
+  Buffer2.Position := 2;
+  CurrentBuf := Buffer1;
+  CurrentBuf.MinByte := 1;
+  CurrentBuf.MaxByte := High(CurrentBuf.Buffer);
+  CurrentBuf.LastByte := 0;
+  OtherBuf := Buffer2;
+  OtherBuf.MinByte := -1;
+  OtherBuf.MaxByte := -1;
+  OtherBuf.LastByte := -1;
+end;
+
+destructor TStreamBuffer.Destroy;
+begin
+  if Assigned(Buffer1) then
+    FreeAndNil(Buffer1);
+  if Assigned(Buffer2) then
+    FreeAndNil(Buffer2);
+  if Assigned(FBaseStream) then
+    FreeAndNil(FBaseStream);
+  inherited;
+end;
+
+procedure TStreamBuffer.SwapBuffers;
+var
+  SwapBuffer: TBuffer;
+begin
+  SwapBuffer := CurrentBuf;
+  CurrentBuf := OtherBuf;
+  OtherBuf := SwapBuffer;
+end;
+
+procedure TStreamBuffer.PrepareBuffer(TargetPos: LongInt);
+var
+  MyTargetPos: Int64;
+  StartIdx: Integer;
+  Count: Integer;
+begin
+  if FPosition = CurrentBuf.MaxByte then begin
+    // nächsten Block laden
+    if CurrentBuf.MinByte < OtherBuf.MinByte then begin
+      // Otherbuf liegt bereits hinter Currentbuf und muß nur entsprechend beladen werden
+      SwapBuffers;
+      PrepareBuffer(TargetPos);
+    end else begin
+      // Otherbuf liegt vor Currentbuf und muß entsprechend vorbereitet werden.
+      OtherBuf.MinByte := CurrentBuf.MaxByte + 1;
+      Otherbuf.LastByte := CurrentBuf.MaxByte;
+      OtherBuf.MaxByte := OtherBuf.MinByte + High(OtherBuf.Buffer) - 1;
+      SwapBuffers;
+      PrepareBuffer(TargetPos);
+    end;
+  end else if FPosition < CurrentBuf.MaxByte then begin
+    // mehr Daten in den aktuellen Block laden
+    MyTargetPos := Min(CurrentBuf.MaxByte, TargetPos);
+    if MyTargetPos > CurrentBuf.LastByte then begin
+      StartIdx := CurrentBuf.LastByte - CurrentBuf.MinByte + 2;
+      Count := MyTargetPos - CurrentBuf.LastByte;
+      Count := FBaseStream.Read(CurrentBuf.Buffer[StartIdx], Count);
+      CurrentBuf.LastByte := CurrentBuf.LastByte + Count;
+    end;
+  end else begin
+    // Fehler - Position ist irgendwie über das Ende hinaus geschossen
+    raise Exception.Create('FPosition should never be higher than CurrentBuf.MaxByte');
+  end;
+end;
+
+function TStreamBuffer.Read(var Buffer; Count: Longint): Longint;
+var
+  BytesRead: Integer;
+  TargetPos: LongInt;
+  ByteCount: LongInt;
+  StartPos: Integer;
+  PBuffer: PByte;
+begin
+  PBuffer := @Byte(Buffer);
+  BytesRead := 0;
+  TargetPos := FPosition + Count;
+  ByteCount := 1;
+
+  while (FPosition <> TargetPos) and (ByteCount <> 0) do begin
+    if CurrentBuf.LastByte < TargetPos then PrepareBuffer(TargetPos);
+    ByteCount := Min(TargetPos, CurrentBuf.LastByte);
+    ByteCount := ByteCount - FPosition;
+    StartPos := FPosition - CurrentBuf.MinByte + 2;
+    Move(CurrentBuf.Buffer[StartPos], PBuffer^, ByteCount);
+    Inc(PBuffer, ByteCount);
+    Inc(BytesRead, ByteCount);
+    Inc(FPosition, ByteCount);
+  end;
+
+  Result := BytesRead;
+end;
+
+function TStreamBuffer.Write(const Buffer; Count: Longint): Longint;
+begin
+  raise Exception.Create('Write is not supported.');
+end;
+
+function TStreamBuffer.Seek(Offset: Longint; Origin: Word): Longint;
+begin
+  case Origin of
+    Ord(soBeginning): begin
+      if Offset < FPosition then begin
+        if (Offset >= (CurrentBuf.MinByte - 1)) and (Offset <= CurrentBuf.LastByte) then begin
+          FPosition := Offset;
+        end else if (Offset >= OtherBuf.MinByte - 1) and (Offset <= OtherBuf.LastByte) then begin
+          SwapBuffers;
+          FPosition := Offset;
+        end else begin
+          raise Exception.Create('Cannot seek to position ' + IntToStr(Offset));
+        end;
+      end else if Offset > FPosition then begin
+        while CurrentBuf.MaxByte < Offset do begin
+          PrepareBuffer(Offset);
+          FPosition := Min(CurrentBuf.MaxByte, Offset);
+        end;
+        FPosition := Min(Offset, CurrentBuf.LastByte);
+      end;
+    end;
+    Ord(soCurrent): begin
+      Seek(FPosition + Offset, soBeginning);
+    end;
+    Ord(soEnd): begin
+      raise Exception.Create('Seeking from the End is not supported.');
+    end;
+  end;
+
+  Result := FPosition;
+end;
+
+function TStreamBuffer.CopyFrom(Source: TStream; Count: Int64): Int64;
+begin
+  raise Exception.Create('CopyFrom is not supported.');
+end;
+
+function TStreamBuffer.GetSize: Int64;
+begin
+  Result := FBaseStream.Size;
 end;
 
 initialization

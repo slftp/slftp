@@ -28,6 +28,7 @@ uses
   sysutils,
   mormot.core.base,
   mormot.core.os,
+  mormot.core.os.security,
   mormot.core.rtti,
   mormot.core.unicode,
   mormot.core.text,
@@ -59,44 +60,44 @@ type
     xaNone,
     xaDC,   // domainComponent
     xeUID,  // userID
-    xaCN,   // commonName (3)
-    xaSER,  // serialNumber (5)
-    xaC,    // countryName (6)
-    xaL,    // localityName (7)
-    xaST,   // stateOrProvinceName (8)
-    xaO,    // organizationName (10)
-    xaOU,   // organizationalUnitName (11)
-    xaT,    // title (12)
-    xaTN,   // telephoneNumber (20)
-    xaN,    // name (41)
-    xaSN,   // surname (4)
-    xaGN,   // givenName (42)
-    xaI,    // initials (43)
-    xaGQ,   // generationQualifier (44)
-    xaQ,    // distinguishedNameQualifier (46)
-    xaP,    // pseudonym (65)
+    xaCN,   // commonName (2.5.4.3)
+    xaSER,  // serialNumber (2.5.4.5)
+    xaC,    // countryName (2.5.4.6)
+    xaL,    // localityName (2.5.4.7)
+    xaST,   // stateOrProvinceName (2.5.4.8)
+    xaO,    // organizationName (2.5.4.10)
+    xaOU,   // organizationalUnitName (2.5.4.11)
+    xaT,    // title (2.5.4.12)
+    xaTN,   // telephoneNumber (2.5.4.20)
+    xaN,    // name (2.5.4.41)
+    xaSN,   // surname (2.5.4.4)
+    xaGN,   // givenName (2.5.4.42)
+    xaI,    // initials (2.5.4.43)
+    xaGQ,   // generationQualifier (2.5.4.44)
+    xaQ,    // distinguishedNameQualifier (2.5.4.46)
+    xaP,    // pseudonym (2.5.4.65)
     xaE);   // email
 
   /// known X.509 v3 Certificate extensions
   // - standard extensions as defined in RFC 5280 4.2.1
   TXExtension = (
     xeNone,
-    xeSubjectDirAttributes,    // 9
-    xeSubjectKeyIdentifier,    // 14
-    xeKeyUsage,                // 15
-    xeSubjectAlternativeName,  // 17
-    xeIssuerAlternativeName,   // 18
-    xeBasicConstraints,        // 19
-    xeNameConstraints,         // 30
-    xeCrlDistributionPoints,   // 31
-    xeCertificatePolicies,     // 32
-    xePolicyMappings,          // 33
-    xeAuthorityKeyIdentifier,  // 35
-    xePolicyConstraints,       // 36
-    xeExtendedKeyUsage,        // 37
-    xeAuthorityInformationAccess,
-    xeGoogleSignedCertificateTimestamp,
-    xeNetscapeComment);
+    xeSubjectDirAttributes,             // 2.5.29.9
+    xeSubjectKeyIdentifier,             // 2.5.29.14
+    xeKeyUsage,                         // 2.5.29.15
+    xeSubjectAlternativeName,           // 2.5.29.17
+    xeIssuerAlternativeName,            // 2.5.29.18
+    xeBasicConstraints,                 // 2.5.29.19
+    xeNameConstraints,                  // 2.5.29.30
+    xeCrlDistributionPoints,            // 2.5.29.31
+    xeCertificatePolicies,              // 2.5.29.32
+    xePolicyMappings,                   // 2.5.29.33
+    xeAuthorityKeyIdentifier,           // 2.5.29.35
+    xePolicyConstraints,                // 2.5.29.36
+    xeExtendedKeyUsage,                 // 2.5.29.37
+    xeAuthorityInformationAccess,       // 1.3.6.1.5.5.7.1.1
+    xeGoogleSignedCertificateTimestamp, // 1.3.6.1.4.1.11129.2.4.2
+    xeNetscapeComment);                 // 2.16.840.1.113730.1.13
 
   /// X.509 Certificate Key Usage - see RFC 5280 Section 4.2.1.3
   // - bit order is inverted to the RFC due to BITSTRING encoding
@@ -368,22 +369,22 @@ const
     '',                           // xaNone
     '0.9.2342.19200300.100.1.25', // xaDC  domainComponent
     '0.9.2342.19200300.100.1.1',  // xeUID userID
-    '2.5.4.3',                    // xaCN  commonName (3)
-    '2.5.4.5',                    // xaSER serialNumber (5)
-    '2.5.4.6',                    // xaC   countryName (6)
-    '2.5.4.7',                    // xaL   localityName (7)
-    '2.5.4.8',                    // xaST  stateOrProvinceName (8)
-    '2.5.4.10',                   // xaO   organizationName (10)
-    '2.5.4.11',                   // xaOU  organizationalUnitName (11)
-    '2.5.4.12',                   // xaT   title (12)
-    '2.5.4.20',                   // xaTN  telephoneNumber (20)
-    '2.5.4.41',                   // xaN   name (41)
-    '2.5.4.4',                    // xaSN  surname (4)
-    '2.5.4.42',                   // xaGN  givenName (42)
-    '2.5.4.43',                   // xaI   initials (43)
-    '2.5.4.44',                   // xaGQ  generationQualifier (44)
-    '2.5.4.46',                   // xaQ   distinguishedNameQualifier (46)
-    '2.5.4.65',                   // xaP   pseudonym (65)
+    '2.5.4.3',                    // xaCN  commonName
+    '2.5.4.5',                    // xaSER serialNumber
+    '2.5.4.6',                    // xaC   countryName
+    '2.5.4.7',                    // xaL   localityName
+    '2.5.4.8',                    // xaST  stateOrProvinceName
+    '2.5.4.10',                   // xaO   organizationName
+    '2.5.4.11',                   // xaOU  organizationalUnitName
+    '2.5.4.12',                   // xaT   title
+    '2.5.4.20',                   // xaTN  telephoneNumber
+    '2.5.4.41',                   // xaN   name
+    '2.5.4.4',                    // xaSN  surname
+    '2.5.4.42',                   // xaGN  givenName
+    '2.5.4.43',                   // xaI   initials
+    '2.5.4.44',                   // xaGQ  generationQualifier
+    '2.5.4.46',                   // xaQ   distinguishedNameQualifier
+    '2.5.4.65',                   // xaP   pseudonym
     '1.2.840.113549.1.9.1');      // xaE   email
 
   /// the OID of all known X.509 v3 Certificate extensions, as in RFC 5280 4.2.1
@@ -1491,7 +1492,7 @@ end;
 
 procedure TXName.ComputeText;
 var
-  tmp: TTextWriterStackBuffer;
+  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
   a: TXAttr;
   first: boolean;
   p: PUtf8Char;
@@ -1695,11 +1696,11 @@ end;
 
 function HumanRandomID: RawUtf8;
 var
-  rnd: THash256;
+  rnd: THash256Rec;
 begin
-  SharedRandom.Fill(@rnd, SizeOf(rnd)); // Lecuyer is enough for public random
-  rnd[0] := rnd[0] and $7f;     // ensure > 0
-  ToHumanHex(result, @rnd, 20); // 20 bytes = 160-bit as a common size
+  Random128(@rnd.l, @rnd.h);     // unpredictable
+  rnd.b[0] := rnd.b[0] and $7f;  // ensure > 0
+  ToHumanHex(result, @rnd, SizeOf(rnd.sha1)); // 20 bytes is the usual size
 end;
 
 function CsvToDns(p: PUtf8Char): RawByteString;
@@ -1880,7 +1881,7 @@ begin
           if AsnNext(extpos, ext) = ASN1_SEQ then
             repeat
               case AsnNextRaw(extpos, ext, v) of
-                ASN1_NULL:
+                ASN1_NULL: // no more items
                   break;
                 ASN1_CTX1, // rfc8722Name
                 ASN1_CTX2, // dnsName
@@ -1931,20 +1932,18 @@ begin
               else if oid = '1.3.6.1.5.5.7.48.2' then
                 Prepend(v, 'caIssuers=')
               else
-                continue;
+                Prepend(v, [oid, '=']); // not part of RFC 5280
               EnsureRawUtf8(v);
               AddToCsv(v, decoded);
             end;
         xeCertificatePolicies:      // RFC 5280 #4.2.1.4
           if AsnNext(extpos, ext) = ASN1_SEQ then
-          begin
             while AsnNextRaw(extpos, ext, seq) = ASN1_SEQ do
             begin
               seqpos := 1;
               if AsnNext(seqpos, seq, @oid) = ASN1_OBJID then
                 AddToCsv(oid, decoded);
             end;
-          end;
         xeNetscapeComment:
           if AsnNext(extpos, ext, @v) in ASN1_TEXT then // typically IA5String
             decoded := v;
@@ -2287,7 +2286,7 @@ procedure TX509.ComputeCachedDer;
 begin
   if (SignatureAlgorithm = xsaNone) or
      (SignatureValue = '') then
-    raise EX509.Create('TX509.ToDer with no previous Sign() call');
+    EX509.RaiseU('TX509.ToDer with no previous Sign() call');
   fSafe.Lock;
   try
     if fCachedDer = '' then
@@ -3163,7 +3162,7 @@ begin
       if CsvContains(p^.Signed.Extension[xceIssuerAlternativeName],
            DnsName, ',', {casesensitive=}false) and
          p^.IsValidDate(TimeUtc) then
-        ObjArrayAdd(result, p^);
+        PtrArrayAdd(result, p^);
       inc(p);
     end;
   finally
@@ -4202,7 +4201,7 @@ end;
 
 function TCryptStoreX509.Save: RawByteString;
 var
-  tmp: TTextWriterStackBuffer;
+  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
   w: TTextWriter;
 begin
   w := TTextWriter.CreateOwnedStream(tmp);

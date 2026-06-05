@@ -10,10 +10,12 @@ unit mormot.core.interfaces;
     - IInvokable Interface Methods and Parameters RTTI Extraction
     - TInterfaceFactory Generating Runtime Implementation Class
     - TInterfaceResolver TInjectableObject for IoC / Dependency Injection
-    - TInterfaceStub TInterfaceMock for Dependency Mocking
+    - TInterfaceStub for Dependency Stubbing/Mocking
     - TInterfacedObjectFake with JITted Methods Execution
     - TInterfaceMethodExecute for Method Execution from JSON
     - SetWeak and SetWeakZero Weak Interface Reference
+    - Code/Documentation Generation Logic Extraction from RTTI
+    - Documentation Extraction from Source Code Comments
 
   *****************************************************************************
 }
@@ -34,11 +36,11 @@ uses
   mormot.core.text,
   mormot.core.rtti,
   mormot.core.buffers,
+  mormot.core.datetime,
   mormot.core.variants,
   mormot.core.data,
   mormot.core.json,
   mormot.core.threads,
-  mormot.core.test, // for TInterfaceMock
   mormot.core.log;
 
 
@@ -116,12 +118,15 @@ type
   // - vIsDynArrayString is set for ValueType=imvDynArray of string values
   // - vIsInterfaceJson is set for an interface with custom JSON serializers
   // - vIsOnStack is set when the Value is to be located on stack
+  // - vIsHFA is set for Homogeneous Floating-point Aggregate records (at most
+  // four continuous floating point members on SYSVABI) - pointless on x86
   TInterfaceMethodValueAsm = set of (
     vPassedByReference,
     vIsQword,
     vIsDynArrayString,
     vIsInterfaceJson,
-    vIsOnStack);
+    vIsOnStack,
+    vIsHFA);
 
   /// a pointer to an interface-based service provider method description
   // - since TInterfaceFactory instances are shared in a global list, we
@@ -135,16 +140,18 @@ type
   TInterfaceMethodArgument = object
   {$endif USERECORDWITHMETHODS}
   public
-    /// the argument name, as declared in object pascal
+    /// the argument name, as declared in Object Pascal
+    // - see also TInterfaceMethod.ArgsName[] array if you need a RawUtf8
     ParamName: PShortString;
-    /// the type name, as declared in object pascal
+    /// the type name, as declared in Object Pascal
     ArgTypeName: PShortString;
     /// the low-level RTTI information of this argument
     // - use ArgRtti.Info to retrieve the TypeInfo() of this argument
     ArgRtti: TRttiJson;
-    /// we do not handle all kind of object pascal variables
+    /// we do not handle all kind of Object Pascal variables
     ValueType: TInterfaceMethodValueType;
     /// the variable direction as defined at code level
+    // - you may rather use high-level IsInput/IsOutput inlined methods
     ValueDirection: TInterfaceMethodValueDirection;
     /// how the variable may be stored
     ValueVar: TInterfaceMethodValueVar;
@@ -171,9 +178,16 @@ type
     // - may be -1 if pure register parameter with no backup on stack (x86)
     InStackOffset: SmallInt;
     /// how TInterfaceMethodExecuteRaw.RawExecute should handle this value
-    RawExecute: (reValReg, reValStack, reRefReg, reRefStack, reValFpReg, reNone);
+    RawExecute: (reValReg, reValRegs, reValStack, reRefReg, reRefStack,
+                 reValFpReg, reValFpRegs, reNone);
     /// 64-bit aligned position in TInterfaceMethod.ArgsSizeAsValue memory
     OffsetAsValue: cardinal;
+    /// true if is a const/var input argument
+    function IsInput: boolean;
+      {$ifdef HASSAFEINLINE} inline; {$endif}
+    /// true if is a var/out/result output argument
+    function IsOutput: boolean;
+      {$ifdef HASSAFEINLINE} inline; {$endif}
     /// serialize the argument into the TServiceContainer.Contract JSON format
     // - non standard types (e.g. class, enumerate, dynamic array or record)
     // are identified by their type identifier - so contract does not extend
@@ -194,9 +208,6 @@ type
     /// append the default JSON value corresponding to this argument
     // - includes a pending ','
     procedure AddDefaultJson(WR: TJsonWriter);
-    /// add a value into a TDocVariant object or array
-    // - Dest should already have set its Kind to either dvObject or dvArray
-    procedure AddAsVariant(var Dest: TDocVariantData; V: pointer);
     /// normalize a value containing one input or output argument
     // - sets and enumerates will be translated into text (also in embedded
     // objects and T*ObjArray), and record/class/arrays into TDocVariantData
@@ -257,7 +268,7 @@ type
   {$endif USERECORDWITHMETHODS}
   public
     /// the method URI, i.e. the method name
-    // - as declared in object pascal code, e.g. 'Add' for ICalculator.Add
+    // - as declared in Object Pascal code, e.g. 'Add' for ICalculator.Add
     // - this property value is hashed internally for faster access
     Uri: RawUtf8;
     /// the method default result, formatted as a JSON array
@@ -274,7 +285,7 @@ type
     /// method index in the original (non emulated) interface
     // - our custom methods start at index 3 (RESERVED_VTABLE_SLOTS), since
     // QueryInterface, _AddRef, and _Release are always defined by default
-    // - so it maps TServiceFactory.Interface.Methods[ExecutionMethodIndex-3]
+    // - so it maps TServiceFactory.Interface.Methods[ExecutionMethodIndex - 3]
     ExecutionMethodIndex: byte;
     /// how this method is defined and should be processed
     Flags: TInterfaceMethodFlags;
@@ -311,7 +322,7 @@ type
     /// the index of the last var / out argument in Args[] (signed 8-bit)
     ArgsOutNotResultLast: ShortInt;
     /// the index of the first argument expecting manual stack initialization
-    // - set for Args[].ValueVar >= imvvRawUtf8
+    // - set for Args[].ValueVar >= imvvRawUtf8 (signed 8-bit)
     ArgsManagedFirst: ShortInt;
     /// how manual stack initialization arguments are defined
     // - set for Args[].ValueVar >= imvvRawUtf8
@@ -319,25 +330,32 @@ type
     /// contains all used kind of arguments
     ArgsUsed: TInterfaceMethodValueTypes;
     /// 64-bit aligned cumulative size for all arguments values
-    // - follow Args[].OffsetAsValue distribution
+    // - follow Args[].OffsetAsValue distribution, and used to allocate/reset
+    // the stack memory buffer before execution
     ArgsSizeAsValue: cardinal;
+    /// the RawUtf8 names of all arguments, as declared in Object Pascal
+    ArgsName: TRawUtf8DynArray;
+    /// the RawUtf8 names of all input arguments, as declared in Object Pascal
+    ArgsInputName: TRawUtf8DynArray;
+    /// the RawUtf8 names of all output arguments, as declared in Object Pascal
+    ArgsOutputName: TRawUtf8DynArray;
     /// contains the count of variables for all used kind of arguments
     ArgsUsedCount: array[TInterfaceMethodValueVar] of byte;
+    /// retrieve a const / var argument in Args[] from its name
+    // - search is case insensitive, returns -1 if not found
+    function ArgInput(ArgName: PUtf8Char; ArgNameLen: PtrInt;
+      ArgIndex: PInteger = nil): PInterfaceMethodArgument;
+    /// retrieve a var / out / result argument Args[] from its name
+    // - search is case insensitive, returns -1 if not found
+    function ArgOutput(ArgName: PUtf8Char; ArgNameLen: PtrInt;
+      ArgIndex: PInteger = nil): PInterfaceMethodArgument;
     /// retrieve an argument index in Args[] from its name
-    // - search is case insensitive
-    // - if Input is TRUE, will search within const / var arguments
-    // - if Input is FALSE, will search within var / out / result arguments
-    // - returns -1 if not found
-    function ArgIndex(ArgName: PUtf8Char; ArgNameLen: integer;
-      Input: boolean): PtrInt;
-    /// find the next input (const / var) argument index in Args[]
+    // - search is case insensitive, returns -1 if not found
+    function ArgInputOutput(const ArgName: RawUtf8;
+      Input: boolean): PInterfaceMethodArgument;
+    /// find the next input or output argument 32-bit index in Args[]
     // - returns true if arg is the new value, false otherwise
-    function ArgNextInput(var arg: integer): boolean;
-      {$ifdef HASINLINE} inline; {$endif}
-    /// find the next output (var / out / result) argument index in Args[]
-    // - returns true if arg is the new value, false otherwise
-    function ArgNextOutput(var arg: integer): boolean;
-      {$ifdef HASINLINE} inline; {$endif}
+    function ArgNext(var Arg: integer; Input: boolean): boolean;
     /// convert parameters encoded as a JSON array into a JSON object
     // - if Input is TRUE, will handle const / var arguments
     // - if Input is FALSE, will handle var / out / result arguments
@@ -350,10 +368,6 @@ type
     // - if Input is FALSE, will handle var / out / result arguments
     function ArgsCommandLineToObject(P: PUtf8Char; Input: boolean;
       RaiseExceptionOnUnknownParam: boolean = false): RawUtf8;
-    /// returns a dynamic array list of all parameter names
-    // - if Input is TRUE, will handle const / var arguments
-    // - if Input is FALSE, will handle var / out / result arguments
-    function ArgsNames(Input: boolean): TRawUtf8DynArray;
     /// computes a TDocVariant containing the input or output arguments values
     // - Values[] should contain the input/output raw values as variant
     // - Kind will specify the expected returned document layout
@@ -378,6 +392,12 @@ type
     // in TInterfaceMethodExecute.Values during execution
     procedure ArgsStackAsDocVariant(Values: PPointerArray;
       out Dest: TDocVariantData; Input: boolean);
+    /// create new input and output TObject instances before execution
+    // - caller should ensure that ArgsUsedCount[imvvObject] <> 0
+    procedure ArgsClassNewInstance(V: PPPointer);
+    /// finalize all managed values after an execution
+    // - caller should ensure that ArgsManagedCount <> 0
+    procedure ArgsReleaseValues(V: PPointer);
   end;
 
   /// describe all mtehods of an interface-based service provider
@@ -388,18 +408,18 @@ type
 {$ifndef PUREMORMOT2}
 
 type
-  TServiceMethodValueType = TInterfaceMethodValueType;
-  TServiceMethodValueTypes = TInterfaceMethodValueTypes;
-  TServiceMethodValueVar = TInterfaceMethodValueVar;
-  TServiceMethodValueDirection = TInterfaceMethodValueDirection;
-  TServiceMethodValueDirections = TInterfaceMethodValueDirections;
-  TServiceMethodArgument = TInterfaceMethodArgument;
-  PServiceMethodArgument = PInterfaceMethodArgument;
-  TServiceMethodArgumentDynArray = TInterfaceMethodArgumentDynArray;
+  TServiceMethodValueType            = TInterfaceMethodValueType;
+  TServiceMethodValueTypes           = TInterfaceMethodValueTypes;
+  TServiceMethodValueVar             = TInterfaceMethodValueVar;
+  TServiceMethodValueDirection       = TInterfaceMethodValueDirection;
+  TServiceMethodValueDirections      = TInterfaceMethodValueDirections;
+  TServiceMethodArgument             = TInterfaceMethodArgument;
+  PServiceMethodArgument             = PInterfaceMethodArgument;
+  TServiceMethodArgumentDynArray     = TInterfaceMethodArgumentDynArray;
   TServiceMethodParamsDocVariantKind = TInterfaceMethodParamsDocVariantKind;
-  TServiceMethod = TInterfaceMethod;
-  TServiceMethodDynArray = TInterfaceMethodDynArray;
-  PServiceMethod = PInterfaceMethod;
+  TServiceMethod                     = TInterfaceMethod;
+  TServiceMethodDynArray             = TInterfaceMethodDynArray;
+  PServiceMethod                     = PInterfaceMethod;
 
 const
   // TServiceMethodValueType = TInterfaceMethodValueType items
@@ -489,7 +509,7 @@ const
   SERVICE_PSEUDO_METHOD_COUNT = length(SERVICE_PSEUDO_METHOD);
 
 var
-  /// default value for TInterfaceFactory.JsonParserOptions
+  /// default value for TInterfaceFactory.JsonParserOptions - tolerant enough
   JSONPARSER_SERVICE: TJsonParserOptions =
     [jpoHandleCustomVariants,
      jpoIgnoreUnknownEnum,
@@ -544,18 +564,18 @@ type
     fMethods: TInterfaceMethodDynArray;
     fInterfaceName: RawUtf8;
     fInterfaceUri: RawUtf8;
-    fDocVariantOptions: TDocVariantOptions; // (16-bit)
-    fJsonParserOptions: TJsonParserOptions; // (16-bit)
-    fMethodsCount: byte;
-    fAddMethodsLevel: byte;
-    fMethodIndexCallbackReleased: ShortInt; // (8-bit)
-    fMethodIndexCurrentFrameCallback: ShortInt;
+    fDocVariantOptions: TDocVariantOptions;     // (16-bit)
+    fJsonParserOptions: TJsonParserOptions;     // (16-bit)
+    fMethodsCount: byte;                        // (8-bit)
+    fAddMethodsLevel: byte;                     // (8-bit)
+    fMethodIndexCallbackReleased: ShortInt;     // (8-bit)
+    fMethodIndexCurrentFrameCallback: ShortInt; // (8-bit)
     fArgUsed: TInterfaceFactoryPerArgumentDynArray;
     // contains e.g. [{"method":"Add","arguments":[...]},{"method":"...}]
     fContract: RawUtf8;
-    {$ifdef CPUX86}  // i386 stub requires "ret ArgsSizeInStack"
+    {$ifdef ABIX86}  // i386 stub requires "ret ArgsSizeInStack"
     fFakeVTable: TPointerDynArray;
-    {$endif CPUX86}
+    {$endif ABIX86}
     procedure AddMethodsFromTypeInfo(aInterface: PRttiInfo); virtual; abstract;
     // low-level JIT redirection of the VMT to TInterfacedObjectFake.FakeCall
     function GetMethodsVirtualTable: pointer;
@@ -660,7 +680,7 @@ type
     /// reference all known interface arguments per value type
     property ArgUsed: TInterfaceFactoryPerArgumentDynArray
       read fArgUsed;
-    /// identifies a CallbackReleased() method in this interface
+    /// identifies a CallbackReleased() method in this interface (signed 8-bit)
     // - i.e. the index in Methods[] of the following signature:
     // ! procedure CallbackReleased(const callback: IInvokable; const interfaceName: RawUtf8);
     // - this method will be called e.g. by TInterfacedCallback.Destroy, when
@@ -669,7 +689,7 @@ type
     // - contains -1 if no such method do exist in the interface definition
     property MethodIndexCallbackReleased: ShortInt
       read fMethodIndexCallbackReleased;
-    /// identifies a CurrentFrame() method in this interface
+    /// identifies a CurrentFrame() method in this interface (signed 8-bit)
     // - i.e. the index in Methods[] of the following signature:
     // ! procedure CurrentFrame(isLast: boolean);
     // - this method will be called e.g. by TRestHttpClientWebsockets.CallbackRequest
@@ -780,6 +800,13 @@ type
   // return HTTP_SUCCESS if there is an output body, or HTTP_NOCONTENT if void
   TServiceCustomStatus = type cardinal;
 
+  /// indicates how TWebSocketProcess.NotifyCallback() will work
+  // - published early in this unit to be used at pure REST/SOA level
+  // - sometimes respectively logged as 'B', 'W' or 'N'
+  TWebSocketProcessNotifyCallback = (
+    wscBlockWithAnswer,
+    wscBlockWithoutAnswer,
+    wscNonBlockWithoutAnswer);
 
 /// returns the interface name of a registered Guid, or its hexadecimal value
 function ToText({$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif}
@@ -792,13 +819,12 @@ type
   /// exception raised in case of Dependency Injection (aka IoC) issue
   EInterfaceResolver = class(ESynException);
 
-  {$M+}
   /// abstract factory class allowing to call interface resolution in cascade
   // - you can inherit from this class to chain the TryResolve() calls so
   // that several kind of implementations may be asked by a TInjectableObject,
   // e.g. TInterfaceStub, TServiceContainer or TDDDRepositoryRestObjectMapping
   // - this will implement factory pattern, as a safe and thread-safe DI/IoC
-  TInterfaceResolver = class
+  TInterfaceResolver = class(TSynPersistent)
   protected
     /// override this method to resolve an interface from this instance
     function TryResolve(aInterface: PRttiInfo; out Obj): boolean; virtual; abstract;
@@ -843,8 +869,14 @@ type
     procedure Resolve(const aInterfaces: array of TGuid;
                       const aObjs: array of pointer;
       aRaiseExceptionIfNotFound: boolean = true); overload;
+    {$ifdef HASGENERICS}
+    /// can be used to perform an DI/IoC for a given interface using generics
+    // - raise EInterfaceResolver if T is not implemented by this resolver
+    function Resolve<T: IInvokable>: T; overload;
+    /// can be used to perform an DI/IoC for a given interface using generics
+    function Resolve<T: IInvokable>(out Instance: T): boolean; overload;
+    {$endif HASGENERICS}
   end;
-  {$M-}
 
   /// used to store a list of TInterfacedObject instances
   TInterfacedObjectObjArray = array of TInterfacedObject;
@@ -868,11 +900,11 @@ type
     /// this overriden constructor will check and store the supplied class
     // to implement an interface
     constructor Create(aInterface: PRttiInfo;
-      aImplementation: TInterfacedObjectClass); overload;
+      aImplementation: TInterfacedObjectClass); reintroduce; overload;
     /// this overriden constructor will check and store the supplied class
     // to implement an interface by TGuid
     constructor Create(const aInterface: TGuid;
-      aImplementation: TInterfacedObjectClass); overload;
+      aImplementation: TInterfacedObjectClass); reintroduce;overload;
     /// you can use this method to resolve the interface as a new instance
     function GetOneInstance(out Obj): boolean;
     /// check if can resolve the supplied interface RTTI
@@ -909,8 +941,8 @@ type
   // - as used e.g. by TInterfaceResolverInjected.RegisterGlobal()
   TInterfaceResolverList = class(TInterfaceResolver)
   protected
-    fEntry: TInterfaceResolverListEntries;
     fSafe: TRWLightLock;
+    fEntry: TInterfaceResolverListEntries;
     fOnCreateInstance: TOnResolverCreateInstance;
     function PrepareAddAndWriteLock(aInterface: PRttiInfo;
       aImplementationClass: TClass): PInterfaceEntry; // fSafe.WriteUnLock after
@@ -955,6 +987,8 @@ type
     fResolversToBeReleased: TInterfaceResolverObjArray;
     fDependencies: TInterfacedObjectObjArray;
     function TryResolve(aInterface: PRttiInfo; out Obj): boolean; override;
+    // internal function matching Implements() for ickFromInjectedResolver
+    function TryResolveImplements(aInterface: PRttiInfo; out Obj): boolean;
   public
     /// define a global class type for interface resolution
     // - most of the time, you will need a local DI/IoC resolution list; but
@@ -998,6 +1032,8 @@ type
     procedure InjectInstance(const aDependencies: array of TInterfacedObject);
       overload; virtual;
     /// check if a given interface can be resolved, from its RTTI
+    // - will only check internal InjectResolver() list, not InjectInstance()
+    // nor RegisterGlobal() resolution
     function Implements(aInterface: PRttiInfo): boolean; override;
     /// delete a previously registered resolver
     // - aResolver can be re-registered afterwards
@@ -1089,7 +1125,9 @@ var
   GlobalInterfaceResolver: TInterfaceResolverList;
 
 
-{ ************ TInterfaceStub TInterfaceMock for Dependency Mocking }
+{ ************ TInterfaceStub for Dependency Stubbing/Mocking }
+
+// note: TInterfaceMock is defined in mormot.core.test.pas - as expected
 
 type
   TInterfaceStub = class;
@@ -1103,7 +1141,6 @@ type
       const Format: RawUtf8; const Args: array of const); overload;
   end;
 
-
   /// abstract parameters used by TInterfaceStub.Executes() events callbacks
   TOnInterfaceStubExecuteParamsAbstract = class
   protected
@@ -1113,7 +1150,6 @@ type
     fEventParams: RawUtf8;
     fResult: RawUtf8;
     fFailed: boolean;
-    function GetSenderAsMockTestCase: TSynTestCase;
   public
     /// constructor of one parameters marshalling instance
     constructor Create(aSender: TInterfaceStub; aMethod: PInterfaceMethod;
@@ -1123,13 +1159,9 @@ type
     /// call this method if the callback implementation failed
     procedure Error(const Format: RawUtf8; const Args: array of const); overload;
     /// the stubbing / mocking generator
+    // - use e.g. (Sender as TInterfaceMock).TestCase to retrieve the test case
     property Sender: TInterfaceStub
       read fSender;
-    /// the mocking generator associated test case
-    // - will raise an exception if the associated Sender generator is not
-    // a TInterfaceMock
-    property TestCase: TSynTestCase
-      read GetSenderAsMockTestCase;
     /// pointer to the method which is to be executed
     property Method: PInterfaceMethod
       read fMethod;
@@ -1376,6 +1408,12 @@ type
   end;
   PInterfaceStubRules = ^TInterfaceStubRules;
 
+  /// how TInterfacedObjectFake identify each instance
+  // - match the ID used in sicClientDriven mode of a service
+  // - match the TInterfacedObjectFakeServer 32-bit identifier of a callback
+  TInterfacedObjectFakeID = type cardinal;
+  PInterfacedObjectFakeID = ^TInterfacedObjectFakeID;
+
   /// diverse options available to TInterfaceStub
   // - by default, method execution stack is not recorded - include
   // imoLogMethodCallsAndResults in the options to track all method calls
@@ -1445,12 +1483,6 @@ type
 
   /// used to keep track of all stubbed methods calls
   TInterfaceStubLogDynArray = array of TInterfaceStubLog;
-
-  /// how TInterfacedObjectFake identify each instance
-  // - match the ID used in sicClientDriven mode of a service
-  // - match the TInterfacedObjectFakeServer 32-bit identifier of a callback
-  TInterfacedObjectFakeID = type cardinal;
-  PInterfacedObjectFakeID = ^TInterfacedObjectFakeID;
 
   /// used to stub an interface implementation
   // - define the expected workflow in a fluent interface using Executes /
@@ -1792,209 +1824,93 @@ type
       read GetLogHash;
   end;
 
-  /// used to mock an interface implementation via expect-run-verify pattern
-  // - TInterfaceStub will raise an exception on Fails(), ExpectsCount() or
-  // ExpectsTrace() rule activation, but TInterfaceMock will call
-  // TSynTestCase.Check() with no exception with such rules, as expected by
-  // a mocked interface
-  // - this class will follow the expect-run-verify pattern, i.e. expectations
-  // are defined before running the test, and verification is performed
-  // when the instance is released - use TInterfaceMockSpy if you prefer the
-  // more explicit run-verify pattern
-  TInterfaceMock = class(TInterfaceStub)
-  protected
-    fTestCase: TSynTestCase;
-    function InternalCheck(aValid, aExpectationFailed: boolean;
-      const aErrorMsgFmt: RawUtf8;
-      const aErrorMsgArgs: array of const): boolean; override;
-  public
-    /// initialize an interface mock from TypeInfo(IMyInterface)
-    // - aTestCase.Check() will be called in case of mocking failure
-    // ! procedure TMyTestCase.OneTestCaseMethod;
-    // ! var Persist: IPersistence;
-    // ! ...
-    // !   TInterfaceMock.Create(TypeInfo(IPersistence),Persist,self).
-    // !     ExpectsCount('SaveItem',qoEqualTo,1)]);
-    constructor Create(aInterface: PRttiInfo; out aMockedInterface;
-      aTestCase: TSynTestCase); reintroduce; overload;
-    /// initialize an interface mock from an interface TGuid
-    // - aTestCase.Check() will be called during validation of all Expects*()
-    // - you shall have registered the interface by a previous call to
-    // ! TInterfaceFactory.RegisterInterfaces([TypeInfo(IPersistence),...])
-    // - once registered, create and use the fake class instance as such:
-    // !procedure TMyTestCase.OneTestCaseMethod;
-    // !var
-    // !  Persist: IPersistence;
-    // ! ...
-    // !   TInterfaceMock.Create(IPersistence,Persist,self).
-    // !     ExpectsCount('SaveItem',qoEqualTo,1)]);
-    // - if the supplied TGuid has not been previously registered, raise an Exception
-    constructor Create(const aGuid: TGuid; out aMockedInterface;
-      aTestCase: TSynTestCase); reintroduce; overload;
-    /// initialize an interface mock from an interface name (e.g. 'IMyInterface')
-    // - aTestCase.Check() will be called in case of mocking failure
-    // - you shall have registered the interface by a previous call to
-    // TInterfaceFactory.Get(TypeInfo(IMyInterface)) or RegisterInterfaces()
-    // - if the supplied name has not been previously registered, raise an Exception
-    constructor Create(const aInterfaceName: RawUtf8; out aMockedInterface;
-      aTestCase: TSynTestCase); reintroduce; overload;
-    /// initialize an interface mock from TypeInfo(IMyInterface) for later injection
-    // - aTestCase.Check() will be called in case of mocking failure
-    constructor Create(aInterface: PRttiInfo; aTestCase: TSynTestCase);
-      reintroduce; overload;
-    /// initialize an interface mock from TypeInfo(IMyInterface) for later injection
-    // - aTestCase.Check() will be called in case of mocking failure
-    constructor Create(const aGuid: TGuid; aTestCase: TSynTestCase);
-      reintroduce; overload;
-    /// the associated test case
-    property TestCase: TSynTestCase
-      read fTestCase;
-  end;
-
-  /// how TInterfaceMockSpy.Verify() shall generate the calls trace
-  TInterfaceMockSpyCheck = (
-    chkName,
-    chkNameParams,
-    chkNameParamsResults);
-
-  /// used to mock an interface implementation via run-verify pattern
-  // - this class will implement a so called "test-spy" mocking pattern, i.e.
-  // no expectation is to be declared at first, but all calls are internally
-  // logged (i.e. it force imoLogMethodCallsAndResults option to be defined),
-  // and can afterwards been check via Verify() calls
-  TInterfaceMockSpy = class(TInterfaceMock)
-  protected
-    procedure IntSetOptions(Options: TInterfaceStubOptions); override;
-  public
-    /// this will set and force imoLogMethodCallsAndResults option as needed
-    // - you should not call this method, but the overloaded alternatives
-    constructor Create(aFactory: TInterfaceFactory;
-      const aInterfaceName: RawUtf8); override;
-    /// check that a method has been called a specify number of times
-    procedure Verify(const aMethodName: RawUtf8;
-      aOperator: TInterfaceStubRuleOperator = ioGreaterThan;
-      aCount: cardinal = 0); overload;
-    /// check a method calls count with a set of parameters
-    // - parameters shall be defined as a JSON array of values
-    procedure Verify(const aMethodName, aParams: RawUtf8;
-      aOperator: TInterfaceStubRuleOperator = ioGreaterThan;
-      aCount: cardinal = 0); overload;
-    /// check a method calls count with a set of parameters
-    // - parameters shall be defined as a JSON array of values
-    procedure Verify(const aMethodName: RawUtf8; const aParams: array of const;
-      aOperator: TInterfaceStubRuleOperator = ioGreaterThan;
-      aCount: cardinal = 0); overload;
-    /// check an execution trace for the global interface
-    // - text trace format shall follow method calls, e.g.
-    // ! Verify('Multiply,Add',chkName);
-    // or may include parameters:
-    // ! Verify('Multiply(10,30),Add(2,35)',chkNameParams);
-    // or include parameters and function results:
-    // ! Verify('Multiply(10,30)=[300],Add(2,35)=[37]',chkNameParamsResults);
-    procedure Verify(const aTrace: RawUtf8;
-      aScope: TInterfaceMockSpyCheck); overload;
-    /// check an execution trace for a specified method
-    // - text trace format will follow specified scope, e.g.
-    // ! Verify('Add','(10,30),(2,35)',chkNameParams);
-    // or include parameters and function results:
-    // ! Verify('Add','(10,30)=[300],(2,35)=[37]',chkNameParamsResults);
-    // - if aMethodName does not exists or aScope=chkName, will raise an exception
-    procedure Verify(const aMethodName, aTrace: RawUtf8;
-      aScope: TInterfaceMockSpyCheck); overload;
-    /// check an execution trace for a specified method and parameters
-    // - text trace format shall contain only results, e.g.
-    // ! Verify('Add','2,35','[37]');
-    procedure Verify(const aMethodName, aParams, aTrace: RawUtf8); overload;
-    /// check an execution trace for a specified method and parameters
-    // - text trace format shall contain only results, e.g.
-    // ! Verify('Add',[2,35],'[37]');
-    procedure Verify(const aMethodName: RawUtf8; const aParams: array of const;
-      const aTrace: RawUtf8); overload;
-  end;
-
-function ToText(c: TInterfaceMockSpyCheck): PShortString; overload;
 function ToText(op: TInterfaceStubRuleOperator): PShortString; overload;
 
 
 { ************ TInterfacedObjectFake with JITted Methods Execution }
 
-// see http://docwiki.embarcadero.com/RADStudio/en/Program_Control
+{ some reference material
+WIN32 i386 (Delphi + FPC "register" calling convention):
+ http://docwiki.embarcadero.com/RADStudio/en/Program_Control
+WIN64 x64:
+ https://learn.microsoft.com/en-us/cpp/build/x64-calling-convention#parameter-passing
+WIN aarch64:
+ https://learn.microsoft.com/en-us/cpp/build/arm64-windows-abi-conventions#parameter-passing
+SYSV x64:
+ https://gitlab.com/x86-psABIs/x86-64-ABI/-/jobs/artifacts/master/raw/x86-64-ABI/abi.pdf?job=build
+SYSV aarch64:
+ https://c9x.me/compile/bib/abi-arm64.pdf
+}
 
 const
-{$ifdef CPU64}
-  // maximum stack size at method execution must match .PARAMS 64 (minus 4 regs)
-  MAX_EXECSTACK = 60 * 8;
-{$else}
-  // maximum stack size at method execution
-  {$ifdef CPUARM}
-  MAX_EXECSTACK = 60 * 4;
-  {$else}
+{$ifdef ABIX86}
   MAX_EXECSTACK = 1024;
-  {$endif CPUARM}
-{$endif CPU64}
-
-{$ifdef CPUX86}
-  // 32-bit integer param registers (in "register" calling convention)
+  VMTSTUBSIZE = 24 {$ifdef OSPOSIX} + 4 {$endif};
+  // 32-bit integer param registers (in Delphi + FPC calling convention)
   REGEAX = 1;
   REGEDX = 2;
   REGECX = 3;
   PARAMREG_FIRST = REGEAX;
-  PARAMREG_LAST = REGECX;
-  // floating-point params are passed by reference
-  VMTSTUBSIZE = 24 {$ifdef OSPOSIX} + 4 {$endif};
-{$endif CPUX86}
+  PARAMREG_LAST  = REGECX;
+  // x87 floating-point params are passed by reference, but result with fstp
+  {$undef HAS_FPREG}
+{$endif ABIX86}
 
-{$ifdef CPUX64}
+{$ifdef ABIX64}
+  MAX_EXECSTACK = MAX_METHOD_ARGS * 8; // match .PARAMS 32
+  VMTSTUBSIZE = 24;
   // 64-bit integer param registers
-  {$ifdef SYSVABI}
+  {$ifdef ABISYSVX64}
   REGRDI = 1;
   REGRSI = 2;
   REGRDX = 3;
   REGRCX = 4;
-  REGR8 = 5;
-  REGR9 = 6;
-  PARAMREG_FIRST = REGRDI;
+  REGR8  = 5;
+  REGR9  = 6;
+  PARAMREG_FIRST  = REGRDI;
   PARAMREG_RESULT = REGRSI;
   {$else}
   REGRCX = 1;
   REGRDX = 2;
-  REGR8 = 3;
-  REGR9 = 4;
-  PARAMREG_FIRST = REGRCX;
+  REGR8  = 3;
+  REGR9  = 4;
+  PARAMREG_FIRST  = REGRCX;
   PARAMREG_RESULT = REGRDX;
-  {$endif SYSVABI}
+  {$endif ABISYSVX64}
   PARAMREG_LAST = REGR9;
   // 64-bit floating-point (double) registers
+  {$define HAS_FPREG} // XMM0..XMM3 (WIN) or XMM0..XMM7 (SYSV)
   REGXMM0 = 1;
   REGXMM1 = 2;
   REGXMM2 = 3;
   REGXMM3 = 4;
-  {$ifdef SYSVABI}
+  {$ifdef ABISYSVX64}
   REGXMM4 = 5;
   REGXMM5 = 6;
   REGXMM6 = 7;
   REGXMM7 = 8;
   FPREG_FIRST = REGXMM0;
-  FPREG_LAST = REGXMM7;
+  FPREG_LAST  = REGXMM7;
   {$else}
   FPREG_FIRST = REGXMM0;
-  FPREG_LAST = REGXMM3;
-  {$endif SYSVABI}
-  {$define HAS_FPREG}
-  VMTSTUBSIZE = 24;
-{$endif CPUX64}
+  FPREG_LAST  = REGXMM3;
+  {$endif ABISYSVX64}
+{$endif ABIX64}
 
-{$ifdef CPUARM}
+{$ifdef ABIA32}
+  MAX_EXECSTACK = (MAX_METHOD_ARGS - 4) * 8; // may store only doubles on stack
+  VMTSTUBSIZE = 16;
   // 32-bit integer param registers
   REGR0 = 1;
   REGR1 = 2;
   REGR2 = 3;
   REGR3 = 4;
-  PARAMREG_FIRST = REGR0;
-  PARAMREG_LAST = REGR3;
+  PARAMREG_FIRST  = REGR0;
+  PARAMREG_LAST   = REGR3;
   PARAMREG_RESULT = REGR1;
   // 64-bit floating-point (double) registers
-  {$ifdef CPUARMHF}
+  {$define HAS_FPREG} // D0..D7
+  // assume CPUARMHF target
   REGD0 = 1;
   REGD1 = 2;
   REGD2 = 3;
@@ -2004,13 +1920,12 @@ const
   REGD6 = 7;
   REGD7 = 8;
   FPREG_FIRST = REGD0;
-  FPREG_LAST = REGD7;
-  {$define HAS_FPREG}
-  {$endif CPUARMHF}
-  VMTSTUBSIZE = 16;
-{$endif CPUARM}
+  FPREG_LAST  = REGD7;
+{$endif ABIA32}
 
-{$ifdef CPUAARCH64}
+{$ifdef ABIA64}
+  MAX_EXECSTACK = (MAX_METHOD_ARGS - 8) * 8;
+  VMTSTUBSIZE = 28;
   // 64-bit integer param registers
   REGX0 = 1;
   REGX1 = 2;
@@ -2020,10 +1935,11 @@ const
   REGX5 = 6;
   REGX6 = 7;
   REGX7 = 8;
-  PARAMREG_FIRST = REGX0;
-  PARAMREG_LAST = REGX7;
+  PARAMREG_FIRST  = REGX0;
+  PARAMREG_LAST   = REGX7;
   PARAMREG_RESULT = REGX1;
   // 64-bit floating-point (double) registers
+  {$define HAS_FPREG} // D0..D7
   REGD0 = 1; // map REGV0 128-bit NEON register
   REGD1 = 2; // REGV1
   REGD2 = 3; // REGV2
@@ -2033,10 +1949,8 @@ const
   REGD6 = 7; // REGV6
   REGD7 = 8; // REGV7
   FPREG_FIRST = REGD0;
-  FPREG_LAST = REGD7;
-  {$define HAS_FPREG}
-  VMTSTUBSIZE = 28;
-{$endif CPUAARCH64}
+  FPREG_LAST  = REGD7;
+{$endif ABIA64}
 
   // ordinal values are stored within 64-bit buffer, and records in a RawUtf8
   ARGS_TO_VAR: array[TInterfaceMethodValueType] of TInterfaceMethodValueVar = (
@@ -2102,11 +2016,11 @@ const
 type
   /// map the stack memory layout at TInterfacedObjectFake.FakeCall()
   TFakeCallStack = packed record
-    {$ifdef CPUX86}
+    {$ifdef ABIX86}
     EDX, ECX, MethodIndex, EBP, Ret: cardinal;
     {$else}
     {$ifdef OSPOSIX}
-    ParamRegs: packed array[PARAMREG_FIRST..PARAMREG_LAST] of pointer;
+    ParamRegs: packed array[PARAMREG_FIRST .. PARAMREG_LAST] of pointer;
     {$endif OSPOSIX}
     {$ifdef HAS_FPREG}
     FPRegs: packed array[FPREG_FIRST..FPREG_LAST] of double;
@@ -2115,17 +2029,17 @@ type
     Frame: pointer;
     Ret: pointer;
     {$ifndef OSPOSIX}
-    ParamRegs: packed array[PARAMREG_FIRST..PARAMREG_LAST] of pointer;
+    ParamRegs: packed array[PARAMREG_FIRST .. PARAMREG_LAST] of pointer;
     {$endif OSPOSIX}
-    {$endif CPUX86}
-    {$ifdef CPUARM}
+    {$endif ABIX86}
+    {$ifdef ABIA32}
     // alf: on ARM, there is more on the stack than you will expect
     DummyStack: packed array[0..9] of pointer;
-    {$endif CPUARM}
-    {$ifdef CPUAARCH64}
+    {$endif ABIA32}
+    {$ifdef ABIA64}
     // alf: on AARCH64, there is more on the stack than you will expect
     DummyStack: packed array[0..0] of pointer;
-    {$endif CPUAARCH64}
+    {$endif ABIA64}
     Stack: packed array[word] of byte;
   end;
   PFakeCallStack = ^TFakeCallStack;
@@ -2160,18 +2074,18 @@ type
     // used internally to compute the actual instance from the FakeCall()
     function SelfFromInterface: TInterfacedObjectFakeRaw;
       {$ifdef HASINLINE} inline; {$endif}
-    {$ifdef CPUARM}
+    {$ifdef ABIA32}
     // on ARM, the FakeStub needs to be here, for FakeCall redirection
     procedure ArmFakeStub;
-    {$endif CPUARM}
-    {$ifdef CPUAARCH64}
+    {$endif ABIA32}
+    {$ifdef ABIA64}
     // on Aarch64, the FakeStub needs to be here, for FakeCall redirection
     procedure AArch64FakeStub;
-    {$endif CPUAARCH64}
+    {$endif ABIA64}
     function FakeQueryInterface({$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif}
-      IID: TGuid; out Obj): TIntQry; {$ifdef OSWINDOWS}stdcall{$else}cdecl{$endif};
-    function Fake_AddRef: TIntCnt;   {$ifdef OSWINDOWS}stdcall{$else}cdecl{$endif};
-    function Fake_Release: TIntCnt;  {$ifdef OSWINDOWS}stdcall{$else}cdecl{$endif};
+      IID: TGuid; out Obj): TIntQry; {$ifdef FPCPOSIX}cdecl{$else}stdcall{$endif};
+    function Fake_AddRef: TIntCnt;   {$ifdef FPCPOSIX}cdecl{$else}stdcall{$endif};
+    function Fake_Release: TIntCnt;  {$ifdef FPCPOSIX}cdecl{$else}stdcall{$endif};
   public
     /// create an instance, using the specified interface
     constructor Create(aFactory: TInterfaceFactory); reintroduce;
@@ -2345,21 +2259,6 @@ type
   // TRestServer.ServiceReleaseTimeoutMicrosec delay
   TInterfaceMethodOptions = set of TInterfaceMethodOption;
 
-  /// available execution options for an interface-based service provider
-  // - mimics TServiceFactoryServer homonymous boolean properties
-  TInterfaceOption = (
-    optByPassAuthentication,
-    optResultAsJsonObject,
-    optResultAsJsonObjectWithoutResult,
-    optResultAsXMLObject,
-    optResultAsXMLObjectIfAcceptOnlyXML,
-    optExcludeServiceLogCustomAnswer);
-
-  /// set of execution options for an interface-based service provider
-  // - mimics TServiceFactoryServer homonymous boolean properties
-  // - as used by TServiceFactoryServerAbstract.SetWholeOptions()
-  TInterfaceOptions = set of TInterfaceOption;
-
   /// callback called by TInterfaceMethodExecute to process an interface
   // callback parameter
   // - implementation should set the Obj local variable to an instance of
@@ -2394,19 +2293,19 @@ type
     fStorage: TByteDynArray;
     fValues: PPointerArray;
     fAlreadyExecuted: boolean;
+    fCurrentStep: TInterfaceMethodExecuteEventStep;
     fOptions: TInterfaceMethodOptions;
     fDocVariantOptions: TDocVariantOptions;
     fOnExecute: TInterfaceMethodExecuteEventDynArray;
-    fCurrentStep: TInterfaceMethodExecuteEventStep;
     fBackgroundExecutionThread: TSynBackgroundThreadMethod;
     fLastException: Exception;
     fExecutedInstancesFailed: TRawUtf8DynArray;
     fInput: TDocVariantData;
     fOutput: TDocVariantData;
     procedure SetOptions(const Value: TInterfaceMethodOptions);
-    procedure BeforeExecute;
+    procedure BeforeExecute; {$ifdef HASINLINE} inline; {$endif}
     procedure RawExecute(const Instances: PPointerArray; InstancesLast: integer);
-    procedure AfterExecute;
+    procedure AfterExecute;  {$ifdef HASINLINE} inline; {$endif}
   public
     /// initialize the execution instance
     constructor Create(aFactory: TInterfaceFactory; aMethod: PInterfaceMethod;
@@ -2474,6 +2373,7 @@ type
     fOnCallback: TOnInterfaceMethodExecuteCallback;
     fServiceCustomAnswerHead: RawUtf8;
     fServiceCustomAnswerStatus: cardinal;
+    function ExecuteJsonParse(var Ctxt: TJsonParserContext; Error: PShortString): boolean;
   public
     /// finalize the execution instance
     destructor Destroy; override;
@@ -2518,27 +2418,29 @@ type
   TInterfaceMethodExecuteCachedDynArray = array of TInterfaceMethodExecuteCached;
 
   /// reusable interface method execution from/to JSON
-  // - used e.g. by TServiceFactoryServer.ExecuteJson or
-  // TMvcRendererAbstract.ExecuteCommand
+  // - used e.g. by TServiceFactoryServer.ExecuteJson
   TInterfaceMethodExecuteCached = class(TInterfaceMethodExecute)
   protected
     fCached: TLightLock; // thread-safe acquisition of fCachedWR
-    fCachedWR: TJsonWriter;
+    fWR: TJsonWriter;
   public
     /// initialize a TInterfaceMethodExecuteCachedDynArray of per-method caches
     class procedure Prepare(aFactory: TInterfaceFactory;
       out Cached: TInterfaceMethodExecuteCachedDynArray);
     /// initialize the execution instance
     constructor Create(aFactory: TInterfaceFactory; aMethod: PInterfaceMethod;
-      const aOptions: TInterfaceMethodOptions); override;
+      const aOptions: TInterfaceMethodOptions; aShared: boolean = false); reintroduce;
     /// finalize this execution context
     destructor Destroy; override;
     /// will use this instance if possible, or create a temporary one
-    procedure Acquire(opt: TInterfaceMethodOptions;
-      out exec: TInterfaceMethodExecuteCached; out WR: TJsonWriter);
-    // will release this instance if was acquired, or free a temporary one
+    function Acquire(ExecuteOptions: TInterfaceMethodOptions = [];
+      WROptions: TTextWriterOptions = []): TInterfaceMethodExecuteCached;
+    /// will release this instance if was acquired, or free a temporary one
     procedure Release(exec: TInterfaceMethodExecuteCached);
       {$ifdef HASINLINE} inline; {$endif}
+    /// each instance will own their own TJsonWriter associated serializer
+    property WR: TJsonWriter
+      read fWR;
   end;
 
 
@@ -2560,8 +2462,8 @@ const
   /// marker used internally to pass ServiceMethod^.ArgsInputIsOctetStream
   // - used by both TRestServerRoutingRest.ExecuteSoaByInterface and
   // TInterfaceMethodExecute.ExecuteJson, followed by a RawByteString pointer
-  // - is a UTF-8 marker, ending with a #0 so to be identified within JSON
-  JSON_BIN_MAGIC_C = $00b2bfef;
+  // - is U+FFF2 UTF-8 marker, ending with a #0 so to be identified within JSON
+  JSON_BIN_MAGIC_C = $b2bfef;
 
   /// the TInterfaceMethodOptions which are related to custom thread execution
   INTERFACEMETHOD_THREADOPTIONS = [
@@ -2606,6 +2508,201 @@ procedure SetWeakZero(aObject: TObject; aObjectInterfaceField: PInterface;
   const aValue: IInterface);
 
 
+{ ************ Code/Documentation Generation Logic Extraction from RTTI }
+
+type
+  /// types recognized and handled for code/documentation generation
+  TWrapperType = (
+    wUnknown,
+    wBoolean,
+    wEnum,
+    wSet,
+    wByte,
+    wWord,
+    wInteger,
+    wCardinal,
+    wInt64,
+    wQWord,
+    wID,
+    wReference,
+    wTimeLog,
+    wModTime,
+    wCreateTime,
+    wCurrency,
+    wSingle,
+    wDouble,
+    wDateTime,
+    wRawUtf8,
+    wString,
+    wRawJson,
+    wBlob,
+    wGuid,
+    wCustomAnswer,
+    wRecord,
+    wArray,
+    wVariant,
+    wObject,
+    wORM, // was wSQLRecord
+    wInterface,
+    wRecordVersion);
+
+  /// supported languages typesets
+  TWrapperLanguage = (
+    lngDelphi,
+    lngPascal,
+    lngCS,
+    lngJava,
+    lngTypeScript,
+    lngSwagger);
+
+  EWrapperContext = class(ESynException);
+
+  // used internally to extract info from RTTI - inherited in mormot.soa.codegen
+  TWrapperContext = class
+  protected
+    fORM, fSOA, fRecords, fEnumerates, fSets, fArrays: TDocVariantData;
+    fUnits, fDescriptions: TDocVariantData;
+    fSourcePath: TFileNameDynArray;
+    fNestedId: integer;     // for unique nested type names if no RTTI
+    function CustomType(rtti: TRttiCustom): TWrapperType; virtual;
+    function ContextFromRtti(typ: TWrapperType; rtti: TRttiCustom = nil;
+      typName: RawUtf8 = ''; const parentName: RawUtf8 = ''): variant;
+    function ContextNestedProperties(rtti: TRttiCustom;
+      const parentName: RawUtf8): variant;
+    function ContextOneProperty(const prop: TRttiCustomProp;
+      const parentName: RawUtf8): variant;
+    function ContextFromMethods(int: TInterfaceFactory): variant;
+    function ContextFromMethod(const meth: TInterfaceMethod): variant;
+    function ContextArgsFromMethod(const meth: TInterfaceMethod): variant;
+    procedure AddUnit(const aUnitName: ShortString; addAsProperty: PVariant);
+  public
+    constructor Create(const aSourcePath, aDescriptions: TFileName);
+    constructor CreateFromUsedInterfaces(
+      const aSourcePath, aDescriptions: TFileName);
+    function Context: variant; virtual;
+  end;
+
+const
+  // Swagger numerical types
+  SWI32 = '{"type":"integer"}';
+  SWI64 = '{"type":"integer","format":"int64"}';
+  SWD32 = '{"type":"number","format":"float"}';
+  SWD64 = '{"type":"number","format":"double"}';
+  // per-language type names
+  TYPES_LANG: array[TWrapperLanguage, TWrapperType] of RawUtf8 = (
+    // lngDelphi
+    ('', 'Boolean', '', '', 'Byte', 'Word', 'Integer', 'Cardinal', 'Int64',
+    'UInt64', 'TID', 'TRecordReference', 'TTimeLog', 'TModTime', 'TCreateTime',
+    'Currency', 'Single', 'Double', 'TDateTime', 'RawUtf8', 'String', 'RawJson',
+    'RawBlob', 'TGuid', 'TServiceCustomAnswer', '', '', 'Variant', '', '', '',
+    'TRecordVersion'),
+   // lngPascal
+    ('', 'Boolean', '', '', 'Byte', 'Word', 'Integer', 'Cardinal', 'Int64',
+    'UInt64', 'TID', 'TRecordReference', 'TTimeLog', 'TModTime', 'TCreateTime',
+    'Currency', 'Single', 'Double', 'TDateTime', 'String', 'String', 'Variant',
+    'RawBlob', 'TGuid', 'THttpBody', '', '', 'Variant', '', 'TID', '', 'TRecordVersion'),
+   // lngCS
+    ('', 'bool', '', '', 'byte', 'word', 'integer', 'uint', 'long', 'ulong',
+    'TID', 'TRecordReference', 'TTimeLog', 'TModTime', 'TCreateTime', 'decimal',
+    'single', 'double', 'double', 'string', 'string', 'dynamic', 'byte[]',
+    'Guid', 'byte[]', '', '', 'dynamic', '', 'TID', '', 'TRecordVersion'),
+   // lngJava
+    ('', 'boolean', '', '', 'byte', 'int', 'int', 'long', 'long', 'long', 'TID',
+    'TRecordReference', 'TTimeLog', 'TModTime', 'TCreateTime', 'BigDecimal',
+    'single', 'double', 'double', 'String', 'String', 'Object', 'byte[]',
+    'String', 'byte[]', '', '', 'Object', '', 'TID', '', 'TRecordVersion'),
+   // lngTypeScript
+    ('', 'boolean', '', '', 'number', 'number', 'number', 'number', 'number',
+    'number', 'mORMot.TID', 'mORMot.TRecordReference', 'mORMot.TTimeLog',
+    'mORMot.TModTime', 'mORMot.TCreateTime', 'number', 'number', 'number',
+    'mORMot.TDateTime', 'string', 'string', 'any', 'mORMot.RawBlob',
+    'mORMot.TGuid', 'mORMot.THttpBody', '', '', 'any', '', '', '',
+    'mORMot.TRecordVersion'),
+   // lngSwagger
+    ('', '{"type":"boolean"}', '', '', SWI32, SWI32, SWI32, SWI32, SWI64, SWI64,
+    SWI64, SWI64, SWI64, SWI64, SWI64, SWD64, SWD32, SWD64,
+    '{"type":"string","format":"date-time"}', // wDateTime
+    '{"type":"string"}', '{"type":"string"}', '{"type":"object"}', //FIXME! //wRawJson
+    '{"type":"string","format":"binary"}', '{"type":"string"}', //wBlob,wGuid
+    '', '', '', '', //wCustomAnswer, wRecord, wArray, wVariant
+    '', SWI64, '', '' //wObject, wORM, wInterface, wRecordVersion
+    ));
+
+  TYPES_SOA: array[TInterfaceMethodValueType] of TWrapperType = (
+    wUnknown,  // imvNone
+    wUnknown,  // imvSelf
+    wBoolean,  // imvBoolean
+    wEnum,     // imvEnum
+    wSet,      // imvSet
+    wUnknown,  // imvInteger
+    wUnknown,  // imvCardinal
+    wUnknown,  // imvInt64
+    wDouble,   // imvDouble
+    wDateTime, // imvDateTime
+    wCurrency, // imvCurrency
+    wRawUtf8,  // imvRawUtf8
+    wString,   // imvString
+    wRawUtf8,  // imvRawByteString
+    wRawUtf8,  // imvWideString
+    wRecord,   // imvRecord
+    wVariant,  // imvVariant
+    wObject,   // imvObject
+    wRawJson,  // imvRawJson
+    wArray,    // imvDynArray
+    wUnknown); // imvInterface
+    // integers are wUnknown to force best type recognition
+
+/// compute the SOA information, ready to be exported as JSON
+// - will publish the ORM and SOA properties
+// - to be used e.g. for client code generation via Mustache templates
+function ContextFromUsedInterfaces(const aSourcePath: TFileName = '';
+  const aDescriptions: TFileName = ''): variant;
+
+/// compute the information of an interface method, ready to be exported as JSON
+// - to be used e.g. for the implementation of the MVC controller via interfaces
+// - no description text will be included - use ContextFromModel() if needed
+function ContextFromMethod(const method: TInterfaceMethod): variant;
+
+/// compute the information of an interface, ready to be exported as JSON
+// - to be used e.g. for the implementation of the MVC controller via interfaces
+// by TMvcApplication.GetMvcInfo from mormot.core.mvc
+// - no description text will be included - use ContextFromModel() if needed
+function ContextFromMethods(int: TInterfaceFactory): variant;
+
+
+{ ************ Documentation Extraction from Source Code Comments }
+
+/// rough parsing of the supplied .pas unit, adding the /// commentaries
+// into a TDocVariant content
+procedure FillDescriptionFromSource(var Descriptions: TDocVariantData;
+  const SourceFileName: TFileName);
+
+/// rough parsing of the supplied .pas unit, adding the /// commentaries
+// into a compressed binary resource
+// - could be then compiled into a WRAPPER_RESOURCENAME resource, e.g. via the
+// following .rc source file, assuming ResourceDestFileName='wrapper.desc':
+// $ WrappersDescription 10 "wrapper.desc"
+// - you may specify a .json file name, for debugging/validation purposes
+// - calls internally FillDescriptionFromSource
+// - returns the TDocVariant JSON object corresponding to all decriptions
+function ResourceDescriptionFromSource(const ResourceDestFileName: TFileName;
+  const SourceFileNames: array of TFileName;
+  const JsonDestFileName: TFileName = ''): variant;
+
+var
+  /// how FillDescriptionFromSource() handles trailing '-' in parsed comments
+  // - default is [*], as expected by buggy AsciiDoc format
+  DESCRIPTION_ITEM_PREFIX: RawUtf8 = ' [*]';
+
+const
+  /// internal Resource name used for bounded description
+  // - as generated by FillDescriptionFromSource/ResourceDescriptionFromSource
+  // - would be used e.g. by TWrapperContext.Create to inject the available
+  // text description from any matching resource
+  WRAPPER_RESOURCENAME = 'WrappersDescription';
+
+
+
 implementation
 
 
@@ -2614,13 +2711,13 @@ implementation
 
 { ************ IInvokable Interface Methods and Parameters RTTI Extraction }
 
-procedure TInterfaceMethodArgument.SerializeToContract(WR: TJsonWriter);
 const
-  ARGDIRTOJSON: array[TInterfaceMethodValueDirection] of string[4] = (
   // convert into generic in/out direction (assume result is out)
+  ARGDIRTOJSON: array[TInterfaceMethodValueDirection] of TShort7 = (
     'in', 'both', 'out', 'out');
-  // AnsiString (Delphi <2009) may loose data depending on the client
-  ARGTYPETOJSON: array[TInterfaceMethodValueType] of string[8] = (
+  // normalize simple type names e.g. int64=qword or all strings to "utf8"
+  // - note: AnsiString (Delphi <2009) may loose data depending on the client
+  ARGTYPETOJSON: array[TInterfaceMethodValueType] of TShort8 = (
     '??',       // imvNone
     'self',     // imvSelf
     'boolean',  // imvBoolean
@@ -2642,6 +2739,8 @@ const
     'json',     // imvRawJson
     '',         // imvDynArray
     '');        // imvInterface
+
+procedure TInterfaceMethodArgument.SerializeToContract(WR: TJsonWriter);
 begin
   WR.AddShort('{"argument":"');
   WR.AddShort(ParamName^);
@@ -2649,11 +2748,11 @@ begin
   WR.AddShort(ARGDIRTOJSON[ValueDirection]);
   WR.AddShort('","type":"');
   if ARGTYPETOJSON[ValueType] = '' then
-    WR.AddShort(ArgRtti.Info.Name^)
+    WR.AddString(ArgRtti.Name) // use pascal type name
   else
-    WR.AddShort(ARGTYPETOJSON[ValueType]);
-{$ifdef SOA_DEBUG}
-  WR.Add('"', ',');
+    WR.AddShort(ARGTYPETOJSON[ValueType]); // normalized
+  {$ifdef SOA_DEBUG}
+  WR.AddDirect('"', ',');
   WR.AddPropInt64('index', IndexVar);
   WR.AddPropJsonString('var',
     GetEnumNameTrimed(TypeInfo(TInterfaceMethodValueVar), ValueVar));
@@ -2664,9 +2763,19 @@ begin
   WR.AddPropName('asm');
   WR.AddString(GetSetNameJsonArray(TypeInfo(TInterfaceMethodValueAsm), ValueKindAsm));
   WR.AddDirect('}', ',');
-{$else}
+  {$else}
   WR.AddDirect('"', '}', ',');
-{$endif SOA_DEBUG}
+  {$endif SOA_DEBUG}
+end;
+
+function TInterfaceMethodArgument.IsInput: boolean;
+begin
+  result := ValueDirection <= imdVar;
+end;
+
+function TInterfaceMethodArgument.IsOutput: boolean;
+begin
+  result := ValueDirection <> imdConst;
 end;
 
 function TInterfaceMethodArgument.SetFromJson(var Ctxt: TJsonParserContext;
@@ -2733,7 +2842,8 @@ end;
 procedure TInterfaceMethodArgument.AddValueJson(WR: TJsonWriter;
   const Value: RawUtf8);
 begin
-  if rcfJsonString in ArgRtti.Flags then
+  if (rcfJsonString in ArgRtti.Flags) or
+     IsStringJson(pointer(Value)) then // from URI-decoded: always check
   begin
     WR.Add('"');
     WR.AddJsonEscape(pointer(Value));
@@ -2741,7 +2851,7 @@ begin
   end
   else
   begin
-    WR.AddString(Value);
+    WR.AddString(Value); // constant or number
     WR.AddComma;
   end;
 end;
@@ -2776,18 +2886,6 @@ begin
   end;
 end;
 
-procedure TInterfaceMethodArgument.AddAsVariant(
-  var Dest: TDocVariantData; V: pointer);
-var
-  tmp: variant;
-begin
-  ArgRtti.ValueToVariant(V, TVarData(tmp), @Dest.Options);
-  if Dest.IsArray then
-    Dest.AddItem(tmp)
-  else
-    Dest.AddValue(ShortStringToAnsi7String(ParamName^), tmp);
-end;
-
 procedure TInterfaceMethodArgument.FixValueAndAddToObject(const Value: variant;
   var DestDoc: TDocVariantData);
 var
@@ -2795,7 +2893,7 @@ var
 begin
   tempCopy := Value;
   FixValue(tempCopy);
-  DestDoc.AddValue(ShortStringToAnsi7String(ParamName^), tempCopy);
+  DestDoc.AddValueNameLen(@ParamName^[1], ord(ParamName^[0]), tempCopy);
 end;
 
 procedure TInterfaceMethodArgument.FixValue(var Value: variant);
@@ -2857,56 +2955,83 @@ end;
 
 { TInterfaceMethod }
 
-function TInterfaceMethod.ArgIndex(ArgName: PUtf8Char; ArgNameLen: integer;
-  Input: boolean): PtrInt;
+function TInterfaceMethod.ArgInput(ArgName: PUtf8Char; ArgNameLen: PtrInt;
+  ArgIndex: PInteger): PInterfaceMethodArgument;
 var
-  a: PInterfaceMethodArgument;
+  a: PtrInt;
 begin
-  if ArgNameLen > 0 then
-    if Input then
+  if ArgNameLen >= 0 then
+  begin
+    a := ArgsInFirst;
+    result := @Args[a];
+    while a <= ArgsInLast do
     begin
-      a := @Args[ArgsInFirst];
-      for result := ArgsInFirst to ArgsInLast do
-        if (a^.ValueDirection in [imdConst, imdVar]) and
-           IdemPropName(a^.ParamName^, ArgName, ArgNameLen) then
-            exit
-        else
-          inc(a);
-    end
-    else
-    begin
-      a := @Args[ArgsOutFirst];
-      for result := ArgsOutFirst to ArgsOutLast do
-        if (a^.ValueDirection <> imdConst) and
-           IdemPropName(a^.ParamName^, ArgName, ArgNameLen) then
-            exit
-        else
-          inc(a);
+      if result^.IsInput and
+         IdemPropNameNotNull(result^.ParamName^, ArgName, ArgNameLen) then
+      begin
+        if ArgIndex <> nil then
+          ArgIndex^ := a;
+        exit;
+      end;
+      inc(result);
+      inc(a);
     end;
-  result := -1;
+  end;
+  result := nil;
 end;
 
-function TInterfaceMethod.ArgNextInput(var arg: integer): boolean;
+function TInterfaceMethod.ArgOutput(ArgName: PUtf8Char; ArgNameLen: PtrInt;
+  ArgIndex: PInteger): PInterfaceMethodArgument;
+var
+  a: PtrInt;
 begin
-  result := true;
-  inc(arg);
-  while arg <= ArgsInLast do
-    if Args[arg].ValueDirection in [imdConst, imdVar] then
-      exit
-    else
-      inc(arg);
-  result := false;
+  if ArgNameLen >= 0 then
+  begin
+    a := ArgsOutFirst;
+    result := @Args[a];
+    while a <= ArgsOutLast do
+    begin
+      if result^.IsOutput and
+         IdemPropNameNotNull(result^.ParamName^, ArgName, ArgNameLen) then
+       begin
+         if ArgIndex <> nil then
+           ArgIndex^ := a;
+         exit;
+       end;
+      inc(result);
+      inc(a);
+    end;
+  end;
+  result := nil;
 end;
 
-function TInterfaceMethod.ArgNextOutput(var arg: integer): boolean;
+function TInterfaceMethod.ArgInputOutput(const ArgName: RawUtf8;
+  Input: boolean): PInterfaceMethodArgument;
+begin
+  result := pointer(ArgName);
+  if result <> nil then
+    if Input then
+      result := ArgInput(pointer(ArgName), PStrLen(PAnsiChar(result) - _STRLEN)^)
+    else
+      result := ArgOutput(pointer(ArgName), PStrLen(PAnsiChar(result) - _STRLEN)^);
+end;
+
+function TInterfaceMethod.ArgNext(var Arg: integer; Input: boolean): boolean;
 begin
   result := true;
-  inc(arg);
-  while arg <= ArgsOutLast do
-    if Args[arg].ValueDirection <> imdConst then
-      exit
-    else
-      inc(arg);
+  inc(Arg);
+  if Input then
+    while Arg <= ArgsInLast do
+      if Args[Arg].IsInput then
+        exit
+      else
+        inc(Arg)
+  else
+    while Arg <= ArgsOutLast do
+      if Args[Arg].IsOutput then
+        exit
+      else
+        inc(Arg);
   result := false;
 end;
 
@@ -2916,7 +3041,7 @@ var
   W: TJsonWriter;
   Value: PUtf8Char;
   a: PInterfaceMethodArgument;
-  temp: TTextWriterStackBuffer;
+  temp: TTextWriterStackBuffer; // 8KB work buffer on stack
 begin
   W := TJsonWriter.CreateOwnedStream(temp);
   try
@@ -2934,10 +3059,10 @@ begin
       inc(a);
       if Input then
       begin
-        if a^.ValueDirection in [imdOut, imdResult] then
+        if not a^.IsInput then
           continue;
       end
-      else if a^.ValueDirection = imdConst then
+      else if not a^.IsOutput then
         continue;
       W.AddPropName(a^.ParamName^);
       P := GotoNextNotSpace(P);
@@ -2952,7 +3077,7 @@ begin
         inc(P); // include ending ','
       W.AddNoJsonEscape(Value, P - Value);
     end;
-    W.CancelLastComma('}');
+    W.ReplaceLastComma('}');
     W.SetText(result);
   finally
     W.Free;
@@ -2962,7 +3087,6 @@ end;
 function TInterfaceMethod.ArgsCommandLineToObject(P: PUtf8Char; Input: boolean;
   RaiseExceptionOnUnknownParam: boolean): RawUtf8;
 var
-  i: integer;
   W: TJsonWriter;
   B: PUtf8Char;
   arginfo: PInterfaceMethodArgument;
@@ -2979,20 +3103,19 @@ begin
           (arg <> '') do
     begin
       ok := true;
-      i := ArgIndex(pointer(arg), length(arg), Input);
-      if i < 0 then
+      arginfo := ArgInputOutput(arg, Input);
+      if arginfo = nil then
         if RaiseExceptionOnUnknownParam then
           EInterfaceFactory.RaiseUtf8('Unexpected [%] parameter for %',
             [arg, InterfaceDotMethodName])
         else
           ok := false;
-      arginfo := @Args[i];
       if ok then
         W.AddPropName(arginfo^.ParamName^);
       if not (P^ in [':', '=']) then
         EInterfaceFactory.RaiseUtf8('"%" parameter has no = for %',
           [arg, InterfaceDotMethodName]);
-      P := GotoNextNotSpace(P + 1);
+      P := IgnoreAndGotoNextNotSpace(P);
       if P^ in ['"', '[', '{'] then
       begin
         // name='"value"' or name='{somejson}'
@@ -3024,39 +3147,10 @@ begin
       end;
       W.AddComma;
     end;
-    W.CancelLastComma('}');
+    W.ReplaceLastComma('}');
     W.SetText(result);
   finally
     W.Free;
-  end;
-end;
-
-function TInterfaceMethod.ArgsNames(Input: boolean): TRawUtf8DynArray;
-var
-  a, n: PtrInt;
-begin
-  result := nil;
-  if Input then
-  begin
-    SetLength(result, ArgsInputValuesCount);
-    n := 0;
-    for a := ArgsInFirst to ArgsInLast do
-      if Args[a].ValueDirection in [imdConst, imdVar] then
-      begin
-        ShortStringToAnsi7String(Args[a].ParamName^, result[n]);
-        inc(n);
-      end;
-  end
-  else
-  begin
-    SetLength(result, ArgsOutputValuesCount);
-    n := 0;
-    for a := ArgsOutFirst to ArgsOutLast do
-      if Args[a].ValueDirection <> imdConst then
-      begin
-        ShortStringToAnsi7String(Args[a].ParamName^, result[n]);
-        inc(n);
-      end;
   end;
 end;
 
@@ -3064,20 +3158,33 @@ procedure TInterfaceMethod.ArgsStackAsDocVariant(Values: PPointerArray;
   out Dest: TDocVariantData; Input: boolean);
 var
   a: PtrInt;
+  arg: PInterfaceMethodArgument;
 begin
   if Input then
   begin
     Dest.InitFast(ArgsInputValuesCount, dvObject);
-    for a := ArgsInFirst to ArgsInLast do
-      if Args[a].ValueDirection in [imdConst, imdVar] then
-        Args[a].AddAsVariant(Dest, Values[a]);
+    a := ArgsInFirst;
+    arg := @Args[a];
+    while a <= ArgsInLast do
+    begin
+      if arg^.IsInput then
+        Dest.AddValueRtti(ArgsName[a], Values[a], arg^.ArgRtti);
+      inc(arg);
+      inc(a);
+    end;
   end
   else
   begin
     Dest.InitFast(ArgsOutputValuesCount, dvObject);
-    for a := ArgsOutFirst to ArgsOutLast do
-      if Args[a].ValueDirection <> imdConst then
-        Args[a].AddAsVariant(Dest, Values[a]);
+    a := ArgsOutFirst;
+    arg := @Args[a];
+    while a <= ArgsOutLast do
+    begin
+      if arg^.IsOutput then
+        Dest.AddValueRtti(ArgsName[a], Values[a], arg^.ArgRtti);
+      inc(arg);
+      inc(a);
+    end;
   end;
 end;
 
@@ -3089,7 +3196,7 @@ begin
     pdvObject,
     pdvObjectFixed:
       begin
-        Dest.InitObjectFromVariants(ArgsNames(Input), Values, Options);
+        Dest.InitObjectFromVariants(ArgsInputName, Values, Options);
         if Kind = pdvObjectFixed then
           ArgsAsDocVariantFix(Dest, Input);
       end;
@@ -3105,44 +3212,56 @@ procedure TInterfaceMethod.ArgsAsDocVariantObject(
   Input: boolean);
 var
   a, n: PtrInt;
+  arg: PInterfaceMethodArgument;
 begin
   if (ArgsParams.Count = 0) or
      (ArgsParams.Kind <> dvArray) then
     exit;
   if ArgsObject.Kind = dvUndefined then
-    ArgsObject.Init(ArgsParams.Options);
+    ArgsObject.Init(ArgsParams.Options, dvObject);
   ArgsObject.Capacity := ArgsObject.Count + ArgsParams.Count;
   n := 0;
   if Input then
   begin
-    if ArgsParams.Count = integer(ArgsInputValuesCount) then
-      for a := ArgsInFirst to ArgsInLast do
-        if Args[a].ValueDirection in [imdConst, imdVar] then
-        begin
-          ArgsObject.AddValue(
-            ShortStringToAnsi7String(Args[a].ParamName^),
-            ArgsParams.Values[n]);
-          inc(n);
-        end;
+    if ArgsParams.Count <> integer(ArgsInputValuesCount) then
+      exit;
+    a := ArgsInFirst;
+    arg := @Args[a];
+    while a <= ArgsInLast do
+    begin
+      if arg^.IsInput then
+      begin
+        ArgsObject.AddValue(ArgsName[a], ArgsParams.Values[n]);
+        inc(n);
+      end;
+      inc(arg);
+      inc(a);
+    end;
   end
   else
   begin
-    if ArgsParams.Count = integer(ArgsOutputValuesCount) then
-      for a := ArgsOutFirst to ArgsOutLast do
-        if Args[a].ValueDirection <> imdConst then
-        begin
-          ArgsObject.AddValue(
-            ShortStringToAnsi7String(Args[a].ParamName^),
-            ArgsParams.Values[n]);
-          inc(n);
-        end;
+    if ArgsParams.Count <> integer(ArgsOutputValuesCount) then
+      exit;
+    a := ArgsOutFirst;
+    arg := @Args[a];
+    while a <= ArgsOutLast do
+    begin
+      if arg^.IsOutput then
+      begin
+        ArgsObject.AddValue(ArgsName[a], ArgsParams.Values[n]);
+        inc(n);
+      end;
+      inc(arg);
+      inc(a);
+    end;
   end;
 end;
 
 procedure TInterfaceMethod.ArgsAsDocVariantFix(var ArgsObject: TDocVariantData;
   Input: boolean);
 var
-  a, ndx: PtrInt;
+  a: PtrInt;
+  arg: PInterfaceMethodArgument;
   doc: TDocVariantData;
 begin
   if ArgsObject.Count > 0 then
@@ -3150,33 +3269,89 @@ begin
       dvObject:
         for a := 0 to ArgsObject.Count - 1 do
         begin
-          ndx := ArgIndex(
-            pointer(ArgsObject.Names[a]), length(ArgsObject.Names[a]), Input);
-          if ndx >= 0 then
-            Args[ndx].FixValue(ArgsObject.Values[a]);
+          arg := ArgInputOutput(ArgsObject.Names[a], Input);
+          if arg <> nil then
+            arg^.FixValue(ArgsObject.Values[a]);
         end;
       dvArray:
-        if Input then
         begin
-          if ArgsObject.Count <> integer(ArgsInputValuesCount) then
-            exit;
-          {%H-}doc.Init(ArgsObject.Options);
-          for a := ArgsInFirst to ArgsInLast do
-            if Args[a].ValueDirection in [imdConst, imdVar] then
-              Args[a].FixValueAndAddToObject(ArgsObject.Values[doc.Count], doc);
-          ArgsObject := doc;
-        end
-        else
-        begin
-          if ArgsObject.Count <> integer(ArgsOutputValuesCount) then
-            exit;
-          doc.Init(ArgsObject.Options);
-          for a := ArgsOutFirst to ArgsOutLast do
-            if Args[a].ValueDirection <> imdConst then
-              Args[a].FixValueAndAddToObject(ArgsObject.Values[doc.Count], doc);
+          {%H-}doc.Init(ArgsObject.Options, dvObject);
+          doc.Capacity := ArgsObject.Count;
+          if Input then
+          begin
+            if ArgsObject.Count <> integer(ArgsInputValuesCount) then
+              exit;
+            a := ArgsInFirst;
+            arg := @Args[a];
+            while a <= ArgsInLast do
+            begin
+              if arg^.IsInput then
+                arg^.FixValueAndAddToObject(ArgsObject.Values[doc.Count], doc);
+              inc(arg);
+              inc(a);
+            end;
+          end
+          else
+          begin
+            if ArgsObject.Count <> integer(ArgsOutputValuesCount) then
+              exit;
+            a := ArgsOutFirst;
+            arg := @Args[a];
+            while a <= ArgsOutLast do
+            begin
+              if arg^.IsOutput then
+                arg^.FixValueAndAddToObject(ArgsObject.Values[doc.Count], doc);
+              inc(arg);
+              inc(a);
+            end;
+          end;
           ArgsObject := doc;
         end;
     end;
+end;
+
+procedure TInterfaceMethod.ArgsClassNewInstance(V: PPPointer);
+var
+  a: PInterfaceMethodArgument;
+  n: PtrInt;
+begin
+  n := ArgsManagedFirst;
+  a := @Args[n];
+  inc(V, n);
+  n := ArgsUsedCount[imvvObject]; // caller ensured <> 0
+  repeat
+    if a^.ValueType = imvObject then
+    begin
+      V^^ := a^.ArgRtti.ClassNewInstance;
+      dec(n);
+      if n = 0 then
+        exit;
+    end;
+    inc(V);
+    inc(a);
+  until false;
+end;
+
+procedure TInterfaceMethod.ArgsReleaseValues(V: PPointer);
+var
+  a: PInterfaceMethodArgument;
+  n: PtrInt;
+begin
+  n := ArgsManagedFirst;
+  a := @Args[n];
+  inc(V, n);
+  n := ArgsManagedCount; // caller ensured <> 0
+  repeat
+    if a^.ValueVar >=  imvvRawUtf8 then // match ArgsManagedCount definition
+    begin
+      a^.ArgRtti.ValueFinalize(V^);
+      dec(n);
+      if n = 0 then
+        break;
+    end;
+    inc(a);
+    inc(V);
+  until false;
 end;
 
 
@@ -3223,12 +3398,12 @@ var
   arg: integer;
 begin
   FillCharFast(ctxt.I64s, ctxt.Method^.ArgsUsedCount[imvv64] * SizeOf(Int64), 0);
-  a := pointer(ctxt.Method^.Args);
-  for arg := 1 to PDALen(PAnsiChar(a) - _DALEN)^ + (_DAOFF - 1) do
+  a := pointer(ctxt.Method^.Args); // always <> nil
+  for arg := 1 to PDALen(PAnsiChar(a) - _DALEN)^ + (_DAOFF - 1) do // = high()
   begin
-    inc(a);
+    inc(a); // increase first, to ignore self
     V := nil;
-    {$ifdef CPUX86}
+    {$ifdef ABIX86}
     case a^.RegisterIdent of
       REGEAX:
         FakeCallRaiseError(ctxt, 'unexpected self', []);
@@ -3249,7 +3424,7 @@ begin
       FakeCallRaiseError(ctxt, 'unexpected self', []);
     if V = nil then
     begin
-    {$endif CPUX86}
+    {$endif ABIX86}
       if vIsOnStack in a^.ValueKindAsm then
         V := @ctxt.Stack.Stack[a^.InStackOffset] // value is on stack
       else
@@ -3311,7 +3486,7 @@ begin
   if ctxt.ResultType in [imvDouble, imvDateTime] then
     PInt64(@stack.FPRegs[FPREG_FIRST])^ := result;
   {$else}
-  {$ifdef CPUINTEL} // x87 ABI expects floats to be in st(0) FPU stack
+  {$ifdef ABIINTEL} // x87 ABI expects floats to be in st(0) FPU stack
   case ctxt.ResultType of
     imvDouble,
     imvDateTime:
@@ -3323,7 +3498,7 @@ begin
         fild    qword ptr [result]
       end;
   end;
-  {$endif CPUINTEL}
+  {$endif ABIINTEL}
   {$endif HAS_FPREG}
 end;
 
@@ -3379,7 +3554,7 @@ begin
   fInvoke := aInvoke;
   fNotifyDestroy := aNotifyDestroy;
   fServiceFactory := aServiceFactory;
-  fParams := TJsonWriter.CreateOwnedStream(8192, {nosharedstream=}true);
+  fParams := TJsonWriter.CreateOwnedStream(8192);
 end;
 
 destructor TInterfacedObjectFake.Destroy;
@@ -3407,7 +3582,8 @@ procedure TInterfacedObjectFake.FakeCallGetJsonFromStack(
   var ctxt: TFakeCallContext; var Json: RawUtf8);
 var
   W: TJsonWriter;
-  opt: TTextWriterWriteObjectOptions;
+  wopt: TTextWriterOptions;
+  oopt: TTextWriterWriteObjectOptions;
   arg: PtrInt;
   a: PInterfaceMethodArgument;
   V: PPointer;
@@ -3424,21 +3600,22 @@ begin
     // paranoid thread-safety call with its own temp buffer (hardly called)
     W := TJsonWriter.CreateOwnedStream(8192);
   try
+    wopt := [twoForceJsonStandard]; // e.g. for AJAX
     if ifoJsonAsExtended in fOptions then
-      W.CustomOptions := W.CustomOptions + [twoForceJsonExtended]
-    else // e.g. for AJAX
-      W.CustomOptions := W.CustomOptions + [twoForceJsonStandard];
+      wopt := [twoForceJsonExtended];
     if ifoDontStoreVoidJson in fOptions then
     begin
-      opt := DEFAULT_WRITEOPTIONS[true];
-      W.CustomOptions := W.CustomOptions + [twoIgnoreDefaultInRecord];
+      oopt := DEFAULT_WRITEOPTIONS[true];
+      include(wopt, twoIgnoreDefaultInRecord);
     end
     else
-      opt := DEFAULT_WRITEOPTIONS[false];
-    a := @ctxt.Method^.Args[ctxt.Method^.ArgsInFirst];
-    for arg := ctxt.Method^.ArgsInFirst to ctxt.Method^.ArgsInLast do
+      oopt := DEFAULT_WRITEOPTIONS[false];
+    W.CustomOptions := wopt;
+    arg := ctxt.Method^.ArgsInFirst;
+    a := @ctxt.Method^.Args[arg];
+    while arg <= ctxt.Method^.ArgsInLast do
     begin
-      if a^.ValueDirection in [imdConst, imdVar] then
+      if a^.IsInput then
       begin
         V := ctxt.Value[arg];
         if (a^.ValueType = imvInterface) and
@@ -3446,11 +3623,12 @@ begin
           InterfaceWrite(W, ctxt.Method^, a^, V^)
         else
         begin
-          a^.AddJson(W, V, opt);
+          a^.AddJson(W, V, oopt);
           W.AddComma;
         end;
       end;
       inc(a);
+      inc(arg);
     end;
     W.CancelLastComma;
     W.SetText(Json); // without [ ]
@@ -3465,79 +3643,76 @@ end;
 procedure TInterfacedObjectFake.FakeCallSetJsonToStack(
   var ctxt: TFakeCallContext; R: PUtf8Char);
 var
-  arg, ValLen: integer; // both should be integers, not PtrInt
+  arg: integer; // should be integer, not PtrInt
   V: PPointer;
-  Val: PUtf8Char;
   a: PInterfaceMethodArgument;
-  resultAsJsonObject: boolean;
+  asJsonObject: boolean;
   c: TJsonParserContext;
 begin
-  if R <> nil then
-  begin
-    if R^ in [#1..' '] then
-      repeat
-        inc(R)
-      until not (R^ in [#1..' ']);
-    resultAsJsonObject := false; // [value,...] JSON array format
+  if ctxt.Method^.ArgsOutputValuesCount = 0 then
+    exit;
+  if R = nil then
+    FakeCallRaiseError(ctxt, 'method returned value, but OutputJson=''''', []);
+  if R^ in [#1..' '] then
+    repeat
+      inc(R)
+    until not (R^ in [#1..' ']);
+  asJsonObject := false; // [value,...] JSON array format
+  if R^ <> '[' then
     if R^ = '{' then
       // {"paramname":value,...} JSON object format
-      resultAsJsonObject := true
-    else if R^ <> '[' then
+      asJsonObject := true
+    else
       FakeCallRaiseError(ctxt, 'JSON array/object result expected', []);
-    c.InitParser(R + 1, nil, fFactory.JsonParserOptions,
-      @fFactory.DocVariantOptions, nil, nil);
-    arg := ctxt.Method^.ArgsOutFirst;
-    if arg > 0 then
-      repeat
-        if resultAsJsonObject then
-        begin
-          Val := GetJsonPropName(
-            c.{$ifdef USERECORDWITHMETHODS}Get.{$endif}Json, @ValLen);
-          if Val = nil then
-            // end of JSON object
-            break;
-          // optimistic process of JSON object with in-order parameters
-          if (arg > 0) and
-            not IdemPropName(ctxt.Method^.Args[arg].ParamName^, Val, ValLen) then
-          begin
-            // slower but safe ctxt.Method when not in-order
-            arg := ctxt.Method^.ArgIndex(Val, ValLen, false);
-            if arg < 0 then
-              FakeCallRaiseError(ctxt, 'unexpected parameter [%]', [Val]);
-          end;
-        end;
-        a := @ctxt.Method^.Args[arg];
-        //assert(ValueDirection in [imdVar,imdOut,imdResult]);
-        V := ctxt.Value[arg];
-        a^.SetFromJson(c, ctxt.Method, V, nil);
-        if a^.ValueDirection = imdResult then
-        begin
-          ctxt.ResultType := a^.ValueType;
-          if a^.ValueType in [imvBoolean..imvCurrency] then
-            // ordinal/real result values to CPU/FPU registers
-            MoveFast(V^, ctxt.Result^, a^.ArgRtti.Size);
-        end;
-        if c.Json = nil then
-          break;
-        c.{$ifdef USERECORDWITHMETHODS}Get.{$endif}Json := GotoNextNotSpace(c.Json);
-        if resultAsJsonObject then
-        begin
-          if (c.Json^ = #0) or
-             (c.Json^ = '}') then
-            break
-          else
-          // end of JSON object
-          if not ctxt.Method^.ArgNextOutput(arg) then
-            // no next result argument -> force manual search
-            arg := 0;
-        end
-        else if not ctxt.Method^.ArgNextOutput(arg) then
-          // end of JSON array
-          break;
-      until false;
-  end
-  else if ctxt.Method^.ArgsOutputValuesCount > 0 then
-    FakeCallRaiseError(ctxt, 'method returned value, but OutputJson=''''', []);
+  c.InitParser(R + 1, nil, fFactory.JsonParserOptions, @fFactory.DocVariantOptions);
+  arg := ctxt.Method^.ArgsOutFirst;
+  a := @ctxt.Method^.Args[arg];
+  repeat
+    if asJsonObject then
+    begin
+      if not c.GetJsonFieldName then
+        break; // end of JSON object
+      if (arg = 0) or // arg := 0 below to force search
+         // optimistic process of JSON object with in-order parameters
+         not IdemPropName(a^.ParamName^, c.Value, c.ValueLen) then
+      begin
+        // slower but safe ctxt.Method when not in-order (unlikely)
+        a := ctxt.Method^.ArgOutput(c.Value, c.ValueLen, @arg);
+        if a = nil then
+          FakeCallRaiseError(ctxt, 'unexpected parameter [%]', [c.Value]);
+      end;
+    end;
+    V := ctxt.Value[arg];
+    a^.SetFromJson(c, ctxt.Method, V, nil);
+    if a^.ValueDirection = imdResult then
+    begin
+      ctxt.ResultType := a^.ValueType;
+      if a^.ValueType in [imvBoolean..imvCurrency] then
+        // ordinal/real result values to CPU/FPU registers
+        MoveFast(V^, ctxt.Result^, a^.ArgRtti.Size);
+    end;
+    if c.Json = nil then
+      break;
+    c.Json := GotoNextNotSpace(c.Json);
+    if asJsonObject then
+    begin
+      if c.Json^ in [#0, '}'] then
+        break; // end of JSON object
+      if arg = 0 then
+        continue;
+    end;
+    repeat
+      inc(arg);
+      if arg > ctxt.Method^.ArgsOutLast then
+      begin
+        if not asJsonObject then
+          exit;
+        arg := 0;
+        break;
+      end;
+      inc(a);
+    until a^.IsOutput;
+  until false;
 end;
 
 procedure TInterfacedObjectFake.FakeCallInternalProcess(var ctxt: TFakeCallContext);
@@ -3754,7 +3929,7 @@ begin
   begin
     fac := Get(aGuids[i]);
     if fac <> nil then
-      ObjArrayAddOnce(Obj, fac);
+      PtrArrayAddOnce(Obj, fac);
   end;
 end;
 
@@ -3820,17 +3995,36 @@ begin
   Rtti.RegisterUnsafeSpiType(Types);
 end;
 
+function RecordIsHfa(const Props: TRttiCustomProps): boolean;
+var
+  i: PtrInt;
+begin
+  result := false;
+  if not (Props.Count in [1 .. 4]) then
+    exit;
+  for i := 0 to Props.Count - 1 do
+    with Props.List[i] do
+      if (Value.Cache.Kind <> rkFloat) or
+         (Value.Cache.RttiFloat <> rfDouble) or
+         (OffsetGet <> i * SizeOf(double)) then
+        exit; // we only support records of packed double/TDateTime fields
+  result := true;
+end;
+
 constructor TInterfaceFactory.Create(aInterface: PRttiInfo);
 var
-  m, a, reg: integer;
+  nm, na, reg: integer;
+  a: PInterfaceMethodArgument;
+  m: PInterfaceMethod;
   WR: TJsonWriter;
   vt: TInterfaceMethodValueType;
   used: array[TInterfaceMethodValueType] of word;
+  u: PRawUtf8;
   ErrorMsg: RawUtf8;
   {$ifdef HAS_FPREG}
-  ValueIsInFPR: boolean;
+  SizeInFPR: integer; // 0 if not in FPR, or the number of FPR involved
   {$endif HAS_FPREG}
-  {$ifdef CPUX86}
+  {$ifdef ABIX86}
   offs: integer;
   {$else}
   {$ifdef OSPOSIX} // not used for Win64
@@ -3838,7 +4032,7 @@ var
   fpreg: integer;
   {$endif HAS_FPREG}
   {$endif OSPOSIX}
-  {$endif CPUX86}
+  {$endif ABIX86}
 begin
   // validate supplied TypeInfo() RTTI input
   if aInterface = nil then
@@ -3852,6 +4046,7 @@ begin
   fDocVariantOptions := JSON_FAST_FLOAT;
   fJsonParserOptions := JSONPARSER_SERVICE;
   fInterfaceRtti := Rtti.RegisterType(aInterface) as TRttiJson;
+  PRttiCache(@fInterfaceRtti.Cache)^.InterfaceFactory := self; // fast lookup
   fInterfaceName := fInterfaceRtti.Name;
   fInterfaceUri := fInterfaceName;
   if fInterfaceUri[1] in ['i','I'] then
@@ -3871,151 +4066,179 @@ begin
   fMethodIndexCurrentFrameCallback := -1;
   fMethodIndexCallbackReleased := -1;
   SetLength(fMethods, MethodsCount);
-  FillCharFast(used, SizeOf(used), 0);
   // compute additional information for each method
-  for m := 0 to MethodsCount - 1 do
-  with fMethods[m] do
+  FillCharFast(used, SizeOf(used), 0);
+  m := pointer(fMethods);
+  for nm := 0 to MethodsCount - 1 do
   begin
-    Join([fInterfaceUri, '.', URI], InterfaceDotMethodName);
-    if HierarchyLevel <> fAddMethodsLevel then
-      include(Flags, imfIsInherited);
-    ExecutionMethodIndex := m + RESERVED_VTABLE_SLOTS;
-    ArgsInFirst := -1;
-    ArgsInLast := -2;
-    ArgsOutFirst := -1;
-    ArgsOutLast := -2;
-    ArgsNotResultLast := -2;
-    ArgsOutNotResultLast := -2;
-    ArgsResultIndex := -1;
-    ArgsManagedFirst := -1;
-    Args[0].ValueType := imvSelf;
-    for a := 1 to length(Args) - 1 do
-    with Args[a] do
+    // setup method information
+    Join([fInterfaceUri, '.', m^.URI], m^.InterfaceDotMethodName);
+    if m^.HierarchyLevel <> fAddMethodsLevel then
+      include(m^.Flags, imfIsInherited);
+    m^.ExecutionMethodIndex := nm + RESERVED_VTABLE_SLOTS;
+    // first pass to recognize the parameters layout
+    m^.ArgsInFirst := -1;
+    m^.ArgsInLast := -2;
+    m^.ArgsOutFirst := -1;
+    m^.ArgsOutLast := -2;
+    m^.ArgsNotResultLast := -2;
+    m^.ArgsOutNotResultLast := -2;
+    m^.ArgsResultIndex := -1;
+    m^.ArgsManagedFirst := -1;
+    a := pointer(m^.Args);
+    a^.ValueType := imvSelf;
+    inc(a);
+    for na := 1 to length(m^.Args) - 1 do
     begin
-      ValueType := _FROM_RTTI[ArgRtti.Parser];
-      ValueVar := ARGS_TO_VAR[ValueType];
+      a^.ValueType := _FROM_RTTI[a^.ArgRtti.Parser];
+      a^.ValueVar := ARGS_TO_VAR[a^.ValueType];
       ErrorMsg := ''; // seems supported
-      inc(used[ValueType]);
-      case ValueType of
+      inc(used[a^.ValueType]);
+      case a^.ValueType of
         imvNone:
-          case ArgRtti.Info^.Kind of
+          case a^.ArgRtti.Info^.Kind of
             rkInteger:
               ErrorMsg := ' - use integer/cardinal instead';
             rkFloat:
               ErrorMsg := ' - use double/currency instead';
           else
-            FormatUtf8(' (%)', [ToText(ArgRtti.Info^.Kind)^], ErrorMsg);
+            FormatUtf8(' (%)', [ToText(a^.ArgRtti.Info^.Kind)^], ErrorMsg);
           end;
         imvObject:
-          if ArgRtti.ValueRtlClass = vcList then
+          if a^.ArgRtti.ValueRtlClass = vcList then
             ErrorMsg := ' - use TObjectList or T*ObjArray instead'
-          else if (ArgRtti.ValueRtlClass = vcCollection) and
-                  (ArgRtti.CollectionItem = nil) then
+          else if (a^.ArgRtti.ValueRtlClass = vcCollection) and
+                  (a^.ArgRtti.CollectionItem = nil) then
             ErrorMsg := ' - inherit from TInterfacedCollection or ' +
               'call Rtti.RegisterCollection() first'
-          else if ValueDirection = imdResult then
+          else if a^.ValueDirection = imdResult then
             ErrorMsg := ' - class not allowed as function result: ' +
               'use a var/out parameter';
         imvInterface:
-          if Assigned(ArgRtti.JsonWriter.Code) then
-            include(ValueKindAsm, vIsInterfaceJson) // e.g. IDocList
-          else if ValueDirection <> imdConst then
+          if Assigned(a^.ArgRtti.JsonWriter.Code) then
+            include(a^.ValueKindAsm, vIsInterfaceJson) // e.g. IDocList
+          else if a^.IsOutput then
             ErrorMsg := ' - interface not allowed as output: ' +
               'use a const parameter';
       end;
       if ErrorMsg <> '' then
         EInterfaceFactory.RaiseUtf8(
-          '%.Create: %.% [%] parameter has unexpected type %%',
-          [self, aInterface^.RawName, URI, ParamName^, ArgRtti.Name, ErrorMsg]);
-      if ValueDirection = imdResult then
-        ArgsResultIndex := a
+          '%.Create: %.% [%] parameter has unexpected type %%', [self,
+          aInterface^.RawName, m^.URI, a^.ParamName^, a^.ArgRtti.Name, ErrorMsg]);
+      if a^.ValueDirection = imdResult then
+        m^.ArgsResultIndex := na
       else
       begin
-        ArgsNotResultLast := a;
-        if ValueDirection <> imdOut then
+        m^.ArgsNotResultLast := na;
+        if a^.IsInput then
         begin
-          inc(ArgsInputValuesCount);
-          if ArgsInFirst < 0 then
-            ArgsInFirst := a;
-          ArgsInLast := a;
+          inc(m^.ArgsInputValuesCount);
+          if m^.ArgsInFirst < 0 then
+            m^.ArgsInFirst := na;
+          m^.ArgsInLast := na;
         end;
-        if ValueDirection <> imdConst then
-          ArgsOutNotResultLast := a;
+        if a^.IsOutput then
+          m^.ArgsOutNotResultLast := na;
       end;
-      if ValueDirection <> imdConst then
+      if a^.IsOutput then
       begin
-        if ArgsOutFirst < 0 then
-          ArgsOutFirst := a;
-        ArgsOutLast := a;
-        inc(ArgsOutputValuesCount);
+        if m^.ArgsOutFirst < 0 then
+          m^.ArgsOutFirst := na;
+        m^.ArgsOutLast := na;
+        inc(m^.ArgsOutputValuesCount);
       end;
-      if ValueVar >= imvvRawUtf8 then
+      if a^.ValueVar >= imvvRawUtf8 then
       begin
-        if ArgsManagedFirst < 0 then
-          ArgsManagedFirst := a;
-        inc(ArgsManagedCount);
+        if m^.ArgsManagedFirst < 0 then
+          m^.ArgsManagedFirst := na;
+        inc(m^.ArgsManagedCount);
       end;
-      if rcfSpi in ArgRtti.Flags then
+      if rcfSpi in a^.ArgRtti.Flags then
         // as defined by Rtti.RegisterUnsafeSpiType()
-        include(HasSpiParams, ValueDirection);
+        include(m^.HasSpiParams, a^.ValueDirection);
+      inc(a);
     end;
-    if ArgsOutputValuesCount = 0 then
+    if m^.ArgsOutputValuesCount = 0 then
       // plain procedure with no out param -> recognize some known signatures
-      case ArgsInputValuesCount of
+      case m^.ArgsInputValuesCount of
         1:
-          if Args[1].ValueType = imvBoolean then
-            if PropNameEquals(URI, 'CurrentFrame') then
-              fMethodIndexCurrentFrameCallback := m;
+          if m^.Args[1].ValueType = imvBoolean then
+            if PropNameEquals(m^.URI, 'CurrentFrame') then
+              // procedure CurrentFrame(isLast: boolean);
+              fMethodIndexCurrentFrameCallback := nm;
         2:
-          if (Args[1].ValueType = imvInterface) and
-             (Args[1].ArgRtti.Info = TypeInfo(IInvokable)) and
-             (Args[2].ValueType = imvRawUtf8) and
-             PropNameEquals(URI, 'CallbackReleased') then
-            fMethodIndexCallbackReleased := m;
+          if (m^.Args[1].ValueType = imvInterface) and
+             (m^.Args[1].ArgRtti.Info = TypeInfo(IInvokable)) and
+             (m^.Args[2].ValueType = imvRawUtf8) and
+             PropNameEquals(m^.URI, 'CallbackReleased') then
+// procedure CallbackReleased(const callback: IInvokable; const interfaceName: RawUtf8);
+            fMethodIndexCallbackReleased := nm;
       end;
-    if ArgsResultIndex >= 0 then
-      with Args[ArgsResultIndex] do
-      case ValueType of
+    if m^.ArgsResultIndex >= 0 then
+    begin
+      a := @m^.Args[m^.ArgsResultIndex];
+      case a^.ValueType of
         imvNone,
         imvObject,
         imvInterface:
           EInterfaceFactory.RaiseUtf8('%.Create: I% unexpected result type %',
-            [self, InterfaceDotMethodName, ArgTypeName^]);
+            [self, m^.InterfaceDotMethodName, a^.ArgTypeName^]);
         imvCardinal:
-          if ArgRtti.Info = TypeInfo(TServiceCustomStatus) then
-            include(Flags, imfResultIsServiceCustomStatus);
+          if a^.ArgRtti.Info = TypeInfo(TServiceCustomStatus) then
+            include(m^.Flags, imfResultIsServiceCustomStatus);
         imvRecord:
-          if ArgRtti.Info = TypeInfo(TServiceCustomAnswer) then
+          if a^.ArgRtti.Info = TypeInfo(TServiceCustomAnswer) then
           begin
-            for a := ArgsOutFirst to ArgsOutLast do
-              if Args[a].ValueDirection in [imdVar, imdOut] then
+            for na := m^.ArgsOutFirst to m^.ArgsOutLast do
+              if m^.Args[na].ValueDirection in [imdVar, imdOut] then
                 EInterfaceFactory.RaiseUtf8('%.Create: I% var/out ' +
                   'parameter [%] not allowed with TServiceCustomAnswer result',
-                  [self, InterfaceDotMethodName, Args[a].ParamName^]);
-            include(Flags, imfResultIsServiceCustomAnswer);
+                  [self, m^.InterfaceDotMethodName, m^.Args[na].ParamName^]);
+            include(m^.Flags, imfResultIsServiceCustomAnswer);
           end
-        {$ifdef CPUAARCH64}
+        {$ifdef ABIA64}
         // FPC uses registers for managed records, but follows the ABI otherwise
         // which requires the result to be in X8 which is not handled yet
         // - see aarch64/cpupara.pas: tcpuparamanager.create_paraloc_info_intern
-        else if not (rcfIsManaged in ArgRtti.Flags) then
+        else if not (rcfIsManaged in a^.ArgRtti.Flags) then
           EInterfaceFactory.RaiseUtf8(
             '%.Create: I% record result type % is unsupported on aarch64:' +
             'use an OUT parameter instead, or include a managed field',
-            [self, InterfaceDotMethodName, ArgTypeName^]);
-        {$endif CPUAARCH64}
+            [self, m^.InterfaceDotMethodName, a^.ArgTypeName^]);
+        {$endif ABIA64}
       end;
-    if (ArgsInputValuesCount = 1) and
-       (Args[1].ValueType = imvRawByteString) then
-      include(Flags, imfInputIsOctetStream);
+    end;
+    if (m^.ArgsInputValuesCount = 1) and
+       (m^.Args[1].ValueType = imvRawByteString) then
+      include(m^.Flags, imfInputIsOctetStream);
+    inc(m);
   end;
   for vt := low(vt) to high(vt) do
     SetLength(fArgUsed[vt], used[vt]);
-  FillCharFast(used, SizeOf(used), 0); // used as index below
   // compute asm low-level layout of the parameters for each method
-  for m := 0 to MethodsCount - 1 do
-  with fMethods[m] do
+  FillCharFast(used, SizeOf(used), 0); // used as fArgUsed[] index below
+  m := pointer(fMethods);
+  for nm := 0 to MethodsCount - 1 do
   begin
+    // setup parameter names
+    SetLength(m^.ArgsInputName, m^.ArgsInputValuesCount);
+    u := pointer(m^.ArgsInputName);
+    for na := m^.ArgsInFirst to m^.ArgsInLast do
+      if m^.Args[na].IsInput then
+      begin
+        ShortStringToAnsi7String(m^.Args[na].ParamName^, u^);
+        inc(u);
+      end;
+    SetLength(m^.ArgsOutputName, m^.ArgsOutputValuesCount);
+    u := pointer(m^.ArgsOutputName);
+    for na := m^.ArgsOutFirst to m^.ArgsOutLast do
+      if m^.Args[na].IsOutput then
+      begin
+        ShortStringToAnsi7String(m^.Args[na].ParamName^, u^);
+        inc(u);
+      end;
+    SetLength(m^.ArgsName, length(m^.Args));
+    u := pointer(m^.ArgsName);
     // prepare stack and register layout
     reg := PARAMREG_FIRST;
     {$ifdef HAS_FPREG}
@@ -4023,91 +4246,111 @@ begin
     fpreg := FPREG_FIRST;
     {$endif OSPOSIX}
     {$endif HAS_FPREG}
-    for a := 0 to high(Args) do
-    with Args[a] do
+    a := pointer(m^.Args);
+    for na := 0 to high(m^.Args) do
     begin
-      if a <> 0 then
+      ShortStringToAnsi7String(a^.ParamName^, u^);
+      inc(u);
+      if na <> 0 then
       begin
-        with fArgUsed[ValueType, used[ValueType]] do
+        with fArgUsed[a^.ValueType, used[a^.ValueType]] do
         begin
-          MethodIndex := m;
-          ArgIndex := a;
+          MethodIndex := nm;
+          ArgIndex := na;
         end;
-        inc(used[ValueType]);
+        inc(used[a^.ValueType]);
       end;
-      RegisterIdent := 0;
+      a^.RegisterIdent := 0;
       {$ifdef HAS_FPREG}
-      FPRegisterIdent := 0;
-      ValueIsInFPR := false;
+      a^.FPRegisterIdent := 0;
+      SizeInFPR := 0;
       {$endif HAS_FPREG}
-      IndexVar := ArgsUsedCount[ValueVar];
-      inc(ArgsUsedCount[ValueVar]);
-      include(ArgsUsed, ValueType);
-      if (ValueType in [imvRecord, imvVariant]) or
-         (ValueDirection in [imdVar, imdOut]) or
-         ((ValueDirection = imdResult) and
-          (ValueType in ARGS_RESULT_BY_REF)) then
-        include(ValueKindAsm, vPassedByReference);
-      case ValueType of
+      a^.IndexVar := m^.ArgsUsedCount[a^.ValueVar];
+      inc(m^.ArgsUsedCount[a^.ValueVar]);
+      include(m^.ArgsUsed, a^.ValueType);
+      if (a^.ValueType in [imvRecord, imvVariant]) or
+         (a^.ValueDirection in [imdVar, imdOut]) or
+         ((a^.ValueDirection = imdResult) and
+          (a^.ValueType in ARGS_RESULT_BY_REF)) then
+        include(a^.ValueKindAsm, vPassedByReference);
+      case a^.ValueType of
         imvInteger,
         imvCardinal,
         imvInt64:
-          if rcfQWord in ArgRtti.Cache.Flags then
-            include(ValueKindAsm, vIsQword);
+          if rcfQWord in a^.ArgRtti.Cache.Flags then
+            include(a^.ValueKindAsm, vIsQword);
         {$ifdef HAS_FPREG}
         imvDouble,
         imvDateTime:
-          ValueIsInFPR := not (vPassedByReference in ValueKindAsm);
+          if not (vPassedByReference in a^.ValueKindAsm) then
+            SizeInFPR := 1; // stored in one double
         {$endif HAS_FPREG}
         imvDynArray:
-          if (ArgRtti.ArrayRtti <> nil) and
-             ((rcfBinary in ArgRtti.ArrayRtti.Flags) or
-              (_FROM_RTTI[ArgRtti.ArrayRtti.Parser] in _SMV_STRING)) then
-            include(ValueKindAsm, vIsDynArrayString);
+          if (a^.ArgRtti.ArrayRtti <> nil) and
+             ((rcfBinary in a^.ArgRtti.ArrayRtti.Flags) or
+              (_FROM_RTTI[a^.ArgRtti.ArrayRtti.Parser] in _SMV_STRING)) then
+            include(a^.ValueKindAsm, vIsDynArrayString);
         imvSet:
-          if not (ArgRtti.Size in [1, 2, 4, 8]) then
+          if not (a^.ArgRtti.Size in [1, 2, 4, 8]) then
             EInterfaceFactory.RaiseUtf8(
               '%.Create: unexpected RTTI size = % in %.% method % parameter ' +
               'for % set - should match byte/word/integer/Int64 (1,2,4,8) sizes',
-              [self, ArgRtti.Size, fInterfaceName, URI, ParamName^, ArgTypeName^]);
+              [self, a^.ArgRtti.Size, fInterfaceName, m^.URI,
+               a^.ParamName^, a^.ArgTypeName^]);
         imvRecord:
-          if ArgRtti.Size <= POINTERBYTES then
-            // handle records only when passed by ref
-            EInterfaceFactory.RaiseUtf8(
-              '%.Create: % record too small in %.% method % parameter: it ' +
-              'should be at least % bytes (i.e. bigger than a pointer) to be on stack',
-              [self, ArgTypeName^, fInterfaceName, URI, ParamName^, POINTERBYTES + 1]);
+          begin
+            if a^.ArgRtti.Size <= POINTERBYTES then
+              // handle records only when passed by ref
+              EInterfaceFactory.RaiseUtf8(
+                '%.Create: % record too small in %.% method % parameter: it ' +
+                'should be at least % bytes (i.e. bigger than a pointer) to be on stack',
+                [self, a^.ArgTypeName^, fInterfaceName, m^.URI,
+                 a^.ParamName^, POINTERBYTES + 1]);
+              // to be fair, both ABIWINX64 and ABISYSVX64 could handle those and
+              // transmit them within a register
+            if RecordIsHfa(a^.ArgRtti.Props) then
+            begin
+              include(a^.ValueKindAsm, vIsHFA); // e.g. record x, y: double end;
+              {$ifdef HAS_FPREG}
+              SizeInFPR := a^.ArgRtti.Size shr 3;
+              {$endif HAS_FPREG}
+            end;
+         end;
       end;
-      OffsetAsValue := ArgsSizeAsValue;
-      inc(ArgsSizeAsValue, ArgRtti.Size);
-      while ArgsSizeAsValue and 7 <> 0 do
-        inc(ArgsSizeAsValue); // align to 64-bit
-      if ValueDirection = imdResult then
+      a^.OffsetAsValue := m^.ArgsSizeAsValue;
+      inc(m^.ArgsSizeAsValue, a^.ArgRtti.Size);
+      while m^.ArgsSizeAsValue and 7 <> 0 do
+        inc(m^.ArgsSizeAsValue); // align to 64-bit
+      if a^.ValueDirection = imdResult then
       begin
-        if not (ValueType in ARGS_RESULT_BY_REF) then
+        if not (a^.ValueType in ARGS_RESULT_BY_REF) then
+        begin
+          inc(a);
           continue; // ordinal/real/class results are returned in CPU/FPU registers
-        {$ifndef CPUX86}
-        InStackOffset := -1;
-        RegisterIdent := PARAMREG_RESULT;
+        end;
+        {$ifndef ABIX86}
+        a^.InStackOffset := -1;
+        a^.RegisterIdent := PARAMREG_RESULT;
+        inc(a);
         continue;
-        {$endif CPUX86}
-        // CPUX86 will add an additional by-ref parameter
+        {$endif ABIX86}
+        // i386 will add an additional by-ref parameter
       end;
       {$ifdef CPU32}
-      if ValueDirection = imdConst then
-        SizeInStack := ARGS_IN_STACK_SIZE[ValueType]
+      if a^.ValueDirection = imdConst then
+        a^.SizeInStack := ARGS_IN_STACK_SIZE[a^.ValueType]
       else
       {$endif CPU32}
-        SizeInStack := POINTERBYTES; // always 8 bytes aligned on 64-bit
+        a^.SizeInStack := POINTERBYTES; // always 8 bytes aligned on 64-bit
       if
-        {$ifndef CPUARM}
+        {$ifndef ABIA32}
         // on ARM, ordinals>POINTERBYTES can also be placed in the normal registers !!
-        (SizeInStack <> POINTERBYTES) or
-        {$endif CPUARM}
+        (a^.SizeInStack <> POINTERBYTES) or
+        {$endif ABIA32}
         {$ifdef HAS_FPREG}
         {$ifdef OSPOSIX}  // Linux x64, armhf, aarch64
-        ((ValueIsInFPR) and (fpreg > FPREG_LAST)) or   // too many FP registers
-        ((not ValueIsInFPR) and (reg > PARAMREG_LAST)) // too many int registers
+        ((SizeInFPR = 1) and (fpreg > FPREG_LAST)) or // too many FP registers
+        ((SizeInFPR = 0) and (reg > PARAMREG_LAST))  // too many int registers
         {$else}
         (reg > PARAMREG_LAST) // Win64: XMMs overlap regular registers
         {$endif OSPOSIX}
@@ -4115,9 +4358,9 @@ begin
         (reg > PARAMREG_LAST) // Win32, Linux x86, armel
         {$endif HAS_FPREG}
         {$ifdef FPC}
-        or ((ValueType in [imvRecord]) and
+        or ((a^.ValueType in [imvRecord]) and
           // trunk i386/x86_64\cpupara.pas: DynArray const is passed as register
-          not (vPassedByReference in ValueKindAsm))
+           not (vPassedByReference in a^.ValueKindAsm))
         {$endif FPC} then
       begin
         // this parameter will go on the stack
@@ -4126,37 +4369,37 @@ begin
         // https://developer.apple.com/documentation/xcode/
         //    writing-arm64-code-for-apple-platforms#Pass-arguments-to-functions-correctly
         // "arguments may consume slots on the stack that are not multiples of 8 bytes"
-        if ValueDirection = imdConst then
-          SizeInStack := ArgRtti.Size;
+        if a^.ValueDirection = imdConst then
+          a^.SizeInStack := a^.ArgRtti.Size;
         {$else}
-        {$ifdef CPUARM}
+        {$ifdef ABIA32}
         // parameter must be aligned on a SizeInStack boundary
-        if SizeInStack > POINTERBYTES then
-          Inc(ArgsSizeInStack, ArgsSizeInStack mod cardinal(SizeInStack));
-        {$endif CPUARM}
+        if a^.SizeInStack > POINTERBYTES then
+          inc(m^.ArgsSizeInStack, m^.ArgsSizeInStack mod cardinal(a^.SizeInStack));
+        {$endif ABIA32}
         {$endif OSDARWINARM}
-        InStackOffset := ArgsSizeInStack;
-        inc(ArgsSizeInStack, SizeInStack);
+        a^.InStackOffset := m^.ArgsSizeInStack;
+        inc(m^.ArgsSizeInStack, a^.SizeInStack);
       end
       else
       begin
         // this parameter will go in a register
-        InStackOffset := -1;
-        {$ifndef CPUX86}
-        if (ArgsResultIndex >= 0) and
+        a^.InStackOffset := -1;
+        {$ifndef ABIX86}
+        if (m^.ArgsResultIndex >= 0) and
            (reg = PARAMREG_RESULT) and
-           (Args[ArgsResultIndex].ValueType in ARGS_RESULT_BY_REF) then
+           (m^.Args[m^.ArgsResultIndex].ValueType in ARGS_RESULT_BY_REF) then
           inc(reg); // this register is reserved for method result pointer
-        {$endif CPUX86}
+        {$endif ABIX86}
         {$ifdef HAS_FPREG}
-        if ValueIsInFPR then
+        if SizeInFPR = 1 then
         begin
-          // put in a floating-point register
+          // put in next floating-point register
           {$ifdef OSPOSIX}
-          FPRegisterIdent := fpreg;
+          a^.FPRegisterIdent := fpreg; // ABISYSVX64 has its own FP registers index
           inc(fpreg);
           {$else}
-          FPRegisterIdent := reg; // Win64 ABI: reg and fpreg do overlap
+          a^.FPRegisterIdent := reg; // Win64 ABI: reg and fpreg do overlap
           inc(reg);
           {$endif OSPOSIX}
         end
@@ -4164,122 +4407,139 @@ begin
         {$endif HAS_FPREG}
         begin
           // put in an integer register
-          {$ifdef CPUARM}
+          {$ifdef ABIA32}
           // on 32-bit ARM, ordinals>POINTERBYTES are also placed in registers
-          if (SizeInStack > POINTERBYTES) and
+          if (a^.SizeInStack > POINTERBYTES) and
              ((reg and 1) = 0) then
             inc(reg); // must be aligned on even boundary
           // check if we have still enough registers, after previous increments
-          if ((PARAMREG_LAST - reg + 1) * POINTERBYTES) < SizeInStack then
+          if ((PARAMREG_LAST - reg + 1) * POINTERBYTES) < a^.SizeInStack then
           begin
             // no space, put on stack
-            InStackOffset := ArgsSizeInStack;
-            inc(ArgsSizeInStack, SizeInStack);
+            a^.InStackOffset := m^.ArgsSizeInStack;
+            inc(m^.ArgsSizeInStack, a^.SizeInStack);
             // all params following the current one, must also be placed on stack
             reg := PARAMREG_LAST + 1;
+            inc(a);
             continue;
           end;
-          RegisterIdent := reg;
-          if SizeInStack > POINTERBYTES then
-            inc(reg, SizeInStack shr POINTERSHR)
+          a^.RegisterIdent := reg;
+          if a^.SizeInStack > POINTERBYTES then
+            inc(reg, a^.SizeInStack shr POINTERSHR)
           else
             inc(reg);
           {$else}
-          RegisterIdent := reg;
+          a^.RegisterIdent := reg;
           inc(reg);
-          {$endif CPUARM}
+          {$endif ABIA32}
         end;
       end;
+      inc(a);
     end;
     // pre-compute the TInterfaceMethodExecuteRaw.RawExecute expectations
-    for a := 0 to high(Args) do
-    with Args[a] do
+    a := pointer(m^.Args);
+    for na := 0 to high(m^.Args) do
     begin
       {$ifdef HAS_FPREG}
-      if FPRegisterIdent > 0 then
-        if (RegisterIdent > 0) or
-           (vPassedByReference in ValueKindAsm) then
+      if a^.FPRegisterIdent > 0 then
+        if (a^.RegisterIdent > 0) or
+           (vPassedByReference in a^.ValueKindAsm) then
           EInterfaceFactory.RaiseUtf8('Unexpected I% % Reg=% FPReg=%',
-            [InterfaceDotMethodName, ParamName^, RegisterIdent, FPRegisterIdent]);
+            [m^.InterfaceDotMethodName, a^.ParamName^,
+             a^.RegisterIdent, a^.FPRegisterIdent]);
       {$endif HAS_FPREG}
-      if (RegisterIdent = 0) and
-         (FPRegisterIdent = 0) and
-         (SizeInStack > 0) then
-        include(ValueKindAsm, vIsOnStack);
-      if vPassedByReference in ValueKindAsm then
-        if vIsOnStack in ValueKindAsm then
-          if SizeInStack <> POINTERBYTES then
+      if (a^.RegisterIdent = 0) and
+         (a^.FPRegisterIdent = 0) and
+         (a^.SizeInStack > 0) then
+        include(a^.ValueKindAsm, vIsOnStack);
+      if vPassedByReference in a^.ValueKindAsm then
+        if vIsOnStack in a^.ValueKindAsm then
+          if a^.SizeInStack <> POINTERBYTES then
             EInterfaceFactory.RaiseUtf8('Unexpected I% % ref with no pointer',
-              [InterfaceDotMethodName, ParamName^])
+              [m^.InterfaceDotMethodName, a^.ParamName^])
           else
-            RawExecute := reRefStack
-        else if RegisterIdent > 0 then
-          RawExecute := reRefReg
+            a^.RawExecute := reRefStack
+        else if a^.RegisterIdent > 0 then
+          a^.RawExecute := reRefReg
         else
           EInterfaceFactory.RaiseUtf8('Unexpected I% % reference with no slot',
-            [InterfaceDotMethodName, ParamName^])
+            [m^.InterfaceDotMethodName, a^.ParamName^])
       else // pass by value
-        if vIsOnStack in ValueKindAsm then
-          RawExecute := reValStack
-        else if RegisterIdent > 0 then
-          RawExecute := reValReg
+        if vIsOnStack in a^.ValueKindAsm then
+          a^.RawExecute := reValStack
+        else if a^.RegisterIdent > 0 then
+          if a^.SizeInStack = POINTERBYTES then
+            a^.RawExecute := reValReg   // use a single register
+          else
+            a^.RawExecute := reValRegs  // several registers (e.g. ABISYSVX64 TGuid)
         {$ifdef HAS_FPREG}
-        else if FPRegisterIdent > 0 then
-          RawExecute := reValFpReg
+        else if a^.FPRegisterIdent > 0 then
+          if a^.SizeInStack = SizeOf(double) then
+            a^.RawExecute := reValFpReg  // use a single FP register
+          else
+            a^.RawExecute := reValFpRegs // several FP registers (e.g. ABISYSVX64 HFA)
         {$endif HAS_FPREG}
         else
-          RawExecute := reNone; // e.g. for a result register
+          a^.RawExecute := reNone; // e.g. for a result register
+      inc(a);
     end;
     {$ifdef OSDARWINARM}
     // the Mac M1 does NOT follow the ARM ABI standard on stack :(
-    while ArgsSizeInStack and 7 <> 0 do
-      inc(ArgsSizeInStack); // ensure pointer-aligned
+    while m^.ArgsSizeInStack and 7 <> 0 do
+      inc(m^.ArgsSizeInStack); // ensure pointer-aligned
     {$endif OSDARWINARM}
-    if ArgsSizeInStack > MAX_EXECSTACK then
+    if m^.ArgsSizeInStack > MAX_EXECSTACK then
       EInterfaceFactory.RaiseUtf8(
-        '%.Create: Stack size % > % for %.% method parameters',
-        [self, ArgsSizeInStack, MAX_EXECSTACK, fInterfaceName, URI]);
-    {$ifdef CPUX86}
+        '%.Create: Stack size % > % for %.% method % parameters',
+        [self, m^.ArgsSizeInStack, MAX_EXECSTACK, fInterfaceName, m^.URI,
+         m^.ArgsInputValuesCount]);
+    {$ifdef ABIX86}
     // pascal/register convention are passed left-to-right -> reverse order
-    offs := ArgsSizeInStack;
-    for a := 0 to high(Args) do
-      with Args[a] do
-      if InStackOffset >= 0 then
+    offs := m^.ArgsSizeInStack;
+    a := pointer(m^.Args);
+    for na := 0 to high(m^.Args) do
+    begin
+      if a^.InStackOffset >= 0 then
       begin
-        dec(offs,SizeInStack);
-        InStackOffset := offs;
+        dec(offs, a^.SizeInStack);
+        a^.InStackOffset := offs;
       end;
+      inc(a);
+    end;
     //assert(offs=0);
-    {$endif CPUX86}
+    {$endif ABIX86}
+    inc(m);
   end;
   WR := TJsonWriter.CreateOwnedStream;
   try
     // compute the default results JSON array for all methods
-    for m := 0 to MethodsCount - 1 do
-      with fMethods[m] do
-      begin
-        WR.CancelAll;
-        WR.AddDirect('[');
-        for a := ArgsOutFirst to ArgsOutLast do
-          with Args[a] do
-          if ValueDirection <> imdConst then
+    m := pointer(fMethods);
+    for nm := 0 to MethodsCount - 1 do
+    begin
+      WR.CancelAll;
+      WR.AddDirect('[');
+      for na := m^.ArgsOutFirst to m^.ArgsOutLast do
+        with m^.Args[na] do
+          if IsOutput then
             AddDefaultJson(WR);
-        WR.CancelLastComma(']');
-        WR.SetText(DefaultResult);
-      end;
+      WR.ReplaceLastComma(']');
+      WR.SetText(m^.DefaultResult);
+      inc(m);
+    end;
     // compute the service contract as a JSON array
     WR.CancelAll;
     WR.AddDirect('[');
-    for m := 0 to MethodsCount - 1 do
-      with fMethods[m] do
-      begin
-        WR.Add('{"method":"%","arguments":[', [URI]);
-        for a := 0 to High(Args) do
-          Args[a].SerializeToContract(WR);
-        WR.CancelLastComma;
-        WR.AddDirect(']', '}', ',');
-      end;
-    WR.CancelLastComma(']');
+    m := pointer(fMethods);
+    for nm := 0 to MethodsCount - 1 do
+    begin
+      WR.Add('{"method":"%","arguments":[', [m^.URI]);
+      for na := 0 to High(m^.Args) do
+        m^.Args[na].SerializeToContract(WR);
+      WR.CancelLastComma;
+      WR.AddDirect(']', '}', ',');
+      inc(m);
+    end;
+    WR.ReplaceLastComma(']');
     WR.SetText(fContract);
     {$ifdef SOA_DEBUG}
     JsonReformatToFile(fContract,TFileName(fInterfaceName + '-' +
@@ -4429,7 +4689,7 @@ end;
 
 {$ifdef FPC}
 
-{$ifdef CPUARM}
+{$ifdef ABIA32}
 {$ifdef ASMORIG}
 procedure TInterfacedObjectFakeRaw.ArmFakeStub;
 var
@@ -4510,8 +4770,8 @@ asm
       ldmea r11,{r11,r13,r15}
 end;
 {$endif ASMORIG}
-{$endif CPUARM}
-{$ifdef CPUAARCH64}
+{$endif ABIA32}
+{$ifdef ABIA64}
 procedure TInterfacedObjectFakeRaw.AArch64FakeStub;
 var
   // warning: exact local variables order should match TFakeCallStack
@@ -4548,11 +4808,45 @@ asm
     // and float in aCall.FPRegs["sd0"]
     str d0,sd0
 end;
-{$endif CPUAARCH64}
+{$endif ABIA64}
+
+{$else}
+
+{$ifdef ABIA64}
+procedure TInterfacedObjectFakeRaw.AArch64FakeStub;
+begin
+  // TODO: use external .o for Delphi ARM64
+end;
+{$endif ABIA64}
 
 {$endif FPC}
 
-{$ifdef CPUX64}
+{$ifdef ABIX64}
+
+{$ifdef FPC_TEST}
+  {$L ../../res/static/delphillvm/delphi-linux-x64.o}
+  {$define NOASMBLOCK} // for testing with FPC
+{$endif FPC}
+
+{$ifdef NOASMBLOCK}
+var
+  _fakecall: function(stack: PFakeCallStack): Int64 of object;
+
+procedure dofakecall; {$ifdef FPC} public name 'fakecall'; {$endif}
+begin // just redirect to TInterfacedObjectFakeRaw.FakeCall
+  TProcedure(TMethod(_fakecall).Code)();
+end;
+
+{$ifdef ISDELPHI}
+exports
+  dofakecall name 'fakecall';
+{$endif ISDELPHI}
+
+procedure x64FakeStub; external
+{$ifdef ISDELPHI} '../../res/static/delphillvm/delphi-linux-x64.o' {$endif}
+  name 'x64fakestub';
+
+{$else}
 
 {$ifdef FPC}
   {$WARN 7102 off : Use of +offset(%ebp) for parameters invalid here}
@@ -4613,14 +4907,14 @@ asm     // caller = mov eax,{MethodIndex}; jmp x64FakeStub
         // and float in aCall.FPRegs["XMM0"]
         movsd   xmm0, qword ptr sxmm0 // movsd for zero extension
 end;
-
-{$endif CPUX64}
+{$endif NOASMBLOCK}
+{$endif ABIX64}
 
 var
   // just called once for _FAKEVMT creation (once per interface type on i386)
   VmtSafe: TLightLock;
 
-{$ifdef CPUX86}  // i386 stub requires "ret ArgsSizeInStack"
+{$ifdef ABIX86}  // i386 stub requires "ret ArgsSizeInStack"
 
 function TInterfaceFactory.GetMethodsVirtualTable: pointer;
 var
@@ -4693,14 +4987,14 @@ procedure Compute_FAKEVMT;
 var
   P: PCardinal;
   i: PtrInt;
-  {$ifdef CPUARM3264}
-  stub {$ifdef CPUAARCH64} , tmp {$endif}: PtrUInt;
-  {$endif CPUARM3264}
+  {$ifdef ABIARM}
+  stub {$ifdef ABIA64} , tmp {$endif}: PtrUInt;
+  {$endif ABIARM}
 begin
   // reserve executable memory for JIT (aligned to 8 bytes)
   P := ReserveExecutableMemory(MAX_METHOD_COUNT * VMTSTUBSIZE
-    {$ifdef CPUAARCH64} + ($120 shr 2) {$endif CPUAARCH64}
-    {$ifdef CPUARM}, @TInterfacedObjectFakeRaw.ArmFakeStub {$endif CPUARM});
+    {$ifdef ABIA64} + ($120 shr 2) {$endif ABIA64}
+    {$ifdef ABIA32}, @TInterfacedObjectFakeRaw.ArmFakeStub {$endif ABIA32});
   // populate _FAKEVMT[] with JITted stubs
   SetLength(_FAKEVMT, MAX_METHOD_COUNT + RESERVED_VTABLE_SLOTS);
   // set IInterface RESERVED_VTABLE_SLOTS required methods
@@ -4711,7 +5005,7 @@ begin
   for i := 0 to MAX_METHOD_COUNT - 1 do
   begin
     _FAKEVMT[i + RESERVED_VTABLE_SLOTS] := P;
-    {$ifdef CPUX64}    // note: on Posix, (stub-P) > 32-bit -> need absolute jmp
+    {$ifdef ABIX64}    // note: on Posix, (stub-P) > 32-bit -> need absolute jmp
     P^ := $ba49;       // mov r10, x64FakeStub
     inc(PWord(P));
     PPointer(P)^ := @x64FakeStub;
@@ -4724,8 +5018,8 @@ begin
     inc(P);
     P^ := $00441f0f;   // multi-byte nop
     inc(PByte(P), 5);  // VMTSTUBSIZE = 24
-    {$endif CPUX64}
-    {$ifdef CPUARM}
+    {$endif ABIX64}
+    {$ifdef ABIA32}
     {$ifdef ASMORIG}
     P^ := ($e3a040 shl 8) + i;
     inc(P); // mov r4 (v1),{MethodIndex} : store method index in register
@@ -4740,8 +5034,8 @@ begin
     inc(P);
     P^ := $e320f000;  // VMTSTUBSIZE = 16
     inc(P);
-    {$endif CPUARM}
-    {$ifdef CPUAARCH64}
+    {$endif ABIA32}
+    {$ifdef ABIA64}
     // store method index in register r16 [IP0]
     // $10 = r16 ... loop to $1F -> number shifted * $20
     P^ := ($d280 shl 16) + (i shl 5) + $10;
@@ -4750,23 +5044,23 @@ begin
     // fill register x10 with address
     stub := PtrUInt(@TInterfacedObjectFakeRaw.AArch64FakeStub);
     tmp := (stub shr 0) and $ffff;
-    P^ := ($d280 shl 16) + (tmp shl 5) + $0a;
+    P^ := PtrUInt($d280 shl 16) + (tmp shl 5) + $0a;
     inc(P);
     tmp := (stub shr 16) and $ffff;
-    P^ := ($f2a0 shl 16) + (tmp shl 5) + $0a;
+    P^ := PtrUInt($f2a0 shl 16) + (tmp shl 5) + $0a;
     inc(P);
     tmp := (stub shr 32) and $ffff;
-    P^ := ($f2c0 shl 16) + (tmp shl 5) + $0a;
+    P^ := PtrUInt($f2c0 shl 16) + (tmp shl 5) + $0a;
     inc(P);
     tmp := (stub shr 48) and $ffff;
-    P^ := ($f2e0 shl 16) + (tmp shl 5) + $0a;
+    P^ := PtrUInt($f2e0 shl 16) + (tmp shl 5) + $0a;
     inc(P);
     // branch to address in x10 register
     P^ := $d61f0140;
     inc(P);
     P^ := $d503201f;
     inc(P); // VMTSTUBSIZE = 28
-    {$endif CPUAARCH64}
+    {$endif ABIA64}
   end;
   // reenable execution permission of JITed memory as expected by the VMT
   ReserveExecutableMemoryPageAccess(
@@ -4789,7 +5083,7 @@ begin
   result := pointer(_FAKEVMT);  // we can reuse pre-JITted stubs
 end;
 
-{$endif CPUX86}
+{$endif ABIX86}
 
 
 {$ifdef HASINTERFACERTTI}
@@ -4853,17 +5147,16 @@ end;
 
 procedure TInterfaceFactoryGenerated.AddMethod(const aName: RawUtf8;
   const aParams: array of const);
-const
-  ARGPERARG = 3; // aParams = [ 0,'n1',TypeInfo(integer), ... ]
 var
   meth: PInterfaceMethod;
   arg: PInterfaceMethodArgument;
+  par: PVarRecArray; // aParams = [ ord(Direction),'n1',TypeInfo(integer), ... ]
   na, ns, a: PtrInt;
   u: RawUtf8;
 begin
-  if Length(aParams) mod ARGPERARG <> 0 then
-    EInterfaceFactory.RaiseUtf8('%: invalid aParams count for %.AddMethod("%")',
-      [fInterfaceName, self, aName]);
+  if Length(aParams) mod 3 <> 0 then
+    EInterfaceFactory.RaiseUtf8('%: invalid aParams count=% for %.AddMethod("%")',
+      [fInterfaceName, Length(aParams), self, aName]);
   if FindMethodIndexExact(aName) >= 0 then
     EInterfaceFactory.RaiseUtf8('%.AddMethod: duplicated generated name %.%',
       [self, fInterfaceName, aName]);
@@ -4873,37 +5166,35 @@ begin
   meth := @fMethods[fMethodsCount];
   inc(fMethodsCount);
   meth^.Uri := aName;
-  na := length(aParams) div ARGPERARG;
+  na := length(aParams) div 3;
   SetLength(meth^.Args, na + 1); // always include Args[0]=self
-  arg := @meth^.Args[0];
+  arg := pointer(meth^.Args);
   arg^.ParamName := @PSEUDO_SELF_NAME;
   arg^.ArgRtti := fInterfaceRtti;
   arg^.ArgTypeName := @fInterfaceRtti.Info^.RawName;
   ns := length(fTempStrings);
   SetLength(fTempStrings, ns + na);
+  par := @aParams[0];
   for a := 0 to na - 1 do
   begin
-    arg := @meth^.Args[a + 1];
-    if aParams[a * ARGPERARG].VType <> vtInteger then
-      EInterfaceFactory.RaiseUtf8(
-        '%: invalid param type #% for %.AddMethod("%")',
+    inc(arg);
+    if par[0].VType <> vtInteger then
+      EInterfaceFactory.RaiseUtf8('%: invalid param type #% for %.AddMethod("%")',
         [fInterfaceName, a, self, aName]);
-    arg^.ValueDirection :=
-      TInterfaceMethodValueDirection(aParams[a * ARGPERARG].VInteger);
-    VarRecToUtf8(@aParams[a * ARGPERARG + 1], u);
+    arg^.ValueDirection := TInterfaceMethodValueDirection(par[0].VInteger);
+    VarRecToUtf8(@par[1], u);
     if u = '' then
-      EInterfaceFactory.RaiseUtf8(
-        '%: invalid param name #% for %.AddMethod("%")',
+      EInterfaceFactory.RaiseUtf8('%: invalid param name #% for %.AddMethod("%")',
         [fInterfaceName, a, self, aName]);
     insert(AnsiChar(Length(u)), u, 1); // create fake PShortString
     arg^.ParamName := pointer(u);
     fTempStrings[ns + a] := u;
-    if aParams[a * ARGPERARG + 2].VType <> vtPointer then
-      EInterfaceFactory.RaiseUtf8(
-        '%: expect TypeInfo() at #% for %.AddMethod("%")',
+    if par[2].VType <> vtPointer then
+      EInterfaceFactory.RaiseUtf8('%: expect TypeInfo() at #% for %.AddMethod("%")',
         [fInterfaceName, a, self, aName]);
-    arg^.ArgRtti := Rtti.RegisterType(aParams[a * ARGPERARG + 2].VPointer) as TRttiJson;
+    arg^.ArgRtti := Rtti.RegisterType(par[2].VPointer) as TRttiJson;
     arg^.ArgTypeName := arg^.ArgRtti.Info^.Name;
+    par := @par[3]; // next argument tripple
   end;
 end;
 
@@ -4934,7 +5225,7 @@ var
 begin
   fact := TInterfaceFactory.Get(aGuid);
   if fact = nil then
-    GuidToShort(aGuid, PGuidShortString(@result)^)
+    GuidToShort(aGuid, PShortGuid(@result)^)
   else
     result := fact.fInterfaceRtti.Info^.RawName;
 end;
@@ -4965,15 +5256,12 @@ function TInterfaceResolver.Resolve({$ifdef FPC_HAS_CONSTREF}constref{$else}cons
 var
   known: TInterfaceFactory;
 begin
-  if self = nil then
-    result := false
-  else
+  result := false;
+  if self <> nil then
   begin
     known := TInterfaceFactory.Get(aGuid);
     if known <> nil then
-      result := TryResolve(known.fInterfaceRtti.Info, Obj)
-    else
-      result := false;
+      result := TryResolve(known.fInterfaceRtti.Info, Obj);
   end;
   if (aRaiseIfNotFound <> nil) and
      not result then
@@ -5019,6 +5307,24 @@ begin
             [self, info^.RawName]);
     end;
 end;
+
+{$ifdef HASGENERICS}
+
+function TInterfaceResolver.Resolve<T>: T;
+begin
+  result := nil;
+  if not TryResolve(TypeInfo(T), result) then
+    EInterfaceResolver.RaiseUtf8('%.Resolve(%) unsatisfied',
+      [self, PRttiInfo(TypeInfo(T))^.RawName]);
+end;
+
+function TInterfaceResolver.Resolve<T>(out Instance: T): boolean;
+begin
+  result := TryResolve(TypeInfo(T), Instance);
+end;
+
+{$endif HASGENERICS}
+
 
 { TInterfaceResolverForSingleInterface }
 
@@ -5328,6 +5634,22 @@ begin
   result := false;
 end;
 
+function TInterfaceResolverInjected.TryResolveImplements(aInterface: PRttiInfo;
+  out Obj): boolean;
+var
+  i: PtrInt;
+begin
+  // only check local resolvers, as Implements() does
+  result := true;
+  if (self <> nil) and
+     (aInterface <> nil) and
+     (fResolvers <> nil) then
+    for i := 0 to length(fResolvers) - 1 do
+      if fResolvers[i].TryResolve(aInterface, Obj) then
+        exit;
+  result := false;
+end;
+
 function TInterfaceResolverInjected.Implements(aInterface: PRttiInfo): boolean;
 var
   i: PtrInt;
@@ -5362,11 +5684,11 @@ begin
       begin
         include(TInterfaceStub(aOtherResolvers[i]).fOptions,
           imoFakeInstanceWontReleaseTInterfaceStub);
-        ObjArrayAdd(fResolversToBeReleased, aOtherResolvers[i]);
+        PtrArrayAdd(fResolversToBeReleased, aOtherResolvers[i]);
       end
       else if OwnOtherResolvers then
-        ObjArrayAdd(fResolversToBeReleased, aOtherResolvers[i]);
-      ObjArrayAddOnce(fResolvers, aOtherResolvers[i]);
+        PtrArrayAdd(fResolversToBeReleased, aOtherResolvers[i]);
+      PtrArrayAddOnce(fResolvers, aOtherResolvers[i]);
     end;
 end;
 
@@ -5379,7 +5701,7 @@ begin
     if aDependencies[i] <> nil then
     begin
       IInterface(aDependencies[i])._AddRef; // Destroy will do _Release
-      ObjArrayAdd(fDependencies, aDependencies[i]);
+      PtrArrayAdd(fDependencies, aDependencies[i]);
     end;
 end;
 
@@ -5529,7 +5851,9 @@ begin
 end;
 
 
-{ ************ TInterfaceStub TInterfaceMock for Dependency Mocking }
+{ ************ TInterfaceStub for Dependency Stubbing/Mocking }
+
+// note: TInterfaceMock is defined in mormot.core.test.pas
 
 { EInterfaceStub }
 
@@ -5677,10 +6001,6 @@ begin
   fResult := aErrorMessage;
 end;
 
-function TOnInterfaceStubExecuteParamsAbstract.GetSenderAsMockTestCase: TSynTestCase;
-begin
-  result := (fSender as TInterfaceMock).TestCase;
-end;
 
 { TOnInterfaceStubExecuteParamsJson }
 
@@ -5693,6 +6013,7 @@ procedure TOnInterfaceStubExecuteParamsJson.Returns(const ValuesJsonArray: RawUt
 begin
   fResult := ValuesJsonArray;
 end;
+
 
 { TOnInterfaceStubExecuteParamsVariant }
 
@@ -5721,6 +6042,7 @@ begin
   if cardinal(Index) >= fMethod^.ArgsInputValuesCount then
     raise EInterfaceStub.Create(fSender, fMethod^, 'Input[%>=%]', [Index,
       fMethod^.ArgsInputValuesCount])
+    {$ifdef FPC} at get_caller_addr(get_frame), get_caller_frame(get_frame) {$endif}
   else
     result := fInput[Index];
 end;
@@ -5731,6 +6053,7 @@ begin
   if cardinal(Index) >= fMethod^.ArgsOutputValuesCount then
     raise EInterfaceStub.Create(fSender, fMethod^, 'Output[%>=%]',
       [Index, fMethod^.ArgsOutputValuesCount])
+    {$ifdef FPC} at get_caller_addr(get_frame), get_caller_frame(get_frame) {$endif}
   else
     fOutput[Index] := Value;
 end;
@@ -5738,30 +6061,21 @@ end;
 function TOnInterfaceStubExecuteParamsVariant.GetInNamed(
   const aParamName: RawUtf8): variant;
 var
-  L, a, ndx: integer;
-  arg: PInterfaceMethodArgument;
+  ndx: PtrInt;
 begin
-  L := Length(aParamName);
-  ndx := 0;
-  if (L > 0) and
-     (fInput <> nil) then
-    for a := fMethod^.ArgsInFirst to fMethod^.ArgsInLast do
+  if fInput <> nil then
+  begin
+    ndx := FindPropName(pointer(fMethod^.ArgsInputName), aParamName,
+      fMethod^.ArgsInputValuesCount);
+    if ndx >= 0 then
     begin
-      arg := @fMethod^.Args[a];
-      if arg^.ValueDirection in [imdConst, imdVar] then
-      begin
-        if IdemPropName(arg^.ParamName^, pointer(aParamName), L) then
-        begin
-          result := fInput[ndx];
-          exit;
-        end;
-        inc(ndx);
-        if cardinal(ndx) >= cardinal(fMethod^.ArgsInputValuesCount) then
-          break;
-      end;
+      result := fInput[ndx];
+      exit;
     end;
-  raise EInterfaceStub.Create(fSender, fMethod^, 'unknown input parameter [%]',
-    [aParamName]);
+  end;
+  raise EInterfaceStub.Create(fSender, fMethod^,
+    'unknown input parameter [%]', [aParamName])
+    {$ifdef FPC} at get_caller_addr(get_frame), get_caller_frame(get_frame) {$endif}
 end;
 
 function TOnInterfaceStubExecuteParamsVariant.GetInUtf8(
@@ -5776,38 +6090,30 @@ end;
 procedure TOnInterfaceStubExecuteParamsVariant.SetOutNamed(
   const aParamName: RawUtf8; const Value: variant);
 var
-  L, a, ndx: integer;
-  arg: PInterfaceMethodArgument;
+  ndx: PtrInt;
 begin
-  L := Length(aParamName);
-  ndx := 0;
-  if (L > 0) and
-     (fOutput <> nil) then
-    for a := fMethod^.ArgsOutFirst to fMethod^.ArgsOutLast do
+  if fOutput <> nil then
+  begin
+    ndx := FindPropName(pointer(fMethod^.ArgsOutputName), aParamName,
+        fMethod^.ArgsOutputValuesCount);
+    if ndx >= 0 then
     begin
-      arg := @fMethod^.Args[a];
-      if arg^.ValueDirection <> imdConst then
-      begin
-        if IdemPropName(arg^.ParamName^, pointer(aParamName), L) then
-        begin
-          fOutput[ndx] := Value;
-          exit;
-        end;
-        inc(ndx);
-        if cardinal(ndx) >= cardinal(fMethod^.ArgsOutputValuesCount) then
-          break;
-      end;
+      fOutput[ndx] := Value;
+      exit;
     end;
-  raise EInterfaceStub.Create(fSender, fMethod^, 'unknown output parameter [%]',
-    [aParamName]);
+  end;
+  raise EInterfaceStub.Create(fSender, fMethod^,
+    'unknown output parameter [%]', [aParamName])
+    {$ifdef FPC} at get_caller_addr(get_frame), get_caller_frame(get_frame) {$endif}
 end;
 
 procedure TOnInterfaceStubExecuteParamsVariant.SetResultFromOutput;
 var
-  a, ndx: integer;
+  a: PtrInt;
   W: TJsonWriter;
   arg: PInterfaceMethodArgument;
-  temp: TTextWriterStackBuffer;
+  o: PVarData;
+  temp: TTextWriterStackBuffer; // 8KB work buffer on stack
 begin
   fResult := '';
   if fOutput = nil then
@@ -5815,25 +6121,26 @@ begin
   W := TJsonWriter.CreateOwnedStream(temp);
   try
     W.Add('[');
-    ndx := 0;
-    for a := fMethod^.ArgsOutFirst to fMethod^.ArgsOutLast do
+    o := pointer(fOutput);
+    a := fMethod^.ArgsOutFirst;
+    arg := @fMethod^.Args[a];
+    while a <= fMethod^.ArgsOutLast do
     begin
-      arg := @fMethod^.Args[a];
-      if arg^.ValueDirection <> imdConst then
+      if arg^.IsOutput then
       begin
-        if TVarData(fOutput[ndx]).VType = varEmpty then
+        if cardinal(o^.VType) = varEmpty then
           arg^.AddDefaultJson(W)
         else
         begin
-          W.AddVariant(fOutput[ndx], twJsonEscape);
+          W.AddVariant(PVariant(o)^, twJsonEscape);
           W.AddComma;
         end;
-        inc(ndx);
-        if cardinal(ndx) >= cardinal(fMethod^.ArgsOutputValuesCount) then
-          break;
+        inc(o);
       end;
+      inc(arg);
+      inc(a);
     end;
-    W.CancelLastComma(']');
+    W.ReplaceLastComma(']');
     W.SetText(fResult);
   finally
     W.Free;
@@ -5963,7 +6270,7 @@ begin
     ioGreaterThanOrEqualTo:
       ok := aComputed >= aCount;
   else
-    raise EInterfaceStub.CreateUtf8(
+    raise EInterfaceStub.CreateUtf8( // no RaiseUtf8() for Delphi
       '%.IntCheckCount(): Unexpected % operator', [self, Ord(aOperator)]);
   end;
   InternalCheck(ok, true, 'ExpectsCount(''%'',%,%) failed: count=%',
@@ -6392,7 +6699,7 @@ function TInterfaceStub.IntGetLogAsText(asmndx: integer; const aParams: RawUtf8;
 var
   i: integer;
   WR: TJsonWriter;
-  temp: TTextWriterStackBuffer;
+  temp: TTextWriterStackBuffer; // 8KB work buffer on stack
   log: ^TInterfaceStubLog;
 begin
   if fLogCount = 0 then
@@ -6446,158 +6753,6 @@ begin
   result := fInterface.fInterfaceRtti.Info = aInterface;
 end;
 
-
-{ TInterfaceMock }
-
-constructor TInterfaceMock.Create(aInterface: PRttiInfo; out aMockedInterface;
-  aTestCase: TSynTestCase);
-begin
-  inherited Create(aInterface, aMockedInterface);
-  fTestCase := aTestCase;
-end;
-
-constructor TInterfaceMock.Create(const aGuid: TGuid; out aMockedInterface;
-  aTestCase: TSynTestCase);
-begin
-  inherited Create(aGuid, aMockedInterface);
-  fTestCase := aTestCase;
-end;
-
-constructor TInterfaceMock.Create(const aInterfaceName: RawUtf8;
-  out aMockedInterface; aTestCase: TSynTestCase);
-begin
-  inherited Create(aInterfaceName, aMockedInterface);
-  fTestCase := aTestCase;
-end;
-
-constructor TInterfaceMock.Create(aInterface: PRttiInfo; aTestCase: TSynTestCase);
-begin
-  inherited Create(aInterface);
-  fTestCase := aTestCase;
-end;
-
-constructor TInterfaceMock.Create(const aGuid: TGuid; aTestCase: TSynTestCase);
-begin
-  inherited Create(aGuid);
-  fTestCase := aTestCase;
-end;
-
-function TInterfaceMock.InternalCheck(aValid, aExpectationFailed: boolean;
-  const aErrorMsgFmt: RawUtf8; const aErrorMsgArgs: array of const): boolean;
-begin
-  if fTestCase = nil then
-    result := inherited InternalCheck(
-      aValid, aExpectationFailed, aErrorMsgFmt, aErrorMsgArgs)
-  else
-  begin
-    result := true; // do not raise any exception at this stage for TInterfaceMock
-    if aValid xor (imoMockFailsWillPassTestCase in Options) then
-      fTestCase.Check(true)
-    else
-      fTestCase.Check(false, Utf8ToString(FormatUtf8(aErrorMsgFmt, aErrorMsgArgs)));
-  end;
-end;
-
-
-{ TInterfaceMockSpy }
-
-constructor TInterfaceMockSpy.Create(aFactory: TInterfaceFactory;
-  const aInterfaceName: RawUtf8);
-begin
-  inherited Create(aFactory, aInterfaceName);
-  include(fOptions, imoLogMethodCallsAndResults);
-end;
-
-procedure TInterfaceMockSpy.IntSetOptions(Options: TInterfaceStubOptions);
-begin
-  include(Options, imoLogMethodCallsAndResults);
-  inherited IntSetOptions(Options);
-end;
-
-procedure TInterfaceMockSpy.Verify(const aMethodName: RawUtf8;
-  const aParams: array of const; aOperator: TInterfaceStubRuleOperator;
-  aCount: cardinal);
-begin
-  Verify(aMethodName, JsonEncodeArray(aParams, true), aOperator, aCount);
-end;
-
-procedure TInterfaceMockSpy.Verify(const aMethodName: RawUtf8;
-  const aParams: array of const; const aTrace: RawUtf8);
-begin
-  Verify(aMethodName, JsonEncodeArray(aParams, true), aTrace);
-end;
-
-procedure TInterfaceMockSpy.Verify(const aMethodName: RawUtf8;
-  aOperator: TInterfaceStubRuleOperator; aCount: cardinal);
-var
-  m: integer;
-begin
-  m := fInterface.CheckMethodIndex(aMethodName);
-  IntCheckCount(m, fRules[m].MethodPassCount, aOperator, aCount);
-end;
-
-procedure TInterfaceMockSpy.Verify(const aMethodName, aParams: RawUtf8;
-  aOperator: TInterfaceStubRuleOperator; aCount: cardinal);
-var
-  asmndx, i: PtrInt;
-  c: cardinal;
-begin
-  asmndx := fInterface.CheckMethodIndex(aMethodName) + RESERVED_VTABLE_SLOTS;
-  if aParams = '' then
-    c := fRules[asmndx - RESERVED_VTABLE_SLOTS].MethodPassCount
-  else
-  begin
-    c := 0;
-    for i := 0 to fLogCount - 1 do
-      with fLogs[i] do
-        if (method.ExecutionMethodIndex = asmndx) and
-           (Params = aParams) then
-          inc(c);
-  end;
-  IntCheckCount(asmndx - RESERVED_VTABLE_SLOTS, c, aOperator, aCount);
-end;
-
-procedure TInterfaceMockSpy.Verify(const aTrace: RawUtf8; aScope: TInterfaceMockSpyCheck);
-const
-  VERIFY_SCOPE: array[TInterfaceMockSpyCheck] of TInterfaceStubLogLayouts = (
-    [wName], [wName, wParams], [wName, wParams, wResults]);
-begin
-  InternalCheck(IntGetLogAsText(0, '', VERIFY_SCOPE[aScope], ',') = aTrace,
-    true, 'Verify(''%'',%) failed', [aTrace, ToText(aScope)^]);
-end;
-
-procedure TInterfaceMockSpy.Verify(const aMethodName, aParams, aTrace: RawUtf8);
-var
-  m: integer;
-begin
-  m := fInterface.CheckMethodIndex(aMethodName);
-  InternalCheck(
-    IntGetLogAsText(m + RESERVED_VTABLE_SLOTS, aParams, [wResults], ',') = aTrace,
-    true, 'Verify(''%'',''%'',''%'') failed', [aMethodName, aParams, aTrace]);
-end;
-
-procedure TInterfaceMockSpy.Verify(const aMethodName, aTrace: RawUtf8;
-  aScope: TInterfaceMockSpyCheck);
-const
-  VERIFY_SCOPE: array[TInterfaceMockSpyCheck] of TInterfaceStubLogLayouts = (
-    [], [wParams], [wParams, wResults]);
-var
-  m: integer;
-begin
-  m := fInterface.CheckMethodIndex(aMethodName);
-  if aScope = chkName then
-    raise EInterfaceStub.Create(self, fInterface.Methods[m],
-      'Invalid scope for Verify()');
-  InternalCheck(
-    IntGetLogAsText(m + RESERVED_VTABLE_SLOTS, '', VERIFY_SCOPE[aScope], ',') = aTrace,
-    true, 'Verify(''%'',''%'',%) failed', [aMethodName, aTrace, ToText(aScope)^]);
-end;
-
-
-function ToText(c: TInterfaceMockSpyCheck): PShortString;
-begin
-  result := GetEnumName(TypeInfo(TInterfaceMockSpyCheck), ord(c));
-end;
 
 function ToText(op: TInterfaceStubRuleOperator): PShortString;
 begin
@@ -6711,16 +6866,16 @@ type
   TCallMethodArgs = record
     StackSize: PtrInt;
     StackAddr, method: PtrInt;
-    ParamRegs: array[PARAMREG_FIRST..PARAMREG_LAST] of PtrInt;
+    ParamRegs: array[PARAMREG_FIRST .. PARAMREG_LAST] of PtrInt;
     {$ifdef HAS_FPREG}
-    FPRegs: array[FPREG_FIRST..FPREG_LAST] of Double;
+    FPRegs: array[FPREG_FIRST .. FPREG_LAST] of Double;
     {$endif HAS_FPREG}
     res64: Int64Rec;
     resKind: TInterfaceMethodValueType;
   end;
 
 // ARM/AARCH64 code below provided by ALF, greatly inspired by pascalscript
-{$ifdef CPUARM}
+{$ifdef ABIA32}
 
 procedure CallMethod(var Args: TCallMethodArgs); assembler; nostackframe;
 label
@@ -6767,7 +6922,7 @@ asm
    // point a2 to bottom of stack.
    mov  a2, sp
    // load a3 with CallMethod stack address
-   ldr  a3, [v2,#TCallMethodArgs.StackAddr]
+   ldr  a3, [v2, #TCallMethodArgs.StackAddr]
 stack_loop:
    // copy a3 to a4 and increment a3 (a3 = StackAddr)
    ldmia a3!, {a4}
@@ -6777,21 +6932,21 @@ stack_loop:
    subs  a1, a1, #1
    bne  stack_loop
 load_regs:
-   ldr   r0, [v2,#TCallMethodArgs.ParamRegs+REGR0*4-4]
-   ldr   r1, [v2,#TCallMethodArgs.ParamRegs+REGR1*4-4]
-   ldr   r2, [v2,#TCallMethodArgs.ParamRegs+REGR2*4-4]
-   ldr   r3, [v2,#TCallMethodArgs.ParamRegs+REGR3*4-4]
+   ldr   r0, [v2, #TCallMethodArgs.ParamRegs + REGR0 * 4 - 4]
+   ldr   r1, [v2, #TCallMethodArgs.ParamRegs + REGR1 * 4 - 4]
+   ldr   r2, [v2, #TCallMethodArgs.ParamRegs + REGR2 * 4 - 4]
+   ldr   r3, [v2, #TCallMethodArgs.ParamRegs + REGR3 * 4 - 4]
    {$ifdef HAS_FPREG}
-   vldr  d0, [v2,#TCallMethodArgs.FPRegs+REGD0*8-8]
-   vldr  d1, [v2,#TCallMethodArgs.FPRegs+REGD1*8-8]
-   vldr  d2, [v2,#TCallMethodArgs.FPRegs+REGD2*8-8]
-   vldr  d3, [v2,#TCallMethodArgs.FPRegs+REGD3*8-8]
-   vldr  d4, [v2,#TCallMethodArgs.FPRegs+REGD4*8-8]
-   vldr  d5, [v2,#TCallMethodArgs.FPRegs+REGD5*8-8]
-   vldr  d6, [v2,#TCallMethodArgs.FPRegs+REGD6*8-8]
-   vldr  d7, [v2,#TCallMethodArgs.FPRegs+REGD7*8-8]
+   vldr  d0, [v2, #TCallMethodArgs.FPRegs + REGD0 * 8 - 8]
+   vldr  d1, [v2, #TCallMethodArgs.FPRegs + REGD1 * 8 - 8]
+   vldr  d2, [v2, #TCallMethodArgs.FPRegs + REGD2 * 8 - 8]
+   vldr  d3, [v2, #TCallMethodArgs.FPRegs + REGD3 * 8 - 8]
+   vldr  d4, [v2, #TCallMethodArgs.FPRegs + REGD4 * 8 - 8]
+   vldr  d5, [v2, #TCallMethodArgs.FPRegs + REGD5 * 8 - 8]
+   vldr  d6, [v2, #TCallMethodArgs.FPRegs + REGD6 * 8 - 8]
+   vldr  d7, [v2, #TCallMethodArgs.FPRegs + REGD7 * 8 - 8]
    {$endif HAS_FPREG}
-   ldr   v1, [v2,#TCallMethodArgs.method]
+   ldr   v1, [v2, #TCallMethodArgs.method]
    {$ifdef CPUARM_HAS_BLX}
    blx   v1
    {$else}
@@ -6802,10 +6957,10 @@ load_regs:
    mov pc, v1
    {$endif CPUARM_HAS_BX}
    {$endif CPUARM_HAS_BLX}
-   str   r0, [v2,#TCallMethodArgs.res64.Lo]
-   str   r1, [v2,#TCallMethodArgs.res64.Hi]
+   str   r0, [v2, #TCallMethodArgs.res64.Lo]
+   str   r1, [v2, #TCallMethodArgs.res64.Hi]
 {$ifdef HAS_FPREG}
-   ldr   r2, [v2,#TCallMethodArgs.resKind]
+   ldr   r2, [v2, #TCallMethodArgs.resKind]
    cmp   r2, imvDouble
    beq   float_result
    cmp   r2, imvDateTime
@@ -6814,17 +6969,18 @@ load_regs:
    bne   asmcall_end
    // store double result in res64
 float_result:
-   vstr  d0, [v2,#TCallMethodArgs.res64]
+   vstr  d0, [v2, #TCallMethodArgs.res64]
 asmcall_end:
 {$endif HAS_FPREG}
    // epilog
    ldmea fp, {v1, v2, sb, sl, fp, sp, pc}
 end;
 
-{$endif CPUARM}
+{$endif ABIA32}
 
-{$ifdef CPUAARCH64}
+{$ifdef ABIA64}
 
+{$ifdef FPC}
 procedure CallMethod(var Args: TCallMethodArgs); assembler; nostackframe;
 label stack_loop,load_regs,asmcall_end,float_result;
 asm
@@ -6832,7 +6988,6 @@ asm
    // fp       x29
    // lr       x30
    // sp       sp
-
    // sometimes, the entry-point is not exact ... give some room for errors
    nop
    nop
@@ -6845,18 +7000,18 @@ asm
    //and  sp, sp, #-16   // Always align sp.
    mov  x19, Args
    // prepare to copy (push) stack content (if any)
-   ldr  x2, [x19,#TCallMethodArgs.StackSize]
+   ldr  x2, [x19, #TCallMethodArgs.StackSize]
    // if there is no stack content, do nothing
    cmp	x2, #0
    b.eq	load_regs
    // point x3 to bottom of stack.
    mov	x3, sp
    // load x4 with CallMethod stack address
-   ldr	x4, [x19,#TCallMethodArgs.StackAddr]
+   ldr	x4, [x19, #TCallMethodArgs.StackAddr]
 stack_loop:
    // load x5 and x6 with stack contents
    ldr  x5, [x4]
-   ldr  x6, [x4,#8]
+   ldr  x6, [x4, #8]
    // store contents at "real" stack and increment address counter x3
    stp	x5, x6, [x3], #16
    // with update of flags for loop
@@ -6868,24 +7023,24 @@ stack_loop:
    subs	x2, x2, #2
    b.ne stack_loop
 load_regs:
-   ldr  x0, [x19,#TCallMethodArgs.ParamRegs+REGX0*8-8]
-   ldr  x1, [x19,#TCallMethodArgs.ParamRegs+REGX1*8-8]
-   ldr  x2, [x19,#TCallMethodArgs.ParamRegs+REGX2*8-8]
-   ldr  x3, [x19,#TCallMethodArgs.ParamRegs+REGX3*8-8]
-   ldr  x4, [x19,#TCallMethodArgs.ParamRegs+REGX4*8-8]
-   ldr  x5, [x19,#TCallMethodArgs.ParamRegs+REGX5*8-8]
-   ldr  x6, [x19,#TCallMethodArgs.ParamRegs+REGX6*8-8]
-   ldr  x7, [x19,#TCallMethodArgs.ParamRegs+REGX7*8-8]
-   ldr  d0, [x19,#TCallMethodArgs.FPRegs+REGD0*8-8]
-   ldr  d1, [x19,#TCallMethodArgs.FPRegs+REGD1*8-8]
-   ldr  d2, [x19,#TCallMethodArgs.FPRegs+REGD2*8-8]
-   ldr  d3, [x19,#TCallMethodArgs.FPRegs+REGD3*8-8]
-   ldr  d4, [x19,#TCallMethodArgs.FPRegs+REGD4*8-8]
-   ldr  d5, [x19,#TCallMethodArgs.FPRegs+REGD5*8-8]
-   ldr  d6, [x19,#TCallMethodArgs.FPRegs+REGD6*8-8]
-   ldr  d7, [x19,#TCallMethodArgs.FPRegs+REGD7*8-8]
+   ldr  x0, [x19, #TCallMethodArgs.ParamRegs + REGX0 * 8 - 8]
+   ldr  x1, [x19, #TCallMethodArgs.ParamRegs + REGX1 * 8 - 8]
+   ldr  x2, [x19, #TCallMethodArgs.ParamRegs + REGX2 * 8 - 8]
+   ldr  x3, [x19, #TCallMethodArgs.ParamRegs + REGX3 * 8 - 8]
+   ldr  x4, [x19, #TCallMethodArgs.ParamRegs + REGX4 * 8 - 8]
+   ldr  x5, [x19, #TCallMethodArgs.ParamRegs + REGX5 * 8 - 8]
+   ldr  x6, [x19, #TCallMethodArgs.ParamRegs + REGX6 * 8 - 8]
+   ldr  x7, [x19, #TCallMethodArgs.ParamRegs + REGX7 * 8 - 8]
+   ldr  d0, [x19, #TCallMethodArgs.FPRegs    + REGD0 * 8 - 8]
+   ldr  d1, [x19, #TCallMethodArgs.FPRegs    + REGD1 * 8 - 8]
+   ldr  d2, [x19, #TCallMethodArgs.FPRegs    + REGD2 * 8 - 8]
+   ldr  d3, [x19, #TCallMethodArgs.FPRegs    + REGD3 * 8 - 8]
+   ldr  d4, [x19, #TCallMethodArgs.FPRegs    + REGD4 * 8 - 8]
+   ldr  d5, [x19, #TCallMethodArgs.FPRegs    + REGD5 * 8 - 8]
+   ldr  d6, [x19, #TCallMethodArgs.FPRegs    + REGD6 * 8 - 8]
+   ldr  d7, [x19, #TCallMethodArgs.FPRegs    + REGD7 * 8 - 8]
    // call TCallMethodArgs.method
-   ldr  x15, [x19,#TCallMethodArgs.method]
+   ldr  x15, [x19, #TCallMethodArgs.method]
    blr  x15
    // store normal result
    str  x0, [x19, #TCallMethodArgs.res64]
@@ -6898,17 +7053,28 @@ load_regs:
    b.ne asmcall_end
    // store double result in res64
 float_result:
-   str  d0, [x19,#TCallMethodArgs.res64]
+   str  d0, [x19, #TCallMethodArgs.res64]
 asmcall_end:
    add  sp, sp, #MAX_EXECSTACK
-   ldr  x19,[sp], #16
-   ldp  x29,x30,[sp], #16
+   ldr  x19, [sp], #16
+   ldp  x29, x30, [sp], #16
    ret
 end;
+{$else}
+procedure CallMethod(var Args: TCallMethodArgs);
+begin
+  // TODO: use external .o stub on Delphi ARM64
+end;
+{$endif FPC}
+{$endif ABIA64}
 
-{$endif CPUAARCH64}
+{$ifdef ABIX64}
 
-{$ifdef CPUX64}
+{$ifdef NOASMBLOCK}
+procedure CallMethod(var Args: TCallMethodArgs); external
+  {$ifdef ISDELPHI} '../../res/static/delphillvm/delphi-linux-x64.o' {$endif}
+  name 'x64callmethod';
+{$else}
 
 procedure CallMethod(var Args: TCallMethodArgs); assembler;
 {$ifdef FPC} nostackframe;
@@ -6916,13 +7082,13 @@ asm
         push    rbp
         push    r12
         mov     rbp, rsp
-        // simulate .params 60 ... size for 60 parameters
+        // simulate .params 32
         lea     rsp, [rsp - MAX_EXECSTACK]
         // align stack to 16 bytes
         and     rsp, -16
 {$else DELPHI} // ensure we use regular .params command for easier debugging
 asm
-        .params 64     // size for 64 parameters
+        .params 32    // size for MAX_METHOD_ARG = 32 parameters
         .pushnv r12   // generate prolog+epilog to save and restore non-volatile r12
 {$endif FPC}
         // get Args
@@ -6943,8 +7109,8 @@ asm
         mov     rsi, [r12 + TCallMethodArgs.ParamRegs + REGRSI * 8 - 8]
         mov     rdx, [r12 + TCallMethodArgs.ParamRegs + REGRDX * 8 - 8]
         mov     rcx, [r12 + TCallMethodArgs.ParamRegs + REGRCX * 8 - 8]
-        mov     r8, [r12 + TCallMethodArgs.ParamRegs + REGR8 * 8 - 8]
-        mov     r9, [r12 + TCallMethodArgs.ParamRegs + REGR9 * 8 - 8]
+        mov     r8,  [r12 + TCallMethodArgs.ParamRegs + REGR8  * 8 - 8]
+        mov     r9,  [r12 + TCallMethodArgs.ParamRegs + REGR9  * 8 - 8]
         movsd   xmm0, qword ptr [r12 + TCallMethodArgs.FPRegs + REGXMM0 * 8 - 8]
         movsd   xmm1, qword ptr [r12 + TCallMethodArgs.FPRegs + REGXMM1 * 8 - 8]
         movsd   xmm2, qword ptr [r12 + TCallMethodArgs.FPRegs + REGXMM2 * 8 - 8]
@@ -6958,8 +7124,8 @@ asm
         // Win64 ABI
         mov     rcx, [r12 + TCallMethodArgs.ParamRegs + REGRCX * 8 - 8]
         mov     rdx, [r12 + TCallMethodArgs.ParamRegs + REGRDX * 8 - 8]
-        mov     r8, [r12 + TCallMethodArgs.ParamRegs + REGR8 * 8 - 8]
-        mov     r9, [r12 + TCallMethodArgs.ParamRegs + REGR9 * 8 - 8]
+        mov     r8,  [r12 + TCallMethodArgs.ParamRegs + REGR8  * 8 - 8]
+        mov     r9,  [r12 + TCallMethodArgs.ParamRegs + REGR9  * 8 - 8]
         movsd   xmm0, qword ptr [r12 + TCallMethodArgs.FPRegs + REGXMM0 * 8 - 8]
         movsd   xmm1, qword ptr [r12 + TCallMethodArgs.FPRegs + REGXMM1 * 8 - 8]
         movsd   xmm2, qword ptr [r12 + TCallMethodArgs.FPRegs + REGXMM2 * 8 - 8]
@@ -6986,9 +7152,10 @@ asm
         {$endif FPC}
 end;
 
-{$endif CPUX64}
+{$endif NOASMBLOCK}
+{$endif ABIX64}
 
-{$ifdef CPUX86}
+{$ifdef ABIX86}
 
 procedure CallMethod(var Args: TCallMethodArgs);
   {$ifdef FPC}nostackframe; assembler;{$endif}
@@ -7036,7 +7203,7 @@ asm
         pop     esi
 end;
 
-{$endif CPUX86}
+{$endif ABIX86}
 
 procedure BackgroundExecuteProc(Call: pointer);
 var
@@ -7076,7 +7243,7 @@ begin
   fFactory := aFactory;
   fMethod := aMethod;
   SetOptions(aOptions);
-  // initialize temporary storage for call arguments and fValues pointers
+  // initialize temporary storage for all call arguments and fValues pointers
   SetLength(fStorage, integer(fMethod^.ArgsSizeAsValue) +
                       length(aMethod^.Args) shl POINTERSHR);
   // assign the parameters storage to the fValues[] pointers
@@ -7115,35 +7282,16 @@ begin
 end;
 
 procedure TInterfaceMethodExecuteRaw.BeforeExecute;
-var
-  a: PInterfaceMethodArgument;
-  V: PPointer;
-  n: integer;
 begin
-  fExecutedInstancesFailed := nil;
+  if fExecutedInstancesFailed <> nil then
+    fExecutedInstancesFailed := nil;
   if fAlreadyExecuted then
     FillCharFast(pointer(fStorage)^, fMethod^.ArgsSizeAsValue, 0)
   else
     fAlreadyExecuted := true;
-  with fMethod^ do
-    if imvObject in ArgsUsed then
-    begin
-      // set new input and output TObject instances as expected by the call
-      a := @Args[ArgsManagedFirst];
-      V := @fValues[ArgsManagedFirst];
-      n := ArgsUsedCount[imvvObject];
-      repeat
-        if a^.ValueType = imvObject then
-        begin
-          PObject(V^)^ := a^.ArgRtti.ClassNewInstance;
-          dec(n);
-          if n = 0 then
-            break;
-        end;
-        inc(V);
-        inc(a);
-      until false;
-    end;
+  if fMethod.ArgsUsedCount[imvvObject] <> 0 then
+    // set new input and output TObject instances as expected by the call
+    fMethod^.ArgsClassNewInstance(pointer(fValues));
 end;
 
 procedure TInterfaceMethodExecuteRaw.RawExecute(
@@ -7157,7 +7305,7 @@ var
 begin
   FillCharFast(call, SizeOf(call), 0);
   // create the stack layout with proper alignment
-  {$ifdef CPUX86}
+  {$ifdef ABIX86}
   call.StackAddr := PtrInt(@Stack[0]);
   call.StackSize := fMethod^.ArgsSizeInStack;
   {$ifdef OSPOSIX} // ensure always aligned by 16 bytes on POSIX
@@ -7165,7 +7313,7 @@ begin
     inc(call.StackSize, POINTERBYTES); // needed for Darwin and Linux i386
   {$endif OSPOSIX}
   {$else}
-  {$ifdef CPUINTEL}
+  {$ifdef ABIINTEL}
   call.StackSize := fMethod^.ArgsSizeInStack shr 3;
   // ensure stack aligned on 16 bytes (mandatory on some architectures)
   if call.StackSize and 1 <> 0 then
@@ -7175,33 +7323,29 @@ begin
   {$else}
   // stack is filled normally (LTR)
   call.StackAddr := PtrInt(@Stack[0]);
-  {$ifdef CPUAARCH64}
+  {$ifdef ABIA64}
   call.StackSize := fMethod^.ArgsSizeInStack shr 3;
   // ensure stack aligned on 16 bytes (mandatory: needed for correct low level asm)
   if call.StackSize and 1 <> 0 then
     inc(call.StackSize);
   {$else}
   call.StackSize := fMethod^.ArgsSizeInStack shr 2;
-  {$endif CPUAARCH64}
-  {$endif CPUINTEL}
-  {$endif CPUX86}
+  {$endif ABIA64}
+  {$endif ABIINTEL}
+  {$endif ABIX86}
   // assign content from fValues[] into the stack
   pv := pointer(fValues);
   arg := pointer(fMethod^.Args);
-  for i := 1 to PDALen(PAnsiChar(arg) - _DALEN)^ + (_DAOFF - 1) do
+  for i := 1 to PDALen(PAnsiChar(arg) - _DALEN)^ + (_DAOFF - 1) do // = high()
   begin
     inc(arg);
     inc(pv);
     case arg^.RawExecute of
       reValReg:
-        begin
-          call.ParamRegs[arg^.RegisterIdent] := PPtrInt(pv^)^;
-          {$ifdef CPUARM}
-          // e.g. Int64 on 32-bit ARM systems are passed in two registers
-          if arg^.SizeInStack > POINTERBYTES then
-            call.ParamRegs[arg^.RegisterIdent + 1] := PPtrInt(pv^ + POINTERBYTES)^;
-          {$endif CPUARM}
-        end;
+        call.ParamRegs[arg^.RegisterIdent] := PPtrInt(pv^)^;
+      reValRegs:
+        // e.g. Int64 on 32-bit ARM systems are passed in two registers
+        MoveFast(pv^^, call.ParamRegs[arg^.RegisterIdent], arg^.SizeInStack);
       reValStack:
         MoveFast(pv^^, Stack[arg^.InStackOffset], arg^.SizeInStack);
       reRefReg:
@@ -7210,7 +7354,10 @@ begin
         PPointer(@Stack[arg^.InStackOffset])^ := pv^;
       {$ifdef HAS_FPREG}
       reValFpReg:
-        call.FPRegs[arg^.FPRegisterIdent] := unaligned(PDouble(pv^)^);
+        PInt64(@call.FPRegs[arg^.FPRegisterIdent])^ := PInt64(pv^)^;
+      reValFpRegs:
+        // e.g. HFA on SYSV systems are passed in several FP registers
+        MoveFast(pv^^, call.FPRegs[arg^.FPRegisterIdent], arg^.SizeInStack);
       {$endif HAS_FPREG}
     end;
   end;
@@ -7247,7 +7394,7 @@ begin
         if Assigned(BackgroundExecutionThread) then
           BackgroundExecuteCallMethod(@call, BackgroundExecutionThread)
         else
-          raise EInterfaceFactory.Create('optExecInPerInterfaceThread' +
+          EInterfaceFactory.RaiseU('optExecInPerInterfaceThread' +
             ' with BackgroundExecutionThread=nil')
       else
         CallMethod(call); // actual asm stub
@@ -7300,59 +7447,10 @@ begin
 end;
 
 procedure TInterfaceMethodExecuteRaw.AfterExecute;
-var
-  V: PPointer;
-  f: PtrInt;
-  arg: PInterfaceMethodArgument;
 begin
   // finalize managed parameters after each call
-  f := fMethod^.ArgsManagedFirst;
-  if f >= 0 then
-  begin
-    arg := @fMethod^.Args[f];
-    V := @fValues[f];
-    f := fMethod^.ArgsManagedCount;
-    repeat
-      case arg^.ValueVar of
-        imvvString:
-          {$ifdef FPC}
-          FastAssignNew(V^^);
-          {$else}
-          PString(V^)^ := '';
-          {$endif FPC}
-        imvvWideString:
-          PWideString(V^)^ := '';
-        imvvRawUtf8:
-          {$ifdef FPC}
-          FastAssignNew(V^^);
-          {$else}
-          PRawUtf8(V^)^ := '';
-          {$endif FPC}
-        imvvDynArray:
-          FastDynArrayClear(V^, arg^.ArgRtti.ArrayRtti.Info);
-        imvvObject:
-          PObject(V^)^.Free;
-        imvvInterface:
-          PInterface(V^)^ := nil;
-        imvvRecord:
-          if arg^.ValueType = imvVariant then
-            VarClearProc(PVarData(V^)^)
-          else
-            FastRecordClear(V^, arg^.ArgRtti.Info);
-        else
-          begin
-            inc(arg);
-            inc(V);
-            continue;
-          end;
-      end;
-      dec(f);
-      if f = 0 then
-        break;
-      inc(arg);
-      inc(V);
-    until false;
-  end;
+  if fMethod^.ArgsManagedCount <> 0 then
+    fMethod^.ArgsReleaseValues(pointer(fValues)); // use TRttiCustom info
 end;
 
 
@@ -7369,7 +7467,7 @@ begin
   if fTempTextWriter = nil then
   begin
     fTempTextWriter := TJsonWriter.CreateOwnedStream;
-    fTempTextWriter.CustomOptions := fTempTextWriter.CustomOptions +
+    fTempTextWriter.CustomOptions :=
       [twoForceJsonExtended, twoIgnoreDefaultInRecord]; // shorter
   end;
   result := fTempTextWriter;
@@ -7447,175 +7545,170 @@ begin
     fMethod^, tmp, nil, nil, nil, nil);
 end;
 
+function TInterfaceMethodExecute.ExecuteJsonParse(var Ctxt: TJsonParserContext;
+  Error: PShortString): boolean;
+var
+  arg: integer; // should be integer, not PtrInt
+  asJsonObject: boolean;
+  a: PInterfaceMethodArgument;
+  V: pointer;
+  magic: PCardinal;
+begin
+  result := false;
+  case Ctxt.Json^ of
+    '[': // default array of plain in-ordered values
+      asJsonObject := false;
+    '{': // retrieve arguments values from JSON object -> field name lookup
+      asJsonObject := true;
+  else
+    exit;
+  end;
+  Ctxt.Json := IgnoreAndGotoNextNotSpace(Ctxt.Json);
+  arg := fMethod^.ArgsInFirst;
+  a := @fMethod^.Args[arg];
+  repeat
+    if asJsonObject then
+    begin
+      if not Ctxt.GetJsonFieldName then
+        break; // end of JSON object
+      if (arg = 0) or // arg := 0 below to force search
+         // optimistic process of JSON object with in-order parameters
+         not IdemPropName(a^.ParamName^, Ctxt.Value, Ctxt.ValueLen) then
+      begin
+        // slower but safe ctxt.Method when not in-order
+        a := fMethod^.ArgInput(Ctxt.Value, Ctxt.ValueLen, @arg);
+        if a = nil then
+          if optErrorOnMissingParam in fOptions then
+            exit
+          else
+            arg := 0;
+      end;
+    end;
+    if a <> nil then
+    begin
+      V := fValues[arg];
+      if imfInputIsOctetStream in fMethod.Flags then
+      begin
+        magic := pointer(Ctxt.Get.Json);
+        if magic^ = JSON_BIN_MAGIC_C then
+        begin
+          // passed as pointer from TRestServerRoutingRest.ExecuteSoaByInterface
+          inc(magic);
+          PRawByteString(V)^ := PRawByteString(magic)^;
+          break; // single parameter
+        end;
+      end;
+      if (a^.ValueType = imvInterface) and
+         not (vIsInterfaceJson in a^.ValueKindAsm) then // e.g. not IDocList
+        if Assigned(OnCallback) then
+          // retrieve TRestServerUriContext.ExecuteCallback fake interface
+          // via TServiceContainerServer.GetFakeCallback
+          OnCallback(Ctxt, a^.ArgRtti, PInterface(fValues[arg])^)
+        else
+          EInterfaceFactory.RaiseUtf8('OnCallback=nil for %(%: %)',
+            [fMethod^.InterfaceDotMethodName, a^.ParamName^,
+             a^.ArgTypeName^]) // paranoid (already checked before)
+      else if not a^.SetFromJson(Ctxt, fMethod, V, Error) then
+        exit;
+    end
+    else // ignore this unknown asJsonObject field value
+      Ctxt.Json := GotoNextJsonItem(Ctxt.Json, Ctxt.Get.EndOfObject);
+    if Ctxt.Json = nil then
+      break;
+    Ctxt.Json := GotoNextNotSpace(Ctxt.Json);
+    if asJsonObject then
+    begin
+      if Ctxt.Json^ in [#0, '}'] then
+        break; // end of JSON object
+      if arg = 0 then
+        continue; // continue manual search until finished JSON object
+    end;
+    repeat
+      inc(arg);
+      if arg > fMethod^.ArgsInLast then
+      begin
+        arg := 0; // no next result argument -> force manual search
+        break;
+      end;
+      inc(a);
+    until a^.IsInput;
+  until (arg = 0) and
+        not asJsonObject;
+  result := true;
+end;
+
 function TInterfaceMethodExecute.ExecuteJson(const Instances: array of pointer;
   P: PUtf8Char; Res: TJsonWriter; Error: PShortString; ResAsJsonObject: boolean): boolean;
 var
-  a, a1: integer;
-  Val, Name: PUtf8Char;
-  NameLen: integer;
-  EndOfObject: AnsiChar;
-  ParObjValuesUsed: boolean;
-  opt: array[{smdVar=}boolean] of TTextWriterWriteObjectOptions;
-  c: PServiceCustomAnswer;
-  ctxt: TJsonParserContext;
-  arg: PInterfaceMethodArgument;
-  ParObjValues: array[0 .. MAX_METHOD_ARGS - 1] of PUtf8Char;
+  arg: integer; // should be integer, not PtrInt
+  opt: TTextWriterWriteObjectOptionsBoolean;
+  a: PInterfaceMethodArgument;
+  custom: PServiceCustomAnswer;
+  c: TJsonParserContext;
 begin
-  // prepare all fValues[] pointers for the input/output arguments
+  // 1. prepare all fValues[] pointers for the input/output arguments
   result := false;
   BeforeExecute;
   try
-    // locate input arguments from JSON array or object
-    ParObjValuesUsed := false;
-    if (fMethod^.ArgsInputValuesCount <> 0) and
-       (P <> nil) then
-    begin
-      P := GotoNextNotSpace(P);
-      case P^ of
-        '[':
-          // input arguments as a JSON array , e.g. '[1,2,"three"]' (default)
-          inc(P);
-        '{':
-          begin
-            // retrieve arguments values from JSON object -> field name lookup
-            repeat
-              inc(P);
-            until not (P^ in [#1..' ']);
-            if P^ <> '}' then
-            begin
-              ParObjValuesUsed := true;
-              FillCharFast(ParObjValues,
-                (fMethod^.ArgsInLast + 1) * SizeOf(pointer), 0);
-              a1 := fMethod^.ArgsInFirst;
-              repeat
-                Name := GetJsonPropName(P, @NameLen);
-                if Name = nil then
-                  exit; // invalid JSON object in input
-                Val := P;
-                P := GotoNextJsonItem(P, EndOfObject);
-                if P = nil then
-                  break;
-                for a := a1 to fMethod^.ArgsInLast do
-                begin
-                  arg := @fMethod^.Args[a];
-                  if arg^.ValueDirection <> imdOut then
-                    if IdemPropName(arg^.ParamName^, Name, NameLen) then
-                    begin
-                      ParObjValues[a] := Val; // fast redirection, without alloc
-                      if a = a1 then
-                        inc(a1); // optimistic O(1) search for in-order input
-                      break;
-                    end;
-                end;
-              until (P = nil) or
-                    (EndOfObject = '}');
-            end;
-            P := nil;
-          end;
-      else
-        if PInteger(P)^ = NULL_LOW then
-          P := nil
-        else
-          exit; // only support JSON array or JSON object as input
-      end;
-    end;
-    // parse and decode JSON input const/var arguments (if any) into fValues[]
-    if (P = nil) and
-       not ParObjValuesUsed then
-    begin
-      if (fMethod^.ArgsInputValuesCount > 0) and
-         (optErrorOnMissingParam in Options) then
-        exit; // paranoid setting
-    end
-    else if (imfInputIsOctetStream in fMethod^.Flags) and
-            (P <> nil) and
-            (PCardinal(P)^ = JSON_BIN_MAGIC_C) then
-    begin
-      // passed by reference from TRestServerRoutingRest.ExecuteSoaByInterface
-      inc(PCardinal(P));
-      PRawByteString(fValues[fMethod^.ArgsInFirst])^ := PRawByteString(P)^;
-    end
-    else
-    begin
-      // parse the JSON input values
-      ctxt.InitParser(P, nil, fFactory.JsonParserOptions,
-        @fDocVariantOptions, nil, nil);
-      for a := fMethod^.ArgsInFirst to fMethod^.ArgsInLast do
+    // 2. locate input arguments from JSON array or object
+    if (P <> nil) and
+       (PInteger(P)^ = NULL_LOW) then
+      P := nil;
+    if fMethod^.ArgsInputValuesCount <> 0 then
+      if P <> nil then
       begin
-        arg := @fMethod^.Args[a];
-        if arg^.ValueDirection <> imdOut then
-        // (imdResult is excluded with a <= ArgsInLast: can't appear here)
-        begin
-          if ParObjValuesUsed then
-            if ParObjValues[a] = nil then // missing parameter in input JSON
-              if optErrorOnMissingParam in Options then
-                exit
-              else
-                // ignore and leave void value by default
-                continue
-            else
-              // value to be retrieved from JSON object
-              ctxt.{$ifdef USERECORDWITHMETHODS}Get.{$endif}Json := ParObjValues[a]
-          else if ctxt.Json = nil then
-            break; // premature end of ..] (ParObjValuesUsed=false)
-          if (arg^.ValueType = imvInterface) and
-             not (vIsInterfaceJson in arg^.ValueKindAsm) then // e.g. not IDocList
-            if Assigned(OnCallback) then
-              // retrieve TRestServerUriContext.ExecuteCallback fake interface
-              // via TServiceContainerServer.GetFakeCallback
-              OnCallback(ctxt, arg^.ArgRtti, PInterface(fValues[a])^)
-            else
-              EInterfaceFactory.RaiseUtf8('OnCallback=nil for %(%: %)',
-                [fMethod^.InterfaceDotMethodName, arg^.ParamName^,
-                 arg^.ArgTypeName^]) // paranoid (already checked before)
-          else if not arg^.SetFromJson(ctxt, fMethod, fValues[a], Error) then
-            exit;
-        end;
-      end;
-    end;
-    // execute the method, using prepared input/output fValues[]
+        c.InitParser(GotoNextNotSpace(P), nil, fFactory.JsonParserOptions, @fDocVariantOptions);
+        if not ExecuteJsonParse(c, Error) then
+          exit;
+      end
+      else if optErrorOnMissingParam in fOptions then
+        exit; // paranoid setting
+    // 3. execute the method, using prepared input/output fValues[]
     RawExecute(@Instances[0], high(Instances));
-    // send back any var/out output arguments as JSON
+    // 4. send back any var/out output arguments as JSON
     if Res <> nil then
     begin
       // handle custom content (not JSON array/object answer)
       if imfResultIsServiceCustomAnswer in fMethod^.Flags then
       begin
-        c := fValues[fMethod^.ArgsResultIndex];
-        if c^.Header = '' then
+        custom := fValues[fMethod^.ArgsResultIndex];
+        if custom^.Header = '' then
           // set to 'Content-Type: application/json' by default
-          c^.Header := JSON_CONTENT_TYPE_HEADER_VAR;
+          custom^.Header := JSON_CONTENT_TYPE_HEADER_VAR;
         // implementation could override the Header content
-        fServiceCustomAnswerHead := c^.Header;
-        Res.ForceContent(c^.Content);
-        if c^.Status = 0 then
+        fServiceCustomAnswerHead := custom^.Header;
+        Res.ForceContent(custom^.Content);
+        if custom^.Status = 0 then
           // Values[]=@Records[] is filled with 0 by default
-          c^.Status := HTTP_SUCCESS;
-        fServiceCustomAnswerStatus := c^.Status;
+          custom^.Status := HTTP_SUCCESS;
+        fServiceCustomAnswerStatus := custom^.Status;
         result := true;
         exit;
       end
       else if imfResultIsServiceCustomStatus in fMethod^.Flags then
         fServiceCustomAnswerStatus := PCardinal(fValues[fMethod^.ArgsResultIndex])^;
       // write the '{"result":[...' array or object
-      opt[{smdVar=}false] := DEFAULT_WRITEOPTIONS[optDontStoreVoidJson in Options];
+      opt[{smdVar=}false] := DEFAULT_WRITEOPTIONS[optDontStoreVoidJson in fOptions];
       opt[{smdVar=}true] := []; // let var params override void/default values
-      for a := fMethod^.ArgsOutFirst to fMethod^.ArgsOutLast do
+      arg := fMethod^.ArgsOutFirst;
+      a := @fMethod^.Args[arg];
+      while arg <= fMethod^.ArgsOutLast do
       begin
-        arg := @fMethod^.Args[a];
-        if arg^.ValueDirection <> imdConst then
+        if a^.IsOutput then
         begin
           if ResAsJsonObject then
-            Res.AddPropName(arg^.ParamName^);
-          arg^.AddJson(Res, fValues[a], opt[arg^.ValueDirection = imdVar]);
+            Res.AddPropName(a^.ParamName^);
+          a^.AddJson(Res, fValues[arg], opt[a^.ValueDirection = imdVar]);
           Res.AddComma;
         end;
+        inc(arg);
+        inc(a);
       end;
       Res.CancelLastComma;
     end;
     result := true;
   finally
-    // release any managed input/output parameters from fValues[]
+    // 5. release any managed input/output parameters from fValues[]
     AfterExecute;
   end;
 end;
@@ -7631,39 +7724,47 @@ begin
   // prepare some reusable execution context (avoid most memory allocations)
   SetLength(Cached, aFactory.MethodsCount);
   for i := 0 to aFactory.MethodsCount - 1 do
-    Cached[i] := Create(aFactory, @aFactory.Methods[i], []);
+    // pre-allocate with a 32KB generous non-resizable work buffer memory
+    Cached[i] := Create(aFactory, @aFactory.Methods[i], [], {shared=}true);
 end;
 
 constructor TInterfaceMethodExecuteCached.Create(aFactory: TInterfaceFactory;
-  aMethod: PInterfaceMethod; const aOptions: TInterfaceMethodOptions);
+  aMethod: PInterfaceMethod; const aOptions: TInterfaceMethodOptions; aShared: boolean);
 begin
   inherited Create(aFactory, aMethod, aOptions);
-  fCachedWR := TJsonWriter.CreateOwnedStream(16384, {nosharedstream=}true);
+  if aShared then
+  begin
+    // the shared instance has a generous 32KB non resizable work buffer
+    fWR := TJsonWriter.CreateOwnedStream(32768);
+    fWR.FlushToStreamNoAutoResize := true; // stick to BufferSize
+  end
+  else
+    // start with a resizable 2KB buffer (medium blocks are > 2600 bytes in MM)
+    fWR := TJsonWriter.CreateOwnedStream(2048);
 end;
 
 destructor TInterfaceMethodExecuteCached.Destroy;
 begin
   inherited Destroy;
-  fCachedWR.Free;
+  fWR.Free;
 end;
 
-procedure TInterfaceMethodExecuteCached.Acquire(opt: TInterfaceMethodOptions;
-  out exec: TInterfaceMethodExecuteCached; out WR: TJsonWriter);
+function TInterfaceMethodExecuteCached.Acquire(
+  ExecuteOptions: TInterfaceMethodOptions;
+  WROptions: TTextWriterOptions): TInterfaceMethodExecuteCached;
 begin
   if fCached.TryLock then
   begin
     // reuse this shared instance between calls
-    SetOptions(opt);
-    exec := self;
-    fCachedWR.CancelAllAsNew;
-    WR := fCachedWR;
+    result := self;
+    SetOptions(ExecuteOptions);
+    fWR.CancelAllAsNew;
   end
   else
-  begin
     // on thread contention, will use a transient temporary instance
-    exec := TInterfaceMethodExecuteCached.Create(fFactory, fMethod, opt);
-    WR := exec.fCachedWR;
-  end;
+    result := TInterfaceMethodExecuteCached.Create(
+      fFactory, fMethod, ExecuteOptions);
+  fWR.CustomOptions := WROptions;
 end;
 
 procedure TInterfaceMethodExecuteCached.Release(exec: TInterfaceMethodExecuteCached);
@@ -7730,7 +7831,7 @@ begin
      (fields <> nil) then
   begin
     // zeroing of weak references in object fields
-    for i := 0 to PDALen(PAnsiChar(fields) - _DALEN)^ + (_DAOFF - 1) do
+    for i := 0 to PDALen(PAnsiChar(fields) - _DALEN)^ + (_DAOFF - 1) do // =high
       PPointer(fields[i])^ := nil;
     FastDynArrayClear(@fields, nil);
   end;
@@ -7756,7 +7857,7 @@ var
   rc: TRttiCustom;
 begin
   {$ifdef NOPATCHVMT}
-  raise EInterfaceFactory.Create('Unsupported SetWeakZero() on this context');
+  EInterfaceFactory.RaiseU('Unsupported SetWeakZero() on this context');
   {$endif NOPATCHVMT}
   rc := Rtti.RegisterClass(aClass);
   result := rc.GetPrivateSlot(TSetWeakZero);
@@ -7802,6 +7903,813 @@ begin
 end;
 
 
+{ ************ Code/Documentation Generation Logic Extraction from RTTI }
+
+const
+  SIZETODELPHI: array[0..8] of TShort7 = (
+    'integer', 'byte', 'word', 'integer',
+    'integer', 'int64', 'int64', 'int64', 'int64');
+
+  TYPES_SIZE: array[0..8] of TWrapperType = (
+    wInteger, wByte, wWord, wInteger,
+    wInteger, wInt64, wInt64, wInt64, wInt64);
+
+  TYPES_SIMPLE: array[TRttiParserType] of TWrapperType = (
+    wUnknown,  //  ptNone
+    wArray,    //  ptArray
+    wBoolean,  //  ptBoolean
+    wByte,     //  ptByte
+    wCardinal, //  ptCardinal
+    wCurrency, //  ptCurrency
+    wDouble,   //  ptDouble
+    wDouble,   //  ptExtended
+    wInt64,    //  ptInt64
+    wInteger,  //  ptInteger
+    wQWord,    //  ptQWord
+    wBlob,     //  ptRawByteString
+    wRawJson,  //  ptRawJson
+    wRawUtf8,  //  ptRawUtf8
+    wRecord,   //  ptRecord
+    wSingle,   //  ptSingle
+    wString,   //  ptString
+    wRawUtf8,  //  ptSynUnicode
+    wDateTime, //  ptDateTime
+    wDateTime, //  ptDateTimeMS
+    wGuid,     //  ptGuid
+    wBlob,     //  ptHash128
+    wBlob,     //  ptHash256
+    wBlob,     //  ptHash512
+    wID,       //  ptOrm
+    wTimeLog,  //  ptTimeLog
+    wRawUtf8,  //  ptUnicodeString
+    wInt64,    //  ptUnixTime
+    wInt64,    //  ptUnixMSTime
+    wVariant,  //  ptVariant
+    wRawUtf8,  //  ptWideString
+    wRawUtf8,  //  ptWinAnsi
+    wWord,     //  ptWord
+    wEnum,     //  ptEnumeration
+    wSet,      //  ptSet
+    wUnknown,  //  ptClass
+    wArray,    //  ptDynArray - with specific code below
+    wUnknown,  //  ptInterface
+    wRawUtf8,  //  ptPUtf8Char
+    wUnknown); //  ptCustom
+
+{ TWrapperContext }
+
+constructor TWrapperContext.Create(const aSourcePath, aDescriptions: TFileName);
+var
+  desc: RawByteString;
+  source: TFileName;
+  src: PChar;
+  n: PtrInt;
+begin
+  TDocVariant.NewFast([
+    @fORM,
+    @fRecords,
+    @fEnumerates,
+    @fSets,
+    @fArrays,
+    @fUnits,
+    @fDescriptions]);
+  if aDescriptions <> '' then
+    desc := StringFromFile(aDescriptions);
+  if {%H-}desc = '' then
+    ResourceSynLZToRawByteString(WRAPPER_RESOURCENAME, desc);
+  if desc <> '' then
+    fDescriptions.InitJsonInPlace(pointer(desc), JSON_FAST);
+  if aSourcePath <> '' then
+  begin
+    src := pointer(aSourcePath);
+    n := 0;
+    repeat
+      source := GetNextItemString(src, ';');
+      if (source <> '') and
+         DirectoryExists(source) then
+      begin
+        SetLength(fSourcePath, n + 1);
+        fSourcePath[n] := IncludeTrailingPathDelimiter(source);
+        inc(n);
+      end;
+    until src = nil;
+  end;
+end;
+
+function TWrapperContext.CustomType(rtti: TRttiCustom): TWrapperType;
+begin
+  result := wUnknown;
+end;
+
+function TWrapperContext.ContextNestedProperties(rtti: TRttiCustom;
+  const parentName: RawUtf8): variant;
+var
+  i: PtrInt;
+begin
+  SetVariantNull(result);
+  case rtti.Parser of
+    ptRecord,
+    ptClass:
+      ; // use rtti.Props
+    ptArray,
+    ptDynArray:  // use array item (may be nil for static unmanaged)
+      rtti := rtti.ArrayRtti;
+  else
+    exit; // no nested properties
+  end;
+  TDocVariant.NewFast(result);
+  if rtti <> nil then
+    for i := 0 to rtti.Props.Count - 1 do
+      TDocVariantData(result).AddItem(
+        ContextOneProperty(rtti.Props.List[i], parentName));
+end;
+
+function ClassToWrapperType(c: TClass): TWrapperType;
+begin
+  if ClassInheritsFromName(c, 'TOrm') then
+    result := wORM
+  else
+    result := wObject;
+end;
+
+function TWrapperContext.ContextFromRtti(typ: TWrapperType; rtti: TRttiCustom;
+  typName: RawUtf8; const parentName: RawUtf8): variant;
+var
+  typAsName: PShortString;
+
+  function VarName(lng: TWrapperLanguage): variant;
+  begin
+    { TODO: refactor TID and Int64 for JavaScript? (integers truncated to 53-bit) }
+    if TYPES_LANG[lng, typ] <> '' then
+      RawUtf8ToVariant(TYPES_LANG[lng, typ], result)
+    else if typName = '' then
+      SetVariantNull(result)
+    else
+      RawUtf8ToVariant(typName, result);
+  end;
+
+  function VarSwagger: variant;
+  begin
+    if TYPES_LANG[lngSwagger, typ] <> '' then
+      result := _JsonFast(TYPES_LANG[lngSwagger, typ])
+    else if typName = '' then
+      SetVariantNull(result)
+    else
+      RawUtf8ToVariant(typName, result);
+  end;
+
+  procedure RegisterType(var list: TDocVariantData);
+  var
+    info: variant;
+  begin
+    if list.SearchItemByProp('name', typName, false) >= 0 then
+      // already registered
+      exit;
+    if rtti = nil then
+      EWrapperContext.RaiseUtf8('%.RegisterType(%): no RTTI', [typAsName^, typName]);
+    case typ of
+      wEnum,
+      wSet:
+        // include (untrimed) identifier: values[] may be trimmed at mustache level
+        info := _JsonFastFmt('{name:?,values:%}',
+          [rtti.Cache.EnumInfo^.GetEnumNameAllAsJsonArray(false)], [typName]);
+      wRecord:
+        if rtti.Props.Count <> 0 then
+          info := _ObjFast([
+            'name',      typName,
+            'camelName', LowerCamelCase(typName),
+            'snakeName', SnakeCase(typName),
+            'fields',    ContextNestedProperties(rtti, parentName)]);
+      wArray:
+        begin
+          if rtti.ObjArrayClass <> nil then
+          begin
+            info := ContextFromRtti(
+              ClassToWrapperType(rtti.ObjArrayClass), rtti.ArrayRtti);
+            _Safe(info)^.AddValue('isObjArray', true);
+          end
+          else
+          begin
+            if rtti.ArrayRtti = nil then
+              if rtti.Cache.ItemSize > high(TYPES_SIZE) then
+                // to avoid buffer overflow
+                info := ContextFromRtti(wRawUtf8)
+              else
+                info := ContextFromRtti(TYPES_SIZE[rtti.Cache.ItemSize])
+            else if rcfBinary in rtti.ArrayRtti.Flags then
+              info := ContextFromRtti(wRawUtf8)
+            else
+              info := ContextFromRtti(wUnknown, rtti.ArrayRtti);
+          end;
+          // can be used to create static array (dynamic arrays have ItemCount=0)
+          //  array{{#staticMaxIndex}}[0..{{staticMaxIndex}}]{{/staticMaxIndex}} of
+          _ObjAddProps([
+            'name',      typName,
+            'camelName', LowerCamelCase(typName),
+            'snakeName', SnakeCase(typName)], info);
+          if rtti.Cache.ItemCount > 0 then
+            _Safe(info)^.AddValue('staticMaxIndex', rtti.Cache.ItemCount-1);
+        end;
+    end;
+    if not VarIsEmptyOrNull(info) then
+      // null e.g. for a record without custom text definition
+      list.AddItem(info);
+  end;
+
+begin
+  // retrieve typ from RTTI if needed
+  if typ = wUnknown then
+  begin
+    if rtti = nil then
+      EWrapperContext.RaiseUtf8(
+        '%.ContextFromRtti: No RTTI nor typ for [%]', [self, typName]);
+    if self <> nil then
+      typ := CustomType(rtti); // may be overriden in TWrapperContextRest
+    if typ = wUnknown then
+    begin
+      typ := TYPES_SIMPLE[rtti.Parser];
+      if typ = wUnknown then
+        case rtti.Kind of
+          {$ifdef FPC}rkObject,{$else}{$ifdef UNICODE}rkMRecord,{$endif}{$endif}
+          rkRecord:
+            typ := wRecord;
+          rkInterface:
+            typ := wInterface;
+        else
+          EWrapperContext.RaiseUtf8(
+            '%.ContextFromRtti: Not enough RTTI for [%]', [self, rtti.Name]);
+        end;
+    end;
+  end;
+  // recognize some specific types
+  case typ of
+    wRecord:
+      case FindPropName(['TGuid', 'TServiceCustomAnswer',
+        'TBcd', 'RawSid', 'RawSecurityDescriptor', 'TSecAccessMask'], typName) of
+        0:
+          typ := wGuid;
+        1:
+          typ := wCustomAnswer;
+        2, 3, 4, 5:
+          typ := wRawUtf8; // as in mormot.crypt.secure/mormot.db.rad units
+      end;
+    wObject:
+      if (rtti <> nil) and
+         (rtti.Kind = rkClass) then
+        typ := ClassToWrapperType(rtti.ValueClass); // recognize e.g. wOrm
+  end;
+  // set typName/typAsName
+  if typName = '' then
+    if rtti <> nil then
+      if rcfWithoutRtti in rtti.Flags then // undefined nested fields
+        Make(['T', parentName, InterlockedIncrement(fNestedId)], typName)
+      else
+        typName := rtti.Name
+    else
+      typName := TYPES_LANG[lngDelphi, typ];
+  typAsName := GetEnumName(TypeInfo(TWrapperType), ord(typ));
+  // generate basic context as TDocVariant fields
+  result := _ObjFast([
+    'typeWrapper', typAsName^,
+    'typeSource',  typName,
+    'typeDelphi',  VarName(lngDelphi),
+    'typePascal',  VarName(lngPascal),
+    'typeCS',      VarName(lngCS),
+    'typeJava',    VarName(lngJava),
+    'typeTS',      VarName(lngTypeScript),
+    'typeSwagger', VarSwagger]);
+  if self = nil then
+    // no need to have full info if called e.g. from MVC
+    exit;
+  // add special marshalling information
+  if rtti <> nil then
+    case rtti.Kind of
+      rkClass:
+        AddUnit(rtti.Info^.RttiClass^.UnitName^, @result);
+    end;
+  case typ of
+    wBoolean,
+    wByte,
+    wWord,
+    wInteger,
+    wCardinal,
+    wInt64,
+    wQWord,
+    wID,
+    wReference,
+    wTimeLog,
+    wModTime,
+    wCreateTime,
+    wSingle,
+    wDouble,
+    wRawUtf8,
+    wString:
+      ; // simple types have no special marshalling
+    wDateTime:
+      _ObjAddProps(['isDateTime',  true,
+                    'toVariant',   'DateTimeToIso8601',
+                    'fromVariant', 'Iso8601ToDateTime'], result);
+    wRecordVersion:
+      _ObjAddProp('isRecordVersion', true, result);
+    wCurrency:
+      _ObjAddProp('isCurrency', true, result);
+    wVariant:
+      _ObjAddProp('isVariant', true, result);
+    wRawJson:
+      _ObjAddProp('isJson', true, result);
+    wEnum:
+      begin
+        _ObjAddProps(['isEnum',      true,
+                      'toVariant',   'ord',
+                      'fromVariant', 'Variant2' + typName], result);
+        if self <> nil then
+          RegisterType(fEnumerates);
+      end;
+    wSet:
+      begin
+        _ObjAddProps(['isSet',      true,
+                      'toVariant',
+                        SIZETODELPHI[rtti.Cache.EnumInfo.SizeInStorageAsSet],
+                      'fromVariant', typName], result);
+        if self <> nil then
+          RegisterType(fSets);
+      end;
+    wGuid:
+      _ObjAddProps(['toVariant',   'GuidToVariant',
+                    'fromVariant', 'VariantToGuid'], result);
+    wCustomAnswer:
+      _ObjAddProps(['toVariant',   'HttpBodyToVariant',
+                    'fromVariant', 'VariantToHttpBody'], result);
+    wRecord:
+      begin
+        _ObjAddProp('isRecord', true, result);
+        if rtti <> nil then
+        begin
+          _ObjAddProps(['toVariant',   typName + '2Variant',
+                        'fromVariant', 'Variant2' + typName], result);
+          if self <> nil then
+            RegisterType(fRecords);
+        end;
+      end;
+    wOrm:
+      _ObjAddProps(['isSQLRecord',  true,
+                    'isOrm', true], result);
+    wObject:
+      begin
+        _ObjAddProp('isObject', true, result);
+        if rtti <> nil then
+          _ObjAddProps(['toVariant',   'ObjectToVariant',
+                        'fromVariant', typName + '.CreateFromVariant'], result);
+      end;
+    wArray:
+      begin
+        _ObjAddProp('isArray', true, result);
+        if rtti <> nil then
+        begin
+          _ObjAddProps(['toVariant',   typName + '2Variant',
+                        'fromVariant', 'Variant2' + typName], result);
+          if self <> nil then
+            RegisterType(fArrays);
+        end;
+      end;
+    wBlob:
+      _ObjAddProps(['isBlob',      true,
+                    'toVariant',   'BlobToVariant',
+                    'fromVariant', 'VariantToBlob'], result);
+    wInterface:
+      _ObjAddProp('isInterface', true, result);
+  else
+    EWrapperContext.RaiseUtf8(
+      'Unexpected type % (%) for [%]', [typAsName^, ord(typ), typName]);
+  end;
+end;
+
+constructor TWrapperContext.CreateFromUsedInterfaces(
+  const aSourcePath, aDescriptions: TFileName);
+var
+  cache: TSynObjectListLightLocked;
+  services: TDocVariantData;
+  i: PtrInt;
+begin
+  Create(aSourcePath, aDescriptions);
+  cache := TInterfaceFactory.GetUsedInterfaces;
+  if cache = nil then
+    exit;
+  {%H-}services.InitFast;
+  cache.Safe.ReadLock;
+  try
+    for i := 0 to cache.Count - 1 do
+      services.AddItem(_ObjFast([
+        'interfaceName',
+          TInterfaceFactory(cache.List[i]).InterfaceRtti.Name,
+        'methods', ContextFromMethods(cache.List[i])]));
+  finally
+    cache.Safe.ReadUnLock;
+  end;
+  fSOA.InitObject(['enabled',  true,
+                   'services', variant(services)], JSON_FAST);
+end;
+
+function TWrapperContext.ContextArgsFromMethod(
+  const meth: TInterfaceMethod): variant;
+const
+  DIRTODELPHI: array[TInterfaceMethodValueDirection] of TShort7 = (
+    'const', 'var', 'out', 'result');
+  DIRTOSMS: array[TInterfaceMethodValueDirection] of TShort7 = (
+    // no OUT in DWS/SMS -> VAR instead
+    'const', 'var', 'var', 'result');
+var
+  a, r: PtrInt;
+  ma: PInterfaceMethodArgument;
+  arg: variant;
+  n: RawUtf8;
+begin
+  TDocVariant.NewFast(result);
+  r := 0;
+  ma := pointer(meth.Args);
+  for a := 1 to high(meth.Args) do
+  begin
+    inc(ma);
+    arg := ContextFromRtti(TYPES_SOA[ma^.ValueType], ma^.ArgRtti);
+    n := meth.ArgsName[a];
+    _ObjAddProps([
+      'argName',   n,
+      'lowerName', LowerCase(n),
+      'camelName', LowerCamelCase(n),
+      'snakeName', SnakeCase(n),
+      'uriName',   UriCase(n),
+      'argType',   ma^.ArgTypeName^,
+      'dir',       ord(ma^.ValueDirection),
+      'dirName',   DIRTODELPHI[ma^.ValueDirection],
+      'dirNoOut',  DIRTOSMS[ma^.ValueDirection]], arg);
+    if ma^.IsInput then
+      _ObjAddProp('dirInput', true, arg);
+    if ma^.IsOutput then
+      _ObjAddProp('dirOutput', true, arg);
+    if ma^.ValueDirection = imdResult then
+      _ObjAddProp('dirResult', true, arg);
+    if a < meth.ArgsNotResultLast then
+      _ObjAddPropU('commaArg', '; ', arg);
+    if a = high(meth.Args) then
+      _ObjAddProp('isArgLast', true, arg);
+    if (ma^.IsInput) and
+       (a < meth.ArgsInLast) then
+      _ObjAddPropU('commaInSingle', ',', arg);
+    if (ma^.ValueDirection in [imdVar, imdOut]) and
+       (a < meth.ArgsOutNotResultLast) then
+      _ObjAddPropU('commaOut', '; ', arg);
+    if ma^.IsOutput then
+    begin
+      _ObjAddProps(['indexOutResult', UInt32ToUtf8(r) + ']'], arg);
+      inc(r);
+      if a < meth.ArgsOutLast then
+        _ObjAddPropU('commaOutResult', '; ', arg);
+    end;
+    TDocVariantData(result).AddItem(arg);
+  end;
+end;
+
+function TWrapperContext.ContextFromMethod(
+  const meth: TInterfaceMethod): variant;
+const
+  VERB_DELPHI: array[boolean] of TShort15 = (
+    'procedure', 'function');
+var
+  d: variant;
+begin
+  result := _ObjFast([
+    'methodName',      meth.Uri,
+    'camelName',       LowerCamelCase(meth.Uri),
+    'snakeName',       SnakeCase(meth.Uri),
+    'uriName',         UriCase(meth.Uri),
+    'methodIndex',     meth.ExecutionMethodIndex,
+    'verb',            VERB_DELPHI[meth.ArgsResultIndex >= 0],
+    'args',            ContextArgsFromMethod(meth),
+    'argsOutputCount', meth.ArgsOutputValuesCount]);
+  if self <> nil then
+  begin
+    // can be called as TWraperContext(nil).ContextFromMethod
+    d := fDescriptions.GetValueOrNull(meth.InterfaceDotMethodName);
+    if VarIsEmptyOrNull(d) then
+      RawUtf8ToVariant(meth.InterfaceDotMethodName, d);
+    _ObjAddProp('methodDescription', d, result);
+  end;
+  if meth.ArgsInFirst >= 0 then
+    _ObjAddProp('hasInParams', true, result);
+  if meth.ArgsOutFirst >= 0 then
+  begin
+    _ObjAddProp('hasOutParams', true, result);
+    if meth.ArgsOutNotResultLast > 0 then
+      _ObjAddProp('hasOutNotResultParams', true, result);
+  end;
+  if imfResultIsServiceCustomAnswer in meth.Flags then
+    _ObjAddProp('resultIsServiceCustomAnswer', true, result);
+  if imfIsInherited in meth.Flags then
+    _ObjAddProp('isInherited', true, result);
+end;
+
+procedure TWrapperContext.AddUnit(
+  const aUnitName: ShortString; addAsProperty: PVariant);
+var
+  unitName: variant;
+  i: PtrInt;
+begin
+  if (aUnitName = '') or
+     IdemPropName(aUnitName, 'mORMot') then
+    exit;
+  RawUtf8ToVariant(@aUnitName[1], ord(aUnitName[0]), unitName);
+  if addAsProperty <> nil then
+    _ObjAddProp('unitName', unitName, addAsProperty^);
+  if (self = nil) or
+     (fUnits.SearchItemByValue(unitName) >= 0) then
+    // already registered
+    exit;
+  fUnits.AddItem(unitName);
+  if fSourcePath = nil then
+    exit;
+  for i := 0 to high(fSourcePath) do
+    FillDescriptionFromSource(fDescriptions,
+      FormatString('%%.pas', [fSourcePath[i], aUnitName]));
+end;
+
+function TWrapperContext.ContextFromMethods(int: TInterfaceFactory): variant;
+var
+  m: PtrInt;
+  methods: TDocVariantData; // circumvent FPC -O2 memory leak
+begin
+  AddUnit(int.InterfaceRtti.Info^.InterfaceUnitName^, nil);
+  {%H-}methods.InitFast;
+  for m := 0 to int.MethodsCount - 1 do
+    methods.AddItem(ContextFromMethod(int.Methods[m]));
+  result := variant(methods);
+end;
+
+function TWrapperContext.ContextOneProperty(const prop: TRttiCustomProp;
+  const parentName: RawUtf8): variant;
+var
+  l, level: PtrInt;
+  fullName: RawUtf8;
+  isSimple: variant;
+begin
+  level := 0;
+  if parentName = '' then
+    fullName := prop.Name
+  else
+  begin
+    Join([parentName, '.', prop.Name], fullName);
+    for l := 1 to length(fullName) do
+      if fullName[l] = '.' then
+        inc(level);
+  end;
+  result := ContextFromRtti(wUnknown, prop.Value, '', fullName);
+  _ObjAddProps([
+    'propName',     prop.Name,
+    'camelName',    LowerCamelCase(prop.Name),
+    'snakeName',    SnakeCase(prop.Name),
+    'uriName',      UriCase(prop.Name),
+    'fullPropName', fullName], result);
+  if level > 0 then
+    _ObjAddPropU('nestedIdentation', RawUtf8OfChar(' ', level * 2), result);
+  SetVariantNull(isSimple);
+  if rcfWithoutRtti in prop.Value.Flags then
+    case prop.Value.Parser of
+      ptRecord:
+        _ObjAddProps([
+          'nestedRecord', _ObjFast([
+            'nestedRecord', null,
+            'fields',  ContextNestedProperties(prop.Value, fullName)])], result);
+      ptArray,
+      ptDynArray:
+        _ObjAddProps([
+          'nestedRecordArray', _ObjFast([
+            'nestedRecordArray', null,
+            'fields', ContextNestedProperties(prop.Value, fullName)])], result);
+    else
+      if not TDocVariantData(result).Exists('toVariant') then
+        isSimple := true;
+    end
+  else if not TDocVariantData(result).Exists('toVariant') then
+    isSimple := true;
+  _ObjAddProp('isSimple', isSimple, result);
+end;
+
+function TWrapperContext.Context: variant;
+
+  procedure AddDescription(var list: TDocVariantData;
+    const propName, descriptionName: RawUtf8);
+  var
+    i: PtrInt;
+    propValue: RawUtf8;
+  begin
+    if (list.Kind <> dvArray) or
+       (fDescriptions.Count = 0) then
+      exit;
+    for i := 0 to list.Count - 1 do
+      with _Safe(list.Values[i])^ do
+        if GetAsRawUtf8(propName, propValue) then
+          AddValue(descriptionName, fDescriptions.GetValueOrNull(propValue));
+  end;
+
+begin
+  // compute the Model information as JSON
+  result := _ObjFast([
+    'time',          NowToString,
+    'year',          CurrentYear,
+    'mORMotVersion', SYNOPSE_FRAMEWORK_VERSION,
+    'Executable',    VarStringOrNull(StringToUtf8(Executable.Version.DetailedOrVoid)),
+    'exeInfo',       Executable.Version.VersionInfo,
+    'exeName',       Executable.ProgramName]);
+  if fORM.Count > 0 then
+    _ObjAddProps([
+      'hasorm', true,
+      'orm',  variant(fORM)], result);
+  if fSOA.Count > 0 then
+    _ObjAddProp('soa', variant(fSOA), result);
+  if fRecords.Count > 0 then
+  begin
+    AddDescription(fRecords, 'name', 'recordDescription');
+    _ObjAddProps(['records',     variant(fRecords),
+                  'withRecords', true,
+                  'withHelpers', true], result);
+  end;
+  if fEnumerates.Count > 0 then
+  begin
+    AddDescription(fEnumerates, 'name', 'enumDescription');
+    _ObjAddProps(['enumerates',     variant(fEnumerates),
+                  'withEnumerates', true,
+                  'withHelpers',    true], result);
+  end;
+  if fSets.Count > 0 then
+  begin
+    AddDescription(fSets, 'name', 'setDescription');
+    _ObjAddProps(['sets',        variant(fSets),
+                  'withsets',    true,
+                  'withHelpers', true], result);
+  end;
+  if fArrays.Count > 0 then
+  begin
+    _ObjAddProps(['arrays',      variant(fArrays),
+                  'withArrays',  true,
+                  'withHelpers', true], result);
+  end;
+  if fUnits.Count > 0 then
+    _ObjAddProp('units', fUnits, result);
+end;
+
+
+function ContextFromUsedInterfaces(
+  const aSourcePath, aDescriptions: TFileName): variant;
+begin
+  with TWrapperContext.CreateFromUsedInterfaces(aSourcePath, aDescriptions) do
+  try
+    result := Context;
+  finally
+    Free;
+  end;
+end;
+
+function ContextFromMethod(const method: TInterfaceMethod): variant;
+begin
+  result := TWrapperContext(nil).ContextFromMethod(method);
+end;
+
+function ContextFromMethods(int: TInterfaceFactory): variant;
+begin
+  result := TWrapperContext(nil).ContextFromMethods(int);
+end;
+
+
+{ ************ Documentation Extraction from Source Code Comments }
+
+function ResourceDescriptionFromSource(const ResourceDestFileName: TFileName;
+  const SourceFileNames: array of TFileName;
+  const JsonDestFileName: TFileName): variant;
+var
+  desc: TDocVariantData absolute result;
+  i: PtrInt;
+  json: RawUtf8;
+begin
+  VarClear(result);
+  desc.InitFast;
+  for i := 0 to high(SourceFileNames) do
+    FillDescriptionFromSource(desc, SourceFileNames[i]);
+  json := desc.ToJson;
+  if JsonDestFileName <> '' then
+    JsonReformatToFile(json, JsonDestFileName);
+  FileFromString(AlgoSynLZ.Compress(json), ResourceDestFileName);
+end;
+
+procedure FillDescriptionFromSource(var Descriptions: TDocVariantData;
+  const SourceFileName: TFileName);
+var
+  desc, typeName, interfaceName: RawUtf8;
+  P: PUtf8Char;
+  withinCode: boolean;
+
+  procedure IgnoreIfDef;
+  begin
+    // ignore any $ifdef ... $endif lines (should be at the line beginning)
+    repeat
+      P := GotoNextLineSmall(P);
+    until (P^ = #0) or
+          IdemPChar(GotoNextNotSpace(P), '{$ENDIF');
+    P := GotoNextLineSmall(P);
+  end;
+
+begin
+  P := pointer(StringFromFile(SourceFileName));
+  if P = nil then
+    exit;
+  withinCode := false;
+  repeat
+    // rough parsing of the .pas unit file to extract /// description
+    P := GotoNextNotSpace(P);
+    if IdemPChar(P, 'IMPLEMENTATION') then
+      break; // only the "interface" section is parsed
+    if IdemPChar(P, '{$IFDEF ') then
+    begin
+      IgnoreIfDef;
+      P := GotoNextNotSpace(P);
+    end;
+    if (P[0] = '/') and
+       (P[1] = '/') and
+       (P[2] = '/') then
+    begin
+      desc := GetNextLine(GotoNextNotSpace(P + 3), P);
+      if desc = '' then
+        break;
+      desc[1] := NormToUpperAnsi7[desc[1]];
+      repeat
+        if P = nil then
+          exit;
+        P := GotoNextNotSpace(P);
+        if IdemPChar(P, '{$IFDEF ') then
+          IgnoreIfDef
+        else if (P[0] = '/') and
+                (P[1] = '/') then
+        begin
+          if P[2] = '/' then
+            inc(P, 3)
+          else
+            inc(P, 2);
+          P := GotoNextNotSpace(P);
+          if P^ in ['$', '!'] then
+          begin
+            if not withinCode then
+            begin
+              withinCode := true;
+              desc := desc + #13#10#13#10'----'; // AsciiDoc source code block
+            end;
+            desc := desc + #13#10;
+            inc(P);
+          end
+          else if P^ = '-' then
+          begin
+            desc := desc + #13#10#13#10'-' + DESCRIPTION_ITEM_PREFIX;
+            inc(P);
+          end
+          else
+            desc := desc + ' ';
+          desc := desc + GetNextLine(P, P);
+        end
+        else
+          break;
+      until false;
+      if withinCode then
+      begin
+        // code block should end the description
+        desc := desc + #13#10'----';
+        withinCode := false;
+      end;
+      GetNextItem(P, ' ', typeName);
+      if P = nil then
+        exit;
+      if typeName <> '' then
+        if P^ = '=' then
+        begin
+          // simple type (record, array, enumeration, set)
+          if Descriptions.GetValueIndex(typeName) < 0 then
+          begin
+            Descriptions.AddValue(typeName, RawUtf8ToVariant(desc));
+            if typeName[1] = 'I' then
+              interfaceName := Copy(typeName, 2, 128)
+            else
+              interfaceName := '';
+          end;
+        end
+        else if {%H-}interfaceName <> '' then
+          if PropNameEquals(typeName, 'function') or
+             PropNameEquals(typeName, 'procedure') then
+            if GetNextFieldProp(P, typeName) then
+              Descriptions.AddValue(interfaceName + '.' + typeName,
+                RawUtf8ToVariant(desc));
+    end
+    else
+      P := GotoNextLineSmall(P);
+  until P^ = #0;
+end;
+
+
 procedure InitializeUnit;
 begin
   GlobalInterfaceResolver :=
@@ -7810,6 +8718,11 @@ begin
   GlobalInterfaceResolver.Add(TypeInfo(ILockedDocVariant), TLockedDocVariant);
   InterfaceFactoryCache :=
     RegisterGlobalShutdownRelease(TSynObjectListLightLocked.Create);
+  {$ifdef NOASMBLOCK}
+  {$ifdef ABIX64}
+  _fakecall := TInterfacedObjectFakeRaw(nil).FakeCall;
+  {$endif ABIX64}
+  {$endif NOASMBLOCK}
 end;
 
 

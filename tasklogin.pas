@@ -18,7 +18,7 @@ type
 implementation
 
 uses
-  sitesunit, queueunit, dateutils, SysUtils, irc, debugunit;
+  sitesunit, queueunit, dateutils, SysUtils, irc, debugunit, cbftpclient;
 
 const
   section = 'login';
@@ -39,6 +39,11 @@ var
   l: TLoginTask;
   fOriginalSlotName: string;
 begin
+  Result := True;
+  ready := True;
+  if GlCbftpClient <> nil then
+    Exit;
+
   Result := False;
   Debug(dpSpam, section, '-->' + Name);
   s := slot;
@@ -61,13 +66,8 @@ begin
   begin
     if kill then
     begin
-      Debug(dpSpam, section, 'GhostKill %s: executing on slot %s, disconnecting...', [site1, s.Name]);
       s.Quit;
       Result := s.ReLogin(1, True, section, readd);
-      if Result then
-        Debug(dpSpam, section, 'GhostKill %s: slot %s reconnect successful', [site1, s.Name])
-      else
-        Debug(dpSpam, section, 'GhostKill %s: slot %s reconnect failed', [site1, s.Name]);
     end
     else if not readd or (not(s.site.WorkingStatus in [sstMarkedAsDownByUser, sstUp])) then
     begin

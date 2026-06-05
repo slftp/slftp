@@ -38,7 +38,8 @@ implementation
 uses
   slvision, slconsole, mystrings, queueunit, debugunit, configunit, sitesunit,
   Contnrs, versioninfo, SysUtils, mainthread, Classes, irc, taskraw, slhelper,
-  kb, StrUtils, encinifile, dateutils, mrdohutils, SyncObjs, Generics.Collections
+  kb, StrUtils, encinifile, dateutils, mrdohutils, SyncObjs, Generics.Collections,
+  cbftpevents
   {$IFDEF MSWINDOWS},Windows {$ENDIF};
 
 const
@@ -386,7 +387,7 @@ begin
   if app = nil then exit;
 
   try
-    slvision_lock.Enter('console_delwindow');
+    slvision_lock.Enter('console_delwindow', 1000, false);
     try
       t := MyFindWindow(windowtitle);
       if t <> nil then t.Free;
@@ -747,6 +748,9 @@ ujra:
 
   if config.ReadBool('console', 'show_infos', False) then
     timers.Add( TslInfosTimer.Create(l_infos) );
+
+  // Start cbftp integration after UI is fully initialized
+  KB_start;
 end;
 
 function TMySlApp.AddIrcWindow(const netname: String): TslCommandWindow;

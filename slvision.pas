@@ -633,6 +633,9 @@ var
   k: boolean;
   t: TslConsoleTask;
 begin
+  // Process pending TThread.Synchronize calls (e.g. cbftp event callbacks)
+  CheckSynchronize;
+
   Inc(lvtf);
   if aForceProcessing or (lvtf >= slVisionThreadFrequency) or glIsSlVisionOverloaded then
   begin

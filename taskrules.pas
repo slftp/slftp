@@ -15,7 +15,8 @@ type
 implementation
 
 uses
-  sitesunit, SysUtils, DateUtils, mystrings, DebugUnit, Diff, HashUnit, encinifile, configunit, queueunit, irc, mrdohutils, news;
+  sitesunit, SysUtils, DateUtils, mystrings, DebugUnit, Diff, HashUnit, encinifile, configunit, queueunit, irc, mrdohutils, news,
+  cbftpclient, mormot.core.base, mormot.core.variants, mormot.core.unicode;
 
 const
   section = 'taskrules';
@@ -42,62 +43,93 @@ var
   rules_path, rules_file: String;
   Diff: TDiff;
   numerrors: Integer;
+  response: RawUtf8;
+  doc: TDocVariantData;
+  successes: PDocVariantData;
 begin
   Result := False;
   numerrors := 0;
   s := slot;
   Debug(dpMessage, section, Name);
 
-ujra:
-  inc(numerrors);
-  if numerrors > 3 then
+  if (GlCbftpClient <> nil) then
   begin
-    readyerror := True;
-    exit;
-  end;
-
-  if s.status <> ssOnline then
-  begin
-    if not s.ReLogin(1) then
+    response := GlCbftpClient.SendRawCommand('{"sites":["' + StringToUtf8(s.site.name) + '"],"command":"SITE RULES"}');
+    if response = '' then
     begin
-      readyerror:= True;
-      exit;
+      readyerror := True;
+      Exit;
     end;
-  end;
 
-  cmd := 'SITE RULES';
+    if not doc.InitJson(response) then
+    begin
+      readyerror := True;
+      Exit;
+    end;
 
-  if (s.site.sslfxp = srNeeded) then
-  begin
-    if not s.SendProtP() then goto ujra;
+    successes := doc.A_['successes'];
+    if (successes = nil) or (successes^.Count = 0) then
+    begin
+      readyerror := True;
+      Exit;
+    end;
+
+    rules := string(PDocVariantData(@successes^.Values[0])^.U['result']);
   end
   else
   begin
-    if not s.SendProtC() then goto ujra;
-  end;
+ujra:
+    inc(numerrors);
+    if numerrors > 3 then
+    begin
+      readyerror := True;
+      exit;
+    end;
 
-  if (not s.Send(cmd)) then
-  begin
-    readyerror := True;
-    exit;
-  end;
+    if s.status <> ssOnline then
+    begin
+      if not s.ReLogin(1) then
+      begin
+        readyerror:= True;
+        exit;
+      end;
+    end;
 
-  if (not s.Read(cmd, true, true, 60000)) then
-  begin
-    readyerror := True;
-    exit;
-  end;
+    cmd := 'SITE RULES';
 
-  if (s.lastResponseCode <> 200) then
-  begin
-    readyerror := True;
-    exit;
+    if (s.site.sslfxp = srNeeded) then
+    begin
+      if not s.SendProtP() then goto ujra;
+    end
+    else
+    begin
+      if not s.SendProtC() then goto ujra;
+    end;
+
+    if (not s.Send(cmd)) then
+    begin
+      readyerror := True;
+      exit;
+    end;
+
+    if (not s.Read(cmd, true, true, 60000)) then
+    begin
+      readyerror := True;
+      exit;
+    end;
+
+    if (s.lastResponseCode <> 200) then
+    begin
+      readyerror := True;
+      exit;
+    end;
+
+    rules := s.lastResponse;
   end;
 
   new_rules := TStringList.Create;
   old_rules := TStringList.Create;
   try
-    rules := s.lastResponse;
     i := 1;
     while(true) do
     begin

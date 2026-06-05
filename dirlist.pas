@@ -44,6 +44,8 @@ type
       @returns(Recognized DirType see @link(globals.TDirType), @link(globals.TDirType.IsUnknown) otherwise) }
     FIsNFO: Boolean; //< True when this is a NFO file.
     FIsSFV: Boolean; //< True when this is a SFV file.
+    FIsSymlink: Boolean; //< @true if entry is a symlink
+    FSymlinkTarget: String; //< target of symlink (if applicable)
     function RecognizeDirTypeFromDirname(const aDirname: String): TDirType;
   public
     dirlist: TDirList;
@@ -80,6 +82,8 @@ type
     property IsBeingUploaded: Boolean read FIsBeingUploaded write FIsBeingUploaded;
     property IsNFO: Boolean read FIsNFO;
     property IsSFV: Boolean read FIsSFV;
+    property IsSymlink: Boolean read FIsSymlink;
+    property SymlinkTarget: string read FSymlinkTarget;
   end;
 
   { @abstract(Information for a single release dirlist) }
@@ -720,6 +724,8 @@ begin
 
         de.FUsername := fParsedDirlistEntry.Username;
         de.FGroupname := fParsedDirlistEntry.Groupname;
+        de.FIsSymlink := fParsedDirlistEntry.IsSymlink;
+        de.FSymlinkTarget := fParsedDirlistEntry.SymlinkTarget;
         de.timestamp := akttimestamp;
         de.justadded := True;
 
@@ -797,6 +803,8 @@ begin
 
       // entry is a file and is being uploaded (glftpd only?)
       de.FIsBeingUploaded := (fParsedDirlistEntry.DirMask[1] <> 'd') and ((fParsedDirlistEntry.DirMask[7] = 'x') and (fParsedDirlistEntry.DirMask[10] = 'x'));
+      de.FIsSymlink := fParsedDirlistEntry.IsSymlink;
+      de.FSymlinkTarget := fParsedDirlistEntry.SymlinkTarget;
 
       de.IsOnSite := True;
     end;
@@ -921,12 +929,12 @@ begin
         if ((i1IsImage) and (not i2IsImage)) then
           case image_files_priority of
             1 : Result := -1;
-            2 : Result := 1;
+            2, 3 : Result := 1;
           end
         else if ((not i1IsImage) and (i2IsImage)) then
           case image_files_priority of
             1 : Result := 1;
-            2 : Result := -1;
+            2, 3 : Result := -1;
           end;
 
         //Debug(dpSpam, section, '_DirListSorter (image): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
@@ -941,12 +949,12 @@ begin
         if ((i1IsVideo) and (not i2IsVideo)) then
           case video_files_priority of
             1 : Result := -1;
-            2 : Result := 1;
+            2, 3 : Result := 1;
           end
         else if ((not i1IsVideo) and (i2IsVideo)) then
           case video_files_priority of
             1 : Result := 1;
-            2 : Result := -1;
+            2, 3 : Result := -1;
           end;
 
         //Debug(dpSpam, section, '_DirListSorter (video): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
@@ -1453,6 +1461,8 @@ begin
   end;
 
   self.FDirectory := aIsDirectory;
+  self.FIsSymlink := False;
+  self.FSymlinkTarget := '';
   self.dirlist := dirlist;
   self.filename := filename;
   self.FRacedByMe := False;
@@ -1659,8 +1669,10 @@ var
   i: Integer;
   de: TDirListEntry;
 begin
-  allCdNumbers := '';
-  biggestcd := 0;
+
+  allCdNumbers := '';
+
+  biggestcd := 0;
 
   // find the biggest CD
   for de in entries.Values do
@@ -1704,16 +1716,17 @@ begin
   uid_lock := TCriticalSection.Create;
 
   image_files_priority := config.ReadInteger('queue', 'image_files_priority', 2);
-  if not (image_files_priority in [0..2]) then
+  if not (image_files_priority in [0..3]) then
     image_files_priority := 2;
 
   video_files_priority := config.ReadInteger('queue', 'video_files_priority', 2);
-  if not (video_files_priority in [0..2]) then
+  if not (video_files_priority in [0..3]) then
     video_files_priority := 2;
 end;
 
 procedure DirlistUnInit;
 begin
+  DirlistHelperCleanup;
   uid_lock.Free
 end;
 

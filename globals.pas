@@ -2,6 +2,9 @@ unit globals;
 
 interface
 
+uses
+  SysUtils;
+
 type
   TDirType = (IsUnknown, IsMain, IsMultiCD, IsSample, IsProof, IsCovers, IsSubs);
 

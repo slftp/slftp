@@ -3,7 +3,7 @@ unit queueunit;
 interface
 
 uses
-  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection2, pazo, taskidle, taskquit, tasklogin, RegExpr, taskautoindex, taskrules, taskautodirlist, taskautonuke, Generics.Collections;
+  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection2, pazo, taskidle, taskquit, tasklogin, RegExpr, taskautoindex, taskrules, taskautodirlist, taskautonuke, Generics.Collections, IdThreadSafe;
 
 
 type TQueueStat = class
@@ -11,11 +11,15 @@ type TQueueStat = class
     FDirlistTaskCount: integer;
     FAutoTaskCount: integer;
     FOtherTaskCount: integer;
+    FActiveTaskCount: integer; //< tasks currently running (status=Running)
 end;
 
 type TQueueTask = class
   FFullname: string;
   FType: TClass;
+  FTryToAssign: integer;
+  FRunnable: boolean;
+  FDestinationSite: string;
 end;
 
 type
@@ -37,6 +41,9 @@ type
   queue_last_run: TDateTime;
   queueclean_last_run: TDateTime;
   queue_last_stat_update: TDateTime;
+  fLastDirlistCheckTime: TDateTime;
+  fLastLowPriorityLogTime: TDateTime;
+  fLastDirlistCount: Integer;
 
     procedure TryToAssignLoginSlot(t: TLoginTask);
     procedure TryToAssignRaceSlots(t: TPazoRaceTask);
@@ -73,6 +80,8 @@ function FetchAutoBnctest: TLoginTask;
 function FetchAutoRules: TRulesTask;
 function FetchAutoDirlist: TAutoDirlistTask;
 function FetchAutoNuke: TAutoNukeTask;
+{ @abstract(Returns count of pending race tasks targeting the given destination site) }
+function GetPendingRaceTasksToDestination(const aDestinationSiteName: String): integer;
 
 { Send the current tasks to the queue console window. }
 procedure QueueSendCurrentTasksToConsole;
@@ -84,15 +93,22 @@ property QueueCleanLastRun: TDateTime read queueclean_last_run;
 procedure QueueInit;
 procedure QueueUninit;
 procedure QueueStatAll;
+{ @abstract(Returns total task counts broken down by type across all queue threads) }
+procedure GetQueueTotals(out total, race, dirlist, autotasks, other: integer);
+{ @abstract(Returns count of pending race tasks targeting the given destination site, across all queues) }
+function GetPendingRaceTasksToDestination(const aDestinationSiteName: String): integer;
 
 var
   QueueStatUpdateDateTime: TDateTime;
+  GlDirlistCompletedCounter: TIdThreadSafeInt32;
+  GlDirlistRate: Double;
+  GlDirlistRateMax: Double;
 
 implementation
 
 uses
   SysUtils, Types, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils,
-  tasktvinfolookup, taskhttpnfo, tasksitenfo, tasksitesfv, sitesunit;
+  tasktvinfolookup, taskhttpnfo, tasksitenfo, tasksitesfv, sitesunit, dirlist, cbftpclient;
 
 const
   section = 'queue';
@@ -101,6 +117,8 @@ var
   // config
   maxassign: integer;
   maxassign_delay: integer;
+  glLastDirlistCheckTime: TDateTime;
+  glLastDirlistCount: Integer;
   sample_dirs_priority: Integer; //< value for priority in queue sorter for sample dirs from slftp.ini
   proof_dirs_priority: Integer; //< value for priority in queue sorter for proof dirs from slftp.ini
   subs_dirs_priority: Integer; //< value for priority in queue sorter for subtitle dirs from slftp.ini
@@ -109,9 +127,43 @@ var
   queueclean_maxrunning: Integer;
   enable_queueclean: boolean;
   queue_recycle_post_to_irc: boolean;
+  glMaxDirlistSlots: string; //< max dirlist slots config value, e.g. '1', '50%'
 
   StatsList: TObjectList<TQueueStat>;
+  Queues: TObjectList<TQueueThread>;
   GlDefaultIterationWaitTimeout: Cardinal = 15 * 1000;
+
+{ Calculate max allowed dirlist slots for a site based on glMaxDirlistSlots config
+  @param(aSlotCount total slot count of the site)
+  @returns(max allowed concurrent dirlist tasks, minimum 1)
+  Supports absolute values ('1', '3') and percentages ('50%', '25%').
+  Empty config falls back to legacy behavior (aSlotCount div 2). }
+function _CalcMaxDirlistSlots(const aSlotCount: integer): integer;
+var
+  fPercentValue: integer;
+begin
+  if glMaxDirlistSlots = '' then
+  begin
+    Result := aSlotCount div 2;
+    Exit;
+  end;
+
+  if glMaxDirlistSlots[Length(glMaxDirlistSlots)] = '%' then
+  begin
+    fPercentValue := StrToIntDef(Copy(glMaxDirlistSlots, 1, Length(glMaxDirlistSlots) - 1), 50);
+    if fPercentValue <= 0 then
+      fPercentValue := 1;
+    if fPercentValue > 100 then
+      fPercentValue := 100;
+    Result := Max(Round(aSlotCount * fPercentValue / 100.0), 1);
+  end
+  else
+  begin
+    Result := StrToIntDef(glMaxDirlistSlots, aSlotCount div 2);
+    if Result < 0 then
+      Result := 0;
+  end;
+end;
 
 procedure TQueueThread.QueueFire;
 begin
@@ -275,7 +327,7 @@ begin
           case sample_dirs_priority of
             0: Result := 0;
             1: Result := -1;
-            2: Result := 1;
+            2, 3: Result := 1;
           end;
         end
         else if ((not tpr1.IsSample) and (tpr2.IsSample)) then
@@ -283,7 +335,7 @@ begin
           case sample_dirs_priority of
             0: Result := 0;
             1: Result := 1;
-            2: Result := -1;
+            2, 3: Result := -1;
           end;
         end
         else
@@ -298,7 +350,7 @@ begin
           case proof_dirs_priority of
             0: Result := 0;
             1: Result := -1;
-            2: Result := 1;
+            2, 3: Result := 1;
           end;
         end
         else if ((not tpr1.IsProof) and (tpr2.IsProof)) then
@@ -306,7 +358,7 @@ begin
           case proof_dirs_priority of
             0: Result := 0;
             1: Result := 1;
-            2: Result := -1;
+            2, 3: Result := -1;
           end;
         end
         else
@@ -321,7 +373,7 @@ begin
           case subs_dirs_priority of
             0: Result := 0;
             1: Result := -1;
-            2: Result := 1;
+            2, 3: Result := 1;
           end;
         end
         else if ((not tpr1.IsSubs) and (tpr2.IsSubs)) then
@@ -329,7 +381,7 @@ begin
           case subs_dirs_priority of
             0: Result := 0;
             1: Result := 1;
-            2: Result := -1;
+            2, 3: Result := -1;
           end;
         end
         else
@@ -344,7 +396,7 @@ begin
           case cover_dirs_priority of
             0: Result := 0;
             1: Result := -1;
-            2: Result := 1;
+            2, 3: Result := 1;
           end;
         end
         else if ((not tpr1.IsCovers) and (tpr2.IsCovers)) then
@@ -352,7 +404,7 @@ begin
           case cover_dirs_priority of
             0: Result := 0;
             1: Result := 1;
-            2: Result := -1;
+            2, 3: Result := -1;
           end;
         end
         else
@@ -383,6 +435,90 @@ begin
     begin
       Debug(dpError, section, '[EXCEPTION] QueueSorter : %s', [e.Message]);
       Result := 0;
+    end;
+  end;
+end;
+
+function _IsLowPriorityRaceTask(const aTask: TPazoRaceTask): Boolean;
+begin
+  Result := False;
+
+  if aTask = nil then
+  begin
+    Debug(dpError, section, '_IsLowPriorityRaceTask called with nil task');
+    exit;
+  end;
+
+  if (aTask.IsSample) and (sample_dirs_priority = 3) then
+  begin
+    Result := True;
+    exit;
+  end;
+
+  if (aTask.IsProof) and (proof_dirs_priority = 3) then
+  begin
+    Result := True;
+    exit;
+  end;
+
+  if (aTask.IsSubs) and (subs_dirs_priority = 3) then
+  begin
+    Result := True;
+    exit;
+  end;
+
+  if (aTask.IsCovers) and (cover_dirs_priority = 3) then
+  begin
+    Result := True;
+    exit;
+  end;
+end;
+
+function _HasWaitingNonLowPriorityTasks(const aTasks: Contnrs.TObjectList; const aQueueLastRun: TDateTime): Boolean;
+var
+  i: Integer;
+  fTask: TTask;
+  fRaceTask: TPazoRaceTask;
+begin
+  Result := False;
+
+  if aTasks = nil then
+  begin
+    Debug(dpError, section, '_HasWaitingNonLowPriorityTasks called with nil list');
+    exit;
+  end;
+
+  for i := 0 to aTasks.Count - 1 do
+  begin
+    fTask := TTask(aTasks.Items[i]);
+    if fTask = nil then
+    begin
+      Debug(dpError, section, '_HasWaitingNonLowPriorityTasks: task at index %d is nil', [i]);
+      Continue;
+    end;
+
+    // Skip tasks that are already running or done
+    if ((fTask.slot1 <> nil) or (fTask.slot2 <> nil) or fTask.ready or fTask.readyerror) then
+      Continue;
+
+    // Skip tasks that are not yet ready to start
+    if ((fTask is TPazoTask) and (TPazoTask(fTask).startat > 0) and
+        (TPazoTask(fTask).startat > aQueueLastRun)) then
+      Continue;
+
+    // If it's not a race task, it's important (mkdir, dirlist, login, etc.)
+    if not (fTask is TPazoRaceTask) then
+    begin
+      Result := True;
+      exit;
+    end;
+
+    // If it's a race task but not marked as low priority, it's important
+    fRaceTask := TPazoRaceTask(fTask);
+    if not _IsLowPriorityRaceTask(fRaceTask) then
+    begin
+      Result := True;
+      exit;
     end;
   end;
 end;
@@ -436,10 +572,12 @@ begin
     FreeOnTerminate := True;
     fQueueStat := TQueueStat.Create();
     StatsList.Add(fQueueStat);
+    Queues.Add(self);
     fSiteName := aSiteName;
     fBusyDestinations := TDictionary<TObject, integer>.Create;
   except
     FreeAndNil(fBusyDestinations);
+    Queues.Extract(self);
     if fQueueStat <> nil then
     begin
       StatsList.Remove(fQueueStat);
@@ -455,6 +593,8 @@ end;
 
 destructor TQueueThread.Destroy;
 begin
+  if Queues <> nil then
+    Queues.Extract(self);
   main_lock.Free;
   tasks.Free;
   waiting_tasks.Free;
@@ -495,6 +635,15 @@ begin
     if fBusyDestinations.ContainsKey(s2) then
     begin
       Debug(dpSpam, section, 'Destination site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
+      exit;
+    end;
+
+    // Check if the race has already failed on the destination site or dirlist
+    if t.ps2.error or
+      ((t.dir <> '') and (t.ps2.dirlist <> nil) and (t.ps2.dirlist.FindDirList(t.dir) <> nil) and t.ps2.dirlist.FindDirList(t.dir).error) then
+    begin
+      t.readyerror := True;
+      Debug(dpSpam, section, Format('TryToAssignRaceSlots: race failed on destination site or dirlist: %s', [t.FullName]));
       exit;
     end;
 
@@ -630,10 +779,9 @@ begin
     begin
       ss := FindSlotByName(t.wantedslot);
       if (ss = nil) then
-        //invalid slot name, should not happen, just exit here
         exit;
       if (ss.todotask <> nil) then
-        exit;  //the slot is already in use, cannot assign the login task
+        exit;
     end
     else
     begin
@@ -657,7 +805,9 @@ begin
 
         if t.kill then
         begin
-          // if we want to kill ghost connections, we would also want to do that on an online slot
+          // Only use slot 0 for ghost kill to avoid disrupting active transfers
+          if i > 0 then
+            ss := nil;
           Break;
         end;
 
@@ -672,7 +822,6 @@ begin
     begin
       if t.kill then
       begin
-        Debug(dpError, section, 'GhostKill %s: no free slot found, ghost kill skipped', [t.site1]);
         if not t.noannounce then
           irc_Addtext(t, '<c4>Unable to kill ghosts on <b>%s</b>: all slots busy</c>', [t.site1]);
       end
@@ -792,8 +941,7 @@ begin
             end;
           end;
         end;
-        // only half of the slots for dirlist
-        if (actual_count >= s.slots.Count div 2) then
+        if (actual_count >= _CalcMaxDirlistSlots(s.slots.Count)) then
         begin
           exit;
         end;
@@ -935,12 +1083,20 @@ end;
 
 function IsSlotReadyForQuitTask(const aSlot: TSiteSlot; const aQueueLastRun: TDateTime): boolean;
 begin
+  Result := False;
+  if GlCbftpClient <> nil then
+    Exit;
+
   Result := (aSlot.status = ssOnline) and ((aSlot.site.WorkingStatus in [sstMarkedAsDownByUser]) or ((aSlot.site.maxidle <> 0) and
               (MilliSecondsBetween(aQueueLastRun, aSlot.LastNonIdleTaskExecution) >= aSlot.site.maxidle * 1000)));
 end;
 
 function IsSlotReadyForIdleTask(const aSlot: TSiteSlot; const aQueueLastRun: TDateTime): boolean;
 begin
+  Result := False;
+  if GlCbftpClient <> nil then
+    Exit;
+
   Result := ((aSlot.status = ssOnline) or ((aSlot.site.WorkingStatus in [sstUp]) and
               ((aSlot.site.maxidle = 0) or (MilliSecondsBetween(aQueueLastRun, aSlot.LastNonIdleTaskExecution) < aSlot.site.maxidle * 1000))))
               and (MilliSecondsBetween(aQueueLastRun, aSlot.LastIO) > aSlot.site.idleinterval * 1000);
@@ -1199,11 +1355,15 @@ procedure TQueueThread.AddTask(t: TTask);
 var
   tname: String;
   fCheckSiteSlotsSite: TSite;
+  step: String;
 begin
+  step := 'init';
   try
     fCheckSiteSlotsSite := nil;
+    step := 'reading t.Name';
     tname := t.Name;
 
+    step := 'checking ssite1 conditions';
     //do this check before the task might have been freed already
     //for races (pazo tasks) the site slots are checked when the site is added to the race,
     //check here for any other tasks that might come along
@@ -1221,10 +1381,12 @@ begin
       fCheckSiteSlotsSite := t.ssite1;
     end;
 
-    Debug(dpSpam, section, Format('[iNFO] adding : %s', [t.Name]));
+    Debug(dpSpam, section, Format('[iNFO] adding : %s', [tname]));
 
+    step := 'entering main_lock';
     main_lock.Enter('AddTask');
     try
+      step := 'TaskAlreadyInQueue check';
       if TaskAlreadyInQueue(t) then
       begin
         // don't add the task to the queue, just notify and free right away if it's a duplicate
@@ -1235,13 +1397,14 @@ begin
         exit;
       end;
 
+      step := 'Adding to list';
       // Add to waiting_tasks if it starts in the future, else to main tasks queue
       if (t.startat > Now) then
         waiting_tasks.Add(t)
       else
         tasks.Add(t);
 
-
+      step := 'Race slot checks';
       try
         if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted and (TSite(fSite).freeslots > 0)) then
         begin
@@ -1269,28 +1432,34 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] AddTask tasks.Add: %s', [e.Message]));
-      exit;
+      Debug(dpError, section, Format('[EXCEPTION] AddTask tasks.Add (Step: %s): %s', [step, e.Message]));
+      raise; // re-raise
     end;
   end;
 
+  step := 'Checking failed race conditions';
   // check if the race has failed on either source or destination site (in case of race tasks). This can happen when a dirlist task is running and
   // adding new race tasks while the mkdir task on the destination fails at the same time and sets the site failed. This would lead to the
   // dependencies of the race task never be resolved and it would remain and pollute the queue.
   if t is TPazoRaceTask then
   begin
     try
-      if TPazoRaceTask(t).ps2.error or
-        ((TPazoRaceTask(t).dir <> '') and TPazoRaceTask(t).ps2.dirlist.FindDirList(TPazoRaceTask(t).dir).error) then
+      step := 'Checking ps2 / dirlist';
+      if TPazoRaceTask(t).ps2 = nil then
+      begin
+        // just a safe-check, do nothing
+      end
+      else if TPazoRaceTask(t).ps2.error or
+        ((TPazoRaceTask(t).dir <> '') and (TPazoRaceTask(t).ps2.dirlist <> nil) and (TPazoRaceTask(t).ps2.dirlist.FindDirList(TPazoRaceTask(t).dir) <> nil) and TPazoRaceTask(t).ps2.dirlist.FindDirList(TPazoRaceTask(t).dir).error) then
       begin
         t.readyerror := true;
-        Debug(dpSpam, section, Format('AddTask: race failed on source or destination site: %s', [t.Name]));
+        Debug(dpSpam, section, Format('AddTask: race failed on source or destination site: %s', [tname]));
         exit;
       end;
     except
       on e: Exception do
       begin
-        Debug(dpSpam, section, Format('[EXCEPTION] AddTask check for failed pazo: %s', [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] AddTask check for failed pazo (Step: %s): %s', [step, e.Message]));
         exit;
       end;
     end;
@@ -1298,9 +1467,20 @@ begin
 
   if fCheckSiteSlotsSite <> nil then
   begin
-    CheckSiteSlots(fCheckSiteSlotsSite);
+    step := 'CheckSiteSlots';
+    try
+      CheckSiteSlots(fCheckSiteSlotsSite);
+    except
+    end;
   end;
-  AddTaskToConsole(t);
+  
+  step := 'AddTaskToConsole';
+  try
+    AddTaskToConsole(t);
+  except
+    on e: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] AddTaskToConsole (Step: %s): %s', [step, e.Message]));
+  end;
 end;
 
 procedure TQueueThread.RemoveRaceTasks(const pazo_id: integer; const sitename: String);
@@ -1721,7 +1901,23 @@ begin
                 if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
                 begin
                   if fTask.IsReadyToBeExecuted then
-                    TryToAssignSlots(fTask);
+                begin
+                  // Low-priority race tasks only get slots if no important tasks are waiting
+                  if ((fTask is TPazoRaceTask) and _IsLowPriorityRaceTask(TPazoRaceTask(fTask))) then
+                  begin
+                    if _HasWaitingNonLowPriorityTasks(tasks, queue_last_run) then
+                    begin
+                      if SecondsBetween(Now, fLastLowPriorityLogTime) >= 60 then
+                      begin
+                        Debug(dpMessage, section, 'Low-priority tasks blocked on %s (important tasks waiting)', [fSiteName]);
+                        fLastLowPriorityLogTime := Now;
+                      end;
+                      Continue;
+                    end;
+                  end;
+
+                  TryToAssignSlots(fTask);
+                end;
                 end
                 else if (fTask.startat > 0) and (fTask.startat < fNextTaskStartAt) then
                 begin
@@ -1862,32 +2058,41 @@ begin
   maxassign := config.ReadInteger(section, 'maxassign', 200);
   maxassign_delay := config.ReadInteger(section, 'maxassign_delay', 15);
   sample_dirs_priority := config.ReadInteger(section, 'sample_dirs_priority', 1);
-  if not (sample_dirs_priority in [0..2]) then
+  if not (sample_dirs_priority in [0..3]) then
     sample_dirs_priority := 1;
 
   proof_dirs_priority := config.ReadInteger(section, 'proof_dirs_priority', 2);
-  if not (proof_dirs_priority in [0..2]) then
+  if not (proof_dirs_priority in [0..3]) then
     proof_dirs_priority := 2;
 
   subs_dirs_priority := config.ReadInteger(section, 'subs_dirs_priority', 2);
-  if not (subs_dirs_priority in [0..2]) then
+  if not (subs_dirs_priority in [0..3]) then
     subs_dirs_priority := 2;
 
   cover_dirs_priority := config.ReadInteger(section, 'cover_dirs_priority', 2);
-  if not (cover_dirs_priority in [0..2]) then
+  if not (cover_dirs_priority in [0..3]) then
     cover_dirs_priority := 2;
 
   queueclean_maxrunning := config.ReadInteger('queue', 'queueclean_maxrunning', 900);
   queueclean_unassigned := config.ReadInteger('queue', 'queueclean_unassigned', 600);
   enable_queueclean := config.ReadBool(section, 'enable_queueclean', False);
   queue_recycle_post_to_irc := spamcfg.readbool(section, 'queue_recycle', True);
+  glMaxDirlistSlots := config.ReadString(section, 'max_dirlist_slots', '');
 
   StatsList := TObjectList<TQueueStat>.Create(True);
+  Queues := TObjectList<TQueueThread>.Create(False);
+  GlDirlistCompletedCounter := TIdThreadSafeInt32.Create;
+  GlDirlistRate := 0;
+  GlDirlistRateMax := 0;
+  glLastDirlistCheckTime := 0;
+  glLastDirlistCount := 0;
 end;
 
 procedure QueueUninit;
 begin
+  FreeAndNil(GlDirlistCompletedCounter);
   StatsList.Free;
+  FreeAndNil(Queues);
 end;
 
 procedure TQueueThread.QueueClean(run_now: boolean = False);
@@ -1898,9 +2103,18 @@ var
   ts, ts2: TSite;
   fListIndex: Integer;
   fList: TObjectList;
+  udpEnabled: Boolean;
+  cleanDebugPriority: TDebugPriority;
 begin
 
   try
+
+  udpEnabled := SameText(Trim(config.ReadString('UDPConfig', 'EnableUDP', 'False')), 'True') or
+                SameText(Trim(config.ReadString('UDPConfig', 'EnableUDP', 'False')), '1');
+  if udpEnabled then
+    cleanDebugPriority := dpSpam
+  else
+    cleanDebugPriority := dpError;
 
   if not enable_queueclean then
   begin
@@ -1935,7 +2149,7 @@ begin
         begin
           try
             t.ready := True;
-            Debug(dpError, section, Format('QueueClean: Remove Unassigned : %s', [t.Fullname]));
+            Debug(cleanDebugPriority, section, Format('QueueClean: Remove Unassigned : %s', [t.Fullname]));
           except
             on e: Exception do
             begin
@@ -2025,7 +2239,7 @@ begin
 
             try
               Debug(dpSpam, section, Format('[QUEUECLEAN] Clean race task : %s', [t.Fullname]));
-              Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Fullname]));
+              Debug(cleanDebugPriority, section, Format('QueueClean: Remove : %s', [t.Fullname]));
               tasks.Remove(t);
             except
               on e: Exception do
@@ -2055,7 +2269,7 @@ begin
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean wait task : %s', [t.Fullname]));
             ts.AcquireSlotsAssignmentLock('QueueClean wait');
             try
-              Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Fullname]));
+              Debug(cleanDebugPriority, section, Format('QueueClean: Remove : %s', [t.Fullname]));
               tasks.Remove(t);
             finally
               ts.ReleaseSlotsAssignmentLock;
@@ -2105,7 +2319,7 @@ begin
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean other task : %s', [t.Fullname]));
             ts.AcquireSlotsAssignmentLock('QueueClean other');
             try
-              Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Fullname]));
+              Debug(cleanDebugPriority, section, Format('QueueClean: Remove : %s', [t.Fullname]));
               tasks.Remove(t);
             finally
               ts.ReleaseSlotsAssignmentLock;
@@ -2132,26 +2346,33 @@ begin
 
   if (tkill_unassigne <> 0) then
   begin
-    irc_Addconsole(Format('QueueClean: Killed : %s unassigned tasks',
-      [IntToStr(tkill_unassigne)]));
-    Debug(dpError, section, Format('QueueClean: Killed : %s unassigned tasks',
+    if not udpEnabled then
+      irc_Addconsole(Format('QueueClean: Killed : %s unassigned tasks',
+        [IntToStr(tkill_unassigne)]));
+    Debug(cleanDebugPriority, section, Format('QueueClean: Killed : %s unassigned tasks',
       [IntToStr(tkill_unassigne)]));
   end;
   if (tkill_race <> 0) then
   begin
-    irc_Addconsole(Format('QueueClean: Killed : %s race tasks', [IntToStr(tkill_race)]));
-    irc_Adderror(Format('<c4>[CLEAN]</c> QueueClean: Killed : %s race tasks',
-      [IntToStr(tkill_race)]));
-    Debug(dpError, section, Format('[CLEAN] QueueClean: Killed : %s race tasks',
+    if not udpEnabled then
+    begin
+      irc_Addconsole(Format('QueueClean: Killed : %s race tasks', [IntToStr(tkill_race)]));
+      irc_Adderror(Format('<c4>[CLEAN]</c> QueueClean: Killed : %s race tasks',
+        [IntToStr(tkill_race)]));
+    end;
+    Debug(cleanDebugPriority, section, Format('[CLEAN] QueueClean: Killed : %s race tasks',
       [IntToStr(tkill_race)]));
   end;
   if (tkill_other <> 0) then
   begin
-    irc_Addconsole(Format('QueueClean: Killed : %s other tasks',
-      [IntToStr(tkill_other)]));
-    irc_Adderror(Format('<c4>[CLEAN]</c> QueueClean: Killed : %s other tasks',
-      [IntToStr(tkill_other)]));
-    Debug(dpError, section, Format('[CLEAN] QueueClean: Killed : %s other tasks',
+    if not udpEnabled then
+    begin
+      irc_Addconsole(Format('QueueClean: Killed : %s other tasks',
+        [IntToStr(tkill_other)]));
+      irc_Adderror(Format('<c4>[CLEAN]</c> QueueClean: Killed : %s other tasks',
+        [IntToStr(tkill_other)]));
+    end;
+    Debug(cleanDebugPriority, section, Format('[CLEAN] QueueClean: Killed : %s other tasks',
       [IntToStr(tkill_other)]));
   end;
 
@@ -2236,8 +2457,53 @@ begin
     t_other := t_other + queueStat.FOtherTaskCount;
   end;
 
+  if glLastDirlistCheckTime = 0 then
+  begin
+    glLastDirlistCheckTime := Now;
+    glLastDirlistCount := GlDirlistCompletedCounter.Value;
+  end
+  else if MilliSecondsBetween(Now, glLastDirlistCheckTime) >= 1000 then
+  begin
+    GlDirlistRate := (GlDirlistCompletedCounter.Value - glLastDirlistCount) / (MilliSecondsBetween(Now, glLastDirlistCheckTime) / 1000);
+    if GlDirlistRate > GlDirlistRateMax then
+      GlDirlistRateMax := GlDirlistRate;
+    glLastDirlistCount := GlDirlistCompletedCounter.Value;
+    glLastDirlistCheckTime := Now;
+  end;
+
   QueueStatUpdateDateTime := Now;
   Console_QueueStat(t_race + t_dir + t_auto + t_other, t_race, t_dir, t_auto, t_other);
+end;
+
+procedure GetQueueTotals(out total, race, dirlist, autotasks, other: integer);
+var
+  fQueueStat: TQueueStat;
+begin
+  race := 0;
+  dirlist := 0;
+  autotasks := 0;
+  other := 0;
+
+  for fQueueStat in StatsList do
+  begin
+    race := race + fQueueStat.FRaceTaskCount;
+    dirlist := dirlist + fQueueStat.FDirlistTaskCount;
+    autotasks := autotasks + fQueueStat.FAutoTaskCount;
+    other := other + fQueueStat.FOtherTaskCount;
+  end;
+
+  total := race + dirlist + autotasks + other;
+end;
+
+function GetPendingRaceTasksToDestination(const aDestinationSiteName: String): integer;
+var
+  fQueueThread: TQueueThread;
+begin
+  Result := 0;
+  if aDestinationSiteName = '' then
+    Exit;
+  for fQueueThread in Queues do
+    Result := Result + fQueueThread.GetPendingRaceTasksToDestination(aDestinationSiteName);
 end;
 
 procedure TQueueThread.QueueSendCurrentTasksToConsole;
@@ -2489,6 +2755,39 @@ begin
   Result := True;
 end;
 
+
+function TQueueThread.GetPendingRaceTasksToDestination(const aDestinationSiteName: String): integer;
+var
+  fTask: TTask;
+  fRaceTask: TPazoRaceTask;
+  fListIndex: Integer;
+  fList: TObjectList;
+begin
+  Result := 0;
+  if aDestinationSiteName = '' then
+    Exit;
+
+  main_lock.Enter('GetPendingRaceTasksToDestination');
+  try
+    for fListIndex := 0 to 1 do
+    begin
+      if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+      for fTask in fList do
+      begin
+        if not (fTask is TPazoRaceTask) then
+          Continue;
+        fRaceTask := TPazoRaceTask(fTask);
+        if (not fRaceTask.ready) and (not fRaceTask.readyerror) and (fRaceTask.slot1 = nil) and
+          SameText(fRaceTask.site2, aDestinationSiteName) then
+        begin
+          Inc(Result);
+        end;
+      end;
+    end;
+  finally
+    main_lock.Leave;
+  end;
+end;
 
   procedure TQueueThread.GetCurrentTasks(const taskLst: Contnrs.TObjectList);
   var

@@ -226,6 +226,13 @@ type
     flegacydirlist: boolean;
     fSlotsAssignmentLock: TSlCriticalSection2;
     fFailedNfoCounter: integer;
+    fDownloadCooldownUntil: TDateTime; //< no new download on this site until Now() > this
+    fUploadCooldownUntil: TDateTime;   //< no new upload on this site until Now() > this
+    fLoginCooldownUntil: TDateTime;
+    fLoginCooldownSeconds: integer;
+    fLoginCooldownLastSlot: String;
+    fActiveLoginAttempts: integer; //< in-flight login attempts; prevents thundering herd on cooldown expiry
+    FSocketInitErrorCount: integer; //< site-wide counter for socket initialization errors
     fConnect_timeout: integer;
     fIdleInterval: integer;
     fIo_timeout: integer;
@@ -411,6 +418,8 @@ type
     { Sets a value saying after how many seconds a stalled transfer should be ended by destroying the socket }
     procedure SetKillConnectionOnStalledTransferSeconds(const Value: integer);
     function GetSpeed_From: TList<TSpeedFromRouteInfo>;
+    function GetNewdirDirlistReadd: integer;
+    procedure SetNewdirDirlistReadd(const Value: integer);
   public
     emptyQueue: boolean;
     siteinvited: boolean;
@@ -421,6 +430,7 @@ type
 
     constructor Create(const Name: String);
     destructor Destroy; override;
+    procedure SyncSlots(const aMaxLogins, aCurrentLogins: integer);
 
     procedure Stop;
     procedure DeleteKey(const Name: String);
@@ -566,6 +576,25 @@ type
     { Migrates old speedlock config values to the new speed-from config and remove all speed-to configs which we don't need anymore. }
     procedure MigrateSpeedLockAndSpeedToConfig;
 
+    { @abstract(Register a failed login attempt hit for exponential backoff cooldown) }
+    procedure RegisterLoginCooldownHit(const aSlotName: String);
+    { @abstract(Returns true if site is currently in login cooldown) }
+    function LoginCooldownActive: boolean;
+    { @abstract(Reset login cooldown state) }
+    procedure ResetLoginCooldown;
+    { @abstract(Returns remaining login cooldown seconds) }
+    function LoginCooldownRemainingSeconds: integer;
+    { @abstract(Increment active login attempt counter) }
+    procedure IncrementActiveLoginAttempts;
+    { @abstract(Decrement active login attempt counter) }
+    procedure DecrementActiveLoginAttempts;
+    { @abstract(Returns true if there is at least one active login attempt in flight) }
+    function HasActiveLoginAttempt: boolean;
+    { @abstract(Returns true if download cooldown is currently active) }
+    function DownloadCooldownActive: boolean;
+    { @abstract(Returns true if upload cooldown is currently active) }
+    function UploadCooldownActive: boolean;
+
     property sections: String read GetSections write SettSections;
     property sectiondir[const Name: String]: String read GetSectionDir write SetSectionDir;
     property sectionprecmd[Name: String]: String read GetSectionPreCmd write SetSectionPrecmd;
@@ -633,7 +662,13 @@ type
     property ReducedSpeedstatWeight: boolean read GetReducedSpeedstatWeight write SetReducedSpeedstatWeight; //< a value indicating whether speedstats should not change calculated rank for this destination site
     property KillConnectionOnStalledTransferSeconds: integer read GetKillConnectionOnStalledTransferSeconds write SetKillConnectionOnStalledTransferSeconds; //< a value saying after how many seconds a stalled transfer should be ended by destroying the socket
     property Speed_From: TList<TSpeedFromRouteInfo> read GetSpeed_From; //< Access cached speed-from speedstats. Creates a new TStringList which you need to free yourself after use
+    { @abstract(Re-add dirlist task after new directory detection; 0 = disabled) }
+    property NewdirDirlistReadd: integer read GetNewdirDirlistReadd write SetNewdirDirlistReadd;
   end;
+
+const
+  LOGIN_COOLDOWN_INITIAL_SECONDS = 5;
+  LOGIN_COOLDOWN_MAX_SECONDS = 120;
 
 function ReadSites(): boolean;
 procedure SlotsFire;
@@ -650,6 +685,9 @@ procedure RemovePazoSfv(const aPazoID: integer; const aDir: string);
 function IrcQueueShow(const netname, channel, params: String): boolean;
 procedure QueueEmpty(const sitename: String);
 procedure QueueStart;
+
+var
+  GlSitesSyncing: Boolean = False;
 
 { Iterates through @link(sites) and compares the entries with given aSitename.
   @param(aNetname network name, use '' or 'CONSOLE' to bypass check)
@@ -741,6 +779,9 @@ procedure AddSite(const aSite: TSite);
   @param(aSite The @link(TSite) object to delete.) }
 procedure DeleteSite(const aSite: TSite);
 
+{ @abstract(Returns count of pending race tasks targeting the given destination site) }
+function GetPendingRaceTaskCountForDestination(const aDestinationSiteName: String): integer;
+
 var
   sitesdat: TEncIniFile = nil; //< the inifile @link(encinifile.TEncIniFile) object for sites.dat
   sites: Contnrs.TObjectList = nil; //< holds a list of all @link(TSite) objects
@@ -750,7 +791,7 @@ implementation
 uses
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
-  dirlist.helpers, tags, Generics.Defaults;
+  dirlist.helpers, tags, Generics.Defaults, cbftpclient, mormot.core.base, mormot.core.unicode;
 
 const
   section = 'sites';
@@ -891,7 +932,7 @@ end;
     except
       on e: Exception do
       begin
-        Debug(dpError, section, '[EXCEPTION] QueueSorter : %s', [e.Message]);
+        DebugException(dpError, section, 'QueueSorter ', e);
         Result := 0;
       end;
     end;
@@ -960,7 +1001,7 @@ end;
         except
           on e: Exception do
           begin
-            Debug(dpError, section, '[EXCEPTION] IrcQueueShow : %s', [e.Message]);
+            DebugException(dpError, section, 'IrcQueueShow ', e);
           end;
         end;
       end;
@@ -1067,6 +1108,18 @@ end;
 
 procedure TSite.AddTask(const t: TTask; const queueFire: boolean = false);
 begin
+  if fQueue = nil then
+  begin
+    Debug(dpError, section, Format('CRITICAL LOG: fQueue is nil in TSite.AddTask for site %s', [Name]));
+    exit;
+  end;
+
+  if t = nil then
+  begin
+    Debug(dpError, section, Format('CRITICAL LOG: task t is nil in TSite.AddTask for site %s', [Name]));
+    exit;
+  end;
+
   fQueue.AddTask(t);
   if queueFire then self.QueueFire;
 end;
@@ -1090,7 +1143,15 @@ begin
 end;
 
 procedure AddTask(const t: TTask; const queueFire: boolean = false);
+var
+  fAdminSite: TSite;
 begin
+  if t = nil then
+  begin
+    Debug(dpError, section, 'CRITICAL LOG: Global AddTask called with nil task!');
+    exit;
+  end;
+
   try
     if not (t.ssite1 = nil) then
     begin
@@ -1100,7 +1161,11 @@ begin
     begin
       if t.ready or t.readyerror then
       begin
-        FindSiteByName('', getAdminSiteName).AddTask(t, queueFire);
+        fAdminSite := FindSiteByName('', getAdminSiteName);
+        if fAdminSite <> nil then
+          fAdminSite.AddTask(t, queueFire)
+        else
+          Debug(dpError, section, Format('AddTask - Admin site not found for task: %s', [t.Name]));
       end
       else
         debug(dpError, section, 'AddTask - No site for task:' + t.Name);
@@ -1108,7 +1173,12 @@ begin
     except
     on e: Exception do
     begin
-      Debug(dpError, section, '[EXCEPTION] TSite.AddTask (%s): %s', [t.Name, e.Message]);
+      try
+        Debug(dpError, section, Format('[EXCEPTION] GlobalAddTask - task_addr:%p class:%s ssite1:%p site1:%s ssite2:%p site2:%s ready:%s readyerror:%s name:%s', [
+          Pointer(t), t.ClassName, t.ssite1, t.site1, t.ssite2, t.site2, BoolToStr(t.ready, True), BoolToStr(t.readyerror, True), t.Name]));
+      except
+      end;
+      DebugException(dpError, section, Format('TSite.AddTask (%s)', [t.Name]), e);
     end;
   end;
 end;
@@ -1121,7 +1191,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, '[EXCEPTION] TSite.QueueFireInverval (%s): %s', [self.Name, e.Message]);
+      DebugException(dpError, section, Format('TSite.QueueFireInverval (%s)', [self.Name]), e);
     end;
   end;
 end;
@@ -1134,7 +1204,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, '[EXCEPTION] TSite.QueueFireInverval (%s): %s', [self.Name, e.Message]);
+      DebugException(dpError, section, Format('TSite.QueueFireInverval (%s)', [self.Name]), e);
     end;
   end;
 end;
@@ -1258,7 +1328,7 @@ begin
     end;
 
     case s.WorkingStatus of
-      sstUp: sitesup.Add('<b>' + s.Name + '</b>' + ' (<b>' + IntToStr(s.ffreeslots) + '</b>/' + IntToStr(s.slots.Count) + ')');
+      sstUp: sitesup.Add('<b>' + s.Name + '</b>' + ' (<b>' + IntToStr(s.slots.Count - s.ffreeslots) + '</b>/' + IntToStr(s.slots.Count) + ')');
       sstDown, sstTempDown, sstMarkedAsDownByUser: sitesdn.Add('<b>' + s.Name + '</b>');
       sstUnknown: sitesuk.Add('<b>' + s.Name + '</b>');
     end;
@@ -1537,6 +1607,8 @@ begin
   console_add_sitewindow(Name);
   while ((not slshutdown) and (not shouldquit)) do
   begin
+    if GlCbftpClient <> nil then
+      Sleep(100);
     try
       if status = ssOnline then
         Console_Slot_Add(Name, 'Idle...');
@@ -1548,14 +1620,19 @@ begin
         except
           on E: Exception do
           begin
-            Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute(todotask.name) %s: %s', [tname, e.Message]));
+            DebugException(dpError, section, 'TSiteSlot.Execute(todotask.name)' + tname, e);
           end;
         end;
 
         Debug(dpSpam, section, Format('--> %s', [Name]));
 
         try
-          if todotask.Execute(self) then
+          if (GlCbftpClient <> nil) and (site.Name <> getAdminSiteName) and (not (todotask is TRulesTask)) then
+          begin
+            todotask.ready := True;
+            todotask.readyerror := True;
+          end
+          else if todotask.Execute(self) then
           begin
             LastTaskExecution := Now();
 
@@ -1575,7 +1652,7 @@ begin
         except
           on E: Exception do
           begin
-            Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) %s: %s', [tname, e.Message]));
+            DebugException(dpError, section, 'TSiteSlot.Execute(if todotask.Execute(self) then)' + tname, e);
 
             //make sure the task gets cleaned if an unhandled exception occured when executing the task
             todotask.readyerror := True;
@@ -1704,7 +1781,7 @@ begin
     on e: Exception do
     begin
       try
-        Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.ClearnupThreadVars : %s', [e.Message]));
+        DebugException(dpError, section, 'TSiteSlot.ClearnupThreadVars ', e);
       except
         // ignore this in case the debug unit has already been uninitialized at shutdown or something like that
       end;
@@ -2161,6 +2238,7 @@ begin
     exit;
   end;
 
+
   tryToGetSiteSoftwareAndVersionFromLastResponse;
 
   if not Send('TYPE I') then
@@ -2333,6 +2411,10 @@ var
   host: String;
   i: integer;
 begin
+  Result := True;
+  if GlCbftpClient <> nil then
+    Exit;
+
   Result := False;
 
   i := 0;
@@ -2406,6 +2488,10 @@ var
   i: integer;
   ss: TSiteSlot;
 begin
+  Result := True;
+  if GlCbftpClient <> nil then
+    Exit;
+
   Result := False;
   Debug(dpSpam, section, 'Relogin ' + Name + ' ' + IntToStr(limit_maxrelogins));
 
@@ -2503,7 +2589,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Read: %s', [e.Message]));
+      DebugException(dpError, section, 'TSiteSlot.Read', e);
       lastResponse := '';
       lastResponseCode := 0;
       Result := False;
@@ -2562,7 +2648,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Read: %s', [e.Message]));
+      DebugException(dpError, section, 'TSiteSlot.Read', e);
       lastResponse := '';
       lastResponseCode := 0;
       error := 'TSiteSlot.Read';
@@ -2578,8 +2664,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Read ParseResponseCode: %s : %s',
-        [e.Message, lastResponse]));
+      DebugException(dpError, section, Format('TSiteSlot.Read ParseResponseCode: %s', [lastResponse]), e);
       lastResponse := '';
       lastResponseCode := 0;
       error := 'TSiteSlot.Read ParseResponseCode';
@@ -2604,6 +2689,8 @@ end;
 function TSiteSlot.Send(const s: String): boolean;
 begin
   Result := False;
+  if GlCbftpClient <> nil then
+    Exit;
   try
     Console_Slot_Add(Name, s);
     console_addline(Name, s);
@@ -2621,7 +2708,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Send: %s : %s', [e.Message, s]));
+      DebugException(dpError, section, Format('TSiteSlot.Send: %s', [s]), e);
       Result := False;
       exit;
     end;
@@ -2635,7 +2722,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Send: %s : %s', [e.Message, s]));
+      DebugException(dpError, section, Format('TSiteSlot.Send: %s', [s]), e);
       Result := False;
       exit;
     end;
@@ -2770,7 +2857,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, '[EXCEPTION] TSiteSlot.Mkdir: %s', [e.Message]);
+      DebugException(dpError, section, 'TSiteSlot.Mkdir', e);
       Result := False;
     end;
   end;
@@ -2804,7 +2891,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, '[EXCEPTION] TSiteSlot.Pwd: %s', [e.Message]);
+      DebugException(dpError, section, 'TSiteSlot.Pwd', e);
       Result := False;
     end;
   end;
@@ -2902,7 +2989,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, '[EXCEPTION] TSiteSlot.Dirlist: %s', [e.Message]);
+      DebugException(dpError, section, 'TSiteSlot.Dirlist', e);
     end;
   end;
 end;
@@ -3046,7 +3133,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.LeechFile : %s', [e.Message]));
+      DebugException(dpError, section, 'TSiteSlot.LeechFile ', e);
       exit;
     end;
   end;
@@ -3141,6 +3228,7 @@ begin
   self.fFreeSlotsCS := TSlCriticalSection2.Create('FreeSlotsCS_' + Name);
   FSettingsCacheDict := TVariantCache.Create;
 
+
   if (Name = getAdminSiteName) then
   begin
     WorkingStatus := sstUp;
@@ -3157,6 +3245,13 @@ begin
   fMaxUp := RCInteger('max_up', 2);
   fMaxPreDn := RCInteger('max_pre_dn', max_dn);
   fFailedNfoCounter := 0;
+  fDownloadCooldownUntil := 0;
+  fUploadCooldownUntil := 0;
+  fLoginCooldownUntil := 0;
+  fLoginCooldownSeconds := 0;
+  fLoginCooldownLastSlot := '';
+  fActiveLoginAttempts := 0;
+  FSocketInitErrorCount := 0;
 
   fReducedSpeedstatWeight := RCBool('reduced_speedstat_weight', config.ReadBool('speedstats', 'reduced_speedstat_weight', False));;
   fPermDownStatus := RCBool('permdown', False);
@@ -3331,6 +3426,21 @@ begin
   inherited;
 end;
 
+procedure TSite.SyncSlots(const aMaxLogins, aCurrentLogins: integer);
+begin
+  fFreeSlotsCS.Enter('SyncSlots');
+  try
+    while slots.Count < aMaxLogins do
+      slots.Add(TSiteSlot.Create(self, slots.Count));
+    while slots.Count > aMaxLogins do
+      slots.Delete(slots.Count - 1);
+    
+    freeslots := aMaxLogins - aCurrentLogins;
+  finally
+    fFreeSlotsCS.Leave;
+  end;
+end;
+
 procedure SlotsFire;
 var
   i, j: integer;
@@ -3377,6 +3487,8 @@ end;
 
 procedure TSite.PrintSiteStatusToIRC;
 begin
+  if GlSitesSyncing then
+    Exit;
   case FWorkingStatus of
     sstUp: irc_addadmin(Format('<%s>SITE <b>%s</b> IS UP</c>', [globals.SiteColorOnline, Name]));
     sstDown, sstMarkedAsDownByUser: irc_addadmin(Format('<%s>SITE <b>%s</b> IS DOWN</c>', [globals.SiteColorOffline, Name]));
@@ -4056,7 +4168,7 @@ procedure TSite.AutoBnctest;
 var
   t: TLoginTask;
 begin
-  if PermDown then
+  if (PermDown) or (GlCbftpClient <> nil) then
     Exit;
   t := FetchAutoBnctest;
   if t <> nil then
@@ -4070,7 +4182,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSite.AutoBnctest AddTask: %s', [e.Message]));
+      DebugException(dpError, section, 'TSite.AutoBnctest AddTask', e);
     end;
   end;
 end;
@@ -4092,7 +4204,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSite.AutoRules AddTask: %s', [e.Message]));
+      DebugException(dpError, section, 'TSite.AutoRules AddTask', e);
     end;
   end;
 end;
@@ -4115,7 +4227,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSite.AutoDirlist AddTask: %s', [e.Message]));
+      DebugException(dpError, section, 'TSite.AutoDirlist AddTask', e);
     end;
   end;
 end;
@@ -4827,6 +4939,19 @@ procedure TSite.SetPermDownStatus(Value: boolean);
 begin
   fPermDownStatus := Value;
   WCBool('permdown', Value);
+  if GlCbftpClient <> nil then
+  begin
+    if Value then
+    begin
+      GlCbftpClient.UpdateSite(StringToUtf8(Name), '{"disabled":true}');
+      WorkingStatus := sstMarkedAsDownByUser;
+    end
+    else
+    begin
+      GlCbftpClient.UpdateSite(StringToUtf8(Name), '{"disabled":false}');
+      WorkingStatus := sstUp;
+    end;
+  end;
 end;
 
 function TSite.GetUseReverseFxpSource: boolean;
@@ -5049,6 +5174,100 @@ begin
     fStringList.Free;
   end;
 
+end;
+
+function TSite.DownloadCooldownActive: boolean;
+begin
+  Result := (fDownloadCooldownUntil > 0) and (Now < fDownloadCooldownUntil);
+end;
+
+function TSite.UploadCooldownActive: boolean;
+begin
+  Result := (fUploadCooldownUntil > 0) and (Now < fUploadCooldownUntil);
+end;
+
+procedure TSite.RegisterLoginCooldownHit(const aSlotName: String);
+var
+  fNewCooldown: integer;
+begin
+  if fLoginCooldownSeconds = 0 then
+    fNewCooldown := LOGIN_COOLDOWN_INITIAL_SECONDS
+  else
+  begin
+    fNewCooldown := fLoginCooldownSeconds * 2;
+    if fNewCooldown > LOGIN_COOLDOWN_MAX_SECONDS then
+      fNewCooldown := LOGIN_COOLDOWN_MAX_SECONDS;
+  end;
+  fLoginCooldownSeconds := fNewCooldown;
+  fLoginCooldownUntil := IncSecond(Now, fLoginCooldownSeconds);
+  fLoginCooldownLastSlot := aSlotName;
+  Debug(dpSpam, section, '[LOGIN COOLDOWN] %s: cooldown set to %ds (slot: %s)',
+    [Name, fLoginCooldownSeconds, aSlotName]);
+end;
+
+function TSite.LoginCooldownActive: boolean;
+begin
+  if fLoginCooldownUntil = 0 then
+  begin
+    Result := False;
+    Exit;
+  end;
+  if Now >= fLoginCooldownUntil then
+  begin
+    if fLoginCooldownSeconds > 0 then
+      Debug(dpSpam, section, '[LOGIN COOLDOWN] %s: cooldown expired after %ds', [Name, fLoginCooldownSeconds]);
+    fLoginCooldownUntil := 0;
+    Result := False;
+    Exit;
+  end;
+  Result := True;
+end;
+
+procedure TSite.ResetLoginCooldown;
+begin
+  fLoginCooldownSeconds := 0;
+  fLoginCooldownUntil := 0;
+end;
+
+function TSite.LoginCooldownRemainingSeconds: integer;
+begin
+  if not LoginCooldownActive then
+    Result := 0
+  else
+    Result := SecondsBetween(Now, fLoginCooldownUntil);
+end;
+
+procedure TSite.IncrementActiveLoginAttempts;
+begin
+  Inc(fActiveLoginAttempts);
+end;
+
+procedure TSite.DecrementActiveLoginAttempts;
+begin
+  if fActiveLoginAttempts > 0 then
+    Dec(fActiveLoginAttempts);
+end;
+
+function TSite.HasActiveLoginAttempt: boolean;
+begin
+  Result := fActiveLoginAttempts > 0;
+end;
+
+function TSite.GetNewdirDirlistReadd: integer;
+begin
+  Result := RCInteger('newdir_dirlist_readd', 0);
+end;
+
+procedure TSite.SetNewdirDirlistReadd(const Value: integer);
+begin
+  WCInteger('newdir_dirlist_readd', Value);
+end;
+
+
+{ @abstract(Returns count of pending race tasks targeting the given destination site) }
+function GetPendingRaceTaskCountForDestination(const aDestinationSiteName: String): integer;
+begin
+  Result := GetPendingRaceTasksToDestination(aDestinationSiteName);
 end;
 
 end.

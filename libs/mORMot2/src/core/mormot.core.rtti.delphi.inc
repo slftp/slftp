@@ -138,7 +138,7 @@ begin
     result := @NULCHAR;
 end;
 
-{$ifdef CPUX86} // Delphi is not efficient when inlining code :(
+{$ifdef ASMX86} // Delphi is not efficient when inlining this code :(
 
 function GetEnumName(aTypeInfo: PRttiInfo; aIndex: integer): PShortString;
 asm     // eax=aTypeInfo edx=aIndex
@@ -383,7 +383,7 @@ end;
 
 const
   // RawUtf8 is defined as weak system.UTF8String type in mormot.core.base
-  UTF8_NAME: string[7] = 'RawUtf8';
+  UTF8_NAME: TShort7 = 'RawUtf8';
 
 function TRttiInfo.Name: PShortString;
 begin
