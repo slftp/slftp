@@ -32,7 +32,6 @@ type
 
   private
   tasks:      TObjectList;
-  waiting_tasks: TObjectList;
   queueevent: TSynEvent;
   fSiteName: String;
   fSite: TObject;
@@ -56,7 +55,8 @@ public
     Read by TSiteSlot.Execute under main_lock to do targeted wakeups. }
   fPendingRaceDestinations: TDictionary<String, Integer>;
 
-procedure QueueFire;
+  function FindBestTask(aNow: TDateTime): TTask;
+  procedure QueueFire;
 procedure QueueStart;
 procedure AddTask(t: TTask);
 procedure QueueEmpty(const sitename: String);
@@ -108,6 +108,15 @@ function GetPendingRaceTasksToDestination(const aDestinationSiteName: String): i
   Empty config falls back to legacy behavior (aSlotCount div 2). }
 function _CalcMaxDirlistSlots(const aSlotCount: integer): integer;
 
+{ @abstract(Checks if a race task is low-priority based on dir type and ini settings) }
+function _IsLowPriorityRaceTask(const aTask: TPazoRaceTask): Boolean;
+
+{ @abstract(Checks if there are any important non-low-priority tasks waiting in the queue) }
+function _HasWaitingNonLowPriorityTasks(const aTasks: Contnrs.TObjectList; const aQueueLastRun: TDateTime): Boolean;
+
+{ @abstract(Calculates priority score for a task. Higher score = higher priority.) }
+function _ScoreTask(const aTask: TTask): Int64;
+
 var
   QueueStatUpdateDateTime: TDateTime;
   GlDirlistCompletedCounter: TIdThreadSafeInt32;
@@ -117,6 +126,11 @@ var
   Queues: TObjectList<TQueueThread>;
   { max dirlist slots config value, e.g. '1', '50%' }
   glMaxDirlistSlots: string;
+  { dir type priority values from slftp.ini, used by _ScoreTask and _IsLowPriorityRaceTask }
+  sample_dirs_priority: Integer;
+  proof_dirs_priority: Integer;
+  subs_dirs_priority: Integer;
+  cover_dirs_priority: Integer;
 
 implementation
 
@@ -133,10 +147,6 @@ var
   maxassign_delay: integer;
   glLastDirlistCheckTime: TDateTime;
   glLastDirlistCount: Integer;
-  sample_dirs_priority: Integer; //< value for priority in queue sorter for sample dirs from slftp.ini
-  proof_dirs_priority: Integer; //< value for priority in queue sorter for proof dirs from slftp.ini
-  subs_dirs_priority: Integer; //< value for priority in queue sorter for subtitle dirs from slftp.ini
-  cover_dirs_priority: Integer; //< value for priority in queue sorter for cover dirs from slftp.ini
   queueclean_unassigned: Integer;
   queueclean_maxrunning: Integer;
   enable_queueclean: boolean;
@@ -185,266 +195,6 @@ begin
     begin
       Debug(dpError, section, Format('[EXCEPTION] QueueFire: %s', [e.Message]));
       exit;
-    end;
-  end;
-end;
-
-function QueueSorter(Item1, Item2: Pointer): integer;
-var
-  i1, i2: TTask;
-  tp1, tp2: TPazoTask;
-  tpm1, tpm2: TPazoMkdirTask;
-  tpr1, tpr2: TPazoRaceTask;
-begin
-  // compare: -1 Item1 is before Item2
-  // compare:  1 Item1 is after Item2
-  // ref: https://www.freepascal.org/docs-html/rtl/classes/tstringlist.customsort.html
-  try
-    i1 := TTask(item1);
-    i2 := TTask(item2);
-
-    if (i1 = nil) or (i2 = nil) then
-    begin
-      Result := 0;
-      exit;
-    end;
-
-    // Give priority to wait
-    if ((i1.ClassType = TWaitTask) and (i2.ClassType = TWaitTask)) then
-    begin
-      Result := 0;
-      exit;
-    end;
-    if ((i1.ClassType = TWaitTask) and (not (i2.ClassType = TWaitTask))) then
-    begin
-      Result := -1;
-      exit;
-    end;
-    if ((not (i1.ClassType = TWaitTask)) and (i2.ClassType = TWaitTask)) then
-    begin
-      Result := 1;
-      exit;
-    end;
-
-    // Give priority to PazoTasks
-    if ((not (i1 is TPazoTask)) and (not (i2 is TPazoTask))) then
-    begin
-      Result := 0;
-      exit;
-    end;
-    if ((i1 is TPazoTask) and (not (i2 is TPazoTask))) then
-    begin
-      Result := -1;
-      exit;
-    end;
-    if ((not (i1 is TPazoTask)) and (i2 is TPazoTask)) then
-    begin
-      Result := 1;
-      exit;
-    end;
-
-    tp1 := TPazoTask(Item1);
-    tp2 := TPazoTask(Item2);
-
-    // Give priority to mkdir
-    if ((tp1 is TPazoMkdirTask) and (tp2 is TPazoMkdirTask)) then
-    begin
-      tpm1 := TPazoMkdirTask(Item1);
-      tpm2 := TPazoMkdirTask(Item2);
-
-      if ((tpm1.dir <> '') and (tpm2.dir <> '')) then
-      begin
-        Result := 0;
-        exit;
-      end;
-      if ((tpm1.dir = '') and (tpm2.dir = '')) then
-      begin
-        Result := 0;
-        exit;
-      end;
-      // give priority to mkdir tasks that affect maindirs (not a subdir mkdir)
-      if ((tpm1.dir = '') and (tpm2.dir <> '')) then
-      begin
-        Result := -1;
-        exit;
-      end;
-      if ((tpm1.dir <> '') and (tpm2.dir = '')) then
-      begin
-        Result := 1;
-        exit;
-      end;
-    end;
-    if ((tp1 is TPazoMkdirTask) and (not (tp2 is TPazoMkdirTask))) then
-    begin
-      Result := -1;
-      exit;
-    end;
-    if ((not (tp1 is TPazoMkdirTask)) and (tp2 is TPazoMkdirTask)) then
-    begin
-      Result := 1;
-      exit;
-    end;
-
-    // Give priority to RaceTask
-    if ((tp1 is TPazoRaceTask) and (tp2 is TPazoRaceTask)) then
-    begin
-      tpr1 := TPazoRaceTask(Item1);
-      tpr2 := TPazoRaceTask(Item2);
-
-      Result := CompareValue(tpr2.rank, tpr1.rank);
-      if (Result <> 0) then
-        exit;
-
-      // Give priority to sfv
-      if ((tpr1.IsSfv) and (not tpr2.IsSfv)) then
-      begin
-        Result := -1;
-        exit;
-      end;
-      if ((not tpr1.IsSfv) and (tpr2.IsSfv)) then
-      begin
-        Result := 1;
-        exit;
-      end;
-      if ((tpr1.IsSfv) and (tpr2.IsSfv)) then
-      begin
-        Result := CompareValue(tpr2.rank, tpr1.rank);
-        exit;
-      end;
-
-      // Give priority to nfo
-      if ((tpr1.IsNfo) and (not tpr2.IsNfo)) then
-      begin
-        Result := -1;
-        exit;
-      end;
-      if ((not tpr1.IsNfo) and (tpr2.IsNfo)) then
-      begin
-        Result := 1;
-        exit;
-      end;
-      if ((tpr1.IsNfo) and (tpr2.IsNfo)) then
-      begin
-        Result := CompareValue(tpr2.rank, tpr1.rank);
-        exit;
-      end;
-
-      // Sample dir priority
-      if (tpr1.IsSample) or (tpr2.IsSample) then
-      begin
-        if ((tpr1.IsSample) and (not tpr2.IsSample)) then
-        begin
-          case sample_dirs_priority of
-            0: Result := 0;
-            1: Result := -1;
-            2, 3: Result := 1;
-          end;
-        end
-        else if ((not tpr1.IsSample) and (tpr2.IsSample)) then
-        begin
-          case sample_dirs_priority of
-            0: Result := 0;
-            1: Result := 1;
-            2, 3: Result := -1;
-          end;
-        end
-        else
-          Result := CompareValue(tpr2.rank, tpr1.rank);
-      end;
-
-      // Proof priority
-      if (tpr1.IsProof) or (tpr2.IsProof) then
-      begin
-        if ((tpr1.IsProof) and (not tpr2.IsProof)) then
-        begin
-          case proof_dirs_priority of
-            0: Result := 0;
-            1: Result := -1;
-            2, 3: Result := 1;
-          end;
-        end
-        else if ((not tpr1.IsProof) and (tpr2.IsProof)) then
-        begin
-          case proof_dirs_priority of
-            0: Result := 0;
-            1: Result := 1;
-            2, 3: Result := -1;
-          end;
-        end
-        else
-          Result := CompareValue(tpr2.rank, tpr1.rank);
-      end;
-
-      // Subs priority
-      if (tpr1.IsSubs) or (tpr2.IsSubs) then
-      begin
-        if ((tpr1.IsSubs) and (not tpr2.IsSubs)) then
-        begin
-          case subs_dirs_priority of
-            0: Result := 0;
-            1: Result := -1;
-            2, 3: Result := 1;
-          end;
-        end
-        else if ((not tpr1.IsSubs) and (tpr2.IsSubs)) then
-        begin
-          case subs_dirs_priority of
-            0: Result := 0;
-            1: Result := 1;
-            2, 3: Result := -1;
-          end;
-        end
-        else
-          Result := CompareValue(tpr2.rank, tpr1.rank);
-      end;
-
-      // Covers priority
-      if (tpr1.IsCovers) or (tpr2.IsCovers) then
-      begin
-        if ((tpr1.IsCovers) and (not tpr2.IsCovers)) then
-        begin
-          case cover_dirs_priority of
-            0: Result := 0;
-            1: Result := -1;
-            2, 3: Result := 1;
-          end;
-        end
-        else if ((not tpr1.IsCovers) and (tpr2.IsCovers)) then
-        begin
-          case cover_dirs_priority of
-            0: Result := 0;
-            1: Result := 1;
-            2, 3: Result := -1;
-          end;
-        end
-        else
-          Result := CompareValue(tpr2.rank, tpr1.rank);
-      end;
-
-      if (Result = 0) then
-        Result := CompareValue(tpr2.filesize, tpr1.filesize);
-
-      exit;
-    end;
-
-    if ((tp1 is TPazoRaceTask) and (not (tp2 is TPazoRaceTask))) then
-    begin
-      Result := -1;
-      exit;
-    end;
-    if ((not (tp1 is TPazoRaceTask)) and (tp2 is TPazoRaceTask)) then
-    begin
-      Result := 1;
-      exit;
-    end;
-
-    // All others (Dirlists and so on)
-    Result := compareDate(tp1.mainpazo.lastTouch, tp2.mainpazo.lastTouch);
-  except
-  on e: Exception do
-    begin
-      Debug(dpError, section, '[EXCEPTION] QueueSorter : %s', [e.Message]);
-      Result := 0;
     end;
   end;
 end;
@@ -533,23 +283,155 @@ begin
   end;
 end;
 
-procedure TQueueThread.QueueSort;
+function _ScoreTask(const aTask: TTask): Int64;
+var
+  tpm: TPazoMkdirTask;
+  tpr: TPazoRaceTask;
 begin
-  try
-    Debug(dpSpam, section, 'Sorting queue 1');
-    main_lock.Enter('Queue_Sort');
-    try
-      tasks.Sort(@QueueSorter);
-    finally
-      main_lock.Leave;
-    end;
-    Debug(dpSpam, section, 'Sorting queue 2');
-  except
-    on e: Exception do
+  Result := 0;
+
+  if aTask = nil then
+    exit;
+
+  // Wait tasks get absolute top priority
+  if (aTask.ClassType = TWaitTask) then
+  begin
+    Result := 100000000;
+  end
+  else if (aTask is TPazoMkdirTask) then
+  begin
+    tpm := TPazoMkdirTask(aTask);
+    // Maindir mkdir (dir = '') gets higher priority than subdir mkdir
+    if (tpm.dir = '') then
+      Result := 90000000
+    else
+      Result := 70000000;
+  end
+  else if (aTask is TPazoRaceTask) then
+  begin
+    tpr := TPazoRaceTask(aTask);
+    Result := 80000000;
+
+    // SFV files get highest sub-priority
+    if tpr.IsSfv then
+      Result := Result + 5000000
+    // NFO files next
+    else if tpr.IsNfo then
+      Result := Result + 4000000
+    else
     begin
-      Debug(dpError, section, '[EXCEPTION] QueueSort : %s', [e.Message]);
+      // Sample dir priority
+      if tpr.IsSample then
+      begin
+        case sample_dirs_priority of
+          0: Result := Result + 0;
+          1: Result := Result + 3000000;
+          2, 3: Result := Result - 3000000;
+        end;
+      end;
+
+      // Proof priority
+      if tpr.IsProof then
+      begin
+        case proof_dirs_priority of
+          0: Result := Result + 0;
+          1: Result := Result + 2500000;
+          2, 3: Result := Result - 2500000;
+        end;
+      end;
+
+      // Subs priority
+      if tpr.IsSubs then
+      begin
+        case subs_dirs_priority of
+          0: Result := Result + 0;
+          1: Result := Result + 2000000;
+          2, 3: Result := Result - 2000000;
+        end;
+      end;
+
+      // Covers priority
+      if tpr.IsCovers then
+      begin
+        case cover_dirs_priority of
+          0: Result := Result + 0;
+          1: Result := Result + 1500000;
+          2, 3: Result := Result - 1500000;
+        end;
+      end;
+    end;
+
+    // Rank bonus (higher rank = more important)
+    Result := Result + tpr.rank * 1000;
+
+    // Filesize bonus (larger files = more important)
+    Result := Result + (tpr.filesize div 1000000);
+  end
+  else if (aTask is TPazoTask) then
+  begin
+    // Other pazo tasks (dirlist, etc.)
+    Result := 60000000;
+  end
+  else
+  begin
+    // Non-pazo tasks (login, quit, idle, etc.)
+    Result := 50000000;
+  end;
+end;
+
+function TQueueThread.FindBestTask(aNow: TDateTime): TTask;
+var
+  bestTask: TTask;
+  bestScore: Int64;
+  t: TTask;
+  score: Int64;
+  tpr: TPazoRaceTask;
+  hasImportantWaiting: Boolean;
+begin
+  Result := nil;
+  bestTask := nil;
+  bestScore := Low(Int64);
+
+  // Pre-check: are there any important (non-low-priority) tasks waiting?
+  hasImportantWaiting := _HasWaitingNonLowPriorityTasks(tasks, aNow);
+
+  for t in tasks do
+  begin
+    // Skip tasks that are already assigned, ready, or have errors
+    if ((t.slot1 <> nil) or (t.slot2 <> nil) or t.ready or t.readyerror) then
+      Continue;
+
+    // Skip delayed tasks
+    if (t.startat > 0) and (t.startat > aNow) then
+      Continue;
+
+    // Skip tasks not ready to execute
+    if not t.IsReadyToBeExecuted then
+      Continue;
+
+    // Low-priority race tasks are skipped if important tasks are waiting
+    if (t is TPazoRaceTask) then
+    begin
+      tpr := TPazoRaceTask(t);
+      if _IsLowPriorityRaceTask(tpr) and hasImportantWaiting then
+        Continue;
+    end;
+
+    score := _ScoreTask(t);
+
+    if score > bestScore then
+    begin
+      bestScore := score;
+      bestTask := t;
     end;
   end;
+
+  Result := bestTask;
+end;
+
+procedure TQueueThread.QueueSort;
+begin
+  // QueueSorter removed - tasks are no longer sorted. FindBestTask handles priority.
 end;
 
 procedure TQueueThread.QueueStart;
@@ -561,7 +443,6 @@ constructor TQueueThread.Create(const aSiteName: String);
 begin
   main_lock := nil;
   tasks := nil;
-  waiting_tasks := nil;
   queueevent := nil;
   fQueueStat := nil;
   fBusyDestinations := nil;
@@ -575,7 +456,6 @@ begin
   try
     main_lock := TSLCriticalSection2.Create('Queue_' + aSiteName);
     tasks := TObjectList.Create(True);
-    waiting_tasks := TObjectList.Create(True);
     queueevent := TSynEvent.Create;
     queue_last_run := Now;
     queueclean_last_run := Now;
@@ -597,7 +477,6 @@ begin
       FreeAndNil(fQueueStat);
     end;
     FreeAndNil(queueevent);
-    FreeAndNil(waiting_tasks);
     FreeAndNil(tasks);
     FreeAndNil(main_lock);
     raise;
@@ -615,7 +494,6 @@ begin
   end;
   main_lock.Free;
   tasks.Free;
-  waiting_tasks.Free;
   queueevent.Free;
   fBusyDestinations.Free;
   fPendingRaceDestinations.Free;
@@ -1098,24 +976,18 @@ var
   t: TTask;
   fSetDownPazo: TList<TPazo>;
   fPazo: TPazo;
-  fListIndex: Integer;
-  fList: TObjectList;
 begin
   fSetDownPazo := TList<TPazo>.Create;
   try
     main_lock.Enter('QueueEmpty');
     try
-      for fListIndex := 0 to 1 do
-      begin
-        if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-        for t in fList do
+        for t in tasks do
         begin
         if ((not t.ready) and (t.slot1 = nil) and (not t.dontremove) and ((t.site1 = sitename) or (t.site2 = sitename))) then
           t.readyerror := True;
 
         if (t is TPazoTask) and not fSetDownPazo.Contains(TPazoTask(t).mainpazo) then
           fSetDownPazo.Add(TPazoTask(t).mainpazo);
-      end;
       end;
     finally
       main_lock.Leave;
@@ -1139,8 +1011,6 @@ var
   tpd, i_tpd: TPazoDirlistTask;
   tpm, i_tpm: TPazoMkdirTask;
   tpl, i_tpl: TLoginTask;
-  fListIndex: Integer;
-  fList: TObjectList;
 begin
   Result := False;
 
@@ -1150,10 +1020,7 @@ begin
       tpr := TPazoRaceTask(t);
       main_lock.Enter('TaskAlreadyInQueue1');
       try
-        for fListIndex := 0 to 1 do
-        begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for fTask in fList do
+          for fTask in tasks do
           begin
             try
               if (fTask is TPazoRaceTask) then
@@ -1175,7 +1042,6 @@ begin
                 continue;
               end;
             end;
-          end;
         end;
       finally
         main_lock.Leave;
@@ -1197,10 +1063,7 @@ begin
       tpd := TPazoDirlistTask(t);
       main_lock.Enter('TaskAlreadyInQueue2');
       try
-        for fListIndex := 0 to 1 do
-        begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for fTask in fList do
+          for fTask in tasks do
           begin
             try
               if (fTask is TPazoDirlistTask) then
@@ -1221,7 +1084,6 @@ begin
                 continue;
               end;
             end;
-          end;
         end;
       finally
         main_lock.Leave;
@@ -1243,10 +1105,7 @@ begin
       tpm := TPazoMkdirTask(t);
       main_lock.Enter('TaskAlreadyInQueue3');
       try
-        for fListIndex := 0 to 1 do
-        begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for fTask in fList do
+          for fTask in tasks do
           begin
             try
               if (fTask is TPazoMkdirTask) then
@@ -1267,7 +1126,6 @@ begin
                 continue;
               end;
             end;
-          end;
         end;
       finally
         main_lock.Leave;
@@ -1289,10 +1147,7 @@ begin
       tpl := TLoginTask(t);
       main_lock.enter('TaskAlreadyInQueue4');
       try
-        for fListIndex := 0 to 1 do
-        begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for fTask in fList do
+          for fTask in tasks do
           begin
             if (fTask is TLoginTask) then
             begin
@@ -1306,7 +1161,6 @@ begin
               end;
             end;
           end;
-        end;
       finally
         main_lock.Leave;
       end;
@@ -1391,11 +1245,8 @@ begin
       end;
 
       step := 'Adding to list';
-      // Add to waiting_tasks if it starts in the future, else to main tasks queue
-      if (t.startat > Now) then
-        waiting_tasks.Add(t)
-      else
-        tasks.Add(t);
+      // All tasks go to the unified tasks list; delayed tasks are filtered at assignment time
+      tasks.Add(t);
       fTaskAdded := True;
 
       step := 'Race slot checks';
@@ -1487,16 +1338,11 @@ procedure TQueueThread.RemoveRaceTasks(const pazo_id: integer; const sitename: S
 var
   ttp: TPazoRaceTask;
   fTask: TTask;
-  fListIndex: Integer;
-  fList: TObjectList;
 begin
   try
     main_lock.Enter('RemoveRaceTasks');
     try
-      for fListIndex := 0 to 1 do
-      begin
-        if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-        for fTask in fList do
+        for fTask in tasks do
         begin
         try
           if (fTask is TPazoRaceTask) then
@@ -1511,7 +1357,6 @@ begin
             Debug(dpError, section, Format('[EXCEPTION] RemoveRaceTasks (loop) : %s', [e.Message]));
           end;
         end;
-      end;
       end;
     finally
       main_lock.Leave;
@@ -1529,16 +1374,11 @@ procedure TQueueThread.RemovePazoDirTasks(const pazo_id: integer);
 var
   ttp: TPazoTask;
   fTask: TTask;
-  fListIndex: Integer;
-  fList: TObjectList;
 begin
   try
     main_lock.Enter('RemovePazoDirTasks');
     try
-      for fListIndex := 0 to 1 do
-      begin
-        if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-        for fTask in fList do
+        for fTask in tasks do
         begin
         try
           if (fTask is TPazoDirlistTask) or (fTask is TPazoMkdirTask) then
@@ -1553,7 +1393,6 @@ begin
             Debug(dpError, section, Format('[EXCEPTION] RemoveDirlistTasks : %s', [e.Message]));
           end;
         end;
-      end;
       end;
     finally
       main_lock.Leave;
@@ -1573,8 +1412,6 @@ var
   fTask: TTask;
   fSlotsToRebuild: TList<TSiteSlot>;
   fSlot: TSiteSlot;
-  fListIndex: Integer;
-  fList: TObjectList;
   fSlotsRebuilt: Boolean;
 begin
   Result := False;
@@ -1583,10 +1420,7 @@ begin
   try
     main_lock.Enter('RemovePazo');
     try
-      for fListIndex := 0 to 1 do
-      begin
-        if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-        for fTask in fList do
+        for fTask in tasks do
         begin
         try
           if fTask is TPazoPlainTask then
@@ -1620,7 +1454,6 @@ begin
             Debug(dpError, section, Format('[EXCEPTION] RemovePazo (loop): %s', [e.Message]));
           end;
         end;
-      end;
       end;
     finally
       main_lock.Leave;
@@ -1660,16 +1493,11 @@ procedure TQueueThread.RemovePazoMKDIR(const pazo_id: integer; const dir: String
 var
   ttp: TPazoMkdirTask;
   fTask: TTask;
-  fListIndex: Integer;
-  fList: TObjectList;
 begin
   try
     main_lock.Enter('RemovePazoMKDIR');
     try
-      for fListIndex := 0 to 1 do
-      begin
-        if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-        for fTask in fList do
+        for fTask in tasks do
         try
           if (fTask is TPazoMkdirTask) then
           begin
@@ -1683,7 +1511,6 @@ begin
           end;
         except
           Continue;
-        end;
       end;
     finally
       main_lock.Leave;
@@ -1700,16 +1527,11 @@ procedure TQueueThread.RemovePazoSfv(const aPazoID: integer; const aDir: String)
 var
   fTask: TPazoSiteSfvTask;
   fAbstractTask: TTask;
-  fListIndex: Integer;
-  fList: TObjectList;
 begin
   try
     main_lock.Enter('RemovePazoSfv');
     try
-      for fListIndex := 0 to 1 do
-      begin
-        if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-        for fAbstractTask in fList do
+        for fAbstractTask in tasks do
         begin
         if (fAbstractTask is TPazoSiteSfvTask) then
         begin
@@ -1720,7 +1542,6 @@ begin
             Debug(dpSpam, 'sfv', Format('Remove SFV task : %s %s %s (%s)', [fTask.mainpazo.rls.rlsname, fTask.dir, fTask.SFVFilename, fTask.site1]));
           end;
         end;
-      end;
       end;
     finally
       main_lock.Leave;
@@ -1737,16 +1558,11 @@ procedure TQueueThread.RemovePazoRace(const pazo_id: integer; const dstsite, dir
 var
   ttp: TPazoRaceTask;
   fTask: TTask;
-  fListIndex: Integer;
-  fList: TObjectList;
 begin
   try
     main_lock.Enter('RemovePazoRace');
     try
-      for fListIndex := 0 to 1 do
-      begin
-        if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-        for fTask in fList do
+        for fTask in tasks do
         begin
         try
           if (fTask is TPazoRaceTask) then
@@ -1766,7 +1582,6 @@ begin
             Continue;
           end;
         end;
-      end;
       end;
     finally
       main_lock.Leave;
@@ -1790,9 +1605,6 @@ var
   fNextTaskStartAt: TDateTime;
   fWaitTimerTimeout: Cardinal;
   fCooldownTimeout: Cardinal;
-  bTasksMoved: Boolean;
-  fListIndex: Integer;
-  fList: TObjectList;
   fPendingCount: Integer;
 begin
   while ((not slshutdown) and (not Terminated)) do
@@ -1815,17 +1627,13 @@ begin
     fBusyDestinationsTmp := fBusyDestinations;
     fBusyDestinations := TDictionary<TObject, integer>.Create;
     fNextTaskStartAt := MaxDateTime;
-    bTasksMoved := False;
     //Debug(dpSpam, section, 'Queue Iteration begin (%s) [%d tasks]', [ts.Name, tasks.Count]);
     try
       main_lock.Enter('Execute');
       try
         // Phase 5b: Rebuild pending-race-destinations map for targeted wakeups
         fPendingRaceDestinations.Clear;
-        for fListIndex := 0 to 1 do
-        begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for fTask in fList do
+          for fTask in tasks do
           begin
             if (fTask is TPazoRaceTask) and (fTask.slot1 = nil) then
             begin
@@ -1835,39 +1643,21 @@ begin
                 fPendingRaceDestinations.Add(TPazoRaceTask(fTask).site2, 1);
             end;
           end;
-        end;
 
-        // Move mature tasks from waiting_tasks to main tasks queue
-        for i := waiting_tasks.Count - 1 downto 0 do
+        // Calculate next delayed task wakeup time from tasks with future startat
+        for fTask in tasks do
         begin
-          if i < 0 then Break;
-          fTask := TTask(waiting_tasks.items[i]);
-          if fTask = nil then Continue;
-          
-          if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
-          begin
-            waiting_tasks.Extract(fTask);
-            tasks.Add(fTask);
-            bTasksMoved := True;
-          end
-          else if (fTask.startat > 0) and (fTask.startat < fNextTaskStartAt) then
-          begin
+          if (fTask.startat > 0) and (fTask.startat > queue_last_run) and (fTask.startat < fNextTaskStartAt) then
             fNextTaskStartAt := fTask.startat;
-          end;
         end;
 
-        if bTasksMoved then
-          tasks.Sort(@QueueSorter);
 
-        for fListIndex := 0 to 1 do
-        begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for i := fList.Count - 1 downto 0 do
+          for i := tasks.Count - 1 downto 0 do
           begin
             if i < 0 then
               Break;
 
-            fTask := TTask(fList.items[i]);
+            fTask := TTask(tasks.items[i]);
 
           if fTask = nil then
             Continue;
@@ -1891,7 +1681,7 @@ begin
                 Debug(dpError, section, Format('[AV-DEBUG] RemoveReady fTask.readyerror access failed for %s: %s', [fTask.Name, E.Message]));
                 Continue;
               end;
-            end;
+              end;
 
             if ((fTask.ready) or (fTask.readyerror)) then
             begin
@@ -2001,14 +1791,14 @@ begin
                 try
                   ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
                   try
-                    fList.Remove(fTask);
+                    tasks.Remove(fTask);
                   finally
                     ts.ReleaseSlotsAssignmentLock;
                   end;
                 except
                   on E: Exception do
                   begin
-                    Debug(dpError, section, Format('[AV-DEBUG] RemoveReady fList.Remove failed for %s: %s', [fTask.Name, E.Message]));
+                    Debug(dpError, section, Format('[AV-DEBUG] RemoveReady tasks.Remove failed for %s: %s', [fTask.Name, E.Message]));
                   end;
                 end;
 
@@ -2030,57 +1820,31 @@ begin
             end;
           end;
         end;
-        end;
 
         ts.AcquireSlotsAssignmentLock('Queue iterate');
         try
-          for fTask in tasks do
+          // Only scan for best task when slots are actually free
+          while ts.freeslots > 0 do
           begin
+            fTask := FindBestTask(queue_last_run);
+            if fTask = nil then
+            begin
+              fNextTaskStartAt := MaxDateTime;
+              break;
+            end;
+
             try
-              if ts.freeslots = 0 then
-              begin
-                //Debug(dpSpam, section, Format('No free slots on %s', [ts.Name]));
+              TryToAssignSlots(fTask);
 
-                // no need to iterate the queue early if there are no free slots.
-                // when a slot becomes free, a queue fire is issued.
-                fNextTaskStartAt := MaxDateTime;
+              // If assignment failed and task was not delayed, stop scanning
+              // to avoid spinning on the same unassignable task
+              if (fTask.slot1 = nil) and (fTask.startat <= queue_last_run) then
                 break;
-              end;
-
-              if ((fTask.slot1 = nil) and (fTask.slot2 = nil) and (not fTask.ready) and
-                (not fTask.readyerror)) then
-              begin
-                if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
-                begin
-                  if fTask.IsReadyToBeExecuted then
-                begin
-                  // Low-priority race tasks only get slots if no important tasks are waiting
-                  if ((fTask is TPazoRaceTask) and _IsLowPriorityRaceTask(TPazoRaceTask(fTask))) then
-                  begin
-                    if _HasWaitingNonLowPriorityTasks(tasks, queue_last_run) then
-                    begin
-                      if SecondsBetween(Now, fLastLowPriorityLogTime) >= 60 then
-                      begin
-                        Debug(dpMessage, section, 'Low-priority tasks blocked on %s (important tasks waiting)', [fSiteName]);
-                        fLastLowPriorityLogTime := Now;
-                      end;
-                      Continue;
-                    end;
-                  end;
-
-                  TryToAssignSlots(fTask);
-                end;
-                end
-                else if (fTask.startat > 0) and (fTask.startat < fNextTaskStartAt) then
-                begin
-                  fNextTaskStartAt := fTask.startat;
-                end;
-              end;
             except
               on e: Exception do
               begin
-                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (TryToASsignSlots) : %s', [e.Message]));
-                Continue;
+                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (TryToAssignSlots) : %s', [e.Message]));
+                break;
               end;
             end;
           end;
@@ -2277,8 +2041,6 @@ var
   ss: String;
   t:  TTask;
   ts, ts2: TSite;
-  fListIndex: Integer;
-  fList: TObjectList;
 begin
 
   try
@@ -2304,10 +2066,7 @@ begin
   // Check old unassigne task
   main_lock.Enter('QueueClean1');
   try
-    for fListIndex := 0 to 1 do
-    begin
-      if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-      for i := fList.Count - 1 downto 0 do
+      for i := tasks.Count - 1 downto 0 do
       begin
         try
           if i < 0 then
@@ -2315,7 +2074,7 @@ begin
         except
           Break;
         end;
-        t := TTask(fList[i]);
+        t := TTask(tasks[i]);
         try
           ss := t.UidText;
           if ((t.assigned = 0) and not t.dontremove and ((t.startat = 0) or (t.startat <= queue_last_run)) and
@@ -2338,7 +2097,7 @@ begin
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean unassigned task : %s', [t.Fullname]));
 
             // Remove the task from the list so it doesn't linger as a ghost entry
-            fList.Remove(t);
+            tasks.Remove(t);
           end;
         except
           on e: Exception do
@@ -2349,7 +2108,6 @@ begin
           end;
         end;
       end;
-    end;
   finally
     main_lock.Leave;
   end;
@@ -2357,10 +2115,7 @@ begin
   // Check old tasks, assigned bu long time wait
   main_lock.Enter('QueueClean2');
   try
-    for fListIndex := 0 to 1 do
-    begin
-      if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-      for i := fList.Count - 1 downto 0 do
+      for i := tasks.Count - 1 downto 0 do
       begin
         try
         if i < 0 then
@@ -2368,7 +2123,7 @@ begin
         except
           Break;
         end;
-        t := TTask(fList[i]);
+        t := TTask(tasks[i]);
       if ((t.assigned <> 0) and ((t.startat = 0) or (t.startat <= queue_last_run)) and
         (SecondsBetween(t.assigned, Now()) >= queueclean_maxrunning)) then
       begin
@@ -2515,7 +2270,6 @@ begin
         end;
       end;
     end;
-    end;
   finally
     main_lock.Leave;
   end;
@@ -2565,8 +2319,6 @@ procedure TQueueThread.QueueStat;
 var
   t_race, t_dir, t_auto, t_other: integer;
   fTask: TTask;
-  fListIndex: Integer;
-  fList: TObjectList;
 begin
   if MilliSecondsBetween(queue_last_stat_update, Now) < 1000 then
     exit;
@@ -2579,10 +2331,7 @@ begin
 
   main_lock.Enter('QueueStat');
   try
-    for fListIndex := 0 to 1 do
-    begin
-      if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-      for fTask in fList do
+      for fTask in tasks do
       begin
       try
         if ((fTask.ClassType = TPazoRaceTask) or (fTask.ClassType = TWaitTask)) then
@@ -2601,7 +2350,6 @@ begin
           Debug(dpError, section, Format('[EXCEPTION] TQueueThread.QueueStat : %s', [e.Message]));
           Continue;
         end;
-      end;
       end;
     end;
   finally
@@ -2684,17 +2432,11 @@ end;
 procedure TQueueThread.QueueSendCurrentTasksToConsole;
 var
   fTask: TTask;
-  fListIndex: Integer;
-  fList: TObjectList;
 begin
   main_lock.Enter('QueueSendCurrentTasksToConsole');
   try
-    for fListIndex := 0 to 1 do
-    begin
-      if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-      for fTask in fList do
+      for fTask in tasks do
         AddTaskToConsole(fTask);
-    end;
   finally
     main_lock.Leave;
   end;
@@ -2703,16 +2445,11 @@ end;
 function TQueueThread.FetchAutoIndex: TAutoIndexTask;
 var
   fTask: TTask;
-  fListIndex: Integer;
-  fList: TObjectList;
 begin
   Result := nil;
   main_lock.Enter('FetchAutoIndex');
   try
-    for fListIndex := 0 to 1 do
-    begin
-      if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-      for fTask in fList do
+      for fTask in tasks do
       begin
       try
         if (fTask is TAutoIndexTask) then
@@ -2726,7 +2463,6 @@ begin
           Debug(dpError, section, Format('[EXCEPTION] TSite.FetchAutoIndex: %s', [e.Message]));
         end;
       end;
-      end;
     end;
   finally
     main_lock.Leave;
@@ -2736,16 +2472,11 @@ end;
 function TQueueThread.FetchAutoDirlist: TAutoDirlistTask;
 var
   fTask: TTask;
-  fListIndex: Integer;
-  fList: TObjectList;
 begin
   Result := nil;
   main_lock.Enter('FetchAutoDirlist');
   try
-    for fListIndex := 0 to 1 do
-    begin
-      if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-      for fTask in fList do
+      for fTask in tasks do
       begin
       try
         if (fTask is TAutoDirlistTask) then
@@ -2759,7 +2490,6 @@ begin
           Debug(dpError, section, Format('[EXCEPTION] TSite.FetchAutoDirlist: %s', [e.Message]));
         end;
       end;
-      end;
     end;
   finally
     main_lock.Leave;
@@ -2769,16 +2499,11 @@ end;
 function TQueueThread.FetchAutoNuke: TAutoNukeTask;
 var
   fTask: TTask;
-  fListIndex: Integer;
-  fList: TObjectList;
 begin
   Result := nil;
   main_lock.Enter('FetchAutoNuke');
   try
-    for fListIndex := 0 to 1 do
-    begin
-      if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-      for fTask in fList do
+      for fTask in tasks do
       begin
       try
         if (fTask is TAutoNukeTask) then
@@ -2792,7 +2517,6 @@ begin
           Debug(dpError, section, Format('[EXCEPTION] TSite.FetchAutoNuke: %s', [e.Message]));
         end;
       end;
-      end;
     end;
   finally
     main_lock.Leave;
@@ -2803,16 +2527,11 @@ function TQueueThread.FetchAutoBnctest: TLoginTask;
 var
   fTask: TTask;
   t: TLoginTask;
-  fListIndex: Integer;
-  fList: TObjectList;
 begin
   Result := nil;
   main_lock.Enter('FetchAutoBnctest');
   try
-    for fListIndex := 0 to 1 do
-    begin
-      if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-      for fTask in fList do
+      for fTask in tasks do
       begin
       try
         if (fTask is TLoginTask) then
@@ -2830,7 +2549,6 @@ begin
           Debug(dpError, section, Format('[EXCEPTION] TSite.FetchAutoBnctest: %s', [e.Message]));
         end;
       end;
-      end;
     end;
   finally
     main_lock.Leave;
@@ -2840,16 +2558,11 @@ end;
 function TQueueThread.FetchAutoRules: TRulesTask;
 var
   fTask: TTask;
-  fListIndex: Integer;
-  fList: TObjectList;
 begin
   Result := nil;
   main_lock.Enter('FetchAutoRules');
   try
-    for fListIndex := 0 to 1 do
-    begin
-      if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-      for fTask in fList do
+      for fTask in tasks do
       begin
       try
         if (fTask is TRulesTask) then
@@ -2863,7 +2576,6 @@ begin
           Debug(dpError, section, Format('[EXCEPTION] TSite.FetchAutoRules: %s', [e.Message]));
         end;
       end;
-      end;
     end;
   finally
     main_lock.Leave;
@@ -2876,8 +2588,6 @@ var
   rx: TRegExpr;
   i: Int32;
   ts: TSite;
-  fListIndex: Integer;
-  fList: TObjectList;
 begin
   Result := False;
 
@@ -2892,10 +2602,7 @@ begin
     rx.Expression := 'AUTOLOGIN';
     main_lock.Enter('IrcKillAll');
 
-    for fListIndex := 0 to 1 do
-    begin
-      if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-      for i := fList.Count - 1 downto 0 do
+      for i := tasks.Count - 1 downto 0 do
       begin
         try
           if i < 0 then
@@ -2904,28 +2611,27 @@ begin
           Break;
         end;
 
-        fTask := TTask(fList.items[i]);
-      if not rx.Exec(TPazoTask(fTask).FullName) then
-      begin
-        irc_Addtext(netname, channel, 'Removing Task -> %s', [TPazoTask(fTask).FullName]);
-        try
-          ts.AcquireSlotsAssignmentLock('killall');
+        fTask := TTask(tasks.items[i]);
+        if not rx.Exec(TPazoTask(fTask).FullName) then
+        begin
+          irc_Addtext(netname, channel, 'Removing Task -> %s', [TPazoTask(fTask).FullName]);
+          try
+            ts.AcquireSlotsAssignmentLock('killall');
             try
-              fList.Remove(TPazoTask(fTask));
+              tasks.Remove(TPazoTask(fTask));
             finally
               ts.ReleaseSlotsAssignmentLock;
             end;
-        except
-          on e: Exception do
-            irc_Addtext(netname, channel, '<c4><b>ERROR</c></b>: IrcKillAll.tasks.Remove: %s', [e.Message]);
+          except
+            on e: Exception do
+              irc_Addtext(netname, channel, '<c4><b>ERROR</c></b>: IrcKillAll.tasks.Remove: %s', [e.Message]);
+          end;
         end;
-      end
       end;
+    finally
+      main_lock.Leave;
+      rx.Free;
     end;
-  finally
-    main_lock.Leave;
-    rx.Free;
-  end;
 
   Result := True;
 end;
@@ -2935,8 +2641,6 @@ function TQueueThread.GetPendingRaceTasksToDestination(const aDestinationSiteNam
 var
   fTask: TTask;
   fRaceTask: TPazoRaceTask;
-  fListIndex: Integer;
-  fList: TObjectList;
 begin
   Result := 0;
   if aDestinationSiteName = '' then
@@ -2944,10 +2648,7 @@ begin
 
   main_lock.Enter('GetPendingRaceTasksToDestination');
   try
-    for fListIndex := 0 to 1 do
-    begin
-      if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-      for fTask in fList do
+      for fTask in tasks do
       begin
         if not (fTask is TPazoRaceTask) then
           Continue;
@@ -2958,7 +2659,6 @@ begin
           Inc(Result);
         end;
       end;
-    end;
   finally
     main_lock.Leave;
   end;
@@ -2968,22 +2668,16 @@ end;
   var
   fTask: TTask;
   fQueueTask: TQueueTask;
-  fListIndex: Integer;
-  fList: TObjectList;
   begin
     main_lock.Enter('GetCurrentTasks');
     try
-      for fListIndex := 0 to 1 do
-      begin
-        if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-        for fTask in fList do
+        for fTask in tasks do
         begin
           fQueueTask := TQueueTask.Create;
           fQueueTask.FFullname := fTask.Fullname;
           fQueueTask.FType := fTask.ClassType;
           taskLst.Add(fQueueTask);
         end;
-      end;
     finally
       main_lock.Leave;
     end;
