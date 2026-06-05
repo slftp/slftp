@@ -702,6 +702,7 @@ var
   fResult: TTask;
 begin
   fQueue := TQueueThread.Create('QUEUE_TEST');
+  fQueue.FreeOnTerminate := False;
   try
     fResult := fQueue.FindBestTask(Now);
     CheckTrue(fResult = nil, 'Empty queue should return nil');
@@ -718,6 +719,7 @@ var
   fResult: TTask;
 begin
   fQueue := TQueueThread.Create('QUEUE_TEST');
+  fQueue.FreeOnTerminate := False;
   try
     fWaitTask := TWaitTask.Create('', '', 'SRC');
     fQueue.AddTask(fWaitTask);
@@ -737,6 +739,7 @@ var
   fResult: TTask;
 begin
   fQueue := TQueueThread.Create('QUEUE_TEST');
+  fQueue.FreeOnTerminate := False;
   try
     fLoginTask := TLoginTask.Create('', '', 'SRC', False, False);
     fQueue.AddTask(fLoginTask);
@@ -757,6 +760,7 @@ var
   fResult: TTask;
 begin
   fQueue := TQueueThread.Create('QUEUE_TEST');
+  fQueue.FreeOnTerminate := False;
   try
     fWaitTask := TWaitTask.Create('', '', 'SRC');
     fWaitTask.startat := Now + 1;
@@ -776,6 +780,7 @@ var
   fResult: TTask;
 begin
   fQueue := TQueueThread.Create('QUEUE_TEST');
+  fQueue.FreeOnTerminate := False;
   try
     fWaitTask := TWaitTask.Create('', '', 'SRC');
     fWaitTask.slot1 := TObject.Create; // fake assigned

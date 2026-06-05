@@ -32,7 +32,7 @@ type
 
   private
   tasks:      TObjectList;
-  queueevent: TSynEvent;
+  queueevent: TEvent;
   fSiteName: String;
   fSite: TObject;
   fBusyDestinations: TDictionary<TObject, integer>;
@@ -465,7 +465,7 @@ begin
   try
     main_lock := TSLCriticalSection2.Create('Queue_' + aSiteName);
     tasks := TObjectList.Create(True);
-    queueevent := TSynEvent.Create;
+    queueevent := TEvent.Create(nil, False, False, 'SLFTP_queue_event_' + aSiteName);
     queue_last_run := Now;
     queueclean_last_run := Now;
     queue_last_stat_update := Now;
@@ -2017,16 +2017,12 @@ begin
     end;
 
     if fWaitTimerTimeout = 0 then
-    begin
-      // Something is immediately ready; don't sleep at all
-      continue;
-    end;
+      fWaitTimerTimeout := 1;
 
-    if queueevent.WaitFor(fWaitTimerTimeout) then
+    if queueevent.WaitFor(fWaitTimerTimeout) = wrSignaled then
     begin
       { Event fired. Normal exit. }
       //Debug(dpSpam, section, Format('[QUEUEFIRE received : %s', [ts.Name]));
-      queueevent.ResetEvent;
     end
     else { Timeout reached — either startat task or 60s safety cap }
     begin
