@@ -1867,7 +1867,6 @@ begin
               fTask := FindBestTask(queue_last_run, fSkippedTasks);
               if fTask = nil then
               begin
-                fNextTaskStartAt := MaxDateTime;
                 break;
               end;
 
@@ -2015,6 +2014,10 @@ begin
       if fCooldownTimeout < fWaitTimerTimeout then
         fWaitTimerTimeout := fCooldownTimeout;
     end;
+
+    // Cap at 1000ms safety timeout to ensure periodic housekeeping (stats, cleanup, relogin) runs
+    if fWaitTimerTimeout > 1000 then
+      fWaitTimerTimeout := 1000;
 
     if fWaitTimerTimeout = 0 then
       fWaitTimerTimeout := 1;
