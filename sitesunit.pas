@@ -509,11 +509,13 @@ type
     procedure ResetMaxSimUpCooldown;
     function MaxSimUpCooldownActive: boolean;
     function MaxSimUpCooldownRemainingSeconds: integer;
+    function MaxSimUpCooldownRemainingMs: integer;
 
     procedure RegisterMaxSimDownHit(const aSlotName: String);
     procedure ResetMaxSimDownCooldown;
     function MaxSimDownCooldownActive: boolean;
     function MaxSimDownCooldownRemainingSeconds: integer;
+    function MaxSimDownCooldownRemainingMs: integer;
 
     { helper function for getting delayleech (see @link(delayleech)) min value from inifile.
       @param(aSection sectionname)
@@ -584,6 +586,7 @@ type
     procedure ResetLoginCooldown;
     { @abstract(Returns remaining login cooldown seconds) }
     function LoginCooldownRemainingSeconds: integer;
+    function LoginCooldownRemainingMs: integer;
     { @abstract(Increment active login attempt counter) }
     procedure IncrementActiveLoginAttempts;
     { @abstract(Decrement active login attempt counter) }
@@ -3864,12 +3867,28 @@ begin
   Result := SecondsBetween(Now, fMaxSimUpCooldownUntil);
 end;
 
+function TSite.MaxSimUpCooldownRemainingMs: integer;
+begin
+  if not MaxSimUpCooldownActive then
+    Exit(0);
+
+  Result := MilliSecondsBetween(Now, fMaxSimUpCooldownUntil);
+end;
+
 function TSite.MaxSimDownCooldownRemainingSeconds: integer;
 begin
   if not MaxSimDownCooldownActive then
     Exit(0);
 
   Result := SecondsBetween(Now, fMaxSimDownCooldownUntil);
+end;
+
+function TSite.MaxSimDownCooldownRemainingMs: integer;
+begin
+  if not MaxSimDownCooldownActive then
+    Exit(0);
+
+  Result := MilliSecondsBetween(Now, fMaxSimDownCooldownUntil);
 end;
 
 function TSite.GetDelayLeechMin(const aSection: String): integer;
@@ -5211,6 +5230,14 @@ begin
     Result := 0
   else
     Result := SecondsBetween(Now, fLoginCooldownUntil);
+end;
+
+function TSite.LoginCooldownRemainingMs: integer;
+begin
+  if not LoginCooldownActive then
+    Result := 0
+  else
+    Result := MilliSecondsBetween(Now, fLoginCooldownUntil);
 end;
 
 procedure TSite.IncrementActiveLoginAttempts;

@@ -1998,19 +1998,19 @@ begin
     // so we can retry assigning tasks that were skipped due to the cooldown.
     if ts.MaxSimUpCooldownActive then
     begin
-      fCooldownTimeout := ts.MaxSimUpCooldownRemainingSeconds * 1000;
+      fCooldownTimeout := ts.MaxSimUpCooldownRemainingMs;
       if fCooldownTimeout < fWaitTimerTimeout then
         fWaitTimerTimeout := fCooldownTimeout;
     end;
     if ts.MaxSimDownCooldownActive then
     begin
-      fCooldownTimeout := ts.MaxSimDownCooldownRemainingSeconds * 1000;
+      fCooldownTimeout := ts.MaxSimDownCooldownRemainingMs;
       if fCooldownTimeout < fWaitTimerTimeout then
         fWaitTimerTimeout := fCooldownTimeout;
     end;
     if ts.LoginCooldownActive then
     begin
-      fCooldownTimeout := ts.LoginCooldownRemainingSeconds * 1000;
+      fCooldownTimeout := ts.LoginCooldownRemainingMs;
       if fCooldownTimeout < fWaitTimerTimeout then
         fWaitTimerTimeout := fCooldownTimeout;
     end;
