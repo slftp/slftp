@@ -1029,7 +1029,8 @@ begin
     begin
       if fFilesize < de.filesize then
       begin
-        FUniqueFileListOfRelease[fKey] := de.filesize;
+        FUniqueFileListOfRelease.Remove(fKey);
+        FUniqueFileListOfRelease.Add(fKey, de.filesize);
         Result := de.filesize;
       end
       else

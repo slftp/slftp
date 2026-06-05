@@ -1638,7 +1638,10 @@ begin
             if (fTask is TPazoRaceTask) and (fTask.slot1 = nil) then
             begin
               if fPendingRaceDestinations.TryGetValue(TPazoRaceTask(fTask).site2, fPendingCount) then
-                fPendingRaceDestinations[TPazoRaceTask(fTask).site2] := fPendingCount + 1
+              begin
+                fPendingRaceDestinations.Remove(TPazoRaceTask(fTask).site2);
+                fPendingRaceDestinations.Add(TPazoRaceTask(fTask).site2, fPendingCount + 1);
+              end
               else
                 fPendingRaceDestinations.Add(TPazoRaceTask(fTask).site2, 1);
             end;
