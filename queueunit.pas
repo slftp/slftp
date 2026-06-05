@@ -55,7 +55,7 @@ public
     Read by TSiteSlot.Execute under main_lock to do targeted wakeups. }
   fPendingRaceDestinations: TDictionary<String, Integer>;
 
-  function FindBestTask(aNow: TDateTime; aSkippedTasks: TList<TTask> = nil): TTask;
+  function FindBestTask(aNow: TDateTime; aHasImportantWaiting: Boolean = False; aSkippedTasks: TList<TTask> = nil): TTask;
   procedure QueueFire;
 procedure QueueStart;
 procedure AddTask(t: TTask);
@@ -384,21 +384,17 @@ begin
   end;
 end;
 
-function TQueueThread.FindBestTask(aNow: TDateTime; aSkippedTasks: TList<TTask> = nil): TTask;
+function TQueueThread.FindBestTask(aNow: TDateTime; aHasImportantWaiting: Boolean = False; aSkippedTasks: TList<TTask> = nil): TTask;
 var
   bestTask: TTask;
   bestScore: Int64;
   t: TTask;
   score: Int64;
   tpr: TPazoRaceTask;
-  hasImportantWaiting: Boolean;
 begin
   Result := nil;
   bestTask := nil;
   bestScore := Low(Int64);
-
-  // Pre-check: are there any important (non-low-priority) tasks waiting?
-  hasImportantWaiting := _HasWaitingNonLowPriorityTasks(tasks, aNow, aSkippedTasks);
 
   for t in tasks do
   begin
@@ -422,7 +418,7 @@ begin
     if (t is TPazoRaceTask) then
     begin
       tpr := TPazoRaceTask(t);
-      if _IsLowPriorityRaceTask(tpr) and hasImportantWaiting then
+      if _IsLowPriorityRaceTask(tpr) and aHasImportantWaiting then
         Continue;
     end;
 
@@ -1639,6 +1635,7 @@ var
   fCooldownTimeout: Cardinal;
   fPendingCount: Integer;
   fSkippedTasks: TList<TTask>;
+  fHasImportantWaiting: Boolean;
 begin
   while ((not slshutdown) and (not Terminated)) do
   begin
@@ -1857,6 +1854,8 @@ begin
           end;
         end;
 
+        fHasImportantWaiting := _HasWaitingNonLowPriorityTasks(tasks, queue_last_run);
+
         fSkippedTasks := TList<TTask>.Create;
         try
           ts.AcquireSlotsAssignmentLock('Queue iterate');
@@ -1864,7 +1863,7 @@ begin
             // Only scan for best task when slots are actually free
             while ts.freeslots > 0 do
             begin
-              fTask := FindBestTask(queue_last_run, fSkippedTasks);
+              fTask := FindBestTask(queue_last_run, fHasImportantWaiting, fSkippedTasks);
               if fTask = nil then
               begin
                 break;
@@ -2015,9 +2014,9 @@ begin
         fWaitTimerTimeout := fCooldownTimeout;
     end;
 
-    // Cap at 1000ms safety timeout to ensure periodic housekeeping (stats, cleanup, relogin) runs
-    if fWaitTimerTimeout > 1000 then
-      fWaitTimerTimeout := 1000;
+    // Cap at 15000ms safety timeout to ensure periodic housekeeping (stats, cleanup, relogin) runs
+    if fWaitTimerTimeout > 15000 then
+      fWaitTimerTimeout := 15000;
 
     if fWaitTimerTimeout = 0 then
       fWaitTimerTimeout := 1;
