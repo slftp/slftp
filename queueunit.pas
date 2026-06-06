@@ -2103,6 +2103,12 @@ begin
     if fWaitTimerTimeout = 0 then
       fWaitTimerTimeout := 1;
 
+    // Anti-busy-loop guard: if this iteration produced zero successful assignments,
+    // don't let tiny cooldown timeouts (1ms) burn CPU. Wait at least 50ms before
+    // retrying. We will still wake immediately if QueueFire signals a real change.
+    if (fSuccessfulAssignments = 0) and (fWaitTimerTimeout < 50) then
+      fWaitTimerTimeout := 50;
+
     if queueevent.WaitFor(fWaitTimerTimeout) = wrSignaled then
     begin
       { Event fired. Normal exit. }
