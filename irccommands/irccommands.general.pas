@@ -8,6 +8,7 @@ function IrcDie(const netname, channel, params: String): boolean;
 function IrcUptime(const netname, channel, params: String): boolean;
 function IrcShowAppStatus(const netname, channel, params: String): boolean;
 function IrcQueue(const netname, channel, params: String): boolean;
+function IrcQueuePerf(const netname, channel, params: String): boolean;
 function IrcLastLog(const netname, channel, params: String): boolean;
 function IrcSetDebugverbosity(const netname, channel, params: String): boolean;
 function IrcCreateBackup(const netname, channel, params: String): boolean;
@@ -283,6 +284,73 @@ end;
 function IrcQueue(const netname, channel, params: String): boolean;
 begin
   Result := IrcQueueShow(netname, channel, params);
+end;
+
+function IrcQueuePerf(const netname, channel, params: String): boolean;
+var
+  fLines, i: Integer;
+  fSiteFilter, fLine: String;
+  fParts: TStringList;
+  fDisplayed: Integer;
+const
+  MAX_LINES = 50;
+begin
+  Result := False;
+  fLines := 20;
+  fSiteFilter := '';
+
+  if params <> '' then
+  begin
+    fParts := TStringList.Create;
+    try
+      fParts.Delimiter := ' ';
+      fParts.DelimitedText := params;
+      if fParts.Count >= 1 then
+        fLines := StrToIntDef(fParts[0], 20);
+      if fParts.Count >= 2 then
+        fSiteFilter := fParts[1];
+    finally
+      fParts.Free;
+    end;
+  end;
+
+  if fLines > MAX_LINES then
+    fLines := MAX_LINES;
+
+  if not Assigned(QueuePerfLogCS) then
+  begin
+    irc_Addtext(Netname, Channel, 'QueuePerfLog not initialized.');
+    exit;
+  end;
+
+  QueuePerfLogCS.Enter('IrcQueuePerf');
+  try
+    if QueuePerfLog.Count = 0 then
+    begin
+      irc_Addtext(Netname, Channel, 'No queue performance data recorded yet.');
+      Result := True;
+      exit;
+    end;
+
+    irc_Addtext(Netname, Channel, Format('QueuePerf (last %d lines, site=%s): Site | total | p5b | del | rmrdy | asgn | qstat | idle | fb | ok | n',
+      [fLines, fSiteFilter]));
+
+    fDisplayed := 0;
+    for i := Max(0, QueuePerfLog.Count - fLines) to QueuePerfLog.Count - 1 do
+    begin
+      fLine := QueuePerfLog[i];
+      if (fSiteFilter = '') or (Pos(fSiteFilter, fLine) > 0) then
+      begin
+        irc_Addtext(Netname, Channel, fLine);
+        Inc(fDisplayed);
+        if fDisplayed >= MAX_LINES then
+          Break;
+      end;
+    end;
+  finally
+    QueuePerfLogCS.Leave;
+  end;
+  Result := True;
 end;
 
 function IrcLastLog(const netname, channel, params: String): boolean;

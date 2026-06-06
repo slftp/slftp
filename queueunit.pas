@@ -132,6 +132,12 @@ var
   proof_dirs_priority: Integer;
   subs_dirs_priority: Integer;
   cover_dirs_priority: Integer;
+  { Performance timing ringbuffer (RAM only, no disk I/O).
+    Stores last N queue iteration timings for live IRC analysis. }
+  QueuePerfLog: TStringList;
+  QueuePerfLogCS: TSlCriticalSection2;
+  const
+    MAX_QUEUE_PERF_LOG_ENTRIES = 200;
 
 implementation
 
@@ -1637,10 +1643,20 @@ var
   fSkippedTasks: TList<TTask>;
   fHasImportantWaiting: Boolean;
   fLastStep: String;
+  { Timing variables for perf analysis }
+  fTickTotal, fTickPhase5b, fTickDelayed, fTickRemoveReady,
+  fTickAssign, fTickQueueStat, fTickIdleQuit: QWord;
+  fTickStart, fTickSectionStart: QWord;
+  fFindBestTaskCount: Integer;
+  fSuccessfulAssignments: Integer;
+  fPerfLine: String;
 begin
   while ((not slshutdown) and (not Terminated)) do
   begin
     queue_last_run := Now();
+    fTickStart := GetTickCount64;
+    fFindBestTaskCount := 0;
+    fSuccessfulAssignments := 0;
 
     if fSite = nil then
       fSite := FindSiteByName('', fSiteName);
@@ -1663,6 +1679,7 @@ begin
       main_lock.Enter('Execute');
       try
         fLastStep := 'Phase5b-Clear';
+        fTickSectionStart := GetTickCount64;
         // Phase 5b: Rebuild pending-race-destinations map for targeted wakeups
         fPendingRaceDestinations.Clear;
           for fTask in tasks do
@@ -1678,16 +1695,20 @@ begin
                 fPendingRaceDestinations.Add(TPazoRaceTask(fTask).site2, 1);
             end;
           end;
+        fTickPhase5b := GetTickCount64 - fTickSectionStart;
 
         fLastStep := 'DelayedTasks';
+        fTickSectionStart := GetTickCount64;
         // Calculate next delayed task wakeup time from tasks with future startat
         for fTask in tasks do
         begin
           if (fTask.startat > 0) and (fTask.startat > queue_last_run) and (fTask.startat < fNextTaskStartAt) then
             fNextTaskStartAt := fTask.startat;
         end;
+        fTickDelayed := GetTickCount64 - fTickSectionStart;
 
         fLastStep := 'RemoveReady';
+        fTickSectionStart := GetTickCount64;
           for i := tasks.Count - 1 downto 0 do
           begin
             if i < 0 then
@@ -1857,11 +1878,14 @@ begin
           end;
         end;
 
+        fTickRemoveReady := GetTickCount64 - fTickSectionStart;
+
         fLastStep := 'HasImportantWaiting';
         fHasImportantWaiting := _HasWaitingNonLowPriorityTasks(tasks, queue_last_run);
 
         fLastStep := 'SkippedTasks-Create';
         fSkippedTasks := TList<TTask>.Create;
+        fTickSectionStart := GetTickCount64;
         try
           ts.AcquireSlotsAssignmentLock('Queue iterate');
           try
@@ -1869,6 +1893,7 @@ begin
             while ts.freeslots > 0 do
             begin
               fLastStep := 'FindBestTask';
+              Inc(fFindBestTaskCount);
               fTask := FindBestTask(queue_last_run, fHasImportantWaiting, fSkippedTasks);
               if fTask = nil then
               begin
@@ -1882,6 +1907,8 @@ begin
                 // If assignment failed and task was not delayed, stop scanning.
                 // The slot situation hasn't changed, so continuing would just burn CPU
                 // re-scanning the same tasks.
+                if (fTask.slot1 <> nil) then
+                  Inc(fSuccessfulAssignments);
                 if (fTask.slot1 = nil) and (fTask.startat <= queue_last_run) then
                   break;
               except
@@ -1896,6 +1923,7 @@ begin
             ts.ReleaseSlotsAssignmentLock;
           end;
         finally
+          fTickAssign := GetTickCount64 - fTickSectionStart;
           fSkippedTasks.Free;
         end;
       finally
@@ -1904,9 +1932,12 @@ begin
       end;
 
       fLastStep := 'QueueStat';
+      fTickSectionStart := GetTickCount64;
       QueueStat;
+      fTickQueueStat := GetTickCount64 - fTickSectionStart;
 
       fLastStep := 'IdleQuitTasks';
+      fTickSectionStart := GetTickCount64;
       // We are looking for idle
         for s in ts.slots do
         begin
@@ -1962,6 +1993,21 @@ begin
         end;
 
       //Debug(dpSpam, section, 'Queue Iteration end (%s) [%d tasks]', [ts.Name, tasks.Count]);
+      fTickIdleQuit := GetTickCount64 - fTickSectionStart;
+      fTickTotal := GetTickCount64 - fTickStart;
+
+      fPerfLine := Format('%s | total=%d p5b=%d del=%d rmrdy=%d asgn=%d qstat=%d idle=%d | fb=%d ok=%d n=%d',
+        [ts.Name, fTickTotal, fTickPhase5b, fTickDelayed, fTickRemoveReady, fTickAssign,
+         fTickQueueStat, fTickIdleQuit, fFindBestTaskCount, fSuccessfulAssignments, tasks.Count]);
+
+      QueuePerfLogCS.Enter('PerfLog');
+      try
+        QueuePerfLog.Add(fPerfLine);
+        while QueuePerfLog.Count > MAX_QUEUE_PERF_LOG_ENTRIES do
+          QueuePerfLog.Delete(0);
+      finally
+        QueuePerfLogCS.Leave;
+      end;
     except
       on e: Exception do
       begin
@@ -2072,6 +2118,8 @@ begin
   StatsList := TObjectList<TQueueStat>.Create(True);
   Queues := TObjectList<TQueueThread>.Create(False);
   glQueuesLock := TCriticalSection.Create;
+  QueuePerfLog := TStringList.Create;
+  QueuePerfLogCS := TSlCriticalSection2.Create('QueuePerfLog');
   GlDirlistCompletedCounter := TIdThreadSafeInt32.Create;
   GlDirlistRate := 0;
   GlDirlistRateMax := 0;
@@ -2085,6 +2133,8 @@ begin
   FreeAndNil(StatsList);
   FreeAndNil(Queues);
   FreeAndNil(glQueuesLock);
+  FreeAndNil(QueuePerfLog);
+  FreeAndNil(QueuePerfLogCS);
 end;
 
 procedure TQueueThread.QueueClean(run_now: boolean = False);
