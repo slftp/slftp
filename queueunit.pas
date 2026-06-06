@@ -2067,7 +2067,7 @@ begin
         end;
         // Task is due but we couldn't assign it (or no free slots).
         // Don't busy-loop: sleep a minimal amount before retrying.
-        fWaitTimerTimeout := 50;
+        fWaitTimerTimeout := 5;
         // Task is due but no free slots. Wait for other wakeup reasons.
       end
       else
@@ -2109,10 +2109,10 @@ begin
       fWaitTimerTimeout := 1;
 
     // Anti-busy-loop guard: if this iteration produced zero successful assignments,
-    // don't let tiny cooldown timeouts (1ms) burn CPU. Wait at least 50ms before
+    // don't let tiny cooldown timeouts (1ms) burn CPU. Wait at least 5ms before
     // retrying. We will still wake immediately if QueueFire signals a real change.
-    if (fSuccessfulAssignments = 0) and (fWaitTimerTimeout < 50) then
-      fWaitTimerTimeout := 50;
+    if (fSuccessfulAssignments = 0) and (fWaitTimerTimeout < 5) then
+      fWaitTimerTimeout := 5;
 
     if queueevent.WaitFor(fWaitTimerTimeout) = wrSignaled then
     begin
