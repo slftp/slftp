@@ -52,6 +52,12 @@ type
   fPerfAggRemoveReady, fPerfAggAssign, fPerfAggQueueStat, fPerfAggIdleQuit: QWord;
   fPerfAggFindBestTaskCount, fPerfAggSuccessfulAssignments: Integer;
 
+  { Exponential backoff for timer-based wakeups. When the thread wakes from
+    timer (not from QueueFire event) and produces zero assignments, we double
+    the wait time up to a max. This prevents scanning all tasks 700x/sec when
+    nothing has changed. Reset to minimum on any successful assignment or event. }
+  fTimerBackoffMs: Integer;
+
     procedure TryToAssignLoginSlot(t: TLoginTask);
     procedure TryToAssignRaceSlots(t: TPazoRaceTask);
     function TaskAlreadyInQueue(t: TTask): boolean;
@@ -495,6 +501,7 @@ begin
     fSiteName := aSiteName;
     fBusyDestinations := TDictionary<TObject, integer>.Create;
     fPendingRaceDestinations := TDictionary<String, Integer>.Create;
+    fTimerBackoffMs := 5;
   except
     FreeAndNil(fPendingRaceDestinations);
     FreeAndNil(fBusyDestinations);
@@ -2062,12 +2069,13 @@ begin
         begin
           // We just assigned something and more delayed tasks may be due.
           // Skip sleep to keep assigning.
+          fTimerBackoffMs := 5;
           Debug(dpSpam, section, Format('TQueueThread.Execute: skip sleep %s', [ts.Name]));
           continue;
         end;
         // Task is due but we couldn't assign it (or no free slots).
         // Don't busy-loop: sleep a minimal amount before retrying.
-        fWaitTimerTimeout := 5;
+        fWaitTimerTimeout := fTimerBackoffMs;
         // Task is due but no free slots. Wait for other wakeup reasons.
       end
       else
@@ -2109,19 +2117,23 @@ begin
       fWaitTimerTimeout := 1;
 
     // Anti-busy-loop guard: if this iteration produced zero successful assignments,
-    // don't let tiny cooldown timeouts (1ms) burn CPU. Wait at least 5ms before
-    // retrying. We will still wake immediately if QueueFire signals a real change.
-    if (fSuccessfulAssignments = 0) and (fWaitTimerTimeout < 5) then
-      fWaitTimerTimeout := 5;
+    // don't let tiny cooldown timeouts (1ms) burn CPU. Wait at least fTimerBackoffMs
+    // before retrying. We will still wake immediately if QueueFire signals a real change.
+    if (fSuccessfulAssignments = 0) and (fWaitTimerTimeout < fTimerBackoffMs) then
+      fWaitTimerTimeout := fTimerBackoffMs;
 
     if queueevent.WaitFor(fWaitTimerTimeout) = wrSignaled then
     begin
-      { Event fired. Normal exit. }
+      { Event fired — reset backoff to minimum for responsiveness. }
+      fTimerBackoffMs := 5;
       //Debug(dpSpam, section, Format('[QUEUEFIRE received : %s', [ts.Name]));
     end
-    else { Timeout reached — either startat task or 60s safety cap }
+    else { Timeout reached }
     begin
-      // Nothing to log here; timeout is expected for delayed tasks
+      { If we produced nothing this iteration, increase backoff to reduce
+        useless task scanning when nothing has changed. }
+      if fSuccessfulAssignments = 0 then
+        fTimerBackoffMs := Min(fTimerBackoffMs * 2, 100);
     end;
   end;
 end;
