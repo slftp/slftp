@@ -1636,6 +1636,7 @@ var
   fPendingCount: Integer;
   fSkippedTasks: TList<TTask>;
   fHasImportantWaiting: Boolean;
+  fLastStep: String;
 begin
   while ((not slshutdown) and (not Terminated)) do
   begin
@@ -1661,6 +1662,7 @@ begin
     try
       main_lock.Enter('Execute');
       try
+        fLastStep := 'Phase5b-Clear';
         // Phase 5b: Rebuild pending-race-destinations map for targeted wakeups
         fPendingRaceDestinations.Clear;
           for fTask in tasks do
@@ -1677,6 +1679,7 @@ begin
             end;
           end;
 
+        fLastStep := 'DelayedTasks';
         // Calculate next delayed task wakeup time from tasks with future startat
         for fTask in tasks do
         begin
@@ -1684,7 +1687,7 @@ begin
             fNextTaskStartAt := fTask.startat;
         end;
 
-
+        fLastStep := 'RemoveReady';
           for i := tasks.Count - 1 downto 0 do
           begin
             if i < 0 then
@@ -1854,8 +1857,10 @@ begin
           end;
         end;
 
+        fLastStep := 'HasImportantWaiting';
         fHasImportantWaiting := _HasWaitingNonLowPriorityTasks(tasks, queue_last_run);
 
+        fLastStep := 'SkippedTasks-Create';
         fSkippedTasks := TList<TTask>.Create;
         try
           ts.AcquireSlotsAssignmentLock('Queue iterate');
@@ -1863,6 +1868,7 @@ begin
             // Only scan for best task when slots are actually free
             while ts.freeslots > 0 do
             begin
+              fLastStep := 'FindBestTask';
               fTask := FindBestTask(queue_last_run, fHasImportantWaiting, fSkippedTasks);
               if fTask = nil then
               begin
@@ -1870,6 +1876,7 @@ begin
               end;
 
               try
+                fLastStep := 'TryToAssignSlots-' + fTask.ClassName;
                 TryToAssignSlots(fTask);
 
                 // If assignment failed and task was not delayed, record it in the skipped list
@@ -1897,8 +1904,10 @@ begin
         fBusyDestinationsTmp.Free;
       end;
 
+      fLastStep := 'QueueStat';
       QueueStat;
 
+      fLastStep := 'IdleQuitTasks';
       // We are looking for idle
         for s in ts.slots do
         begin
@@ -1957,7 +1966,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute : %s', [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (step=%s): %s', [fLastStep, e.Message]));
       end;
     end;
 
