@@ -1879,17 +1879,16 @@ begin
                 fLastStep := 'TryToAssignSlots-' + fTask.ClassName;
                 TryToAssignSlots(fTask);
 
-                // If assignment failed and task was not delayed, record it in the skipped list
-                // to avoid spinning on the same unassignable task, then continue scanning
+                // If assignment failed and task was not delayed, stop scanning.
+                // The slot situation hasn't changed, so continuing would just burn CPU
+                // re-scanning the same tasks.
                 if (fTask.slot1 = nil) and (fTask.startat <= queue_last_run) then
-                begin
-                  fSkippedTasks.Add(fTask);
-                end;
+                  break;
               except
                 on e: Exception do
                 begin
                   Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (TryToAssignSlots) : %s', [e.Message]));
-                  fSkippedTasks.Add(fTask);
+                  break;
                 end;
               end;
             end;
