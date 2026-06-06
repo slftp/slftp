@@ -2053,12 +2053,16 @@ begin
     begin
       if fNextTaskStartAt <= Now then
       begin
-        if ts.freeslots > 0 then
+        if (ts.freeslots > 0) and (fSuccessfulAssignments > 0) then
         begin
-          // Task should be assigned immediately; don't sleep at all
+          // We just assigned something and more delayed tasks may be due.
+          // Skip sleep to keep assigning.
           Debug(dpSpam, section, Format('TQueueThread.Execute: skip sleep %s', [ts.Name]));
           continue;
         end;
+        // Task is due but we couldn't assign it (or no free slots).
+        // Don't busy-loop: sleep a minimal amount before retrying.
+        fWaitTimerTimeout := 50;
         // Task is due but no free slots. Wait for other wakeup reasons.
       end
       else
