@@ -461,7 +461,7 @@ begin
   try
     main_lock := TSLCriticalSection2.Create('Queue_' + aSiteName);
     tasks := TObjectList.Create(True);
-    queueevent := TEvent.Create(nil, False, False, 'SLFTP_queue_event_' + aSiteName);
+    queueevent := TEvent.Create(nil, False, False, '');
     queue_last_run := Now;
     queueclean_last_run := Now;
     queue_last_stat_update := Now;

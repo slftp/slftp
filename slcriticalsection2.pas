@@ -190,7 +190,7 @@ implementation
       end;
 
       FUseTimeoutLocking := True;
-      FEvent := TEvent.Create(nil, False, True, 'SLFTP_' + aName); { auto-reset, initially signaled }
+      FEvent := TEvent.Create(nil, False, True, ''); { auto-reset, initially signaled }
       FLockCount := 0;
       FLockOwningThreadID := 0;
       FCurrentCodeSegmentName := '';
