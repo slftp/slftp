@@ -44,10 +44,19 @@ type
   fLastLowPriorityLogTime: TDateTime;
   fLastDirlistCount: Integer;
 
+  { Aggregated per-second performance counters. Flushed to QueuePerfLog
+    when the second changes. }
+  fPerfSecond: QWord;
+  fPerfIterCount: Integer;
+  fPerfAggTotal, fPerfAggPhase5b, fPerfAggDelayed,
+  fPerfAggRemoveReady, fPerfAggAssign, fPerfAggQueueStat, fPerfAggIdleQuit: QWord;
+  fPerfAggFindBestTaskCount, fPerfAggSuccessfulAssignments: Integer;
+
     procedure TryToAssignLoginSlot(t: TLoginTask);
     procedure TryToAssignRaceSlots(t: TPazoRaceTask);
     function TaskAlreadyInQueue(t: TTask): boolean;
     procedure QueueStat;
+    procedure FlushPerfLog(const aTaskCount: Integer);
 
 public
   { Phase 5b: lazy-rebuilt map of destination-site -> pending race task count.
@@ -1996,18 +2005,33 @@ begin
       fTickIdleQuit := GetTickCount64 - fTickSectionStart;
       fTickTotal := GetTickCount64 - fTickStart;
 
-      fPerfLine := Format('%s | total=%d p5b=%d del=%d rmrdy=%d asgn=%d qstat=%d idle=%d | fb=%d ok=%d n=%d',
-        [ts.Name, fTickTotal, fTickPhase5b, fTickDelayed, fTickRemoveReady, fTickAssign,
-         fTickQueueStat, fTickIdleQuit, fFindBestTaskCount, fSuccessfulAssignments, tasks.Count]);
-
-      QueuePerfLogCS.Enter('PerfLog');
-      try
-        QueuePerfLog.Add(fPerfLine);
-        while QueuePerfLog.Count > MAX_QUEUE_PERF_LOG_ENTRIES do
-          QueuePerfLog.Delete(0);
-      finally
-        QueuePerfLogCS.Leave;
+      { Aggregate into per-second counters instead of logging every single iteration.
+        This gives meaningful data even when the queue thread wakes rarely. }
+      if fPerfSecond <> (fTickStart div 1000) then
+      begin
+        FlushPerfLog(tasks.Count);
+        fPerfSecond := fTickStart div 1000;
+        fPerfIterCount := 0;
+        fPerfAggTotal := 0;
+        fPerfAggPhase5b := 0;
+        fPerfAggDelayed := 0;
+        fPerfAggRemoveReady := 0;
+        fPerfAggAssign := 0;
+        fPerfAggQueueStat := 0;
+        fPerfAggIdleQuit := 0;
+        fPerfAggFindBestTaskCount := 0;
+        fPerfAggSuccessfulAssignments := 0;
       end;
+      Inc(fPerfIterCount);
+      Inc(fPerfAggTotal, fTickTotal);
+      Inc(fPerfAggPhase5b, fTickPhase5b);
+      Inc(fPerfAggDelayed, fTickDelayed);
+      Inc(fPerfAggRemoveReady, fTickRemoveReady);
+      Inc(fPerfAggAssign, fTickAssign);
+      Inc(fPerfAggQueueStat, fTickQueueStat);
+      Inc(fPerfAggIdleQuit, fTickIdleQuit);
+      Inc(fPerfAggFindBestTaskCount, fFindBestTaskCount);
+      Inc(fPerfAggSuccessfulAssignments, fSuccessfulAssignments);
     except
       on e: Exception do
       begin
@@ -2415,6 +2439,29 @@ begin
   end;
 
   //Debug(dpMessage, section, 'QueueClean end %d', [tasks.Count]);
+end;
+
+procedure TQueueThread.FlushPerfLog(const aTaskCount: Integer);
+var
+  fLine: String;
+begin
+  if fPerfIterCount <= 0 then
+    Exit;
+
+  fLine := Format('%s | sec=%d | n=%d | iters=%d | total=%d | p5b=%d | del=%d | rmrdy=%d | asgn=%d | qstat=%d | idle=%d | fb=%d | ok=%d',
+    [fSiteName, fPerfSecond, aTaskCount, fPerfIterCount,
+     fPerfAggTotal, fPerfAggPhase5b, fPerfAggDelayed, fPerfAggRemoveReady,
+     fPerfAggAssign, fPerfAggQueueStat, fPerfAggIdleQuit,
+     fPerfAggFindBestTaskCount, fPerfAggSuccessfulAssignments]);
+
+  QueuePerfLogCS.Enter('PerfLog');
+  try
+    QueuePerfLog.Add(fLine);
+    while QueuePerfLog.Count > MAX_QUEUE_PERF_LOG_ENTRIES do
+      QueuePerfLog.Delete(0);
+  finally
+    QueuePerfLogCS.Leave;
+  end;
 end;
 
 procedure TQueueThread.QueueStat;

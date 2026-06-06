@@ -332,7 +332,7 @@ begin
       exit;
     end;
 
-    irc_Addtext(Netname, Channel, Format('QueuePerf (last %d lines, site=%s): Site | total | p5b | del | rmrdy | asgn | qstat | idle | fb | ok | n',
+    irc_Addtext(Netname, Channel, Format('QueuePerf (last %d lines, site=%s): Site | sec | n | iters | total | p5b | del | rmrdy | asgn | qstat | idle | fb | ok',
       [fLines, fSiteFilter]));
 
     fDisplayed := 0;
