@@ -1913,13 +1913,18 @@ begin
                 fLastStep := 'TryToAssignSlots-' + fTask.ClassName;
                 TryToAssignSlots(fTask);
 
-                // If assignment failed and task was not delayed, stop scanning.
-                // The slot situation hasn't changed, so continuing would just burn CPU
-                // re-scanning the same tasks.
                 if (fTask.slot1 <> nil) then
                   Inc(fSuccessfulAssignments);
+
+                // If assignment failed and task was not delayed, skip it for this
+                // iteration and try the next best task. The slot situation may have
+                // changed for other tasks (different destinations, different slot
+                // requirements).
                 if (fTask.slot1 = nil) and (fTask.startat <= queue_last_run) then
-                  break;
+                begin
+                  fSkippedTasks.Add(fTask);
+                  Continue;
+                end;
               except
                 on e: Exception do
                 begin
