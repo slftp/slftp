@@ -2073,7 +2073,7 @@ begin
         begin
           // We just assigned something and more delayed tasks may be due.
           // Skip sleep to keep assigning.
-          fTimerBackoffMs := 1;
+          fTimerBackoffMs := 5;
           Debug(dpSpam, section, Format('TQueueThread.Execute: skip sleep %s', [ts.Name]));
           continue;
         end;
@@ -2130,7 +2130,7 @@ begin
     if queueevent.WaitFor(fWaitTimerTimeout) = wrSignaled then
     begin
       { Event fired — reset backoff to minimum for responsiveness. }
-      fTimerBackoffMs := 1;
+      fTimerBackoffMs := 5;
       //Debug(dpSpam, section, Format('[QUEUEFIRE received : %s', [ts.Name]));
     end
     else { Timeout reached }
@@ -2138,7 +2138,7 @@ begin
       { If we produced nothing this iteration, increase backoff to reduce
         useless task scanning when nothing has changed. }
       if fSuccessfulAssignments = 0 then
-        fTimerBackoffMs := 1;
+        fTimerBackoffMs := Min(fTimerBackoffMs * 2, 100);
     end;
   end;
 end;
