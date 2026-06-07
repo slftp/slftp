@@ -1769,6 +1769,8 @@ begin
             break;
           end;
         end;
+        // Wake the queue thread so it can reuse the slot we just freed.
+        site.QueueFire;
       end;
     end;
   end;
@@ -4547,6 +4549,9 @@ begin
     fOldSiteSlot.todotask.slot1 := nil;
     fOldSiteSlot.todotask := nil;
   end;
+
+  // Wake the queue thread so it can assign a task to the rebuilt slot.
+  self.QueueFire;
 
   self.slots[aSlotNumber] := TSiteSlot.Create(self, aSlotNumber);
   fOldSiteSlot.Free;

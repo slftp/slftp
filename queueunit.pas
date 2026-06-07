@@ -2337,6 +2337,10 @@ begin
             if ts2 <> nil then
               ts2.ReleaseSlotsAssignmentLock;
           end;
+          // Wake both source and destination queue threads if slots were freed.
+          ts.QueueFire;
+          if (ts2 <> nil) and (ts2 <> ts) then
+            ts2.QueueFire;
           Inc(tkill_race);
 
           Console_QueueDel(ss);
