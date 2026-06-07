@@ -444,7 +444,7 @@ type
     function RCDateTime(const Name: String; const def: TDateTime): TDateTime;
     procedure WCDateTime(const Name: String; const val: TDateTime);
 
-    procedure AddTask(const t: TTask; const queueFire: boolean = false);
+    procedure AddTask(const t: TTask; const queueFire: boolean = true);
     procedure QueueFire;
     procedure QueueClean;
     procedure QueueSort;
@@ -676,7 +676,7 @@ const
 function ReadSites(): boolean;
 procedure SlotsFire;
 procedure SiteAutoStart;
-procedure AddTask(const t: TTask; const queueFire: boolean = false);
+procedure AddTask(const t: TTask; const queueFire: boolean = true);
 procedure QueueCleanInverval(const interval: integer);
 function RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
 procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
@@ -1105,7 +1105,7 @@ begin
   end;
 end;
 
-procedure TSite.AddTask(const t: TTask; const queueFire: boolean = false);
+procedure TSite.AddTask(const t: TTask; const queueFire: boolean = true);
 begin
   if fQueue = nil then
   begin
@@ -1132,7 +1132,7 @@ begin
   end;
 end;
 
-procedure AddTask(const t: TTask; const queueFire: boolean = false);
+procedure AddTask(const t: TTask; const queueFire: boolean = true);
 var
   fAdminSite: TSite;
 begin
