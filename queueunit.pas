@@ -1908,9 +1908,8 @@ begin
           ts.AcquireSlotsAssignmentLock('Queue iterate');
           try
             // Only scan for best task when slots are actually free.
-            // Cap scans per iteration to prevent burning CPU when many tasks
-            // cannot be assigned (e.g. cooldowns, busy destinations).
-            while (ts.freeslots > 0) and (fFindBestTaskCount < 20) do
+            // Loop until all free slots are filled or no more assignable tasks.
+            while ts.freeslots > 0 do
             begin
               fLastStep := 'FindBestTask';
               Inc(fFindBestTaskCount);
@@ -2073,7 +2072,7 @@ begin
         begin
           // We just assigned something and more delayed tasks may be due.
           // Skip sleep to keep assigning.
-          fTimerBackoffMs := 5;
+          fTimerBackoffMs := 1;
           Debug(dpSpam, section, Format('TQueueThread.Execute: skip sleep %s', [ts.Name]));
           continue;
         end;
@@ -2130,7 +2129,7 @@ begin
     if queueevent.WaitFor(fWaitTimerTimeout) = wrSignaled then
     begin
       { Event fired — reset backoff to minimum for responsiveness. }
-      fTimerBackoffMs := 5;
+      fTimerBackoffMs := 1;
       //Debug(dpSpam, section, Format('[QUEUEFIRE received : %s', [ts.Name]));
     end
     else { Timeout reached }
@@ -2138,7 +2137,7 @@ begin
       { If we produced nothing this iteration, increase backoff to reduce
         useless task scanning when nothing has changed. }
       if fSuccessfulAssignments = 0 then
-        fTimerBackoffMs := Min(fTimerBackoffMs * 2, 100);
+        fTimerBackoffMs := 1;
     end;
   end;
 end;
