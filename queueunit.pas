@@ -1908,8 +1908,9 @@ begin
           ts.AcquireSlotsAssignmentLock('Queue iterate');
           try
             // Only scan for best task when slots are actually free.
-            // Loop until all free slots are filled or no more assignable tasks.
-            while ts.freeslots > 0 do
+            // Cap scans per iteration to prevent burning CPU when many tasks
+            // cannot be assigned (e.g. cooldowns, busy destinations).
+            while (ts.freeslots > 0) and (fFindBestTaskCount < 20) do
             begin
               fLastStep := 'FindBestTask';
               Inc(fFindBestTaskCount);
