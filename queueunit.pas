@@ -2473,13 +2473,37 @@ begin
           ss := t.UidText;
           Debug(dpSpam, section, Format('[QUEUECLEAN] Clean wait task : %s', [t.Fullname]));
 
-          // Wake up the blocking slot thread so it can complete Execute normally.
-          // Do NOT call tasks.Remove here: TWaitTask.Execute blocks in event.WaitFor,
-          // so calling tasks.Remove would free the task object while the slot thread
-          // is still executing it (use-after-free / AV).
-          // The slot thread sets ready := True when Execute returns, clears slot1 in
-          // its cleanup block, and RemoveReady will collect the task on the next pass.
+          // Wake up the blocking slot thread. If the slot has already moved on
+          // (rebuilt / dead), we can safely remove the task. If the slot is still
+          // executing this wait task, only signal the event and mark ready so the
+          // slot thread can clean up without use-after-free.
           TWaitTask(t).event.SetEvent;
+
+          try
+            if (t.slot1 <> nil) and (TSiteSlot(t.slot1).todotask = t) then
+            begin
+              // Slot still holds this task. Mark it ready so RemoveReady will
+              // collect it on the next pass without racing the slot thread.
+              t.ready := True;
+            end
+            else
+            begin
+              // Slot has moved on or task has no slot reference. Safe to remove.
+              if t.slot1 <> nil then
+              begin
+                t.slot1 := nil;
+                t.slot1name := '';
+              end;
+              t.ready := True;
+              tasks.Remove(t);
+            end;
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] QueueClean wait task cleanup: %s', [e.Message]));
+              t.ready := True;
+            end;
+          end;
 
           Inc(tkill_race);
 
