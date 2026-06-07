@@ -1580,6 +1580,7 @@ var
   fSite: TSite;
   fQueueThread: TQueueThread;
   fPendingCount: Integer;
+  fCurrentTask: TTask;
 begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
   tname := 'nil';
@@ -1592,8 +1593,12 @@ begin
 
       if (todotask <> nil) then
       begin
+        // Capture the task reference now. DestroySocket (called from within Execute)
+        // may set self.todotask := nil, which would cause the cleanup block below to
+        // skip slot1/slot2 cleanup. Using fCurrentTask ensures cleanup always runs.
+        fCurrentTask := todotask;
         try
-          tname := todotask.Name;
+          tname := fCurrentTask.Name;
         except
           on E: Exception do
           begin
@@ -1604,18 +1609,18 @@ begin
         Debug(dpSpam, section, Format('--> %s', [Name]));
 
         try
-          if todotask.Execute(self) then
+          if fCurrentTask.Execute(self) then
           begin
             LastTaskExecution := Now();
 
-            if not (todotask is TIdleTask)
+            if not (fCurrentTask is TIdleTask)
 
               //if maxidle is reached, there will be a quit task. we don't want this to count as non-idle operation because
               //then idle tasks would be created again right away
-              and not (todotask is TQuitTask)
+              and not (fCurrentTask is TQuitTask)
 
               //ignore login task if its set to readd (autobnctest)
-              and not ((todotask is TLoginTask) and TLoginTask(todotask).readd)
+              and not ((fCurrentTask is TLoginTask) and TLoginTask(fCurrentTask).readd)
             then
             begin
               LastNonIdleTaskExecution := LastTaskExecution;
@@ -1627,7 +1632,13 @@ begin
             DebugException(dpError, section, 'TSiteSlot.Execute(if todotask.Execute(self) then)' + tname, e);
 
             //make sure the task gets cleaned if an unhandled exception occured when executing the task
-            todotask.readyerror := True;
+            try
+              fCurrentTask.readyerror := True;
+            except
+              // fCurrentTask may point to already-freed memory (use-after-free).
+              // Swallow the AV to prevent it from skipping the cleanup block below
+              // which MUST clear todotask to avoid an infinite AV loop.
+            end;
           end;
         end;
 
@@ -1636,18 +1647,21 @@ begin
         uploadingto := False;
         downloadingfrom := False;
 
-        if (todotask <> nil) then
+        // Use fCurrentTask (captured before Execute) instead of self.todotask.
+        // DestroySocket called inside Execute may have already set self.todotask := nil,
+        // which would skip slot1 cleanup and leave the task stuck in the queue.
+        if (fCurrentTask <> nil) then
         begin
           try
             try
-              if todotask is TPazoRaceTask then
+              if fCurrentTask is TPazoRaceTask then
               begin
-                fSite := TSite(TPazoRaceTask(todotask).ssite2);
+                fSite := TSite(TPazoRaceTask(fCurrentTask).ssite2);
                 if fSite <> nil then
                 begin
                   fSite.AcquireSlotsAssignmentLock('RemoveActiveTransfer');
                   try
-                    TPazoRaceTask(todotask).ps2.RemoveActiveTransfer(TPazoRaceTask(todotask).dir + TPazoRaceTask(todotask).filename);
+                    TPazoRaceTask(fCurrentTask).ps2.RemoveActiveTransfer(TPazoRaceTask(fCurrentTask).dir + TPazoRaceTask(fCurrentTask).filename);
                   finally
                     fSite.ReleaseSlotsAssignmentLock;
                   end;
@@ -1656,7 +1670,7 @@ begin
                 // prepare all possible destination sites for a possible new transfer by firing their queue
                 if ((not shouldquit) and (not slshutdown)) then
                 begin
-                  for fPazoSite in TPazoRaceTask(todotask).mainpazo.PazoSitesList do
+                  for fPazoSite in TPazoRaceTask(fCurrentTask).mainpazo.PazoSitesList do
                   begin
                     for fPair in fPazoSite.destinations do
                     begin
@@ -1666,19 +1680,13 @@ begin
                   end;
                 end;
               end;
-
-              try
-                if (todotask.slot1 <> nil) then
-                begin
-                  todotask.slot1 := nil;
-                end;
-              except
-                on E: Exception do
-                begin
-                  Debug(dpError, section, Format('[WARNING] TSiteSlot.Execute: todotask.slot1 cleanup failed (dangling pointer?): %s', [E.Message]));
-                end;
-              end;
             finally
+              // IMPORTANT: Set todotask := nil BEFORE clearing slot1.
+              // RemoveReady frees tasks where (ready/readyerror=True AND slot1=nil).
+              // If we clear slot1 first, RemoveReady can free the task while we still
+              // need fTodotask in SetTodotask (to read .Name and adjust freeslots).
+              // By clearing todotask first (while slot1 still prevents freeing), the
+              // SetTodotask call safely accesses fTodotask before it can be freed.
               try
                 self.site.AcquireSlotsAssignmentLock('Reset TodoTask');
                 try
@@ -1689,18 +1697,34 @@ begin
               except
                 on E: Exception do
                 begin
-                  // could not reset todotask with the slots assignment lock, but we should reset the todotask anyway.
-                  // This should not really ever happen, other than in a deadlock situation.
                   todotask := nil;
                   Debug(dpError, section,
                     Format('[EXCEPTION] TSiteSlot.Execute : Exception remove todotask with slots assignment lock. Proceed without the lock : %s',
                     [e.Message]));
                 end;
               end;
+
+              // Now clear slot1 — this makes the task eligible for removal by RemoveReady.
+              // We no longer access fCurrentTask after this point.
+              try
+                if (fCurrentTask.slot1 <> nil) then
+                begin
+                  fCurrentTask.slot1 := nil;
+                end;
+              except
+                on E: Exception do
+                begin
+                  Debug(dpError, section, Format('[WARNING] TSiteSlot.Execute: fCurrentTask.slot1 cleanup failed (dangling pointer?): %s', [E.Message]));
+                end;
+              end;
             end;
           except
             on e: Exception do
             begin
+              // Even if the cleanup block AVs (dangling fCurrentTask), todotask MUST
+              // be cleared. Otherwise the while loop will spin forever trying to
+              // access the freed task object on every iteration.
+              todotask := nil;
               Debug(dpError, section,
                 Format('[EXCEPTION] TSiteSlot.Execute : Exception remove todotask : %s',
                 [e.Message]));
