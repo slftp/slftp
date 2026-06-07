@@ -173,6 +173,8 @@ var
   queueclean_maxrunning: Integer;
   enable_queueclean: boolean;
   queue_recycle_post_to_irc: boolean;
+  { queue fire interval from slftp.ini, used as max wait timeout cap }
+  glQueueFireInterval: Cardinal;
   StatsList: TObjectList<TQueueStat>;
 
 { Calculate max allowed dirlist slots for a site based on glMaxDirlistSlots config
@@ -2111,9 +2113,10 @@ begin
         fWaitTimerTimeout := fCooldownTimeout;
     end;
 
-    // Cap at 15000ms safety timeout to ensure periodic housekeeping (stats, cleanup, relogin) runs
-    if fWaitTimerTimeout > 15000 then
-      fWaitTimerTimeout := 15000;
+    // Cap at glQueueFireInterval to ensure periodic housekeeping (stats, cleanup, relogin) runs.
+    // This also acts as the safety-net timer when no events arrive.
+    if fWaitTimerTimeout > glQueueFireInterval then
+      fWaitTimerTimeout := glQueueFireInterval;
 
     if fWaitTimerTimeout = 0 then
       fWaitTimerTimeout := 1;
@@ -2166,6 +2169,7 @@ begin
   queueclean_unassigned := config.ReadInteger('queue', 'queueclean_unassigned', 600);
   enable_queueclean := config.ReadBool(section, 'enable_queueclean', False);
   queue_recycle_post_to_irc := spamcfg.readbool(section, 'queue_recycle', True);
+  glQueueFireInterval := config.ReadInteger(section, 'queue_fire', 100);
   glMaxDirlistSlots := config.ReadString(section, 'max_dirlist_slots', '');
 
   StatsList := TObjectList<TQueueStat>.Create(True);
