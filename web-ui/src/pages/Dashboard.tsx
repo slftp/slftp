@@ -265,7 +265,7 @@ export function Dashboard() {
                     : '1px solid rgba(255, 77, 77, 0.3)',
                 }}
               >
-                cbftp: {stats.CbftpConnected ? 'connected' : 'disconnected'}
+                cbftp: {stats.CbftpConnected ? `connected (${stats.CbftpVersion || 'unknown'})` : 'disconnected'}
               </Badge>
             )}
             <Badge
