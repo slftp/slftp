@@ -118,7 +118,7 @@ begin
     Exit;
   end;
 
-  jl := TlkJSONlist.Create;
+  jl := nil;
   try
     try
       jl := TlkJSON.ParseText(AnsiString(resp)) as TlkJSONlist;
@@ -406,7 +406,7 @@ begin
   tvr := TTVInfoDB.Create(s);
   tvr.tv_genres.Sorted := True;
   tvr.tv_genres.Duplicates := dupIgnore;
-  js := TlkJSONObject.Create();
+  js := nil;
   try
     try
       js := TlkJSON.ParseText(AnsiString(jsonStr)) as TlkJSONObject;

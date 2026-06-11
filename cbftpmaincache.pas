@@ -142,82 +142,91 @@ begin
       if fSitesJson <> '' then
       begin
         fJs := TlkJSON.ParseText(AnsiString(fSitesJson));
-        if (fJs <> nil) and (fJs is TlkJSONlist) then
+        if fJs <> nil then
         begin
-          fJsArr := TlkJSONlist(fJs);
-          for fI := 0 to fJsArr.Count - 1 do
-          begin
-            fSiteName := fJsArr.Child[fI].Value;
-            if fSiteName = '' then
-              Continue;
-
-            // Fetch site details
-            fSiteJson := fClient.GetSite(StringToUtf8(fSiteName));
-            if fSiteJson = '' then
-              Continue;
-
-            FillChar(fSiteEntry, SizeOf(fSiteEntry), 0);
-            fSiteEntry.Name := fSiteName;
-
-            fJsSite := TlkJSON.ParseText(AnsiString(fSiteJson));
-            if (fJsSite <> nil) and (fJsSite is TlkJSONObject) then
+          try
+            if fJs is TlkJSONlist then
             begin
-              fJsObj := fJsSite;
-              fSiteEntry.Disabled := _GetBool(fJsObj, 'disabled');
-              fSiteEntry.Priority := _GetStr(fJsObj, 'priority');
-
-              // UP/DOWN based on allow_upload / allow_download config
-              fSiteEntry.Up := _GetStr(fJsObj, 'allow_upload') = 'YES';
-              fSiteEntry.Down := (_GetStr(fJsObj, 'allow_download') = 'YES') or (_GetStr(fJsObj, 'allow_download') = 'MATCH_ONLY');
-
-              // Connection limits from site config
-              fField := TlkJSONobject(fJsObj).Field['max_logins'];
-              if fField <> nil then
-                fSiteEntry.LoginsMax := StrToIntDef(fField.Value, 0);
-              fField := TlkJSONobject(fJsObj).Field['max_sim_up'];
-              if fField <> nil then
-                fSiteEntry.UploadsMax := StrToIntDef(fField.Value, 0);
-              fField := TlkJSONobject(fJsObj).Field['max_sim_down'];
-              if fField <> nil then
-                fSiteEntry.DownloadsMax := StrToIntDef(fField.Value, 0);
-
-              // Live stats from cbftp's var.* fields
-              fField := TlkJSONobject(fJsObj).Field['var'];
-              if (fField <> nil) and (fField is TlkJSONObject) then
+              fJsArr := TlkJSONlist(fJs);
+              for fI := 0 to fJsArr.Count - 1 do
               begin
-                fJsObj := fField;
-                fField := TlkJSONobject(fJsObj).Field['current_logins'];
-                if fField <> nil then
-                  fSiteEntry.LoginsActive := StrToIntDef(fField.Value, 0);
-                fField := TlkJSONobject(fJsObj).Field['current_up'];
-                if fField <> nil then
-                  fSiteEntry.UploadsActive := StrToIntDef(fField.Value, 0);
-                fField := TlkJSONobject(fJsObj).Field['current_down'];
-                if fField <> nil then
-                  fSiteEntry.DownloadsActive := StrToIntDef(fField.Value, 0);
-                fField := TlkJSONobject(fJsObj).Field['size_up_all'];
-                if fField <> nil then
-                  fSiteEntry.AllUpBytes := StrToInt64Def(fField.Value, 0);
-                fField := TlkJSONobject(fJsObj).Field['size_up_24h'];
-                if fField <> nil then
-                  fSiteEntry.Up24hrBytes := StrToInt64Def(fField.Value, 0);
-                fField := TlkJSONobject(fJsObj).Field['size_down_all'];
-                if fField <> nil then
-                  fSiteEntry.AllDownBytes := StrToInt64Def(fField.Value, 0);
-                fField := TlkJSONobject(fJsObj).Field['size_down_24h'];
-                if fField <> nil then
-                  fSiteEntry.Down24hrBytes := StrToInt64Def(fField.Value, 0);
+                fSiteName := fJsArr.Child[fI].Value;
+                if fSiteName = '' then
+                  Continue;
+
+                // Fetch site details
+                fSiteJson := fClient.GetSite(StringToUtf8(fSiteName));
+                if fSiteJson = '' then
+                  Continue;
+
+                FillChar(fSiteEntry, SizeOf(fSiteEntry), 0);
+                fSiteEntry.Name := fSiteName;
+
+                fJsSite := TlkJSON.ParseText(AnsiString(fSiteJson));
+                if fJsSite <> nil then
+                begin
+                  try
+                    if fJsSite is TlkJSONObject then
+                    begin
+                      fJsObj := fJsSite;
+                      fSiteEntry.Disabled := _GetBool(fJsObj, 'disabled');
+                      fSiteEntry.Priority := _GetStr(fJsObj, 'priority');
+
+                      // UP/DOWN based on allow_upload / allow_download config
+                      fSiteEntry.Up := _GetStr(fJsObj, 'allow_upload') = 'YES';
+                      fSiteEntry.Down := (_GetStr(fJsObj, 'allow_download') = 'YES') or (_GetStr(fJsObj, 'allow_download') = 'MATCH_ONLY');
+
+                      // Connection limits from site config
+                      fField := TlkJSONobject(fJsObj).Field['max_logins'];
+                      if fField <> nil then
+                        fSiteEntry.LoginsMax := StrToIntDef(fField.Value, 0);
+                      fField := TlkJSONobject(fJsObj).Field['max_sim_up'];
+                      if fField <> nil then
+                        fSiteEntry.UploadsMax := StrToIntDef(fField.Value, 0);
+                      fField := TlkJSONobject(fJsObj).Field['max_sim_down'];
+                      if fField <> nil then
+                        fSiteEntry.DownloadsMax := StrToIntDef(fField.Value, 0);
+
+                      // Live stats from cbftp's var.* fields
+                      fField := TlkJSONobject(fJsObj).Field['var'];
+                      if (fField <> nil) and (fField is TlkJSONObject) then
+                      begin
+                        fJsObj := fField;
+                        fField := TlkJSONobject(fJsObj).Field['current_logins'];
+                        if fField <> nil then
+                          fSiteEntry.LoginsActive := StrToIntDef(fField.Value, 0);
+                        fField := TlkJSONobject(fJsObj).Field['current_up'];
+                        if fField <> nil then
+                          fSiteEntry.UploadsActive := StrToIntDef(fField.Value, 0);
+                        fField := TlkJSONobject(fJsObj).Field['current_down'];
+                        if fField <> nil then
+                          fSiteEntry.DownloadsActive := StrToIntDef(fField.Value, 0);
+                        fField := TlkJSONobject(fJsObj).Field['size_up_all'];
+                        if fField <> nil then
+                          fSiteEntry.AllUpBytes := StrToInt64Def(fField.Value, 0);
+                        fField := TlkJSONobject(fJsObj).Field['size_up_24h'];
+                        if fField <> nil then
+                          fSiteEntry.Up24hrBytes := StrToInt64Def(fField.Value, 0);
+                        fField := TlkJSONobject(fJsObj).Field['size_down_all'];
+                        if fField <> nil then
+                          fSiteEntry.AllDownBytes := StrToInt64Def(fField.Value, 0);
+                        fField := TlkJSONobject(fJsObj).Field['size_down_24h'];
+                        if fField <> nil then
+                          fSiteEntry.Down24hrBytes := StrToInt64Def(fField.Value, 0);
+                      end;
+                    end;
+                  finally
+                    fJsSite.Free;
+                  end;
+                end;
+
+                CbftpMainCacheUpdateSite(fSiteEntry);
               end;
-
-              fJsSite.Free;
             end;
-
-            CbftpMainCacheUpdateSite(fSiteEntry);
+          finally
+            fJs.Free;
           end;
-          fJs.Free;
-        end
-        else if fJs <> nil then
-          fJs.Free;
+        end;
       end;
 
       GlLastSiteRefresh := Now;
