@@ -228,6 +228,19 @@ export function Dashboard() {
   const formatLoadAvg = (avg1: number, avg5: number, avg15: number) =>
     `${avg1.toFixed(2)}, ${avg5.toFixed(2)}, ${avg15.toFixed(2)}`;
 
+  const formatCbftpVersion = (ver?: string): string => {
+    if (!ver) return '';
+    const match = ver.match(/^([^\s]+)\s+\(git#\s+([^\s\)]+)\)$/);
+    if (match) {
+      const versionTag = match[1];
+      const gitHash = match[2];
+      if (gitHash.includes(versionTag)) {
+        return gitHash;
+      }
+    }
+    return ver;
+  };
+
   const uptimeStr = formatUptime(stats.Uptime);
   const cbftpUptimeStr = stats.CbftpUptime ? formatUptime(stats.CbftpUptime) : '';
   const totalSites = stats.SitesCount;
@@ -265,7 +278,7 @@ export function Dashboard() {
                     : '1px solid rgba(255, 77, 77, 0.3)',
                 }}
               >
-                cbftp: {stats.CbftpConnected ? `connected (${stats.CbftpVersion || 'unknown'})` : 'disconnected'}
+                cbftp: {stats.CbftpConnected ? `connected (${formatCbftpVersion(stats.CbftpVersion) || 'unknown'})` : 'disconnected'}
               </Badge>
             )}
             <Badge
@@ -287,7 +300,7 @@ export function Dashboard() {
         <StatCard
           title="Uptime"
           value={stats.CbftpUptime ? `SL: ${uptimeStr} · CB: ${cbftpUptimeStr}` : uptimeStr}
-          subtitle={stats.CbftpVersion ? `SL: ${stats.Version}\nCB: ${stats.CbftpVersion}` : `Version ${stats.Version}`}
+          subtitle={stats.CbftpVersion ? `SL: ${stats.Version}\nCB: ${formatCbftpVersion(stats.CbftpVersion)}` : `Version ${stats.Version}`}
           icon={<IconClock size="1.4rem" stroke={1.5} color="var(--text-primary)" />}
           variant="gradient"
         />
