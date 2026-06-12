@@ -25,6 +25,7 @@ type
     destructor Destroy; override;
     procedure Execute; override;
     procedure TryToAssignSlots(t: TTask);
+    function HasAssignableRaceTask: Boolean;
 
   private
   tasks:      TObjectList;
@@ -33,11 +34,11 @@ type
   fSiteName: String;
   fSite: TObject;
   fBusyDestinations: TDictionary<TObject, integer>;
+    fQueueDirty: Boolean;
 
   queue_last_run: TDateTime;
   queueclean_last_run: TDateTime;
   queue_last_stat_update: TDateTime;
-  fLastQueueSort: TDateTime;
 
     procedure TryToAssignLoginSlot(t: TLoginTask);
     procedure TryToAssignRaceSlots(t: TPazoRaceTask);
@@ -431,10 +432,10 @@ begin
     tasks := TObjectList.Create(True);
     waiting_tasks := TObjectList.Create(True);
     queueevent := TEvent.Create(nil, False, False, 'SLFTP_queue_event_' + aSiteName);
+    fQueueDirty := True;
     queue_last_run := Now;
     queueclean_last_run := Now;
     queue_last_stat_update := Now;
-    fLastQueueSort := Now;
     FreeOnTerminate := True;
     fQueueStat := TQueueStat.Create();
     StatsList.Add(fQueueStat);
@@ -709,6 +710,22 @@ begin
   end;
 end;
 
+function TQueueThread.HasAssignableRaceTask: Boolean;
+var
+  t: TTask;
+begin
+  Result := False;
+  for t in tasks do
+  begin
+    if (t is TPazoRaceTask) and (t.slot1 = nil) and (not t.ready) and (not t.readyerror) and
+       ((t.startat = 0) or (t.startat <= queue_last_run)) then
+    begin
+      Result := True;
+      exit;
+    end;
+  end;
+end;
+
 procedure TQueueThread.TryToAssignSlots(t: TTask);
 var
   s:   TSite;
@@ -795,7 +812,7 @@ begin
           end;
         end;
         // only half of the slots for dirlist
-        if (actual_count >= s.slots.Count div 2) then
+        if (actual_count >= Max(s.slots.Count div 2, 1)) then
         begin
           exit;
         end;
@@ -1241,7 +1258,10 @@ begin
       if (t.startat > Now) then
         waiting_tasks.Add(t)
       else
+      begin
         tasks.Add(t);
+        fQueueDirty := True;
+      end;
 
 
       try
@@ -1251,6 +1271,11 @@ begin
           try
             if ((not t.ready) and t.IsReadyToBeExecuted) then
             begin
+              if fQueueDirty then
+              begin
+                tasks.Sort(@QueueSorter);
+                fQueueDirty := False;
+              end;
               self.TryToAssignSlots(t);
             end;
           finally
@@ -1654,14 +1679,7 @@ begin
         end;
 
         if bTasksMoved then
-        begin
-          // HOTFIX: Limit sorting frequency for large queues to prevent CPU burn
-          if (tasks.Count < 500) or (MilliSecondsBetween(fLastQueueSort, Now) > 5000) then
-          begin
-            tasks.Sort(@QueueSorter);
-            fLastQueueSort := Now;
-          end;
-        end;
+          fQueueDirty := True;
 
         for fListIndex := 0 to 1 do
         begin
@@ -1711,6 +1729,12 @@ begin
 
         ts.AcquireSlotsAssignmentLock('Queue iterate');
         try
+          if fQueueDirty and (ts.freeslots > 0) and HasAssignableRaceTask then
+          begin
+            tasks.Sort(@QueueSorter);
+            fQueueDirty := False;
+          end;
+
           for fTask in tasks do
           begin
             try
