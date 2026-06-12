@@ -1266,10 +1266,27 @@ begin
         fQueueDirty := True;
       end;
 
-      // Note: we intentionally do NOT sort/assign the task here anymore.
-      // Sorting the whole queue on every AddTask is O(n log n) and was called
-      // millions of times per release. The Execute loop already sorts when
-      // fQueueDirty is set and free slots are available.
+      // Fast-path: try to assign the newly added task immediately if possible.
+      // We intentionally do NOT sort the whole queue here anymore — that was
+      // O(n log n) and called millions of times per release. The Execute loop
+      // sorts once per iteration when fQueueDirty is set and free slots exist.
+      try
+        if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted and (TSite(fSite).freeslots > 0)) then
+        begin
+          TSite(fSite).AcquireSlotsAssignmentLock('AddTask-Slot');
+          try
+            if ((not t.ready) and t.IsReadyToBeExecuted) then
+              self.TryToAssignSlots(t);
+          finally
+            TSite(fSite).ReleaseSlotsAssignmentLock;
+          end;
+        end;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] AddTask TryToAssignSlots: %s', [e.Message]));
+        end;
+      end;
 
     finally
       main_lock.Leave;
