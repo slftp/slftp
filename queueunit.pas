@@ -87,6 +87,9 @@ procedure QueueInit;
 procedure QueueUninit;
 procedure QueueStatAll;
 
+{ Sort compare function used for the per-site task queue. Exposed for unit tests. }
+function QueueSorter(Item1, Item2: Pointer): Integer;
+
 var
   QueueStatUpdateDateTime: TDateTime;
 
@@ -1263,31 +1266,10 @@ begin
         fQueueDirty := True;
       end;
 
-
-      try
-        if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted and (TSite(fSite).freeslots > 0)) then
-        begin
-          TSite(fSite).AcquireSlotsAssignmentLock('AddTask-Slot');
-          try
-            if ((not t.ready) and t.IsReadyToBeExecuted) then
-            begin
-              if fQueueDirty then
-              begin
-                tasks.Sort(@QueueSorter);
-                fQueueDirty := False;
-              end;
-              self.TryToAssignSlots(t);
-            end;
-          finally
-            TSite(fSite).ReleaseSlotsAssignmentLock;
-          end;
-        end;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] AddTask TryToAssignSlots: %s', [e.Message]));
-        end;
-      end;
+      // Note: we intentionally do NOT sort/assign the task here anymore.
+      // Sorting the whole queue on every AddTask is O(n log n) and was called
+      // millions of times per release. The Execute loop already sorts when
+      // fQueueDirty is set and free slots are available.
 
     finally
       main_lock.Leave;
