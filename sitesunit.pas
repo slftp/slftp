@@ -447,7 +447,6 @@ type
     procedure AddTask(const t: TTask; const queueFire: boolean = true);
     procedure QueueFire;
     procedure QueueClean;
-    procedure QueueSort;
     function RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
     //procedure QueueEmpty(const sitename: String);
 
@@ -1018,11 +1017,6 @@ begin
   Result := fQueue.IrcKillAll(netname, channel, params);
 end;
 
-procedure TSite.QueueSort;
-begin
-  fQueue.QueueSort;
-end;
-
 procedure TSite.RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
 begin
   fQueue.RemoveRaceTasks(aPazoID, aSiteName);
@@ -1119,8 +1113,11 @@ begin
     exit;
   end;
 
-  fQueue.AddTask(t);
-  if queueFire then self.QueueFire;
+  fQueue.AddTask(t, queueFire);
+  { QueueFire is intentionally not called here. TQueueThread.AddTask already
+    fires the queue event when a task was added, not immediately assigned and
+    queueFire is true, so calling it again would only wake the queue thread
+    redundantly. }
 end;
 
 procedure QueueCleanInverval(const interval: integer);
@@ -1766,7 +1763,9 @@ begin
         //event.WaitFor($FFFFFFFF);
         if event.WaitFor(15 * 60 * 1000) then
         begin
-          { Event fired. Normal exit. }
+          { Event fired. Reset manual TSynEvent flag so the slot blocks again
+            on the next iteration. }
+          event.ResetEvent;
         end
         else { Timeout reached }
         begin

@@ -3634,6 +3634,8 @@ var
 begin
   Result := True;
   event.WaitFor($FFFFFFFF);
+  { Reset manual TSynEvent flag so a reused/restarted wait task blocks again. }
+  event.ResetEvent;
   (*
   case event.WaitFor(15 * 60 * 1000) of
     wrSignaled : { Event fired. Normal exit. }

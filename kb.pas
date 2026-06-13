@@ -1779,7 +1779,8 @@ begin
         end;
       end;
 
-      kbevent.WaitFor(5000);
+      if kbevent.WaitFor(5000) then
+        kbevent.ResetEvent;
     end;
   finally
     fIncFillPazos.Free;

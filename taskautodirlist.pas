@@ -166,6 +166,7 @@ begin
       end;
 
       fTaskNotify.event.WaitFor($FFFFFFFF);
+      fTaskNotify.event.ResetEvent;
       for fSiteResponse in fTaskNotify.responses do
       begin
         if fSiteResponse.response <> '1' then // the CWD task will return '1' in case of success
@@ -224,6 +225,7 @@ begin
       end;
 
       fTaskNotify.event.WaitFor($FFFFFFFF);
+      fTaskNotify.event.ResetEvent;
 
       fSiteSearchResponse := TStringList.Create;
       try

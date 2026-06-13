@@ -73,7 +73,7 @@ public
   function FindBestTask(aNow: TDateTime; aHasImportantWaiting: Boolean = False; aSkippedTasks: TList<TTask> = nil): TTask;
   procedure QueueFire;
 procedure QueueStart;
-procedure AddTask(t: TTask);
+procedure AddTask(t: TTask; const queueFire: boolean = true);
 procedure QueueEmpty(const sitename: String);
 procedure RemovePazoMKDIR(const pazo_id: integer; const dir: String);
 procedure RemovePazoSfv(const aPazoID: integer; const aDir: String);
@@ -87,8 +87,6 @@ function RemovePazo(const pazo_id: integer; const aForce: boolean = False): bool
 
 procedure RemoveRaceTasks(const pazo_id: integer; const sitename: String);
 procedure RemovePazoDirTasks(const pazo_id: integer);
-
-procedure QueueSort;
 
 procedure QueueClean(run_now: boolean = False);
 constructor Create(const aSiteName: String);
@@ -455,11 +453,6 @@ begin
   end;
 
   Result := bestTask;
-end;
-
-procedure TQueueThread.QueueSort;
-begin
-  // QueueSorter removed - tasks are no longer sorted. FindBestTask handles priority.
 end;
 
 procedure TQueueThread.QueueStart;
@@ -1294,7 +1287,7 @@ begin
   Console_QueueAdd(fTaskUid, Format('%s', [fTaskName]));
 end;
 
-procedure TQueueThread.AddTask(t: TTask);
+procedure TQueueThread.AddTask(t: TTask; const queueFire: boolean = true);
 var
   tname: String;
   fCheckSiteSlotsSite: TSite;
@@ -1429,7 +1422,7 @@ begin
 
   // Event-based queue: wake up the queue thread so it can process the new task.
   // Without this, the thread might sleep indefinitely and never assign the task.
-  if fTaskAdded and not fTaskAssigned then
+  if fTaskAdded and not fTaskAssigned and queueFire then
     self.QueueFire;
 end;
 
@@ -2240,7 +2233,7 @@ begin
   queueclean_unassigned := config.ReadInteger('queue', 'queueclean_unassigned', 600);
   enable_queueclean := config.ReadBool(section, 'enable_queueclean', False);
   queue_recycle_post_to_irc := spamcfg.readbool(section, 'queue_recycle', True);
-  glQueueFireInterval := config.ReadInteger(section, 'queue_fire', 100);
+  glQueueFireInterval := config.ReadInteger(section, 'queue_fire', 5000);
   glMaxDirlistSlots := config.ReadString(section, 'max_dirlist_slots', '');
 
   StatsList := TObjectList<TQueueStat>.Create(True);

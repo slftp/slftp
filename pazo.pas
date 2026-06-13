@@ -1870,7 +1870,6 @@ begin
       if fTasksAdded then
       begin
         fSite := FindSiteByName('', Name);
-        fSite.QueueSort;
         fSite.QueueFire;
       end;
 
@@ -2022,7 +2021,6 @@ begin
       if fTasksAdded then
       begin
         fSite := FindSiteByName('', Name);
-        fSite.QueueSort;
         fSite.QueueFire;
       end;
 
