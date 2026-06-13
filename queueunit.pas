@@ -398,7 +398,7 @@ begin
     Debug(dpSpam, section, 'Sorting queue 1');
     main_lock.Enter('Queue_Sort');
     try
-      tasks.Sort(@QueueSorter);
+      // tasks.Sort(@QueueSorter); // TEMPORARILY DISABLED FOR TESTING
     finally
       main_lock.Leave;
     end;
@@ -1730,7 +1730,8 @@ begin
         try
           if fQueueDirty and (ts.freeslots > 0) and HasAssignableRaceTask then
           begin
-            tasks.Sort(@QueueSorter);
+            // TEMPORARILY DISABLED FOR TESTING
+            // tasks.Sort(@QueueSorter);
             fQueueDirty := False;
           end;
 
