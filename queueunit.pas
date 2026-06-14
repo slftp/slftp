@@ -463,6 +463,29 @@ begin
       end;
     end;
 
+    // Pre-filter by available slots on the site(s) the task needs.
+    // This avoids wasted TryToAssignRaceSlots attempts when source or
+    // destination sites are fully busy and reduces freeslots bookkeeping drift.
+    if (t is TPazoRaceTask) then
+    begin
+      tpr := TPazoRaceTask(t);
+      if (tpr.ssite1 <> nil) and (TSite(tpr.ssite1).freeslots <= 0) then
+      begin
+        DiagRecordFindBestTaskNil(dfbnNoSlots, fSiteName);
+        Continue;
+      end;
+      if (tpr.ssite2 <> nil) and (TSite(tpr.ssite2).freeslots <= 0) then
+      begin
+        DiagRecordFindBestTaskNil(dfbnNoSlots, fSiteName);
+        Continue;
+      end;
+    end
+    else if (t.ssite1 <> nil) and (TSite(t.ssite1).freeslots <= 0) then
+    begin
+      DiagRecordFindBestTaskNil(dfbnNoSlots, fSiteName);
+      Continue;
+    end;
+
     score := _ScoreTask(t);
 
     if score > bestScore then
