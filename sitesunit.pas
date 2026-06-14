@@ -1695,6 +1695,14 @@ begin
                 on E: Exception do
                 begin
                   todotask := nil;
+                  try
+                    self.site.RecalcFreeslots;
+                  except
+                    on E2: Exception do
+                      Debug(dpError, section,
+                        Format('[EXCEPTION] TSiteSlot.Execute : RecalcFreeslots after failed SetTodotask(nil) : %s',
+                        [E2.Message]));
+                  end;
                   Debug(dpError, section,
                     Format('[EXCEPTION] TSiteSlot.Execute : Exception remove todotask with slots assignment lock. Proceed without the lock : %s',
                     [e.Message]));
@@ -1722,6 +1730,14 @@ begin
               // be cleared. Otherwise the while loop will spin forever trying to
               // access the freed task object on every iteration.
               todotask := nil;
+              try
+                self.site.RecalcFreeslots;
+              except
+                on E2: Exception do
+                  Debug(dpError, section,
+                    Format('[EXCEPTION] TSiteSlot.Execute : RecalcFreeslots after failed cleanup : %s',
+                    [E2.Message]));
+              end;
               Debug(dpError, section,
                 Format('[EXCEPTION] TSiteSlot.Execute : Exception remove todotask : %s',
                 [e.Message]));
@@ -1783,6 +1799,14 @@ begin
         Debug(dpError, section, '[Exception] Slot exception : %s', [e.Message]);
         try
           todotask := nil;
+          try
+            self.site.RecalcFreeslots;
+          except
+            on E2: Exception do
+              Debug(dpError, section,
+                Format('[EXCEPTION] TSiteSlot.Execute : RecalcFreeslots after slot exception : %s',
+                [E2.Message]));
+          end;
         except
           on e: Exception do
           begin
@@ -3204,30 +3228,30 @@ end;
 
 procedure TSiteSlot.SetTodotask(Value: TTask);
 begin
-  if fTodotask <> Value then
-  begin
-    site.fFreeSlotsCS.Enter('SetTodotask');
-    try
+  site.fFreeSlotsCS.Enter('SetTodotask');
+  try
+    if fTodotask <> Value then
+    begin
       if (fTodotask <> nil) and (fTodotask.ClassType = TPazoDirlistTask) then
         Dec(site.fActiveDirlistCount);
       fTodotask := Value;
-      if fTodoTask <> nil then
+      if fTodotask <> nil then
       begin
         site.freeslots := site.freeslots - 1;
-        if fTodoTask.ClassType = TPazoDirlistTask then
+        if fTodotask.ClassType = TPazoDirlistTask then
           Inc(site.fActiveDirlistCount);
       end
       else
       begin
         site.freeslots := site.freeslots + 1;
       end;
-    finally
-      site.fFreeSlotsCS.Leave;
     end;
-
-    if GetDebugVerbosity = dpSpam then
-      Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
+  finally
+    site.fFreeSlotsCS.Leave;
   end;
+
+  if GetDebugVerbosity = dpSpam then
+    Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
 end;
 
 { TSite }
@@ -4584,7 +4608,7 @@ begin
   if fOldSiteSlot.todotask <> nil then
   begin
     fOldSiteSlot.todotask.slot1 := nil;
-    fOldSiteSlot.todotask := nil;
+    fOldSiteSlot.SetTodotask(nil);
   end;
 
   // Wake the queue thread so it can assign a task to the rebuilt slot.
