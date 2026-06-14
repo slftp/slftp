@@ -3639,45 +3639,48 @@ var
 begin
   Result := True;
   try
-    event.WaitFor($FFFFFFFF);
-    { Reset manual TSynEvent flag so a reused/restarted wait task blocks again. }
-    event.ResetEvent;
+    try
+      event.WaitFor($FFFFFFFF);
+      { Reset manual TSynEvent flag so a reused/restarted wait task blocks again. }
+      event.ResetEvent;
+    finally
+      { Mark the task as ready in any case (success or exception) so the queue
+        thread will collect it. }
+      ready := True;
+    end;
+
+    { Clear our slot reference FIRST, before dereferencing ss.
+      The slot may have been rebuilt (and the old object freed)
+      while we were blocked in event.WaitFor. If we touch ss
+      before clearing slot1, an AV there would leave us with
+      a dangling pointer that the queue thread later crashes on. }
+    self.slot1 := nil;
+
+    // Try to clean up the slot's todotask reference, but don't
+    // let a rebuilt/freed slot crash us.
+    ss := TSiteSlot(slot);
+    try
+      if (ss <> nil) and (ss.site <> nil) then
+      begin
+        ss.site.AcquireSlotsAssignmentLock('TWaitTask ready');
+        try
+          if ss.todotask = self then
+            ss.todotask := nil;
+        finally
+          ss.site.ReleaseSlotsAssignmentLock;
+        end;
+      end;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, c_section, Format('[WARNING] TWaitTask.Execute slot cleanup failed (slot may have been rebuilt): %s', [E.Message]));
+      end;
+    end;
   finally
-    { Mark the task as ready in any case (success or exception) so the queue
-      thread will collect it. }
-    ready := True;
     { Tell the queue thread that we have left the blocking wait and will no
       longer touch the task object. After this point it is safe to remove the
       task from the queue and free it. }
     wait_done := True;
-  end;
-
-  { Clear our slot reference FIRST, before dereferencing ss.
-    The slot may have been rebuilt (and the old object freed)
-    while we were blocked in event.WaitFor. If we touch ss
-    before clearing slot1, an AV there would leave us with
-    a dangling pointer that the queue thread later crashes on. }
-  self.slot1 := nil;
-
-  // Try to clean up the slot's todotask reference, but don't
-  // let a rebuilt/freed slot crash us.
-  ss := TSiteSlot(slot);
-  try
-    if (ss <> nil) and (ss.site <> nil) then
-    begin
-      ss.site.AcquireSlotsAssignmentLock('TWaitTask ready');
-      try
-        if ss.todotask = self then
-          ss.todotask := nil;
-      finally
-        ss.site.ReleaseSlotsAssignmentLock;
-      end;
-    end;
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, c_section, Format('[WARNING] TWaitTask.Execute slot cleanup failed (slot may have been rebuilt): %s', [E.Message]));
-    end;
   end;
 end;
 
