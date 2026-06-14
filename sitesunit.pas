@@ -240,7 +240,6 @@ type
     fKillConnectionOnStalledTransferSeconds: integer;
     fSpeedFromCS: TSlCriticalSection2;
     fSpeedFromCache: TList<TSpeedFromRouteInfo>;
-    fFreeSlotsCS: TSlCriticalSection2;
     FSettingsCacheDict: TVariantCache; //< Cache for site-settings in the sites.dat to avoid the sites.dat bottleneck (lock)
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
@@ -425,6 +424,7 @@ type
     siteinvited: boolean;
 
     fActiveDirlistCount: integer; //< Phase 6: counter of active TPazoDirlistTask slots (avoids O(n) scan)
+    fFreeSlotsCS: TSlCriticalSection2;
     Name: String; //< sitename
     slots: TObjectList;
 

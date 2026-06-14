@@ -2167,27 +2167,32 @@ begin
         fDiagBusy := 0;
         fDiagFree := 0;
         fDiagWaitTaskBusy := 0;
-        for fDiagSlot in ts.slots do
-        begin
-          try
-            case fDiagSlot.status of
-              ssOnline: Inc(fDiagOnline);
-              ssOffline: Inc(fDiagOffline);
-              ssDown: Inc(fDiagDown);
-              ssMarkedDown: Inc(fDiagMarkedDown);
+        ts.fFreeSlotsCS.Enter('Queue diag slot scan');
+        try
+          for fDiagSlot in ts.slots do
+          begin
+            try
+              case fDiagSlot.status of
+                ssOnline: Inc(fDiagOnline);
+                ssOffline: Inc(fDiagOffline);
+                ssDown: Inc(fDiagDown);
+                ssMarkedDown: Inc(fDiagMarkedDown);
+              end;
+              if fDiagSlot.todotask <> nil then
+              begin
+                Inc(fDiagBusy);
+                if fDiagSlot.todotask.ClassType = TWaitTask then
+                  Inc(fDiagWaitTaskBusy);
+              end
+              else
+                Inc(fDiagFree);
+            except
+              on E: Exception do
+                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute diag slot scan: %s', [E.Message]));
             end;
-            if fDiagSlot.todotask <> nil then
-            begin
-              Inc(fDiagBusy);
-              if fDiagSlot.todotask.ClassType = TWaitTask then
-                Inc(fDiagWaitTaskBusy);
-            end
-            else
-              Inc(fDiagFree);
-          except
-            on E: Exception do
-              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute diag slot scan: %s', [E.Message]));
           end;
+        finally
+          ts.fFreeSlotsCS.Leave;
         end;
         DiagUpdateSlotSnapshot(fDiagOnline, fDiagOffline, fDiagDown,
           fDiagMarkedDown, fDiagBusy, fDiagFree, fDiagWaitTaskBusy, fSiteName);
