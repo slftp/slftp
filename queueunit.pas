@@ -2143,9 +2143,9 @@ begin
       QueueStat;
       fTickQueueStat := GetTickCount64 - fTickSectionStart;
 
-      // Recalc freeslots periodically to fix bookkeeping drift caused by
-      // direct todotask assignments outside SetTodotask.
-      if MilliSecondsBetween(fLastRecalcFreeslotsTime, Now) >= 5000 then
+      // Recalc freeslots frequently to correct any bookkeeping drift before
+      // it causes assignment aborts.
+      if MilliSecondsBetween(fLastRecalcFreeslotsTime, Now) >= 1000 then
       begin
         fLastRecalcFreeslotsTime := Now;
         try

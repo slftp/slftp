@@ -3208,11 +3208,19 @@ begin
   try
     if fTodotask <> Value then
     begin
+      if (fTodotask <> nil) and (fTodotask.ClassType = TPazoDirlistTask) then
+        Dec(site.fActiveDirlistCount);
       fTodotask := Value;
-      // Recalculate from actual slot state instead of trying to keep an
-      // incremental counter in sync. This avoids freeslots bookkeeping drift
-      // when assignments happen from multiple threads or exception paths.
-      site.RecalcFreeslots;
+      if fTodotask <> nil then
+      begin
+        site.freeslots := site.freeslots - 1;
+        if fTodotask.ClassType = TPazoDirlistTask then
+          Inc(site.fActiveDirlistCount);
+      end
+      else
+      begin
+        site.freeslots := site.freeslots + 1;
+      end;
     end;
   finally
     site.fFreeSlotsCS.Leave;
