@@ -3208,26 +3208,18 @@ begin
   try
     if fTodotask <> Value then
     begin
-      if (fTodotask <> nil) and (fTodotask.ClassType = TPazoDirlistTask) then
-        Dec(site.fActiveDirlistCount);
       fTodotask := Value;
-      if fTodotask <> nil then
-      begin
-        site.freeslots := site.freeslots - 1;
-        if fTodotask.ClassType = TPazoDirlistTask then
-          Inc(site.fActiveDirlistCount);
-      end
-      else
-      begin
-        site.freeslots := site.freeslots + 1;
-      end;
+      // Recalculate from actual slot state instead of trying to keep an
+      // incremental counter in sync. This avoids freeslots bookkeeping drift
+      // when assignments happen from multiple threads or exception paths.
+      site.RecalcFreeslots;
     end;
   finally
     site.fFreeSlotsCS.Leave;
   end;
 
   if GetDebugVerbosity = dpSpam then
-    Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
+    Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name, site.freeslots]);
 end;
 
 { TSite }
