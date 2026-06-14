@@ -3636,13 +3636,18 @@ end;
 function TWaitTask.Execute(slot: Pointer): boolean;
 var
   ss: TSiteSlot;
+  local_event: TSynEvent;
 begin
   Result := True;
+  { Keep a local reference to the event object. If the task object were ever
+    freed while we are blocked in WaitFor, the local reference stays valid
+    long enough to exit the wait safely. }
+  local_event := event;
   try
     try
-      event.WaitFor($FFFFFFFF);
+      local_event.WaitFor($FFFFFFFF);
       { Reset manual TSynEvent flag so a reused/restarted wait task blocks again. }
-      event.ResetEvent;
+      local_event.ResetEvent;
     finally
       { Mark the task as ready in any case (success or exception) so the queue
         thread will collect it. }

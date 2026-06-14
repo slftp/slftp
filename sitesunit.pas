@@ -3334,6 +3334,18 @@ begin
     Debug(dpSpam, section, 'Slot %s stop begin', [Name]);
     shouldquit := True;
     event.SetEvent;
+    // If the slot thread is currently executing a WAITTASK it is blocked on
+    // the task's own event, not on this slot's event, so Fire above would not
+    // wake it. Signal the wait task event as well so the slot thread can
+    // observe shouldquit and terminate cleanly instead of hanging until the
+    // race task signals it.
+    try
+      if (todotask <> nil) and (todotask.ClassType = TWaitTask) then
+        TWaitTask(todotask).event.SetEvent;
+    except
+      on E: Exception do
+        Debug(dpError, section, Format('[WARNING] TSiteSlot.Stop: failed to signal wait task event for %s: %s', [Name, E.Message]));
+    end;
     inherited;
     Debug(dpSpam, section, 'Slot %s stop end', [Name]);
   end;
