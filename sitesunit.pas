@@ -1687,7 +1687,7 @@ begin
               try
                 self.site.AcquireSlotsAssignmentLock('Reset TodoTask');
                 try
-                  todotask := nil;
+                  SetTodotask(nil);
                 finally
                   self.site.ReleaseSlotsAssignmentLock;
                 end;
@@ -4592,6 +4592,9 @@ begin
 
   self.slots[aSlotNumber] := TSiteSlot.Create(self, aSlotNumber);
   fOldSiteSlot.Free;
+
+  // Rebuild replaces a slot; recalc so freeslots reflects the new slot state.
+  RecalcFreeslots;
 end;
 
 procedure CheckSiteSlots(const aSite: TSite); overload;
