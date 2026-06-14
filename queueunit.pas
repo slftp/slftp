@@ -554,10 +554,12 @@ begin
   try
     s1 := TSite(t.ssite1);
     s2 := TSite(t.ssite2);
-    if s1.freeslots = 0 then
-      exit;
-    if s2.freeslots = 0 then
-      exit;
+    // TEMPORARY TEST: freeslots check disabled to verify whether cached
+    // freeslots values are suppressing valid race assignments.
+    //if s1.freeslots = 0 then
+    //  exit;
+    //if s2.freeslots = 0 then
+    //  exit;
 
     if s2.MaxSimUpCooldownActive then
     begin
@@ -813,8 +815,9 @@ begin
     s := TSite(self.fSite);
     s.AcquireSlotsAssignmentLock('TryToAssignSlots');
     try
-    if s.freeslots = 0 then
-      exit;
+    // TEMPORARY TEST: freeslots check disabled (see TryToAssignRaceSlots).
+    //if s.freeslots = 0 then
+    //  exit;
 
     if t.wanted_up and s.MaxSimUpCooldownActive then
     begin
@@ -1343,7 +1346,7 @@ begin
 
       step := 'Race slot checks';
       try
-        if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted and (TSite(fSite).freeslots > 0)) then
+        if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted {and (TSite(fSite).freeslots > 0)} ) then
         begin
           TSite(fSite).AcquireSlotsAssignmentLock('AddTask-Slot');
           try
@@ -1989,7 +1992,7 @@ begin
             // Only scan for best task when slots are actually free.
             // Cap scans per iteration to prevent burning CPU when many tasks
             // cannot be assigned (e.g. cooldowns, busy destinations).
-            while (ts.freeslots > 0) and (fFindBestTaskCount < 20) do
+            while { (ts.freeslots > 0) and } (fFindBestTaskCount < 20) do
             begin
               fLastStep := 'FindBestTask';
               Inc(fFindBestTaskCount);
