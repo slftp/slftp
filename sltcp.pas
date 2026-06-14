@@ -1232,6 +1232,18 @@ var
   fWaitTimeSeconds: integer;
 begin
   shouldquit:= True;
+
+  // Closing the socket wakes the worker thread if it is blocked in a
+  // connect/read/select call. We only close the OS handle here and clear the
+  // cached socket value; we must NOT touch fSSL because the worker thread may
+  // be in the middle of an SSL handshake. The destructor will clean up SSL
+  // once the thread has terminated.
+  if slSocket.socket <> slSocketError then
+  begin
+    slstack.slClose(slSocket);
+    ClearSocket;
+  end;
+
   fStopRequestedTime := Now();
 
   if mainthread.slshutdown then
