@@ -42,6 +42,7 @@ type
   queueclean_last_run: TDateTime;
   queue_last_stat_update: TDateTime;
   fLastDiagSnapshotTime: TDateTime;
+  fLastRecalcFreeslotsTime: TDateTime;
   fLastDirlistCheckTime: TDateTime;
   fLastLowPriorityLogTime: TDateTime;
   fLastDirlistCount: Integer;
@@ -504,6 +505,7 @@ begin
     queueclean_last_run := Now;
     queue_last_stat_update := Now;
     fLastDiagSnapshotTime := Now;
+    fLastRecalcFreeslotsTime := Now;
     FreeOnTerminate := True;
     fQueueStat := TQueueStat.Create();
     StatsList.Add(fQueueStat);
@@ -2140,6 +2142,19 @@ begin
       fTickSectionStart := GetTickCount64;
       QueueStat;
       fTickQueueStat := GetTickCount64 - fTickSectionStart;
+
+      // Recalc freeslots periodically to fix bookkeeping drift caused by
+      // direct todotask assignments outside SetTodotask.
+      if MilliSecondsBetween(fLastRecalcFreeslotsTime, Now) >= 5000 then
+      begin
+        fLastRecalcFreeslotsTime := Now;
+        try
+          ts.RecalcFreeslots;
+        except
+          on E: Exception do
+            Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute RecalcFreeslots: %s', [E.Message]));
+        end;
+      end;
 
       // Periodic diagnostics snapshot (every 30 seconds)
       if MilliSecondsBetween(fLastDiagSnapshotTime, Now) >= 30000 then
