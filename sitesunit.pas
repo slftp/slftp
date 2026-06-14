@@ -302,7 +302,6 @@ type
     function FetchAutoRules: TRulesTask;
     function FetchAutoDirlist: TAutoDirlistTask;
     function FetchAutoNuke: TAutoNukeTask;
-    procedure SetFreeSlots(const Value: integer);
 
     { function for @link(ProxyName) property to read proxyname from inifile (default value: !!NOIN!!) }
     function GetProxyName: String;
@@ -420,11 +419,11 @@ type
     function GetSpeed_From: TList<TSpeedFromRouteInfo>;
     function GetNewdirDirlistReadd: integer;
     procedure SetNewdirDirlistReadd(const Value: integer);
+    function GetFreeSlots: integer;
   public
     emptyQueue: boolean;
     siteinvited: boolean;
 
-    ffreeslots: integer;
     fActiveDirlistCount: integer; //< Phase 6: counter of active TPazoDirlistTask slots (avoids O(n) scan)
     Name: String; //< sitename
     slots: TObjectList;
@@ -606,7 +605,7 @@ type
     property num_up: integer read fNumUp write fNumUp;
     property delayleech[const aSection: String]: integer read GetDelayLeech; //< returns random value between min and max seconds for delaying leech
     property delayupload[const aSection: String]: integer read GetDelayUpload; //< returns random value between min and max seconds for delaying upload
-    property freeslots: integer read fFreeslots write SetFreeSlots;
+    property freeslots: integer read GetFreeSlots;
     property IRCNick: String read GetIRCNick write SetIRCNick; //< IRC username which is used for inviting to sitechannels
     property ProxyName: String read GetProxyName write SetProxyName; //< Name of Proxy which is used for connecting to site
     property UserName: String read GetSiteUsername write SetSiteUsername; //< Username to be used for login to site
@@ -744,7 +743,7 @@ function sslMethodToString(const aSitename: String): String; overload;
 function sslMethodToString(aSite: TSite): String; overload;
 
 { Checks each sites @link(TSite.WorkingStatus) property and add it to a formated Stringlist for irc output
-  Skips sites with @true noannounce value. Adds ffreeslots & total slot count for sitesup.
+  Skips sites with @true noannounce value. Adds freeslots & total slot count for sitesup.
   @param(sitesup Stringlist for working (sstUp) sites)
   @param(sitesdn Stringlist for down (sstDown, sstTempDown, sstMarkedAsDownByUser) sites)
   @param(sitesuk Stringlist for unknown (not yet connected) (sstUnknown) sites)
@@ -1302,7 +1301,7 @@ begin
     end;
 
     case s.WorkingStatus of
-      sstUp: sitesup.Add('<b>' + s.Name + '</b>' + ' (<b>' + IntToStr(s.ffreeslots) + '</b>/' + IntToStr(s.slots.Count) + ')');
+      sstUp: sitesup.Add('<b>' + s.Name + '</b>' + ' (<b>' + IntToStr(s.freeslots) + '</b>/' + IntToStr(s.slots.Count) + ')');
       sstDown, sstTempDown, sstMarkedAsDownByUser: sitesdn.Add('<b>' + s.Name + '</b>');
       sstUnknown: sitesuk.Add('<b>' + s.Name + '</b>');
     end;
@@ -3211,16 +3210,8 @@ begin
       if (fTodotask <> nil) and (fTodotask.ClassType = TPazoDirlistTask) then
         Dec(site.fActiveDirlistCount);
       fTodotask := Value;
-      if fTodotask <> nil then
-      begin
-        site.freeslots := site.freeslots - 1;
-        if fTodotask.ClassType = TPazoDirlistTask then
-          Inc(site.fActiveDirlistCount);
-      end
-      else
-      begin
-        site.freeslots := site.freeslots + 1;
-      end;
+      if (fTodotask <> nil) and (fTodotask.ClassType = TPazoDirlistTask) then
+        Inc(site.fActiveDirlistCount);
     end;
   finally
     site.fFreeSlotsCS.Leave;
@@ -4516,38 +4507,41 @@ begin
     Result := StrToIntDef(mdtmre.Match[6], 0);
 end;
 
-procedure TSite.SetFreeSlots(const Value: integer);
+function TSite.GetFreeSlots: integer;
+var
+  i: integer;
+  ss: TSiteSlot;
 begin
-  if Value >= 0 then
-    fFreeslots := Value;
+  Result := 0;
+  fFreeSlotsCS.Enter('GetFreeSlots');
+  try
+    for i := 0 to slots.Count - 1 do
+    begin
+      ss := TSiteSlot(slots[i]);
+      if ss.todotask = nil then
+        Inc(Result);
+    end;
+  finally
+    fFreeSlotsCS.Leave;
+  end;
 end;
 
 procedure TSite.RecalcFreeslots;
 var
   i: integer;
   ss: TSiteSlot;
-  fs: integer;
   fDirlistCount: integer;
 begin
   fFreeSlotsCS.Enter('RecalcFreeslots');
   try
-    fs := 0;
     fDirlistCount := 0;
     for i := 0 to slots.Count - 1 do
     begin
       ss := TSiteSlot(slots[i]);
-      if ss.todotask = nil then
-        Inc(fs)
-      else if ss.todotask.ClassType = TPazoDirlistTask then
+      if (ss.todotask <> nil) and (ss.todotask.ClassType = TPazoDirlistTask) then
         Inc(fDirlistCount);
     end;
-
-    ffreeslots := fs;
     fActiveDirlistCount := fDirlistCount;
-
-    if (ffreeslots < 0) or (ffreeslots > slots.Count) then
-      Debug(dpError, section, Format('[DIAG] %s RecalcFreeslots produced invalid value: freeslots=%d slots=%d',
-        [Name, ffreeslots, slots.Count]));
   finally
     fFreeSlotsCS.Leave;
   end;
