@@ -46,7 +46,7 @@ implementation
 uses
   SysUtils, Classes, StrUtils, Contnrs, irc, sitesunit, mystrings, notify, taskraw, RegExpr,
   globals, indexer, ranksunit, kb, configunit, precatcher, speedstatsunit, statsunit, rulesunit,
-  mainthread, tasklogin, irccommandsunit;
+  mainthread, tasklogin, irccommandsunit, taskrace, DateUtils, diagunit;
 
 const
   section = 'irccommands.site';
@@ -2114,7 +2114,18 @@ begin
         end
         else
         begin
-          irc_addtext(Netname, Channel, Format('%s : %s', [ss.Name, ss.todotask.Name]));
+          if ss.todotask.ClassType = TWaitTask then
+          begin
+            irc_addtext(Netname, Channel, Format('%s : WAITTASK wait_for=%s ready=%s done=%s elapsed=%.1fs',
+              [ss.Name, TWaitTask(ss.todotask).wait_for,
+               BoolToStr(TWaitTask(ss.todotask).ready, True),
+               BoolToStr(TWaitTask(ss.todotask).wait_done, True),
+               MilliSecondsBetween(Now, TWaitTask(ss.todotask).wait_start) / 1000.0]));
+          end
+          else
+          begin
+            irc_addtext(Netname, Channel, Format('%s : %s (%s)', [ss.Name, ss.todotask.Name, ss.todotask.ClassName]));
+          end;
         end;
 
         irc_addtext(Netname, Channel, Format('%s (%s): Last execution times - Task: %s, Non-Idle Task: %s, I/O: %s',

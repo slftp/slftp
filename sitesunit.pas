@@ -789,7 +789,7 @@ implementation
 uses
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
-  dirlist.helpers, tags, Generics.Defaults;
+  dirlist.helpers, tags, Generics.Defaults, diagunit;
 
 const
   section = 'sites';
@@ -4544,6 +4544,10 @@ begin
 
     ffreeslots := fs;
     fActiveDirlistCount := fDirlistCount;
+
+    if (ffreeslots < 0) or (ffreeslots > slots.Count) then
+      Debug(dpError, section, Format('[DIAG] %s RecalcFreeslots produced invalid value: freeslots=%d slots=%d',
+        [Name, ffreeslots, slots.Count]));
   finally
     fFreeSlotsCS.Leave;
   end;

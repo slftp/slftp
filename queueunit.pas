@@ -3,7 +3,7 @@ unit queueunit;
 interface
 
 uses
-  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection2, pazo, taskidle, taskquit, tasklogin, RegExpr, taskautoindex, taskrules, taskautodirlist, taskautonuke, Generics.Collections, IdThreadSafe, mormot.core.os;
+  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection2, pazo, taskidle, taskquit, tasklogin, RegExpr, taskautoindex, taskrules, taskautodirlist, taskautonuke, Generics.Collections, IdThreadSafe, mormot.core.os, diagunit;
 
 
 type TQueueStat = class
@@ -12,6 +12,7 @@ type TQueueStat = class
     FAutoTaskCount: integer;
     FOtherTaskCount: integer;
     FActiveTaskCount: integer; //< tasks currently running (status=Running)
+    FTotalTaskCount: integer;  //< total tasks in this queue
 end;
 
 type TQueueTask = class
@@ -40,6 +41,7 @@ type
   queue_last_run: TDateTime;
   queueclean_last_run: TDateTime;
   queue_last_stat_update: TDateTime;
+  fLastDiagSnapshotTime: TDateTime;
   fLastDirlistCheckTime: TDateTime;
   fLastLowPriorityLogTime: TDateTime;
   fLastDirlistCount: Integer;
@@ -417,30 +419,47 @@ begin
   bestTask := nil;
   bestScore := Low(Int64);
 
+  DiagRecordFindBestTaskCall;
+
   for t in tasks do
   begin
     // Skip tasks in our skipped/tried list
     if (aSkippedTasks <> nil) and (aSkippedTasks.IndexOf(t) >= 0) then
+    begin
+      DiagRecordFindBestTaskNil(dfbnOther);
       Continue;
+    end;
 
     // Skip tasks that are already assigned, ready, or have errors
     if ((t.slot1 <> nil) or (t.slot2 <> nil) or t.ready or t.readyerror) then
+    begin
+      DiagRecordFindBestTaskNil(dfbnOther);
       Continue;
+    end;
 
     // Skip delayed tasks
     if (t.startat > 0) and (t.startat > aNow) then
+    begin
+      DiagRecordFindBestTaskNil(dfbnDelayed);
       Continue;
+    end;
 
     // Skip tasks not ready to execute
     if not t.IsReadyToBeExecuted then
+    begin
+      DiagRecordFindBestTaskNil(dfbnNoReadyTask);
       Continue;
+    end;
 
     // Low-priority race tasks are skipped if important tasks are waiting
     if (t is TPazoRaceTask) then
     begin
       tpr := TPazoRaceTask(t);
       if _IsLowPriorityRaceTask(tpr) and aHasImportantWaiting then
+      begin
+        DiagRecordFindBestTaskNil(dfbnCooldown);
         Continue;
+      end;
     end;
 
     score := _ScoreTask(t);
@@ -451,6 +470,9 @@ begin
       bestTask := t;
     end;
   end;
+
+  if (bestTask = nil) and (tasks.Count = 0) then
+    DiagRecordFindBestTaskNil(dfbnNoTasks);
 
   Result := bestTask;
 end;
@@ -481,6 +503,7 @@ begin
     queue_last_run := Now;
     queueclean_last_run := Now;
     queue_last_stat_update := Now;
+    fLastDiagSnapshotTime := Now;
     FreeOnTerminate := True;
     fQueueStat := TQueueStat.Create();
     StatsList.Add(fQueueStat);
@@ -555,9 +578,15 @@ begin
     s1 := TSite(t.ssite1);
     s2 := TSite(t.ssite2);
     if s1.freeslots = 0 then
+    begin
+      DiagRecordAssignRaceAbort(darFreeslotsZero);
       exit;
+    end;
     if s2.freeslots = 0 then
+    begin
+      DiagRecordAssignRaceAbort(darFreeslotsZero);
       exit;
+    end;
 
     if s2.MaxSimUpCooldownActive then
     begin
@@ -565,6 +594,7 @@ begin
         fBusyDestinations.Add(s2, 0);
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Destination site %s is on MaxSim UP cooldown (%ds remaining), skipping %s',
         [s2.Name, s2.MaxSimUpCooldownRemainingSeconds, t.FullName]);
+      DiagRecordAssignRaceAbort(darMaxSimUpCooldown);
       exit;
     end;
 
@@ -572,12 +602,14 @@ begin
     begin
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Source site %s is on MaxSim DOWN cooldown (%ds remaining), skipping %s',
         [s1.Name, s1.MaxSimDownCooldownRemainingSeconds, t.FullName]);
+      DiagRecordAssignRaceAbort(darMaxSimDownCooldown);
       exit;
     end;
 
     if fBusyDestinations.ContainsKey(s2) then
     begin
       Debug(dpSpam, section, 'Destination site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
+      DiagRecordAssignRaceAbort(darOther);
       exit;
     end;
 
@@ -587,30 +619,46 @@ begin
     begin
       t.readyerror := True;
       Debug(dpSpam, section, Format('TryToAssignRaceSlots: race failed on destination site or dirlist: %s', [t.FullName]));
+      DiagRecordAssignRaceAbort(darOther);
       exit;
     end;
 
     // first watch if it is not already in process to upload the same file to the same place
     if t.ps2.HasActiveTransfer(t.dir + t.filename) then
+    begin
+      DiagRecordAssignRaceAbort(darOther);
       exit; // we are already sending this file to the same destination site
+    end;
 
     if s2.num_up >= s2.max_up then
+    begin
+      DiagRecordAssignRaceAbort(darNoSlotAvailable);
       exit;
+    end;
 
     if t.ps1.HasActiveTransfer(t.dir + t.filename, s2.Name) then
+    begin
+      DiagRecordAssignRaceAbort(darOther);
       exit; // we are already sending this file the opposite route
+    end;
 
     // or use 'if t.ps1.StatusRealPreOrShouldPre then' from pazo.pas but will also pre true when status = rssShouldPre
     //if t.ps1.status = rssRealPre then
     if t.ps1.StatusRealPreOrShouldPre then
     begin
       if s1.num_dn >= s1.max_pre_dn then
+      begin
+        DiagRecordAssignRaceAbort(darNoSlotAvailable);
         exit;
+      end;
     end
     else
     begin
       if s1.num_dn >= s1.max_dn then
+      begin
+        DiagRecordAssignRaceAbort(darNoSlotAvailable);
         exit;
+      end;
     end;
 
     ss1 := nil;
@@ -637,23 +685,33 @@ begin
       end;
     end;
     if ss1 = nil then
+    begin
+      DiagRecordAssignRaceAbort(darNoSlotAvailable);
       exit;
+    end;
 
 
     if not s2.AcquireSlotsAssignmentLock(1, 'TryToAssignRaceSlots') then
     begin
       fBusyDestinations.Add(s2, 0);
+      DiagRecordAssignRaceAbort(darOther);
       exit;
     end;
 
     try
       // check again now that we have the lock at the destination
       if s2.num_up >= s2.max_up then
+      begin
+        DiagRecordAssignRaceAbort(darNoSlotAvailable);
         exit;
+      end;
 
       // again check if this file is already being sent to the destination now that we have the slot assignment lock
       if t.ps2.HasActiveTransfer(t.dir + t.filename) then
+      begin
+        DiagRecordAssignRaceAbort(darOther);
         exit; // we are already sending this file to the same destination site
+      end;
 
       ss2 := nil;
       for fSiteSlotLoop in s2.slots do
@@ -666,13 +724,17 @@ begin
         end;
       end;
       if ss2 = nil then
+      begin
+        DiagRecordAssignRaceAbort(darNoSlotAvailable);
         exit;
+      end;
 
       // now you can relax, just check if you don't abuse your max simultaneous uploads for a rip
       i := ss2.site.MaxUpPerRip;
       if ((i > 0) and (t.ps2.ActiveTransferCount >= i)) then
       begin
         Debug(dpSpam, section, 'We shouldnt upload more than maxupperrip value [' + IntToStr(i) + '] for' + ss2.Name);
+        DiagRecordAssignRaceAbort(darMaxUpPerRip);
         exit;
       end;
 
@@ -682,6 +744,7 @@ begin
       t.dst.assigned := Now;
       t.dst.wait_for := t.Name;
       t.dst.slot1 := ss2;
+      DiagAddActiveWaitTask(t.dst.site1, t.dst.wait_for, t.dst.assigned);
       AddTask(t.dst);
       t.ps2.AddActiveTransfer(t.dir + t.filename, s1.Name);
       t.slot1      := ss1;
@@ -694,6 +757,7 @@ begin
       ss2.todotask := t.dst;
       ss2.Fire;
       ss1.Fire;
+      DiagRecordRaceTaskAssigned;
     finally
       s2.ReleaseSlotsAssignmentLock;
     end;
@@ -701,6 +765,7 @@ begin
   on e: Exception do
     begin
       Debug(dpError, section, '[EXCEPTION] TQueueThread.TryToAssignRaceSlots : %s', [e.Message]);
+      DiagRecordAssignRaceAbort(darOther);
       exit;
     end;
   end;
@@ -814,12 +879,16 @@ begin
     s.AcquireSlotsAssignmentLock('TryToAssignSlots');
     try
     if s.freeslots = 0 then
+    begin
+      DiagRecordAssignSlotsAbort(darFreeslotsZero);
       exit;
+    end;
 
     if t.wanted_up and s.MaxSimUpCooldownActive then
     begin
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Site %s is on MaxSim UP cooldown (%ds remaining), skip task %s',
         [s.Name, s.MaxSimUpCooldownRemainingSeconds, t.FullName]);
+      DiagRecordAssignSlotsAbort(darMaxSimUpCooldown);
       exit;
     end;
 
@@ -827,6 +896,7 @@ begin
     begin
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Site %s is on MaxSim DOWN cooldown (%ds remaining), skip task %s',
         [s.Name, s.MaxSimDownCooldownRemainingSeconds, t.FullName]);
+      DiagRecordAssignSlotsAbort(darMaxSimDownCooldown);
       exit;
     end;
 
@@ -842,13 +912,14 @@ begin
         begin
           t.startat := IncSecond(Now(), maxassign_delay);
         end;
+        DiagRecordAssignSlotsAbort(darOther);
         exit;
       end;
 
       if t.ClassType = TPazoRaceTask then
       begin
         TryToAssignRaceSlots(TPazoRaceTask(t));
-        exit;
+        exit; // counters are handled inside TryToAssignRaceSlots
       end;
 
       if t is TLoginTask then
@@ -856,7 +927,7 @@ begin
         if (t.wantedslot <> '') then
         begin
           TryToAssignLoginSlot(TLoginTask(t));
-          exit;
+          exit; // not counted as slot-assignment abort
         end;
       end;
 
@@ -864,6 +935,7 @@ begin
       begin
         if (s.fActiveDirlistCount >= _CalcMaxDirlistSlots(s.slots.Count)) then
         begin
+          DiagRecordAssignSlotsAbort(darOther);
           exit;
         end;
       end;
@@ -875,10 +947,14 @@ begin
         if (ss = nil) then
         begin
           t.readyerror := True;
+          DiagRecordAssignSlotsAbort(darOther);
           exit;
         end;
         if (ss.todotask <> nil) or (ss.status <> ssOnline) then
+        begin
+          DiagRecordAssignSlotsAbort(darNoSlotAvailable);
           exit;
+        end;
       end;
 
       // try to find a free and online slot
@@ -894,7 +970,10 @@ begin
         end;
 
         if ss = nil then
+        begin
+          DiagRecordAssignSlotsAbort(darNoSlotAvailable);
           exit;
+        end;
       end;
 
       if ((t.wanted_dn) or (t.wanted_up)) then
@@ -923,7 +1002,10 @@ begin
 
         //OLD CODE before max_pre_dn was added
           if s.num_dn >= ss.site.max_dn then
+          begin
+            DiagRecordAssignSlotsAbort(darNoSlotAvailable);
             exit;
+          end;
 
 
           ss.downloadingfrom := True;
@@ -933,7 +1015,10 @@ begin
         if t.wanted_up then
         begin
           if s.num_up >= ss.site.max_up then
+          begin
+            DiagRecordAssignSlotsAbort(darNoSlotAvailable);
             exit;
+          end;
           ss.uploadingto := True;
         end;
       end;
@@ -1717,6 +1802,10 @@ var
   fFindBestTaskCount: Integer;
   fSuccessfulAssignments: Integer;
   fPerfLine: String;
+  { Diagnostics slot counters }
+  fDiagOnline, fDiagOffline, fDiagDown, fDiagMarkedDown,
+  fDiagBusy, fDiagFree, fDiagWaitTaskBusy: Integer;
+  fDiagSlot: TSiteSlot;
 begin
   while ((not slshutdown) and (not Terminated)) do
   begin
@@ -1927,6 +2016,18 @@ begin
                   end;
                 end;
 
+                if (fTask.ClassType = TWaitTask) then
+                begin
+                  try
+                    DiagRemoveActiveWaitTask(fTask.site1, TWaitTask(fTask).wait_for);
+                  except
+                    on E: Exception do
+                    begin
+                      Debug(dpError, section, Format('[AV-DEBUG] RemoveReady DiagRemoveActiveWaitTask failed for %s: %s', [fTask.Name, E.Message]));
+                    end;
+                  end;
+                end;
+
                 try
                   ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
                   try
@@ -2039,6 +2140,48 @@ begin
       fTickSectionStart := GetTickCount64;
       QueueStat;
       fTickQueueStat := GetTickCount64 - fTickSectionStart;
+
+      // Periodic diagnostics snapshot (every 30 seconds)
+      if MilliSecondsBetween(fLastDiagSnapshotTime, Now) >= 30000 then
+      begin
+        fLastDiagSnapshotTime := Now;
+        fDiagOnline := 0;
+        fDiagOffline := 0;
+        fDiagDown := 0;
+        fDiagMarkedDown := 0;
+        fDiagBusy := 0;
+        fDiagFree := 0;
+        fDiagWaitTaskBusy := 0;
+        for fDiagSlot in ts.slots do
+        begin
+          try
+            case fDiagSlot.status of
+              ssOnline: Inc(fDiagOnline);
+              ssOffline: Inc(fDiagOffline);
+              ssDown: Inc(fDiagDown);
+              ssMarkedDown: Inc(fDiagMarkedDown);
+            end;
+            if fDiagSlot.todotask <> nil then
+            begin
+              Inc(fDiagBusy);
+              if fDiagSlot.todotask.ClassType = TWaitTask then
+                Inc(fDiagWaitTaskBusy);
+            end
+            else
+              Inc(fDiagFree);
+          except
+            on E: Exception do
+              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute diag slot scan: %s', [E.Message]));
+          end;
+        end;
+        DiagUpdateSlotSnapshot(fDiagOnline, fDiagOffline, fDiagDown,
+          fDiagMarkedDown, fDiagBusy, fDiagFree, fDiagWaitTaskBusy);
+        DiagUpdateQueueSnapshot(fQueueStat.FTotalTaskCount,
+          fQueueStat.FRaceTaskCount, fQueueStat.FDirlistTaskCount,
+          fQueueStat.FAutoTaskCount, fQueueStat.FOtherTaskCount,
+          DiagGetRaceTasksAssigned);
+        DiagTakeSnapshot;
+      end;
 
       fLastStep := 'IdleQuitTasks';
       fTickSectionStart := GetTickCount64;
@@ -2662,6 +2805,7 @@ begin
   fQueueStat.FDirlistTaskCount := t_dir;
   fQueueStat.FAutoTaskCount := t_auto;
   fQueueStat.FOtherTaskCount := t_other;
+  fQueueStat.FTotalTaskCount := tasks.Count;
 end;
 
 procedure QueueStatAll;

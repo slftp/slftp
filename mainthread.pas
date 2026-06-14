@@ -60,7 +60,7 @@ uses
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, tasklogin, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
   StrUtils, news, dbhandler, mormot.db.raw.sqlite3, mormot.db.sql.sqlite3, ZPlainMySqlDriver, mormot.db.sql.zeos, mormot.db.core, irccommands.prebot,
   taskautodirlist, slcriticalsection2, mormot.core.unicode, mormot.core.base, slapi, slapi.services.impl,
-  IdGlobal, ZClasses, FLRE, RegExpr;
+  IdGlobal, ZClasses, FLRE, RegExpr, diagunit;
 
 {$I slftp.inc}
 
@@ -235,6 +235,8 @@ begin
   SitesInit;
   console_addline('Admin', 'Init Queue', True);
   QueueInit;
+  console_addline('Admin', 'Init Diagnostics', True);
+  DiagInit;
   console_addline('Admin', 'Init KB', True);
   kb_Init;
   console_addline('Admin', 'Init Idle tasks', True);
@@ -594,6 +596,7 @@ begin
   taskidleuninit;
   SitesUnInit;
   QueueUnInit;
+  DiagUninit;
   KnowngroupsUnInit;
   MidnightUninit;
   Tasks_UnInit;

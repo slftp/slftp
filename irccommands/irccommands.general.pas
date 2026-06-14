@@ -9,6 +9,7 @@ function IrcUptime(const netname, channel, params: String): boolean;
 function IrcShowAppStatus(const netname, channel, params: String): boolean;
 function IrcQueue(const netname, channel, params: String): boolean;
 function IrcQueuePerf(const netname, channel, params: String): boolean;
+function IrcQueueDiagnostics(const netname, channel, params: String): boolean;
 function IrcLastLog(const netname, channel, params: String): boolean;
 function IrcSetDebugverbosity(const netname, channel, params: String): boolean;
 function IrcCreateBackup(const netname, channel, params: String): boolean;
@@ -20,7 +21,7 @@ uses
   SysUtils, Classes, StrUtils, Math, Contnrs, irccommandsunit, irc, RegExpr, statsunit, mainthread,
   debugunit, tasksunit, configunit, sitesunit, news, dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo,
   console, precatcher, queueunit, kb, mystrings, backupunit, versioninfo, slssl, irccommands.site,
-  mormot.core.os, mormot.core.base, mormot.db.raw.sqlite3, IdGlobal, ZClasses, FLRE
+  mormot.core.os, mormot.core.base, mormot.db.raw.sqlite3, IdGlobal, ZClasses, FLRE, diagunit
   {$IFDEF MSWINDOWS}, psAPI{$ELSE}, process{$ENDIF};
 
 const
@@ -284,6 +285,86 @@ end;
 function IrcQueue(const netname, channel, params: String): boolean;
 begin
   Result := IrcQueueShow(netname, channel, params);
+end;
+
+function IrcQueueDiagnostics(const netname, channel, params: String): boolean;
+var
+  fArgs: TStringList;
+  fCmd, fFilename: String;
+  fLines: TStringList;
+  i: Integer;
+begin
+  Result := False;
+  fCmd := Trim(LowerCase(params));
+
+  if fCmd = 'detail' then
+  begin
+    irc_addtext(netname, channel, 'Active WAITTASKs:');
+    fLines := TStringList.Create;
+    try
+      fLines.Text := DiagFormatActiveWaitTasks;
+      for i := 0 to fLines.Count - 1 do
+        if fLines[i] <> '' then
+          irc_addtext(netname, channel, fLines[i]);
+    finally
+      fLines.Free;
+    end;
+    Result := True;
+    exit;
+  end;
+
+  if fCmd = 'history' then
+  begin
+    fLines := TStringList.Create;
+    try
+      fLines.Text := DiagFormatHistory;
+      if fLines.Count = 0 then
+      begin
+        irc_addtext(netname, channel, 'No history snapshots yet.');
+      end
+      else
+      begin
+        irc_addtext(netname, channel, 'Diagnostics history (last snapshots):');
+        for i := Max(0, fLines.Count - 30) to fLines.Count - 1 do
+          if fLines[i] <> '' then
+            irc_addtext(netname, channel, fLines[i]);
+      end;
+    finally
+      fLines.Free;
+    end;
+    Result := True;
+    exit;
+  end;
+
+  if AnsiStartsText('save ', fCmd) then
+  begin
+    fFilename := Trim(Copy(params, 5, MaxInt));
+    if fFilename = '' then
+    begin
+      irc_addtext(netname, channel, 'Usage: queuediag save <filename>');
+      exit;
+    end;
+    if ExtractFilePath(fFilename) = '' then
+      fFilename := ExtractFilePath(ParamStr(0)) + fFilename;
+    if DiagSaveToFile(fFilename) then
+      irc_addtext(netname, channel, 'Diagnostics saved to ' + fFilename)
+    else
+      irc_addtext(netname, channel, 'Failed to save diagnostics to ' + fFilename);
+    Result := True;
+    exit;
+  end;
+
+  { Default: aggregate summary }
+  fLines := TStringList.Create;
+  try
+    fLines.Text := DiagFormatCurrent;
+    for i := 0 to fLines.Count - 1 do
+      if fLines[i] <> '' then
+        irc_addtext(netname, channel, fLines[i]);
+  finally
+    fLines.Free;
+  end;
+  Result := True;
 end;
 
 function IrcQueuePerf(const netname, channel, params: String): boolean;

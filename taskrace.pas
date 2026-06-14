@@ -2,7 +2,7 @@ unit taskrace;
 
 interface
 
-uses SyncObjs, tasksunit, pazo, Generics.Collections, dirlist, mormot.core.os;
+uses SyncObjs, tasksunit, pazo, Generics.Collections, dirlist, mormot.core.os, diagunit;
 
 type
   TPazoPlainTask = class(TTask) // no announce
@@ -41,6 +41,8 @@ type
   public
     event: TSynEvent;
     wait_for: String;
+    { Time when the slot thread entered Execute/WaitFor. Used for diagnostics. }
+    wait_start: TDateTime;
     { True once the slot thread has left event.WaitFor and finished cleanup.
       Used by the queue thread to avoid freeing the wait task while the slot
       thread is still executing inside it. }
@@ -3625,6 +3627,8 @@ begin
   inherited Create(netname, channel, site1);
   event := TSynEvent.Create;
   wait_done := False;
+  wait_start := 0;
+  DiagRecordWaitTaskCreated;
 end;
 
 destructor TWaitTask.Destroy;
@@ -3637,8 +3641,12 @@ function TWaitTask.Execute(slot: Pointer): boolean;
 var
   ss: TSiteSlot;
   local_event: TSynEvent;
+  fElapsedMs: Int64;
 begin
   Result := True;
+  wait_start := Now;
+  DiagRecordWaitTaskAssigned;
+  DiagUpdateActiveWaitTask(site1, wait_for, ready, wait_done);
   { Keep a local reference to the event object. If the task object were ever
     freed while we are blocked in WaitFor, the local reference stays valid
     long enough to exit the wait safely. }
@@ -3686,6 +3694,9 @@ begin
       longer touch the task object. After this point it is safe to remove the
       task from the queue and free it. }
     wait_done := True;
+    DiagUpdateActiveWaitTask(site1, wait_for, ready, wait_done);
+    fElapsedMs := MilliSecondsBetween(Now, wait_start);
+    DiagRecordWaitTaskDone(fElapsedMs);
   end;
 end;
 
