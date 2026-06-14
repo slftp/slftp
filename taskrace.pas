@@ -3628,7 +3628,7 @@ begin
   event := TSynEvent.Create;
   wait_done := False;
   wait_start := 0;
-  DiagRecordWaitTaskCreated;
+  DiagRecordWaitTaskCreated(site1);
 end;
 
 destructor TWaitTask.Destroy;
@@ -3645,7 +3645,7 @@ var
 begin
   Result := True;
   wait_start := Now;
-  DiagRecordWaitTaskAssigned;
+  DiagRecordWaitTaskAssigned(site1);
   DiagUpdateActiveWaitTask(site1, wait_for, ready, wait_done);
   { Keep a local reference to the event object. If the task object were ever
     freed while we are blocked in WaitFor, the local reference stays valid
@@ -3696,7 +3696,7 @@ begin
     wait_done := True;
     DiagUpdateActiveWaitTask(site1, wait_for, ready, wait_done);
     fElapsedMs := MilliSecondsBetween(Now, wait_start);
-    DiagRecordWaitTaskDone(fElapsedMs);
+    DiagRecordWaitTaskDone(fElapsedMs, site1);
   end;
 end;
 

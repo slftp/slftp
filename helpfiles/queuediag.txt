@@ -1,15 +1,17 @@
-<b>Usage:</b> <cmd>
+<b>Usage:</b> <cmd> [sitename | detail | history | save file]
 
 Displays live in-memory diagnostics about the queue, slots and WAITTASKs.
 No data is written to disk unless you use the save subcommand.
 
 <b>Subcommands:</b>
-  <cmd>           - aggregate summary (WAITTASKs, queue size, slot states, abort reasons)
-  <cmd> detail    - list currently active WAITTASKs with elapsed wait time
-  <cmd> history   - last snapshots captured every 30 seconds
-  <cmd> save file - write current diagnostics to <file> (relative to slftp binary)
+  <cmd>              - aggregate summary across all sites (WAITTASKs, queue size, slot states, abort reasons)
+  <cmd> sitename     - site-specific summary for the given site
+  <cmd> detail       - list currently active WAITTASKs with elapsed wait time
+  <cmd> history      - last snapshots captured every 30 seconds
+  <cmd> save file    - write current diagnostics to <file> (relative to slftp binary)
 
 <b>Example:</b>
   <cmd>
+  <cmd> CZ
   <cmd> detail
   <cmd> save /tmp/queuediag.txt

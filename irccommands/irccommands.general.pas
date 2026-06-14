@@ -354,10 +354,13 @@ begin
     exit;
   end;
 
-  { Default: aggregate summary }
+  { Default: aggregate summary (empty) or site-specific (anything else) }
   fLines := TStringList.Create;
   try
-    fLines.Text := DiagFormatCurrent;
+    if fCmd = '' then
+      fLines.Text := DiagFormatCurrent
+    else
+      fLines.Text := DiagFormatCurrent(fCmd);
     for i := 0 to fLines.Count - 1 do
       if fLines[i] <> '' then
         irc_addtext(netname, channel, fLines[i]);

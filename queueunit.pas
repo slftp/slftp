@@ -419,35 +419,35 @@ begin
   bestTask := nil;
   bestScore := Low(Int64);
 
-  DiagRecordFindBestTaskCall;
+  DiagRecordFindBestTaskCall(fSiteName);
 
   for t in tasks do
   begin
     // Skip tasks in our skipped/tried list
     if (aSkippedTasks <> nil) and (aSkippedTasks.IndexOf(t) >= 0) then
     begin
-      DiagRecordFindBestTaskNil(dfbnOther);
+      DiagRecordFindBestTaskNil(dfbnOther, fSiteName);
       Continue;
     end;
 
     // Skip tasks that are already assigned, ready, or have errors
     if ((t.slot1 <> nil) or (t.slot2 <> nil) or t.ready or t.readyerror) then
     begin
-      DiagRecordFindBestTaskNil(dfbnOther);
+      DiagRecordFindBestTaskNil(dfbnOther, fSiteName);
       Continue;
     end;
 
     // Skip delayed tasks
     if (t.startat > 0) and (t.startat > aNow) then
     begin
-      DiagRecordFindBestTaskNil(dfbnDelayed);
+      DiagRecordFindBestTaskNil(dfbnDelayed, fSiteName);
       Continue;
     end;
 
     // Skip tasks not ready to execute
     if not t.IsReadyToBeExecuted then
     begin
-      DiagRecordFindBestTaskNil(dfbnNoReadyTask);
+      DiagRecordFindBestTaskNil(dfbnNoReadyTask, fSiteName);
       Continue;
     end;
 
@@ -457,7 +457,7 @@ begin
       tpr := TPazoRaceTask(t);
       if _IsLowPriorityRaceTask(tpr) and aHasImportantWaiting then
       begin
-        DiagRecordFindBestTaskNil(dfbnCooldown);
+        DiagRecordFindBestTaskNil(dfbnCooldown, fSiteName);
         Continue;
       end;
     end;
@@ -472,7 +472,7 @@ begin
   end;
 
   if (bestTask = nil) and (tasks.Count = 0) then
-    DiagRecordFindBestTaskNil(dfbnNoTasks);
+    DiagRecordFindBestTaskNil(dfbnNoTasks, fSiteName);
 
   Result := bestTask;
 end;
@@ -579,12 +579,12 @@ begin
     s2 := TSite(t.ssite2);
     if s1.freeslots = 0 then
     begin
-      DiagRecordAssignRaceAbort(darFreeslotsZero);
+      DiagRecordAssignRaceAbort(darFreeslotsZero, fSiteName);
       exit;
     end;
     if s2.freeslots = 0 then
     begin
-      DiagRecordAssignRaceAbort(darFreeslotsZero);
+      DiagRecordAssignRaceAbort(darFreeslotsZero, fSiteName);
       exit;
     end;
 
@@ -594,7 +594,7 @@ begin
         fBusyDestinations.Add(s2, 0);
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Destination site %s is on MaxSim UP cooldown (%ds remaining), skipping %s',
         [s2.Name, s2.MaxSimUpCooldownRemainingSeconds, t.FullName]);
-      DiagRecordAssignRaceAbort(darMaxSimUpCooldown);
+      DiagRecordAssignRaceAbort(darMaxSimUpCooldown, fSiteName);
       exit;
     end;
 
@@ -602,14 +602,14 @@ begin
     begin
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Source site %s is on MaxSim DOWN cooldown (%ds remaining), skipping %s',
         [s1.Name, s1.MaxSimDownCooldownRemainingSeconds, t.FullName]);
-      DiagRecordAssignRaceAbort(darMaxSimDownCooldown);
+      DiagRecordAssignRaceAbort(darMaxSimDownCooldown, fSiteName);
       exit;
     end;
 
     if fBusyDestinations.ContainsKey(s2) then
     begin
       Debug(dpSpam, section, 'Destination site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
-      DiagRecordAssignRaceAbort(darOther);
+      DiagRecordAssignRaceAbort(darOther, fSiteName);
       exit;
     end;
 
@@ -619,26 +619,26 @@ begin
     begin
       t.readyerror := True;
       Debug(dpSpam, section, Format('TryToAssignRaceSlots: race failed on destination site or dirlist: %s', [t.FullName]));
-      DiagRecordAssignRaceAbort(darOther);
+      DiagRecordAssignRaceAbort(darOther, fSiteName);
       exit;
     end;
 
     // first watch if it is not already in process to upload the same file to the same place
     if t.ps2.HasActiveTransfer(t.dir + t.filename) then
     begin
-      DiagRecordAssignRaceAbort(darOther);
+      DiagRecordAssignRaceAbort(darOther, fSiteName);
       exit; // we are already sending this file to the same destination site
     end;
 
     if s2.num_up >= s2.max_up then
     begin
-      DiagRecordAssignRaceAbort(darNoSlotAvailable);
+      DiagRecordAssignRaceAbort(darNoSlotAvailable, fSiteName);
       exit;
     end;
 
     if t.ps1.HasActiveTransfer(t.dir + t.filename, s2.Name) then
     begin
-      DiagRecordAssignRaceAbort(darOther);
+      DiagRecordAssignRaceAbort(darOther, fSiteName);
       exit; // we are already sending this file the opposite route
     end;
 
@@ -648,7 +648,7 @@ begin
     begin
       if s1.num_dn >= s1.max_pre_dn then
       begin
-        DiagRecordAssignRaceAbort(darNoSlotAvailable);
+        DiagRecordAssignRaceAbort(darNoSlotAvailable, fSiteName);
         exit;
       end;
     end
@@ -656,7 +656,7 @@ begin
     begin
       if s1.num_dn >= s1.max_dn then
       begin
-        DiagRecordAssignRaceAbort(darNoSlotAvailable);
+        DiagRecordAssignRaceAbort(darNoSlotAvailable, fSiteName);
         exit;
       end;
     end;
@@ -686,7 +686,7 @@ begin
     end;
     if ss1 = nil then
     begin
-      DiagRecordAssignRaceAbort(darNoSlotAvailable);
+      DiagRecordAssignRaceAbort(darNoSlotAvailable, fSiteName);
       exit;
     end;
 
@@ -694,7 +694,7 @@ begin
     if not s2.AcquireSlotsAssignmentLock(1, 'TryToAssignRaceSlots') then
     begin
       fBusyDestinations.Add(s2, 0);
-      DiagRecordAssignRaceAbort(darOther);
+      DiagRecordAssignRaceAbort(darOther, fSiteName);
       exit;
     end;
 
@@ -702,14 +702,14 @@ begin
       // check again now that we have the lock at the destination
       if s2.num_up >= s2.max_up then
       begin
-        DiagRecordAssignRaceAbort(darNoSlotAvailable);
+        DiagRecordAssignRaceAbort(darNoSlotAvailable, fSiteName);
         exit;
       end;
 
       // again check if this file is already being sent to the destination now that we have the slot assignment lock
       if t.ps2.HasActiveTransfer(t.dir + t.filename) then
       begin
-        DiagRecordAssignRaceAbort(darOther);
+        DiagRecordAssignRaceAbort(darOther, fSiteName);
         exit; // we are already sending this file to the same destination site
       end;
 
@@ -725,7 +725,7 @@ begin
       end;
       if ss2 = nil then
       begin
-        DiagRecordAssignRaceAbort(darNoSlotAvailable);
+        DiagRecordAssignRaceAbort(darNoSlotAvailable, fSiteName);
         exit;
       end;
 
@@ -734,7 +734,7 @@ begin
       if ((i > 0) and (t.ps2.ActiveTransferCount >= i)) then
       begin
         Debug(dpSpam, section, 'We shouldnt upload more than maxupperrip value [' + IntToStr(i) + '] for' + ss2.Name);
-        DiagRecordAssignRaceAbort(darMaxUpPerRip);
+        DiagRecordAssignRaceAbort(darMaxUpPerRip, fSiteName);
         exit;
       end;
 
@@ -757,7 +757,7 @@ begin
       ss2.todotask := t.dst;
       ss2.Fire;
       ss1.Fire;
-      DiagRecordRaceTaskAssigned;
+      DiagRecordRaceTaskAssigned(fSiteName);
     finally
       s2.ReleaseSlotsAssignmentLock;
     end;
@@ -765,7 +765,7 @@ begin
   on e: Exception do
     begin
       Debug(dpError, section, '[EXCEPTION] TQueueThread.TryToAssignRaceSlots : %s', [e.Message]);
-      DiagRecordAssignRaceAbort(darOther);
+      DiagRecordAssignRaceAbort(darOther, fSiteName);
       exit;
     end;
   end;
@@ -880,7 +880,7 @@ begin
     try
     if s.freeslots = 0 then
     begin
-      DiagRecordAssignSlotsAbort(darFreeslotsZero);
+      DiagRecordAssignSlotsAbort(darFreeslotsZero, fSiteName);
       exit;
     end;
 
@@ -888,7 +888,7 @@ begin
     begin
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Site %s is on MaxSim UP cooldown (%ds remaining), skip task %s',
         [s.Name, s.MaxSimUpCooldownRemainingSeconds, t.FullName]);
-      DiagRecordAssignSlotsAbort(darMaxSimUpCooldown);
+      DiagRecordAssignSlotsAbort(darMaxSimUpCooldown, fSiteName);
       exit;
     end;
 
@@ -896,7 +896,7 @@ begin
     begin
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Site %s is on MaxSim DOWN cooldown (%ds remaining), skip task %s',
         [s.Name, s.MaxSimDownCooldownRemainingSeconds, t.FullName]);
-      DiagRecordAssignSlotsAbort(darMaxSimDownCooldown);
+      DiagRecordAssignSlotsAbort(darMaxSimDownCooldown, fSiteName);
       exit;
     end;
 
@@ -912,7 +912,7 @@ begin
         begin
           t.startat := IncSecond(Now(), maxassign_delay);
         end;
-        DiagRecordAssignSlotsAbort(darOther);
+        DiagRecordAssignSlotsAbort(darOther, fSiteName);
         exit;
       end;
 
@@ -935,7 +935,7 @@ begin
       begin
         if (s.fActiveDirlistCount >= _CalcMaxDirlistSlots(s.slots.Count)) then
         begin
-          DiagRecordAssignSlotsAbort(darOther);
+          DiagRecordAssignSlotsAbort(darOther, fSiteName);
           exit;
         end;
       end;
@@ -947,12 +947,12 @@ begin
         if (ss = nil) then
         begin
           t.readyerror := True;
-          DiagRecordAssignSlotsAbort(darOther);
+          DiagRecordAssignSlotsAbort(darOther, fSiteName);
           exit;
         end;
         if (ss.todotask <> nil) or (ss.status <> ssOnline) then
         begin
-          DiagRecordAssignSlotsAbort(darNoSlotAvailable);
+          DiagRecordAssignSlotsAbort(darNoSlotAvailable, fSiteName);
           exit;
         end;
       end;
@@ -971,7 +971,7 @@ begin
 
         if ss = nil then
         begin
-          DiagRecordAssignSlotsAbort(darNoSlotAvailable);
+          DiagRecordAssignSlotsAbort(darNoSlotAvailable, fSiteName);
           exit;
         end;
       end;
@@ -1003,7 +1003,7 @@ begin
         //OLD CODE before max_pre_dn was added
           if s.num_dn >= ss.site.max_dn then
           begin
-            DiagRecordAssignSlotsAbort(darNoSlotAvailable);
+            DiagRecordAssignSlotsAbort(darNoSlotAvailable, fSiteName);
             exit;
           end;
 
@@ -1016,7 +1016,7 @@ begin
         begin
           if s.num_up >= ss.site.max_up then
           begin
-            DiagRecordAssignSlotsAbort(darNoSlotAvailable);
+            DiagRecordAssignSlotsAbort(darNoSlotAvailable, fSiteName);
             exit;
           end;
           ss.uploadingto := True;
@@ -2175,11 +2175,11 @@ begin
           end;
         end;
         DiagUpdateSlotSnapshot(fDiagOnline, fDiagOffline, fDiagDown,
-          fDiagMarkedDown, fDiagBusy, fDiagFree, fDiagWaitTaskBusy);
+          fDiagMarkedDown, fDiagBusy, fDiagFree, fDiagWaitTaskBusy, fSiteName);
         DiagUpdateQueueSnapshot(fQueueStat.FTotalTaskCount,
           fQueueStat.FRaceTaskCount, fQueueStat.FDirlistTaskCount,
           fQueueStat.FAutoTaskCount, fQueueStat.FOtherTaskCount,
-          DiagGetRaceTasksAssigned);
+          DiagGetRaceTasksAssigned, fSiteName);
         DiagTakeSnapshot;
       end;
 
