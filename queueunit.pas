@@ -1825,8 +1825,23 @@ begin
 
                 if (fTask.ClassType = TWaitTask) then
                 begin
+                  // Never free a TWaitTask while its slot thread may still be
+                  // blocked inside event.WaitFor. wait_done is set by
+                  // TWaitTask.Execute after it has returned from WaitFor and
+                  // will no longer touch the task object.
+                  if not TWaitTask(fTask).wait_done then
+                  begin
+                    try
+                      TWaitTask(fTask).event.SetEvent;
+                    except
+                      on E: Exception do
+                        Debug(dpError, section, Format('[AV-DEBUG] RemoveReady TWaitTask event.SetEvent failed for %s: %s', [fTask.Name, E.Message]));
+                    end;
+                    Continue;
+                  end;
+
                   try
-                    ts.AcquireSlotsAssignmentLock('Queue free stuck wait task');
+                    ts.AcquireSlotsAssignmentLock('Queue free wait task');
                     try
                       try
                         if TSiteSlot(fTask.slot1) <> nil then;
@@ -1862,7 +1877,7 @@ begin
                   except
                     on E: Exception do
                     begin
-                      Debug(dpError, section, Format('[AV-DEBUG] RemoveReady stuck-wait cleanup outer failed for %s: %s — forcing slot1=nil', [fTask.Name, E.Message]));
+                      Debug(dpError, section, Format('[AV-DEBUG] RemoveReady wait-task cleanup outer failed for %s: %s — forcing slot1=nil', [fTask.Name, E.Message]));
                       fTask.slot1 := nil;
                     end;
                   end;
@@ -2466,41 +2481,20 @@ begin
           ss := t.UidText;
           Debug(dpSpam, section, Format('[QUEUECLEAN] Clean wait task : %s', [t.Fullname]));
 
-          // Wake up the blocking slot thread. If the slot has already moved on
-          // (rebuilt / dead), we can safely remove the task. If the slot is still
-          // executing this wait task, only signal the event and mark ready so the
-          // slot thread can clean up without use-after-free.
-          TWaitTask(t).event.SetEvent;
-
+          // Wake up the blocking slot thread. The task object is owned by the
+          // slot thread while it is inside event.WaitFor; it must NOT be freed
+          // here. TWaitTask.Execute sets wait_done=True once it has returned
+          // from WaitFor and will no longer touch the object. RemoveReady will
+          // then collect and free the task safely.
           try
-            if (t.slot1 <> nil) and (TSiteSlot(t.slot1).todotask = t) then
-            begin
-              // Slot still holds this task. Mark it ready so RemoveReady will
-              // collect it on the next pass without racing the slot thread.
-              t.ready := True;
-            end
-            else
-            begin
-              // Slot has moved on or task has no slot reference. Safe to remove.
-              if t.slot1 <> nil then
-              begin
-                t.slot1 := nil;
-                t.slot1name := '';
-              end;
-              t.ready := True;
-              tasks.Remove(t);
-            end;
+            TWaitTask(t).event.SetEvent;
           except
             on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] QueueClean wait task cleanup: %s', [e.Message]));
-              t.ready := True;
-            end;
+              Debug(dpError, section, Format('[EXCEPTION] QueueClean wait task SetEvent: %s', [e.Message]));
           end;
+          t.ready := True;
 
           Inc(tkill_race);
-
-          Console_QueueDel(ss);
 
           Continue;
         end;

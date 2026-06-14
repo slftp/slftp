@@ -41,6 +41,10 @@ type
   public
     event: TSynEvent;
     wait_for: String;
+    { True once the slot thread has left event.WaitFor and finished cleanup.
+      Used by the queue thread to avoid freeing the wait task while the slot
+      thread is still executing inside it. }
+    wait_done: Boolean;
     destructor Destroy; override;
     constructor Create(const netname, channel, site1: String);
     function Execute(slot: Pointer): boolean; override;
@@ -3620,6 +3624,7 @@ constructor TWaitTask.Create(const netname, channel, site1: String);
 begin
   inherited Create(netname, channel, site1);
   event := TSynEvent.Create;
+  wait_done := False;
 end;
 
 destructor TWaitTask.Destroy;
@@ -3633,23 +3638,19 @@ var
   ss: TSiteSlot;
 begin
   Result := True;
-  event.WaitFor($FFFFFFFF);
-  { Reset manual TSynEvent flag so a reused/restarted wait task blocks again. }
-  event.ResetEvent;
-  (*
-  case event.WaitFor(15 * 60 * 1000) of
-    wrSignaled : { Event fired. Normal exit. }
-    begin
-
-    end;
-    else { Timeout reach }
-    begin
-      irc_Adderror('TWaitTask.Execute: <c2>Force Leave</c>:'+Name+' TWaitTask 15min');
-      Debug(dpSpam, c_section,'TWaitTask.Execute: <c2>Force Leave</c>:'+Name+' TWaitTask 15min');
-    end;
+  try
+    event.WaitFor($FFFFFFFF);
+    { Reset manual TSynEvent flag so a reused/restarted wait task blocks again. }
+    event.ResetEvent;
+  finally
+    { Mark the task as ready in any case (success or exception) so the queue
+      thread will collect it. }
+    ready := True;
+    { Tell the queue thread that we have left the blocking wait and will no
+      longer touch the task object. After this point it is safe to remove the
+      task from the queue and free it. }
+    wait_done := True;
   end;
-  *)
-  ready := True;
 
   { Clear our slot reference FIRST, before dereferencing ss.
     The slot may have been rebuilt (and the old object freed)
