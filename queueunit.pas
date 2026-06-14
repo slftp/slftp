@@ -2156,8 +2156,8 @@ begin
         end;
       end;
 
-      // Periodic diagnostics snapshot (every 30 seconds)
-      if MilliSecondsBetween(fLastDiagSnapshotTime, Now) >= 30000 then
+      // Periodic diagnostics snapshot (every 5 seconds for more responsive output)
+      if MilliSecondsBetween(fLastDiagSnapshotTime, Now) >= 5000 then
       begin
         fLastDiagSnapshotTime := Now;
         fDiagOnline := 0;
