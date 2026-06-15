@@ -2177,6 +2177,12 @@ begin
           on E: Exception do
             Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute RecalcFreeslots: %s', [E.Message]));
         end;
+        try
+          ts.PurgeZombieSlots;
+        except
+          on E: Exception do
+            Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute PurgeZombieSlots: %s', [E.Message]));
+        end;
       end;
 
       // Periodic diagnostics snapshot (every 5 seconds for more responsive output)

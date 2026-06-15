@@ -3690,11 +3690,10 @@ begin
       end;
     end;
   finally
-    { Tell the queue thread that we have left the blocking wait and will no
-      longer touch the task object. After this point it is safe to remove the
-      task from the queue and free it. }
-    wait_done := True;
-    DiagUpdateActiveWaitTask(site1, wait_for, ready, wait_done);
+    { Do NOT set wait_done here. The slot thread is still using fCurrentTask
+      for post-Execute cleanup in TSiteSlot.Execute. Setting it now would allow
+      RemoveReady to free the task while the slot thread still dereferences it.
+      TSiteSlot.Execute will set wait_done after cleanup is complete. }
     fElapsedMs := MilliSecondsBetween(Now, wait_start);
     DiagRecordWaitTaskDone(fElapsedMs, site1);
   end;

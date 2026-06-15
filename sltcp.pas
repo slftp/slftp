@@ -42,8 +42,13 @@ type
     fOnWaitingforSocket: TWaitingforsocketEvent;
     socksextra: {$IFDEF UNICODE}RawByteString{$ELSE}AnsiString{$ENDIF};
     readlnsession: Boolean;
+    { Serializes SSL setup/teardown against the worker thread. Prevents
+      DisconnectSSL/SSL_free from racing with an in-flight TurnToSSL. }
+    fSSLLock: TCriticalSection;
     function ConnectSocks5(timeout: Integer): Boolean;
     function ConnectB(host: String; port: Integer; timeout: Integer; udp: Boolean): Boolean;
+    { Internal SSL teardown without taking fSSLLock. Caller must hold the lock. }
+    procedure DisconnectSSLInternal;
     procedure DisconnectSSL;
     procedure ClearSocket;
     function IsFireing(timeout: Integer; shouldread, shouldwrite: Boolean): Boolean;
@@ -116,6 +121,9 @@ type
     destructor Destroy; override;
     procedure Start;
     procedure Stop; virtual;
+    { Returns whether the worker thread is still running. Used by RebuildSlot
+      to avoid freeing a slot object while its thread is active. }
+    function IsThreadRunning: Boolean;
   end;
 
 type
@@ -183,6 +191,7 @@ begin
   ClearSocket;
 
   fSSLCTX := GetOpenSSLConnectionContext;
+  fSSLLock := TCriticalSection.Create;
 
   socks5:= TslSocks5.Create;
   socks5.username:= slDefaultSocks5.username;
@@ -210,6 +219,7 @@ end;
   ClearSocket;
 
   fSSLCTX := GetOpenSSLConnectionContext;
+  fSSLLock := TCriticalSection.Create;
 
   socks5:= TslSocks5.Create;
   socks5.username:= RawByteString(sok5.username);
@@ -238,11 +248,12 @@ begin
   Disconnect;
   socks5.Free;
   fss.Free;
+  FreeAndNil(fSSLLock);
 
   inherited;
 end;
 
-procedure TslTCPSocket.DisconnectSSL;
+procedure TslTCPSocket.DisconnectSSLInternal;
 begin
   if fSSL <> nil then
   begin
@@ -251,7 +262,18 @@ begin
     SSL_free(fSSL);
     fSSL:= nil;
   end;
+end;
 
+procedure TslTCPSocket.DisconnectSSL;
+begin
+  if fSSLLock <> nil then
+    fSSLLock.Enter;
+  try
+    DisconnectSSLInternal;
+  finally
+    if fSSLLock <> nil then
+      fSSLLock.Leave;
+  end;
 end;
 
 function TslTCPSocket.Disconnect: Boolean;
@@ -592,98 +614,114 @@ var er: String;
     sslerr, err, i: Integer;
     shouldquit: Boolean;
     fErrorMessage: RawUtf8;
+    fHeldLock: Boolean;
 begin
   shouldquit:= False;
   Result:= False;
   sslerr := 0; // Initialize to prevent uninitialized variable warning
+  fHeldLock := False;
   try
-    setlength(er, 512);
-
-    if slSocket.socket = slSocketError then
+    if fSSLLock <> nil then
     begin
-      error:= 'not connected';
-      exit;
+      fSSLLock.Enter;
+      fHeldLock := True;
     end;
 
-    if (fSSL <> nil) then
-    begin
-      error:= 'ssl connection is already negotiated';
-      exit;
-    end;
+    try
+      setlength(er, 512);
 
-    if not slSetNonblocking(slSocket, error) then exit;
-
-
-    fSSL:= nil;
-    fssl:= SSL_new(sslctx);
-
-    if (fSSL = nil) then
-    begin
-      err := ERR_get_error();
-      OpenSSL_error(err, fErrorMessage);
-      er := UTF8ToString(fErrorMessage);
-      error:= 'Cant create new ssl: '+er;
-      exit;
-    end;
-
-    if SSL_set_fd(fSSL, slSocket.socket) = 0 then
-    begin
-      DisconnectSSL;
-      error:= 'ssl set fd returned false';
-      exit;
-    end;
-
-    // try for 10 seconds
-    i:= 0;
-    while(true)do
-    begin
-      if i* 100 > timeout then
+      if slSocket.socket = slSocketError then
       begin
-        er:= GetLastSSLError(fSSL, sslerr);
-        error:= 'timeout, ssl failed '+ er;
-        DisconnectSSL;
-        slSetBlocking(slSocket,er);
+        error:= 'not connected';
         exit;
       end;
 
-      err:= SSL_connect(fssl);
-
-      if(err = 1) then Break;
-
-      sslerr:= SSL_get_error(fssl, err);
-      if((sslerr = SSL_ERROR_WANT_READ) or (sslerr = SSL_ERROR_WANT_WRITE) or (sslerr = SSL_ERROR_WANT_X509_LOOKUP)) then
+      if (fSSL <> nil) then
       begin
-        if Assigned(fOnWaitingforSocket) then
-          fOnWaitingforSocket(self, shouldquit);
-        if ((not shouldquit) and (Assigned(sltcp_onwaitingforsocket))) then
-          shouldquit:= sltcp_onwaitingforsocket(self);
+        error:= 'ssl connection is already negotiated';
+        exit;
+      end;
 
-        if shouldquit then
+      if not slSetNonblocking(slSocket, error) then exit;
+
+
+      fSSL:= nil;
+      fssl:= SSL_new(sslctx);
+
+      if (fSSL = nil) then
+      begin
+        err := ERR_get_error();
+        OpenSSL_error(err, fErrorMessage);
+        er := UTF8ToString(fErrorMessage);
+        error:= 'Cant create new ssl: '+er;
+        exit;
+      end;
+
+      if SSL_set_fd(fSSL, slSocket.socket) = 0 then
+      begin
+        DisconnectSSLInternal;
+        error:= 'ssl set fd returned false';
+        exit;
+      end;
+
+      // try for 10 seconds
+      i:= 0;
+      while(true)do
+      begin
+        if i* 100 > timeout then
         begin
-          DisconnectSSL;
+          er:= GetLastSSLError(fSSL, sslerr);
+          error:= 'timeout, ssl failed '+ er;
+          DisconnectSSLInternal;
           slSetBlocking(slSocket,er);
-          error:= 'shouldquit';
           exit;
         end;
 
-        Sleep(100);
-        inc(i);
-      end
-      else
-      begin
-        er:= GetLastSSLError(fSSL, sslerr);
-        error:= 'ssl failed '+er;
-        DisconnectSSL;
-        slSetBlocking(slSocket,er);
-        exit;
+        err:= SSL_connect(fssl);
+
+        if(err = 1) then Break;
+
+        sslerr:= SSL_get_error(fssl, err);
+        if((sslerr = SSL_ERROR_WANT_READ) or (sslerr = SSL_ERROR_WANT_WRITE) or (sslerr = SSL_ERROR_WANT_X509_LOOKUP)) then
+        begin
+          if Assigned(fOnWaitingforSocket) then
+            fOnWaitingforSocket(self, shouldquit);
+          if ((not shouldquit) and (Assigned(sltcp_onwaitingforsocket))) then
+            shouldquit:= sltcp_onwaitingforsocket(self);
+
+          if shouldquit then
+          begin
+            DisconnectSSLInternal;
+            slSetBlocking(slSocket,er);
+            error:= 'shouldquit';
+            exit;
+          end;
+
+          Sleep(100);
+          inc(i);
+        end
+        else
+        begin
+          er:= GetLastSSLError(fSSL, sslerr);
+          error:= 'ssl failed '+er;
+          DisconnectSSLInternal;
+          slSetBlocking(slSocket,er);
+          exit;
+        end;
+
       end;
 
+
+      if not slSetBlocking(slSocket,error) then exit;
+
+      Result:= True;
+    finally
+      if fHeldLock and (fSSLLock <> nil) then
+      begin
+        fSSLLock.Leave;
+        fHeldLock := False;
+      end;
     end;
-
-
-    if not slSetBlocking(slSocket,error) then exit;
-
-    Result:= True;
   except
     on e: Exception do
     begin
@@ -1224,6 +1262,11 @@ end;
 procedure TslTCPThread.Start;
 begin
     connectionThread.Start;
+end;
+
+function TslTCPThread.IsThreadRunning: Boolean;
+begin
+  Result := thread_running;
 end;
 
 procedure TslTCPThread.Stop;

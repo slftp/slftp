@@ -104,6 +104,14 @@ type
     fstatus: TSlotStatus;
     fSSCNEnabled: boolean;
     event: TSynEvent;
+    { Cached reference to the event of the currently assigned WAITTASK.
+      RebuildSlot may clear todotask before Stop is called, so Stop cannot
+      rely on todotask to signal the wait event. This field is maintained
+      by SetTodotask and protected by site.fFreeSlotsCS. }
+    fCurrentWaitEvent: TSynEvent;
+    { Set to True when this slot has been removed from the live slots list.
+      Prevents SetTodotask from adjusting freeslots on a zombie slot. }
+    fIsZombie: Boolean;
     function LoginBnc(const i: integer; kill: boolean = False): boolean;
     procedure SetOnline(Value: TSlotStatus);
 
@@ -241,6 +249,10 @@ type
     fSpeedFromCS: TSlCriticalSection2;
     fSpeedFromCache: TList<TSpeedFromRouteInfo>;
     FSettingsCacheDict: TVariantCache; //< Cache for site-settings in the sites.dat to avoid the sites.dat bottleneck (lock)
+    { Slots that were replaced by RebuildSlot but whose worker thread did not
+      terminate in time. They are kept alive here until their thread dies and
+      can be safely freed. }
+    fZombieSlots: TObjectList<TSiteSlot>;
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
@@ -477,6 +489,9 @@ type
 
     procedure RecalcFreeslots;
     procedure FullLogin;
+    { Try to free zombie slots whose worker threads have finally terminated.
+      Called periodically from the site thread and on shutdown. }
+    procedure PurgeZombieSlots;
 
     { function for @link(sw) property to read Site Software from inifile }
     function GetSw: TSiteSw;
@@ -1726,6 +1741,23 @@ begin
                 Format('[EXCEPTION] TSiteSlot.Execute : Exception remove todotask : %s',
                 [e.Message]));
             end;
+          end;
+        end;
+
+        { WAITTASK cleanup is finished; signal that the queue thread may now
+          safely remove and free the task. This must happen after slot1/todotask
+          cleanup so RemoveReady cannot free the task while we still use it. }
+        if (fCurrentTask <> nil) and (fCurrentTask is TWaitTask) then
+        begin
+          try
+            TWaitTask(fCurrentTask).wait_done := True;
+            DiagUpdateActiveWaitTask(TWaitTask(fCurrentTask).site1,
+                                     TWaitTask(fCurrentTask).wait_for,
+                                     TWaitTask(fCurrentTask).ready,
+                                     TWaitTask(fCurrentTask).wait_done);
+          except
+            on E: Exception do
+              Debug(dpError, section, Format('[WARNING] TSiteSlot.Execute: failed to mark WAITTASK done for %s: %s', [Name, E.Message]));
           end;
         end;
 
@@ -3204,6 +3236,11 @@ end;
 
 procedure TSiteSlot.SetTodotask(Value: TTask);
 begin
+  { Zombie slots are no longer part of the live slot list; their task changes
+    must not affect the site's freeslots bookkeeping. }
+  if fIsZombie then
+    exit;
+
   site.fFreeSlotsCS.Enter('SetTodotask');
   try
     if fTodotask <> Value then
@@ -3211,6 +3248,12 @@ begin
       if (fTodotask <> nil) and (fTodotask.ClassType = TPazoDirlistTask) then
         Dec(site.fActiveDirlistCount);
       fTodotask := Value;
+      { Cache the WAITTASK event so Stop can signal it even after todotask
+        has been cleared by RebuildSlot. }
+      if (fTodotask <> nil) and (fTodotask.ClassType = TWaitTask) then
+        fCurrentWaitEvent := TWaitTask(fTodotask).event
+      else
+        fCurrentWaitEvent := nil;
       if fTodotask <> nil then
       begin
         site.freeslots := site.freeslots - 1;
@@ -3239,6 +3282,7 @@ var
 begin
   debug(dpSpam, section, 'Start creating of site %s', [Name]);
   slots := TObjectList.Create(False);
+  fZombieSlots := TObjectList<TSiteSlot>.Create(True);
   self.Name := Name;
   features := [];
   fSlotsAssignmentLock := TSlCriticalSection2.Create('SLFTP_SlotsAssignmentMutex_' + Name, True);
@@ -3339,12 +3383,22 @@ begin
     // wake it. Signal the wait task event as well so the slot thread can
     // observe shouldquit and terminate cleanly instead of hanging until the
     // race task signals it.
+    // RebuildSlot may have already cleared todotask, so we use the cached
+    // event reference maintained by SetTodotask instead of looking at todotask.
+    site.fFreeSlotsCS.Enter('Stop WaitEvent');
     try
-      if (todotask <> nil) and (todotask.ClassType = TWaitTask) then
-        TWaitTask(todotask).event.SetEvent;
-    except
-      on E: Exception do
-        Debug(dpError, section, Format('[WARNING] TSiteSlot.Stop: failed to signal wait task event for %s: %s', [Name, E.Message]));
+      if fCurrentWaitEvent <> nil then
+      begin
+        try
+          fCurrentWaitEvent.SetEvent;
+        except
+          on E: Exception do
+            Debug(dpError, section, Format('[WARNING] TSiteSlot.Stop: failed to signal wait task event for %s: %s', [Name, E.Message]));
+        end;
+        fCurrentWaitEvent := nil;
+      end;
+    finally
+      site.fFreeSlotsCS.Leave;
     end;
     inherited;
     Debug(dpSpam, section, 'Slot %s stop end', [Name]);
@@ -3449,6 +3503,8 @@ begin
   for fSlot in slots do
     fSlot.Free;
   slots.Free;
+  PurgeZombieSlots;
+  fZombieSlots.Free;
   fSlotsAssignmentLock.Free;
   fSpeedFromCS.Free;
   FreeAndNil(fSpeedFromCache);
@@ -4552,6 +4608,32 @@ begin
   end;
 end;
 
+procedure TSite.PurgeZombieSlots;
+var
+  i: integer;
+  fZombie: TSiteSlot;
+  fKilled: integer;
+begin
+  if fZombieSlots = nil then
+    exit;
+
+  fKilled := 0;
+  for i := fZombieSlots.Count - 1 downto 0 do
+  begin
+    fZombie := TSiteSlot(fZombieSlots[i]);
+    if not fZombie.IsThreadRunning then
+    begin
+      Debug(dpSpam, section, Format('PurgeZombieSlots: freeing zombie slot %s', [fZombie.Name]));
+      fZombieSlots.Delete(i);
+      Inc(fKilled);
+    end;
+  end;
+
+  if fKilled > 0 then
+    Debug(dpSpam, section, Format('PurgeZombieSlots for %s: freed %d zombie slot(s), %d remaining',
+      [Name, fKilled, fZombieSlots.Count]));
+end;
+
 procedure TSite.FullLogin;
 var
   i: integer;
@@ -4572,25 +4654,92 @@ end;
 procedure TSite.RebuildSlot(const aSlotNumber: integer);
 var
   fOldSiteSlot: TSiteSlot;
+  fStopWaitStart: TDateTime;
+  fStopped: boolean;
+const
+  cSlotStopTimeoutMs = 5000;
 begin
   if (aSlotNumber > self.slots.Count - 1) or (aSlotNumber < 0) then
     raise Exception.Create(Format('Invalid slot number: %d for site %s', [aSlotNumber, self.Name]));
 
-  fOldSiteSlot := TSiteSlot(self.slots[aSlotNumber]);
+  self.AcquireSlotsAssignmentLock('RebuildSlot');
+  try
+    fOldSiteSlot := TSiteSlot(self.slots[aSlotNumber]);
 
-  { Prevent dangling slot1 pointers: if a task still references this slot,
-    clear its slot1 before the old slot object is freed. }
-  if fOldSiteSlot.todotask <> nil then
-  begin
-    fOldSiteSlot.todotask.slot1 := nil;
-    fOldSiteSlot.SetTodotask(nil);
+    { Prevent dangling slot1 pointers: if a task still references this slot,
+      clear its slot1 before the old slot object is replaced. Do NOT clear
+      todotask here: Stop needs it (or the cached wait event) to wake a
+      WAITTASK that is blocked on the task event. }
+    if fOldSiteSlot.todotask <> nil then
+    begin
+      try
+        fOldSiteSlot.todotask.slot1 := nil;
+      except
+        on E: Exception do
+          Debug(dpError, section, Format('[WARNING] TSite.RebuildSlot: failed to clear slot1 for %s: %s', [fOldSiteSlot.Name, E.Message]));
+      end;
+    end;
+
+    { Replace the slot in the live list immediately so no other thread can
+      pick the old slot for new assignments while we wait for its thread. }
+    self.slots[aSlotNumber] := TSiteSlot.Create(self, aSlotNumber);
+  finally
+    self.ReleaseSlotsAssignmentLock;
   end;
 
-  // Wake the queue thread so it can assign a task to the rebuilt slot.
+  { Wake the queue thread so it can assign a task to the new slot. }
   self.QueueFire;
 
-  self.slots[aSlotNumber] := TSiteSlot.Create(self, aSlotNumber);
-  fOldSiteSlot.Free;
+  { Now stop and join the old slot thread. It is no longer in the slots list,
+    so no other thread will touch it. }
+  try
+    fOldSiteSlot.Stop;
+  except
+    on E: Exception do
+      Debug(dpError, section, Format('[WARNING] TSite.RebuildSlot: Stop raised exception for %s: %s', [fOldSiteSlot.Name, E.Message]));
+  end;
+
+  fStopWaitStart := Now;
+  fStopped := False;
+  while MilliSecondsBetween(Now, fStopWaitStart) < cSlotStopTimeoutMs do
+  begin
+    if not fOldSiteSlot.IsThreadRunning then
+    begin
+      fStopped := True;
+      break;
+    end;
+    Sleep(10);
+  end;
+
+  { Mark the slot as no longer live so any late task cleanup cannot touch
+    freeslots. This is especially important for zombie slots whose thread
+    may still call SetTodotask after we have replaced the slot in the list. }
+  fOldSiteSlot.fIsZombie := True;
+
+  if fStopped then
+  begin
+    try
+      { The old slot thread has terminated. It may still have a todotask
+        reference, but because the slot is no longer in the live list we must
+        not call SetTodotask (which would adjust freeslots). Just clear it. }
+      if fOldSiteSlot.todotask <> nil then
+        fOldSiteSlot.ftodotask := nil;
+    except
+      on E: Exception do
+        Debug(dpError, section, Format('[WARNING] TSite.RebuildSlot: failed to clear todotask for terminated %s: %s', [fOldSiteSlot.Name, E.Message]));
+    end;
+    fOldSiteSlot.Free;
+    Debug(dpSpam, section, Format('TSite.RebuildSlot: rebuilt slot %d for %s (old thread terminated)', [aSlotNumber, self.Name]));
+  end
+  else
+  begin
+    { The worker thread did not stop in time. We must not free the slot object
+      now because the thread is still running inside it. Move it to the zombie
+      list; PurgeZombieSlots will free it once the thread finally dies. }
+    Debug(dpError, section, Format('[WARNING] TSite.RebuildSlot: slot %d for %s did not stop within %d ms, moving to zombie list',
+      [aSlotNumber, self.Name, cSlotStopTimeoutMs]));
+    fZombieSlots.Add(fOldSiteSlot);
+  end;
 
   // Rebuild replaces a slot; recalc so freeslots reflects the new slot state.
   RecalcFreeslots;
