@@ -1603,6 +1603,7 @@ var
   fQueueThread: TQueueThread;
   fPendingCount: Integer;
   fCurrentTask: TTask;
+  fCurrentTaskIsWaitTask: Boolean;
 begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
   tname := 'nil';
@@ -1619,6 +1620,11 @@ begin
         // may set self.todotask := nil, which would cause the cleanup block below to
         // skip slot1/slot2 cleanup. Using fCurrentTask ensures cleanup always runs.
         fCurrentTask := todotask;
+        // Remember whether this is a WAITTASK before Execute runs. After Execute
+        // returns the queue thread may already have freed a WAITTASK (it sets
+        // wait_done in its own finally block), so we must not dereference
+        // fCurrentTask for WAITTASK cleanup decisions.
+        fCurrentTaskIsWaitTask := (fCurrentTask <> nil) and (fCurrentTask is TWaitTask);
         try
           tname := fCurrentTask.Name;
         except
@@ -1633,19 +1639,25 @@ begin
         try
           if fCurrentTask.Execute(self) then
           begin
-            LastTaskExecution := Now();
-
-            if not (fCurrentTask is TIdleTask)
-
-              //if maxidle is reached, there will be a quit task. we don't want this to count as non-idle operation because
-              //then idle tasks would be created again right away
-              and not (fCurrentTask is TQuitTask)
-
-              //ignore login task if its set to readd (autobnctest)
-              and not ((fCurrentTask is TLoginTask) and TLoginTask(fCurrentTask).readd)
-            then
+            // For WAITTASKs the task object may be freed by RemoveReady as soon as
+            // Execute returns (wait_done is set inside TWaitTask.Execute). Do not
+            // dereference fCurrentTask for WAITTASKs after this point.
+            if not fCurrentTaskIsWaitTask then
             begin
-              LastNonIdleTaskExecution := LastTaskExecution;
+              LastTaskExecution := Now();
+
+              if not (fCurrentTask is TIdleTask)
+
+                //if maxidle is reached, there will be a quit task. we don't want this to count as non-idle operation because
+                //then idle tasks would be created again right away
+                and not (fCurrentTask is TQuitTask)
+
+                //ignore login task if its set to readd (autobnctest)
+                and not ((fCurrentTask is TLoginTask) and TLoginTask(fCurrentTask).readd)
+              then
+              begin
+                LastNonIdleTaskExecution := LastTaskExecution;
+              end;
             end;
           end;
         except
@@ -1653,13 +1665,20 @@ begin
           begin
             DebugException(dpError, section, 'TSiteSlot.Execute(if todotask.Execute(self) then)' + tname, e);
 
-            //make sure the task gets cleaned if an unhandled exception occured when executing the task
-            try
-              fCurrentTask.readyerror := True;
-            except
-              // fCurrentTask may point to already-freed memory (use-after-free).
-              // Swallow the AV to prevent it from skipping the cleanup block below
-              // which MUST clear todotask to avoid an infinite AV loop.
+            // make sure the task gets cleaned if an unhandled exception occurred
+            // when executing the task. For WAITTASKs wait_done is already set in
+            // TWaitTask.Execute's finally block, so RemoveReady will collect the
+            // task without needing readyerror. Do not touch fCurrentTask here for
+            // WAITTASKs because the queue thread may have freed it already.
+            if not fCurrentTaskIsWaitTask then
+            begin
+              try
+                fCurrentTask.readyerror := True;
+              except
+                // fCurrentTask may point to already-freed memory (use-after-free).
+                // Swallow the AV to prevent it from skipping the cleanup block below
+                // which MUST clear todotask to avoid an infinite AV loop.
+              end;
             end;
           end;
         end;
@@ -1676,7 +1695,9 @@ begin
         begin
           try
             try
-              if fCurrentTask is TPazoRaceTask then
+              // WAITTASKs are never race tasks, and the task object may already be
+              // freed by RemoveReady at this point. Skip the race-specific cleanup.
+              if (not fCurrentTaskIsWaitTask) and (fCurrentTask is TPazoRaceTask) then
               begin
                 fSite := TSite(TPazoRaceTask(fCurrentTask).ssite2);
                 if fSite <> nil then
@@ -1709,7 +1730,7 @@ begin
                 dereference fCurrentTask for a WAITTASK any more. We only ensure
                 todotask is cleared in case TWaitTask.Execute threw before it
                 could clean up itself. }
-              if (fCurrentTask is TWaitTask) then
+              if fCurrentTaskIsWaitTask then
               begin
                 try
                   self.site.AcquireSlotsAssignmentLock('Reset TodoTask wait');
