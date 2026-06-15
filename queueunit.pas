@@ -2233,7 +2233,7 @@ begin
         DiagUpdateQueueSnapshot(fQueueStat.FTotalTaskCount,
           fQueueStat.FRaceTaskCount, fQueueStat.FDirlistTaskCount,
           fQueueStat.FAutoTaskCount, fQueueStat.FOtherTaskCount,
-          DiagGetRaceTasksAssigned, fSiteName);
+          DiagGetRaceTasksAssigned, GlDirlistCompletedCounter.Value, fSiteName);
         DiagTakeSnapshot;
       end;
 

@@ -74,6 +74,7 @@ type
     AutoTasks: Integer;
     OtherTasks: Integer;
     RaceTasksAssigned: Integer;
+    DirlistsDone: Int64;
     FindBestTaskCalls: Int64;
     FindBestNilNoTasks: Int64;
     FindBestNilNoSlots: Int64;
@@ -141,7 +142,7 @@ procedure DiagRecordRaceTaskAssigned(const aSiteName: String = '');
 
 { Snapshots. Optional aSiteName updates per-site snapshot too. }
 procedure DiagUpdateQueueSnapshot(const aTotal, aRace, aDirlist, aAuto, aOther: Integer;
-  const aRaceAssigned: Integer; const aSiteName: String = '');
+  const aRaceAssigned: Integer; const aDirlistsDone: Int64; const aSiteName: String = '');
 function DiagGetRaceTasksAssigned(const aSiteName: String = ''): Int64;
 procedure DiagUpdateSlotSnapshot(const aOnline, aOffline, aDown, aMarkedDown,
   aBusy, aFree, aWaitTaskBusy, aFreeslots, aNumUp, aMaxUp, aNumDn, aMaxDn,
@@ -458,7 +459,7 @@ begin
 end;
 
 procedure DiagUpdateQueueSnapshot(const aTotal, aRace, aDirlist, aAuto, aOther: Integer;
-  const aRaceAssigned: Integer; const aSiteName: String = '');
+  const aRaceAssigned: Integer; const aDirlistsDone: Int64; const aSiteName: String = '');
 var
   idx: Integer;
   procedure _Update(var aSnap: TDiagQueueSnapshot);
@@ -469,6 +470,7 @@ var
     aSnap.AutoTasks := aAuto;
     aSnap.OtherTasks := aOther;
     aSnap.RaceTasksAssigned := aRaceAssigned;
+    aSnap.DirlistsDone := aDirlistsDone;
   end;
 begin
   GlDiagCS.Enter('DiagUpdateQueueSnapshot');
@@ -606,7 +608,7 @@ end;
 function DiagFormatMetrics(const m: TDiagMetrics): String;
 const
   FMT = '[DIAG] WAITTASKS active=%d created=%d done=%d avg=%dms peak=%dms stuck>5s=%d stuck>30s=%d' + sLineBreak +
-        '[DIAG] QUEUE total=%d race=%d dirlist=%d auto=%d other=%d assigned=%d fbt_calls=%d' + sLineBreak +
+        '[DIAG] QUEUE total=%d race=%d dirlist=%d auto=%d other=%d assigned=%d dirlists_done=%d fbt_calls=%d' + sLineBreak +
         '[DIAG] SLOTS online=%d offline=%d down=%d markeddown=%d busy=%d free=%d wait_busy=%d freeslots=%d up=%d/%d dn=%d/%d up_cd=%ds dn_cd=%ds' + sLineBreak +
         '[DIAG] RACE-ABORT freeslots=%d maxsim_up=%d maxsim_down=%d no_slot=%d offline=%d not_ready=%d maxupperrip=%d other=%d' + sLineBreak +
         '[DIAG] SLOT-ABORT freeslots=%d maxsim_up=%d maxsim_down=%d no_slot=%d offline=%d not_ready=%d maxupperrip=%d other=%d' + sLineBreak +
@@ -618,7 +620,7 @@ begin
      m.WaitTasks.StuckOver30s,
      m.Queue.TotalTasks, m.Queue.RaceTasks, m.Queue.DirlistTasks,
      m.Queue.AutoTasks, m.Queue.OtherTasks, m.Queue.RaceTasksAssigned,
-     m.Queue.FindBestTaskCalls,
+     m.Queue.DirlistsDone, m.Queue.FindBestTaskCalls,
      m.Slots.Online, m.Slots.Offline, m.Slots.Down, m.Slots.MarkedDown,
      m.Slots.Busy, m.Slots.Free, m.Slots.WaitTaskBusy,
      m.Slots.Freeslots, m.Slots.NumUp, m.Slots.MaxUp, m.Slots.NumDn, m.Slots.MaxDn,
