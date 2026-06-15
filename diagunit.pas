@@ -82,6 +82,15 @@ type
     FindBestNilDelayed: Int64;
     FindBestNilNoReadyTask: Int64;
     FindBestNilOther: Int64;
+    { FBT-NIL delayed/no_ready broken down by task type for debugging. }
+    FindBestNilDelayedRace: Int64;
+    FindBestNilDelayedDirlist: Int64;
+    FindBestNilDelayedAuto: Int64;
+    FindBestNilDelayedOther: Int64;
+    FindBestNilNoReadyRace: Int64;
+    FindBestNilNoReadyDirlist: Int64;
+    FindBestNilNoReadyAuto: Int64;
+    FindBestNilNoReadyOther: Int64;
   end;
 
   TDiagReasonCounters = record
@@ -134,7 +143,9 @@ procedure DiagRecordWaitTaskAssigned(const aSiteName: String = '');
 procedure DiagRecordWaitTaskDone(const aElapsedMs: Int64; const aSiteName: String = '');
 
 { Queue scanning / assignment. Optional aSiteName updates per-site counters too. }
-procedure DiagRecordFindBestTaskNil(const aReason: TDiagFindBestNilReason; const aSiteName: String = '');
+procedure DiagRecordFindBestTaskNil(const aReason: TDiagFindBestNilReason;
+  const aTaskClassName: String = ''; const aSiteName: String = '');
+  // aTaskClassName helps distinguish delayed/no_ready counters by task type.
 procedure DiagRecordFindBestTaskCall(const aSiteName: String = '');
 procedure DiagRecordAssignRaceAbort(const aReason: TDiagAssignAbortReason; const aSiteName: String = '');
 procedure DiagRecordAssignSlotsAbort(const aReason: TDiagAssignAbortReason; const aSiteName: String = '');
@@ -323,29 +334,71 @@ end;
 
 { Queue scanning / assignment }
 
-procedure _IncFindBestNilReason(var aSnap: TDiagQueueSnapshot; const aReason: TDiagFindBestNilReason);
+function _DiagTaskTypeFromClassName(const aClassName: String): Integer;
+begin
+  { 0=race/wait, 1=dirlist, 2=auto, 3=other }
+  if aClassName = 'TPazoRaceTask' then
+    Result := 0
+  else if aClassName = 'TWaitTask' then
+    Result := 0
+  else if aClassName = 'TPazoDirlistTask' then
+    Result := 1
+  else if (aClassName = 'TAutoNukeTask') or (aClassName = 'TAutoDirlistTask') or
+          (aClassName = 'TAutoIndexTask') or (aClassName = 'TLoginTask') or
+          (aClassName = 'TRulesTask') then
+    Result := 2
+  else
+    Result := 3;
+end;
+
+procedure _IncFindBestNilReason(var aSnap: TDiagQueueSnapshot; const aReason: TDiagFindBestNilReason; const aTaskClassName: String);
+var
+  taskType: Integer;
 begin
   case aReason of
     dfbnNoTasks: Inc(aSnap.FindBestNilNoTasks);
     dfbnNoSlots: Inc(aSnap.FindBestNilNoSlots);
     dfbnCooldown: Inc(aSnap.FindBestNilCooldown);
-    dfbnDelayed: Inc(aSnap.FindBestNilDelayed);
-    dfbnNoReadyTask: Inc(aSnap.FindBestNilNoReadyTask);
+    dfbnDelayed:
+      begin
+        Inc(aSnap.FindBestNilDelayed);
+        taskType := _DiagTaskTypeFromClassName(aTaskClassName);
+        case taskType of
+          0: Inc(aSnap.FindBestNilDelayedRace);
+          1: Inc(aSnap.FindBestNilDelayedDirlist);
+          2: Inc(aSnap.FindBestNilDelayedAuto);
+        else
+          Inc(aSnap.FindBestNilDelayedOther);
+        end;
+      end;
+    dfbnNoReadyTask:
+      begin
+        Inc(aSnap.FindBestNilNoReadyTask);
+        taskType := _DiagTaskTypeFromClassName(aTaskClassName);
+        case taskType of
+          0: Inc(aSnap.FindBestNilNoReadyRace);
+          1: Inc(aSnap.FindBestNilNoReadyDirlist);
+          2: Inc(aSnap.FindBestNilNoReadyAuto);
+        else
+          Inc(aSnap.FindBestNilNoReadyOther);
+        end;
+      end;
     dfbnOther: Inc(aSnap.FindBestNilOther);
   end;
 end;
 
-procedure DiagRecordFindBestTaskNil(const aReason: TDiagFindBestNilReason; const aSiteName: String = '');
+procedure DiagRecordFindBestTaskNil(const aReason: TDiagFindBestNilReason;
+  const aTaskClassName: String; const aSiteName: String);
 var
   idx: Integer;
 begin
   GlDiagCS.Enter('DiagRecordFindBestTaskNil');
   try
-    _IncFindBestNilReason(GlDiagCurrent.Queue, aReason);
+    _IncFindBestNilReason(GlDiagCurrent.Queue, aReason, aTaskClassName);
     if aSiteName <> '' then
     begin
       idx := DiagEnsureSiteIndex(aSiteName);
-      _IncFindBestNilReason(GlDiagSites[idx].Metrics.Queue, aReason);
+      _IncFindBestNilReason(GlDiagSites[idx].Metrics.Queue, aReason, aTaskClassName);
     end;
   finally
     GlDiagCS.Leave;
@@ -612,7 +665,8 @@ const
         '[DIAG] SLOTS online=%d offline=%d down=%d markeddown=%d busy=%d free=%d wait_busy=%d freeslots=%d up=%d/%d dn=%d/%d up_cd=%ds dn_cd=%ds' + sLineBreak +
         '[DIAG] RACE-ABORT freeslots=%d maxsim_up=%d maxsim_down=%d no_slot=%d offline=%d not_ready=%d maxupperrip=%d other=%d' + sLineBreak +
         '[DIAG] SLOT-ABORT freeslots=%d maxsim_up=%d maxsim_down=%d no_slot=%d offline=%d not_ready=%d maxupperrip=%d other=%d' + sLineBreak +
-        '[DIAG] FBT-NIL no_tasks=%d no_slots=%d cooldown=%d delayed=%d no_ready=%d other=%d';
+        '[DIAG] FBT-NIL no_tasks=%d no_slots=%d cooldown=%d delayed=%d no_ready=%d other=%d' + sLineBreak +
+        '[DIAG] FBT-TYPE delayed race=%d dirlist=%d auto=%d other=%d | no_ready race=%d dirlist=%d auto=%d other=%d';
 begin
   Result := Format(FMT,
     [m.WaitTasks.ActiveNow, m.WaitTasks.CreatedTotal, m.WaitTasks.DoneTotal,
@@ -635,7 +689,11 @@ begin
      m.AssignSlots.MaxUpPerRip, m.AssignSlots.Other,
      m.Queue.FindBestNilNoTasks, m.Queue.FindBestNilNoSlots,
      m.Queue.FindBestNilCooldown, m.Queue.FindBestNilDelayed,
-     m.Queue.FindBestNilNoReadyTask, m.Queue.FindBestNilOther]);
+     m.Queue.FindBestNilNoReadyTask, m.Queue.FindBestNilOther,
+     m.Queue.FindBestNilDelayedRace, m.Queue.FindBestNilDelayedDirlist,
+     m.Queue.FindBestNilDelayedAuto, m.Queue.FindBestNilDelayedOther,
+     m.Queue.FindBestNilNoReadyRace, m.Queue.FindBestNilNoReadyDirlist,
+     m.Queue.FindBestNilNoReadyAuto, m.Queue.FindBestNilNoReadyOther]);
 end;
 
 function DiagFormatCurrent(const aSiteName: String = ''): String;

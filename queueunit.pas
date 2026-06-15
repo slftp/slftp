@@ -427,28 +427,28 @@ begin
     // Skip tasks in our skipped/tried list
     if (aSkippedTasks <> nil) and (aSkippedTasks.IndexOf(t) >= 0) then
     begin
-      DiagRecordFindBestTaskNil(dfbnOther, fSiteName);
+      DiagRecordFindBestTaskNil(dfbnOther, t.ClassName, fSiteName);
       Continue;
     end;
 
     // Skip tasks that are already assigned, ready, or have errors
     if ((t.slot1 <> nil) or (t.slot2 <> nil) or t.ready or t.readyerror) then
     begin
-      DiagRecordFindBestTaskNil(dfbnOther, fSiteName);
+      DiagRecordFindBestTaskNil(dfbnOther, t.ClassName, fSiteName);
       Continue;
     end;
 
     // Skip delayed tasks
     if (t.startat > 0) and (t.startat > aNow) then
     begin
-      DiagRecordFindBestTaskNil(dfbnDelayed, fSiteName);
+      DiagRecordFindBestTaskNil(dfbnDelayed, t.ClassName, fSiteName);
       Continue;
     end;
 
     // Skip tasks not ready to execute
     if not t.IsReadyToBeExecuted then
     begin
-      DiagRecordFindBestTaskNil(dfbnNoReadyTask, fSiteName);
+      DiagRecordFindBestTaskNil(dfbnNoReadyTask, t.ClassName, fSiteName);
       Continue;
     end;
 
@@ -458,7 +458,7 @@ begin
       tpr := TPazoRaceTask(t);
       if _IsLowPriorityRaceTask(tpr) and aHasImportantWaiting then
       begin
-        DiagRecordFindBestTaskNil(dfbnCooldown, fSiteName);
+        DiagRecordFindBestTaskNil(dfbnCooldown, t.ClassName, fSiteName);
         Continue;
       end;
     end;
@@ -474,18 +474,18 @@ begin
       tpr := TPazoRaceTask(t);
       if (tpr.ssite1 <> nil) and (TSite(tpr.ssite1).freeslots <= 0) then
       begin
-        DiagRecordFindBestTaskNil(dfbnNoSlots, fSiteName);
+        DiagRecordFindBestTaskNil(dfbnNoSlots, t.ClassName, fSiteName);
         Continue;
       end;
       if (tpr.ssite2 <> nil) and (TSite(tpr.ssite2).freeslots <= 0) then
       begin
-        DiagRecordFindBestTaskNil(dfbnNoSlots, fSiteName);
+        DiagRecordFindBestTaskNil(dfbnNoSlots, t.ClassName, fSiteName);
         Continue;
       end;
     end
     else if (t.ssite1 <> nil) and (TSite(t.ssite1).freeslots <= 0) then
     begin
-      DiagRecordFindBestTaskNil(dfbnNoSlots, fSiteName);
+      DiagRecordFindBestTaskNil(dfbnNoSlots, t.ClassName, fSiteName);
       Continue;
     end;
 
@@ -497,7 +497,7 @@ begin
   end;
 
   if (bestTask = nil) and (tasks.Count = 0) then
-    DiagRecordFindBestTaskNil(dfbnNoTasks, fSiteName);
+    DiagRecordFindBestTaskNil(dfbnNoTasks, '', fSiteName);
 
   Result := bestTask;
 end;
