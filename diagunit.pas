@@ -104,6 +104,12 @@ type
     Other: Int64;
   end;
 
+  TDiagDirlistWaitSnapshot = record
+    Count: Int64;
+    AvgMs: Int64;
+    PeakMs: Int64;
+  end;
+
   { One full snapshot of the diagnostics state. }
   TDiagMetrics = record
     Timestamp: TDateTime;
@@ -112,6 +118,7 @@ type
     Queue: TDiagQueueSnapshot;
     AssignRace: TDiagReasonCounters;
     AssignSlots: TDiagReasonCounters;
+    DirlistWait: TDiagDirlistWaitSnapshot;
   end;
 
   { Per-site metrics entry. }
@@ -150,6 +157,7 @@ procedure DiagRecordFindBestTaskCall(const aSiteName: String = '');
 procedure DiagRecordAssignRaceAbort(const aReason: TDiagAssignAbortReason; const aSiteName: String = '');
 procedure DiagRecordAssignSlotsAbort(const aReason: TDiagAssignAbortReason; const aSiteName: String = '');
 procedure DiagRecordRaceTaskAssigned(const aSiteName: String = '');
+procedure DiagRecordDirlistWait(const aWaitMs: Int64; const aSiteName: String = '');
 
 { Snapshots. Optional aSiteName updates per-site snapshot too. }
 procedure DiagUpdateQueueSnapshot(const aTotal, aRace, aDirlist, aAuto, aOther: Integer;
@@ -490,6 +498,34 @@ begin
   end;
 end;
 
+procedure _UpdateDirlistWait(var aSnap: TDiagDirlistWaitSnapshot; const aWaitMs: Int64);
+begin
+  Inc(aSnap.Count);
+  if aSnap.Count = 1 then
+    aSnap.AvgMs := aWaitMs
+  else
+    aSnap.AvgMs := (aSnap.AvgMs * (aSnap.Count - 1) + aWaitMs) div aSnap.Count;
+  if aWaitMs > aSnap.PeakMs then
+    aSnap.PeakMs := aWaitMs;
+end;
+
+procedure DiagRecordDirlistWait(const aWaitMs: Int64; const aSiteName: String = '');
+var
+  idx: Integer;
+begin
+  GlDiagCS.Enter('DiagRecordDirlistWait');
+  try
+    _UpdateDirlistWait(GlDiagCurrent.DirlistWait, aWaitMs);
+    if aSiteName <> '' then
+    begin
+      idx := DiagEnsureSiteIndex(aSiteName);
+      _UpdateDirlistWait(GlDiagSites[idx].Metrics.DirlistWait, aWaitMs);
+    end;
+  finally
+    GlDiagCS.Leave;
+  end;
+end;
+
 function DiagGetRaceTasksAssigned(const aSiteName: String = ''): Int64;
 var
   idx: Integer;
@@ -666,7 +702,8 @@ const
         '[DIAG] RACE-ABORT freeslots=%d maxsim_up=%d maxsim_down=%d no_slot=%d offline=%d not_ready=%d maxupperrip=%d other=%d' + sLineBreak +
         '[DIAG] SLOT-ABORT freeslots=%d maxsim_up=%d maxsim_down=%d no_slot=%d offline=%d not_ready=%d maxupperrip=%d other=%d' + sLineBreak +
         '[DIAG] FBT-NIL no_tasks=%d no_slots=%d cooldown=%d delayed=%d no_ready=%d other=%d' + sLineBreak +
-        '[DIAG] FBT-TYPE delayed race=%d dirlist=%d auto=%d other=%d | no_ready race=%d dirlist=%d auto=%d other=%d';
+        '[DIAG] FBT-TYPE delayed race=%d dirlist=%d auto=%d other=%d | no_ready race=%d dirlist=%d auto=%d other=%d' + sLineBreak +
+        '[DIAG] DIRLIST-WAIT count=%d avg=%dms peak=%dms';
 begin
   Result := Format(FMT,
     [m.WaitTasks.ActiveNow, m.WaitTasks.CreatedTotal, m.WaitTasks.DoneTotal,
@@ -693,7 +730,8 @@ begin
      m.Queue.FindBestNilDelayedRace, m.Queue.FindBestNilDelayedDirlist,
      m.Queue.FindBestNilDelayedAuto, m.Queue.FindBestNilDelayedOther,
      m.Queue.FindBestNilNoReadyRace, m.Queue.FindBestNilNoReadyDirlist,
-     m.Queue.FindBestNilNoReadyAuto, m.Queue.FindBestNilNoReadyOther]);
+     m.Queue.FindBestNilNoReadyAuto, m.Queue.FindBestNilNoReadyOther,
+     m.DirlistWait.Count, m.DirlistWait.AvgMs, m.DirlistWait.PeakMs]);
 end;
 
 function DiagFormatCurrent(const aSiteName: String = ''): String;

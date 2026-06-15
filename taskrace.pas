@@ -210,12 +210,24 @@ var
   ps: TPazoSite;
   fDestination: TDestinationRank;
   secondsWithNoChange, secondsSinceStart, secondsSinceCompleted: Int64;
+  fWaitMs: Int64;
+  fWaitRecorded: Boolean;
 begin
   numerrors := 0;
   Result := False;
   s := slot;
   tname := Name;
   fSubDirlistTasks := nil;
+  fWaitRecorded := False;
+
+TryAgain:
+  if not fWaitRecorded then
+  begin
+    fWaitMs := MilliSecondsBetween(Now, created);
+    if fWaitMs < 0 then fWaitMs := 0;
+    DiagRecordDirlistWait(fWaitMs, site1);
+    fWaitRecorded := True;
+  end;
 
   if mainpazo.stopped then
   begin
@@ -229,7 +241,6 @@ begin
   mainpazo.lastTouch := Now();
 
   // Check if we should abandon using PS1
-  TryAgain:
   if ((ps1.error) or (ps1.dirlistgaveup and not FDoIncFilling) or (ps1.status = rssNuked) or (slshutdown)) then
   begin
     readyerror := True;
