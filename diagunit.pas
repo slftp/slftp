@@ -63,6 +63,8 @@ type
     MaxUp: Integer;
     NumDn: Integer;
     MaxDn: Integer;
+    UpCooldown: Integer;
+    DnCooldown: Integer;
   end;
 
   TDiagQueueSnapshot = record
@@ -142,8 +144,8 @@ procedure DiagUpdateQueueSnapshot(const aTotal, aRace, aDirlist, aAuto, aOther: 
   const aRaceAssigned: Integer; const aSiteName: String = '');
 function DiagGetRaceTasksAssigned(const aSiteName: String = ''): Int64;
 procedure DiagUpdateSlotSnapshot(const aOnline, aOffline, aDown, aMarkedDown,
-  aBusy, aFree, aWaitTaskBusy, aFreeslots, aNumUp, aMaxUp, aNumDn, aMaxDn: Integer;
-  const aSiteName: String = '');
+  aBusy, aFree, aWaitTaskBusy, aFreeslots, aNumUp, aMaxUp, aNumDn, aMaxDn,
+  aUpCooldown, aDnCooldown: Integer; const aSiteName: String = '');
 procedure DiagTakeSnapshot;
 
 { Per-site lookup helpers }
@@ -483,8 +485,8 @@ begin
 end;
 
 procedure DiagUpdateSlotSnapshot(const aOnline, aOffline, aDown, aMarkedDown,
-  aBusy, aFree, aWaitTaskBusy, aFreeslots, aNumUp, aMaxUp, aNumDn, aMaxDn: Integer;
-  const aSiteName: String = '');
+  aBusy, aFree, aWaitTaskBusy, aFreeslots, aNumUp, aMaxUp, aNumDn, aMaxDn,
+  aUpCooldown, aDnCooldown: Integer; const aSiteName: String = '');
 var
   idx: Integer;
   procedure _Update(var aSnap: TDiagSlotSnapshot);
@@ -501,6 +503,8 @@ var
     aSnap.MaxUp := aMaxUp;
     aSnap.NumDn := aNumDn;
     aSnap.MaxDn := aMaxDn;
+    aSnap.UpCooldown := aUpCooldown;
+    aSnap.DnCooldown := aDnCooldown;
   end;
 begin
   GlDiagCS.Enter('DiagUpdateSlotSnapshot');
@@ -603,7 +607,7 @@ function DiagFormatMetrics(const m: TDiagMetrics): String;
 const
   FMT = '[DIAG] WAITTASKS active=%d created=%d done=%d avg=%dms peak=%dms stuck>5s=%d stuck>30s=%d' + sLineBreak +
         '[DIAG] QUEUE total=%d race=%d dirlist=%d auto=%d other=%d assigned=%d fbt_calls=%d' + sLineBreak +
-        '[DIAG] SLOTS online=%d offline=%d down=%d markeddown=%d busy=%d free=%d wait_busy=%d freeslots=%d up=%d/%d dn=%d/%d' + sLineBreak +
+        '[DIAG] SLOTS online=%d offline=%d down=%d markeddown=%d busy=%d free=%d wait_busy=%d freeslots=%d up=%d/%d dn=%d/%d up_cd=%ds dn_cd=%ds' + sLineBreak +
         '[DIAG] RACE-ABORT freeslots=%d maxsim_up=%d maxsim_down=%d no_slot=%d offline=%d not_ready=%d maxupperrip=%d other=%d' + sLineBreak +
         '[DIAG] SLOT-ABORT freeslots=%d maxsim_up=%d maxsim_down=%d no_slot=%d offline=%d not_ready=%d maxupperrip=%d other=%d' + sLineBreak +
         '[DIAG] FBT-NIL no_tasks=%d no_slots=%d cooldown=%d delayed=%d no_ready=%d other=%d';
@@ -618,6 +622,7 @@ begin
      m.Slots.Online, m.Slots.Offline, m.Slots.Down, m.Slots.MarkedDown,
      m.Slots.Busy, m.Slots.Free, m.Slots.WaitTaskBusy,
      m.Slots.Freeslots, m.Slots.NumUp, m.Slots.MaxUp, m.Slots.NumDn, m.Slots.MaxDn,
+     m.Slots.UpCooldown, m.Slots.DnCooldown,
      m.AssignRace.FreeslotsZero, m.AssignRace.MaxSimUpCooldown,
      m.AssignRace.MaxSimDownCooldown, m.AssignRace.NoSlotAvailable,
      m.AssignRace.SiteOffline, m.AssignRace.TaskNotReady,
