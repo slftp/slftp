@@ -2226,7 +2226,8 @@ begin
           ts.fFreeSlotsCS.Leave;
         end;
         DiagUpdateSlotSnapshot(fDiagOnline, fDiagOffline, fDiagDown,
-          fDiagMarkedDown, fDiagBusy, fDiagFree, fDiagWaitTaskBusy, fSiteName);
+          fDiagMarkedDown, fDiagBusy, fDiagFree, fDiagWaitTaskBusy,
+          ts.freeslots, ts.num_up, ts.max_up, ts.num_dn, ts.max_dn, fSiteName);
         DiagUpdateQueueSnapshot(fQueueStat.FTotalTaskCount,
           fQueueStat.FRaceTaskCount, fQueueStat.FDirlistTaskCount,
           fQueueStat.FAutoTaskCount, fQueueStat.FOtherTaskCount,
