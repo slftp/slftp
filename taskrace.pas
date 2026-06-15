@@ -3675,37 +3675,45 @@ begin
       ready := True;
       self.slot1 := nil;
     end;
+  except
+    on E: Exception do
+      Debug(dpError, c_section, Format('[EXCEPTION] TWaitTask.Execute wait stage: %s', [E.Message]));
+  end;
 
-    // Try to clean up the slot's todotask reference, but don't
-    // let a rebuilt/freed slot crash us. Use ClearTodotask so that
-    // freeslots bookkeeping is updated correctly under the slot lock.
-    ss := TSiteSlot(slot);
-    try
-      if (ss <> nil) and (ss.site <> nil) and (not ss.IsZombie) then
-      begin
-        ss.site.AcquireSlotsAssignmentLock('TWaitTask ready');
-        try
-          if ss.todotask = self then
-            ss.ClearTodotask;
-        finally
-          ss.site.ReleaseSlotsAssignmentLock;
-        end;
-      end;
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, c_section, Format('[WARNING] TWaitTask.Execute slot cleanup failed (slot may have been rebuilt): %s', [E.Message]));
+  { Clear the slot's todotask reference BEFORE setting wait_done. Once
+    wait_done is true, RemoveReady is allowed to free this task object. If
+    todotask still pointed to it, the slot would keep a dangling pointer and
+    could call Execute again on freed memory. Use ClearTodotask so freeslots
+    bookkeeping is updated correctly under the slot lock. }
+  ss := TSiteSlot(slot);
+  try
+    if (ss <> nil) and (ss.site <> nil) and (not ss.IsZombie) then
+    begin
+      ss.site.AcquireSlotsAssignmentLock('TWaitTask ready');
+      try
+        if ss.todotask = self then
+          ss.ClearTodotask;
+      finally
+        ss.site.ReleaseSlotsAssignmentLock;
       end;
     end;
-  finally
-    { The slot thread (TSiteSlot.Execute) knows that WAITTASKs perform their
-      own cleanup and will not touch this task object after Execute returns.
-      It is therefore safe to set wait_done here; RemoveReady can collect the
-      task as soon as it sees wait_done=True. }
-    wait_done := True;
+  except
+    on E: Exception do
+      Debug(dpError, c_section, Format('[WARNING] TWaitTask.Execute slot cleanup failed (slot may have been rebuilt): %s', [E.Message]));
+  end;
+
+  { The slot thread (TSiteSlot.Execute) knows that WAITTASKs perform their own
+    cleanup and will not touch this task object after Execute returns. It is
+    therefore safe to set wait_done here; RemoveReady can collect the task as
+    soon as it sees wait_done=True. }
+  wait_done := True;
+  try
     fElapsedMs := MilliSecondsBetween(Now, wait_start);
     DiagRecordWaitTaskDone(fElapsedMs, site1);
     DiagUpdateActiveWaitTask(site1, wait_for, ready, wait_done);
+  except
+    on E: Exception do
+      Debug(dpError, c_section, Format('[EXCEPTION] TWaitTask.Execute diag stage: %s', [E.Message]));
   end;
 end;
 
