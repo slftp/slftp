@@ -737,97 +737,113 @@ var er: String;
     sslerr, err, i: Integer;
     shouldquit: Boolean;
     fErrorMessage: RawUtf8;
+    fHeldLock: Boolean;
 begin
   shouldquit:= False;
   Result:= False;
   sslerr := 0; // Initialize to prevent uninitialized variable warning
+  fHeldLock := False;
   try
-    setlength(er, 512);
-
-    if slSocket.socket = slSocketError then
+    if fSSLLock <> nil then
     begin
-      error:= 'not connected';
-      exit;
+      fSSLLock.Enter;
+      fHeldLock := True;
     end;
 
-    if (fSSL <> nil) then
-    begin
-      error:= 'ssl connection is already negotiated';
-      exit;
-    end;
+    try
+      setlength(er, 512);
 
-    if not slSetNonblocking(slSocket, error) then exit;
-
-
-    fssl:= SSL_new(sslctx);
-
-    if (fSSL = nil) then
-    begin
-      err := ERR_get_error();
-      OpenSSL_error(err, fErrorMessage);
-      er := UTF8ToString(fErrorMessage);
-      error:= 'Cant create new ssl: '+er;
-      exit;
-    end;
-
-    if SSL_set_fd(fSSL, slSocket.socket) = 0 then
-    begin
-      DisconnectSSL;
-      error:= 'ssl set fd returned false';
-      exit;
-    end;
-
-    // try for 10 seconds
-    i:= 0;
-    while(true)do
-    begin
-      if i* 100 > timeout then
+      if slSocket.socket = slSocketError then
       begin
-        er:= GetLastSSLError(fSSL, sslerr);
-        error:= 'timeout, ssl failed '+ er;
-        DisconnectSSL;
-        slSetBlocking(slSocket,er);
+        error:= 'not connected';
         exit;
       end;
 
-      err:= SSL_accept(fssl);
-
-      if(err = 1) then Break;
-
-      sslerr:= SSL_get_error(fssl, err);
-      if((sslerr = SSL_ERROR_WANT_READ) or (sslerr = SSL_ERROR_WANT_WRITE) or (sslerr = SSL_ERROR_WANT_X509_LOOKUP)) then
+      if (fSSL <> nil) then
       begin
-        if Assigned(fOnWaitingforSocket) then
-          fOnWaitingforSocket(self, shouldquit);
-        if ((not shouldquit) and (Assigned(sltcp_onwaitingforsocket))) then
-          shouldquit:= sltcp_onwaitingforsocket(self);
+        error:= 'ssl connection is already negotiated';
+        exit;
+      end;
 
-        if shouldquit then
+      if not slSetNonblocking(slSocket, error) then exit;
+
+
+      fssl:= SSL_new(sslctx);
+
+      if (fSSL = nil) then
+      begin
+        err := ERR_get_error();
+        OpenSSL_error(err, fErrorMessage);
+        er := UTF8ToString(fErrorMessage);
+        error:= 'Cant create new ssl: '+er;
+        exit;
+      end;
+
+      if SSL_set_fd(fSSL, slSocket.socket) = 0 then
+      begin
+        DisconnectSSLInternal;
+        error:= 'ssl set fd returned false';
+        exit;
+      end;
+
+      // try for 10 seconds
+      i:= 0;
+      while(true)do
+      begin
+        if i* 100 > timeout then
         begin
-          DisconnectSSL;
+          er:= GetLastSSLError(fSSL, sslerr);
+          error:= 'timeout, ssl failed '+ er;
+          DisconnectSSLInternal;
           slSetBlocking(slSocket,er);
-          error:= 'shouldquit';
           exit;
         end;
 
-        Sleep(100);
-        inc(i);
-      end
-      else
-      begin
-        er:= GetLastSSLError(fSSL, sslerr);
-        error:= 'ssl failed '+er;
-        DisconnectSSL;
-        slSetBlocking(slSocket,er);
-        exit;
+        err:= SSL_accept(fssl);
+
+        if(err = 1) then Break;
+
+        sslerr:= SSL_get_error(fssl, err);
+        if((sslerr = SSL_ERROR_WANT_READ) or (sslerr = SSL_ERROR_WANT_WRITE) or (sslerr = SSL_ERROR_WANT_X509_LOOKUP)) then
+        begin
+          if Assigned(fOnWaitingforSocket) then
+            fOnWaitingforSocket(self, shouldquit);
+          if ((not shouldquit) and (Assigned(sltcp_onwaitingforsocket))) then
+            shouldquit:= sltcp_onwaitingforsocket(self);
+
+          if shouldquit then
+          begin
+            DisconnectSSLInternal;
+            slSetBlocking(slSocket,er);
+            error:= 'shouldquit';
+            exit;
+          end;
+
+          Sleep(100);
+          inc(i);
+        end
+        else
+        begin
+          er:= GetLastSSLError(fSSL, sslerr);
+          error:= 'ssl failed '+er;
+          DisconnectSSLInternal;
+          slSetBlocking(slSocket,er);
+          exit;
+        end;
+
       end;
 
+
+      if not slSetBlocking(slSocket,error) then exit;
+
+      Result:= True;
+    finally
+      if fHeldLock and (fSSLLock <> nil) then
+      begin
+        fSSLLock.Leave;
+        fHeldLock := False;
+      end;
     end;
-
-
-    if not slSetBlocking(slSocket,error) then exit;
-
-    Result:= True;
   except
     on e: Exception do
     begin
@@ -871,10 +887,17 @@ begin
       exit;
     end;
 
-    if fSSL <> nil then
-      Result:= slSend(fSSL, Buf, BufSize, error)
-    else
-      Result:= slSend(slSocket, Buf, BufSize, error);
+    if fSSLLock <> nil then
+      fSSLLock.Enter;
+    try
+      if fSSL <> nil then
+        Result:= slSend(fSSL, Buf, BufSize, error)
+      else
+        Result:= slSend(slSocket, Buf, BufSize, error);
+    finally
+      if fSSLLock <> nil then
+        fSSLLock.Leave;
+    end;
   except
     on e: Exception do
     begin
@@ -1068,10 +1091,17 @@ begin
 
   //debug(dpSpam, 'slrecv elott');
 
-      if fSSL <> nil then
-        olvasva:= slRecv(fSSL, buffer, aktolvasas, error)
-      else
-        olvasva:= slRecv(slSocket, buffer, aktolvasas, error);
+      if fSSLLock <> nil then
+        fSSLLock.Enter;
+      try
+        if fSSL <> nil then
+          olvasva:= slRecv(fSSL, buffer, aktolvasas, error)
+        else
+          olvasva:= slRecv(slSocket, buffer, aktolvasas, error);
+      finally
+        if fSSLLock <> nil then
+          fSSLLock.Leave;
+      end;
 
   //debug(dpSpam, 'slrecv utan, olvasva %d', [olvasva]);
 
