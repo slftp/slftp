@@ -3670,27 +3670,23 @@ begin
       local_event.ResetEvent;
     finally
       { Mark the task as ready in any case (success or exception) so the queue
-        thread will collect it. }
+        thread will collect it. Also clear slot1 here so a later exception in
+        this method cannot leave the queue thread unable to free the task. }
       ready := True;
+      self.slot1 := nil;
     end;
 
-    { Clear our slot reference FIRST, before dereferencing ss.
-      The slot may have been rebuilt (and the old object freed)
-      while we were blocked in event.WaitFor. If we touch ss
-      before clearing slot1, an AV there would leave us with
-      a dangling pointer that the queue thread later crashes on. }
-    self.slot1 := nil;
-
     // Try to clean up the slot's todotask reference, but don't
-    // let a rebuilt/freed slot crash us.
+    // let a rebuilt/freed slot crash us. Use ClearTodotask so that
+    // freeslots bookkeeping is updated correctly under the slot lock.
     ss := TSiteSlot(slot);
     try
-      if (ss <> nil) and (ss.site <> nil) then
+      if (ss <> nil) and (ss.site <> nil) and (not ss.IsZombie) then
       begin
         ss.site.AcquireSlotsAssignmentLock('TWaitTask ready');
         try
           if ss.todotask = self then
-            ss.todotask := nil;
+            ss.ClearTodotask;
         finally
           ss.site.ReleaseSlotsAssignmentLock;
         end;
@@ -3702,12 +3698,14 @@ begin
       end;
     end;
   finally
-    { Do NOT set wait_done here. The slot thread is still using fCurrentTask
-      for post-Execute cleanup in TSiteSlot.Execute. Setting it now would allow
-      RemoveReady to free the task while the slot thread still dereferences it.
-      TSiteSlot.Execute will set wait_done after cleanup is complete. }
+    { The slot thread (TSiteSlot.Execute) knows that WAITTASKs perform their
+      own cleanup and will not touch this task object after Execute returns.
+      It is therefore safe to set wait_done here; RemoveReady can collect the
+      task as soon as it sees wait_done=True. }
+    wait_done := True;
     fElapsedMs := MilliSecondsBetween(Now, wait_start);
     DiagRecordWaitTaskDone(fElapsedMs, site1);
+    DiagUpdateActiveWaitTask(site1, wait_for, ready, wait_done);
   end;
 end;
 

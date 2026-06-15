@@ -112,6 +112,9 @@ type
     { Set to True when this slot has been removed from the live slots list.
       Prevents SetTodotask from adjusting freeslots on a zombie slot. }
     fIsZombie: Boolean;
+    { Cached task type so SetTodotask(nil) does not have to dereference a
+      potentially already-freed task object to know if it was a dirlist task. }
+    fCurrentTaskIsDirlist: Boolean;
     function LoginBnc(const i: integer; kill: boolean = False): boolean;
     procedure SetOnline(Value: TSlotStatus);
 
@@ -153,6 +156,11 @@ type
     function RCString(const Name, def: String): String;
 
     procedure Stop; override;
+    { Public helper to clear the currently assigned task and update freeslots.
+      Used by TWaitTask.Execute because it performs its own cleanup. }
+    procedure ClearTodotask;
+    { True once the slot has been removed from the live slots list. }
+    property IsZombie: Boolean read fIsZombie;
     { Reads the last-modified time (cmd: MDTM = MODIFICATION TIME) of the specified file @link(aFilename)
       @param(aFilename Filename)
       @returns(On successful parsing seconds from MTDM response, otherwise 0) }
@@ -1515,6 +1523,8 @@ begin
   self.FSlotNumber := aSlotNumber;
 
   todotask := nil;
+  fCurrentTaskIsDirlist := False;
+  fCurrentWaitEvent := nil;
   event := TSynEvent.Create;
   kilepve := False;
 
@@ -1693,40 +1703,72 @@ begin
                 end;
               end;
             finally
-              // IMPORTANT: Set todotask := nil BEFORE clearing slot1.
-              // RemoveReady frees tasks where (ready/readyerror=True AND slot1=nil).
-              // If we clear slot1 first, RemoveReady can free the task while we still
-              // need fTodotask in SetTodotask (to read .Name and adjust freeslots).
-              // By clearing todotask first (while slot1 still prevents freeing), the
-              // SetTodotask call safely accesses fTodotask before it can be freed.
-              try
-                self.site.AcquireSlotsAssignmentLock('Reset TodoTask');
+              { WAITTASKs do their own cleanup (slot1, todotask, freeslots and
+                wait_done) inside TWaitTask.Execute. After Execute returns the
+                queue thread may already have freed the task, so we must not
+                dereference fCurrentTask for a WAITTASK any more. We only ensure
+                todotask is cleared in case TWaitTask.Execute threw before it
+                could clean up itself. }
+              if (fCurrentTask is TWaitTask) then
+              begin
                 try
-                  SetTodotask(nil);
-                finally
-                  self.site.ReleaseSlotsAssignmentLock;
+                  self.site.AcquireSlotsAssignmentLock('Reset TodoTask wait');
+                  try
+                    if self.todotask = fCurrentTask then
+                      SetTodotask(nil);
+                  finally
+                    self.site.ReleaseSlotsAssignmentLock;
+                  end;
+                except
+                  on E: Exception do
+                  begin
+                    todotask := nil;
+                    Debug(dpError, section,
+                      Format('[EXCEPTION] TSiteSlot.Execute : Exception remove WAITTASK todotask with slots assignment lock. Proceed without the lock : %s',
+                      [e.Message]));
+                  end;
                 end;
-              except
-                on E: Exception do
-                begin
-                  todotask := nil;
-                  Debug(dpError, section,
-                    Format('[EXCEPTION] TSiteSlot.Execute : Exception remove todotask with slots assignment lock. Proceed without the lock : %s',
-                    [e.Message]));
+                { Do NOT touch fCurrentTask.slot1 here. TWaitTask.Execute has
+                  already cleared it in its finally block, and the task object
+                  may have been freed by RemoveReady by now. }
+              end
+              else
+              begin
+                // IMPORTANT: Set todotask := nil BEFORE clearing slot1.
+                // RemoveReady frees tasks where (ready/readyerror=True AND slot1=nil).
+                // If we clear slot1 first, RemoveReady can free the task while we still
+                // need fTodotask in SetTodotask (to read .Name and adjust freeslots).
+                // By clearing todotask first (while slot1 still prevents freeing), the
+                // SetTodotask call safely accesses fTodotask before it can be freed.
+                try
+                  self.site.AcquireSlotsAssignmentLock('Reset TodoTask');
+                  try
+                    SetTodotask(nil);
+                  finally
+                    self.site.ReleaseSlotsAssignmentLock;
+                  end;
+                except
+                  on E: Exception do
+                  begin
+                    todotask := nil;
+                    Debug(dpError, section,
+                      Format('[EXCEPTION] TSiteSlot.Execute : Exception remove todotask with slots assignment lock. Proceed without the lock : %s',
+                      [e.Message]));
+                  end;
                 end;
-              end;
 
-              // Now clear slot1 — this makes the task eligible for removal by RemoveReady.
-              // We no longer access fCurrentTask after this point.
-              try
-                if (fCurrentTask.slot1 <> nil) then
-                begin
-                  fCurrentTask.slot1 := nil;
-                end;
-              except
-                on E: Exception do
-                begin
-                  Debug(dpError, section, Format('[WARNING] TSiteSlot.Execute: fCurrentTask.slot1 cleanup failed (dangling pointer?): %s', [E.Message]));
+                // Now clear slot1 — this makes the task eligible for removal by RemoveReady.
+                // We no longer access fCurrentTask after this point.
+                try
+                  if (fCurrentTask.slot1 <> nil) then
+                  begin
+                    fCurrentTask.slot1 := nil;
+                  end;
+                except
+                  on E: Exception do
+                  begin
+                    Debug(dpError, section, Format('[WARNING] TSiteSlot.Execute: fCurrentTask.slot1 cleanup failed (dangling pointer?): %s', [E.Message]));
+                  end;
                 end;
               end;
             end;
@@ -1741,23 +1783,6 @@ begin
                 Format('[EXCEPTION] TSiteSlot.Execute : Exception remove todotask : %s',
                 [e.Message]));
             end;
-          end;
-        end;
-
-        { WAITTASK cleanup is finished; signal that the queue thread may now
-          safely remove and free the task. This must happen after slot1/todotask
-          cleanup so RemoveReady cannot free the task while we still use it. }
-        if (fCurrentTask <> nil) and (fCurrentTask is TWaitTask) then
-        begin
-          try
-            TWaitTask(fCurrentTask).wait_done := True;
-            DiagUpdateActiveWaitTask(TWaitTask(fCurrentTask).site1,
-                                     TWaitTask(fCurrentTask).wait_for,
-                                     TWaitTask(fCurrentTask).ready,
-                                     TWaitTask(fCurrentTask).wait_done);
-          except
-            on E: Exception do
-              Debug(dpError, section, Format('[WARNING] TSiteSlot.Execute: failed to mark WAITTASK done for %s: %s', [Name, E.Message]));
           end;
         end;
 
@@ -3235,6 +3260,8 @@ begin
 end;
 
 procedure TSiteSlot.SetTodotask(Value: TTask);
+var
+  newIsDirlist: Boolean;
 begin
   { Zombie slots are no longer part of the live slot list; their task changes
     must not affect the site's freeslots bookkeeping. }
@@ -3245,7 +3272,10 @@ begin
   try
     if fTodotask <> Value then
     begin
-      if (fTodotask <> nil) and (fTodotask.ClassType = TPazoDirlistTask) then
+      { Decrement the old task's dirlist counter using the cached type so we
+        do not dereference a task that may already have been freed by the
+        queue thread (TWaitTask cleanup path). }
+      if fCurrentTaskIsDirlist then
         Dec(site.fActiveDirlistCount);
       fTodotask := Value;
       { Cache the WAITTASK event so Stop can signal it even after todotask
@@ -3254,15 +3284,24 @@ begin
         fCurrentWaitEvent := TWaitTask(fTodotask).event
       else
         fCurrentWaitEvent := nil;
+      { Determine the new task's type. This is the only moment we touch the
+        task object for type information. If Value is a dangling pointer the
+        caller has already lost, but we only read ClassType for non-nil values. }
+      newIsDirlist := (fTodotask <> nil) and (fTodotask.ClassType = TPazoDirlistTask);
+      fCurrentTaskIsDirlist := newIsDirlist;
       if fTodotask <> nil then
       begin
         site.freeslots := site.freeslots - 1;
-        if fTodotask.ClassType = TPazoDirlistTask then
+        if newIsDirlist then
           Inc(site.fActiveDirlistCount);
       end
       else
       begin
         site.freeslots := site.freeslots + 1;
+        { Make sure the cached type is reset when the slot becomes empty.
+          Normally this is implied by the newIsDirlist computation above, but
+          keeping the flag in sync explicitly makes future code safer. }
+        fCurrentTaskIsDirlist := False;
       end;
     end;
   finally
@@ -3271,6 +3310,11 @@ begin
 
   if GetDebugVerbosity = dpSpam then
     Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name, site.freeslots]);
+end;
+
+procedure TSiteSlot.ClearTodotask;
+begin
+  SetTodotask(nil);
 end;
 
 { TSite }
