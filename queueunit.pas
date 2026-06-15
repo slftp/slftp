@@ -658,7 +658,7 @@ begin
 
     if s2.num_up >= s2.max_up then
     begin
-      DiagRecordAssignRaceAbort(darNoSlotAvailable, fSiteName);
+      DiagRecordAssignRaceAbort(darDstMaxUp, fSiteName);
       exit;
     end;
 
@@ -674,7 +674,7 @@ begin
     begin
       if s1.num_dn >= s1.max_pre_dn then
       begin
-        DiagRecordAssignRaceAbort(darNoSlotAvailable, fSiteName);
+        DiagRecordAssignRaceAbort(darSrcMaxDn, fSiteName);
         exit;
       end;
     end
@@ -682,7 +682,7 @@ begin
     begin
       if s1.num_dn >= s1.max_dn then
       begin
-        DiagRecordAssignRaceAbort(darNoSlotAvailable, fSiteName);
+        DiagRecordAssignRaceAbort(darSrcMaxDn, fSiteName);
         exit;
       end;
     end;
@@ -712,7 +712,7 @@ begin
     end;
     if ss1 = nil then
     begin
-      DiagRecordAssignRaceAbort(darNoSlotAvailable, fSiteName);
+      DiagRecordAssignRaceAbort(darSrcNoFreeSlot, fSiteName);
       exit;
     end;
 
@@ -728,7 +728,7 @@ begin
       // check again now that we have the lock at the destination
       if s2.num_up >= s2.max_up then
       begin
-        DiagRecordAssignRaceAbort(darNoSlotAvailable, fSiteName);
+        DiagRecordAssignRaceAbort(darDstMaxUp, fSiteName);
         exit;
       end;
 
@@ -751,7 +751,7 @@ begin
       end;
       if ss2 = nil then
       begin
-        DiagRecordAssignRaceAbort(darNoSlotAvailable, fSiteName);
+        DiagRecordAssignRaceAbort(darDstNoFreeSlot, fSiteName);
         exit;
       end;
 

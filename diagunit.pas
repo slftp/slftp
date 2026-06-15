@@ -23,6 +23,10 @@ type
     darMaxSimUpCooldown,
     darMaxSimDownCooldown,
     darNoSlotAvailable,
+    darDstMaxUp,
+    darSrcMaxDn,
+    darSrcNoFreeSlot,
+    darDstNoFreeSlot,
     darSiteOffline,
     darTaskNotReady,
     darMaxUpPerRip,
@@ -98,6 +102,10 @@ type
     MaxSimUpCooldown: Int64;
     MaxSimDownCooldown: Int64;
     NoSlotAvailable: Int64;
+    DstMaxUp: Int64;
+    SrcMaxDn: Int64;
+    SrcNoFreeSlot: Int64;
+    DstNoFreeSlot: Int64;
     SiteOffline: Int64;
     TaskNotReady: Int64;
     MaxUpPerRip: Int64;
@@ -438,6 +446,10 @@ begin
     darMaxSimUpCooldown: Inc(aCounters.MaxSimUpCooldown);
     darMaxSimDownCooldown: Inc(aCounters.MaxSimDownCooldown);
     darNoSlotAvailable: Inc(aCounters.NoSlotAvailable);
+    darDstMaxUp: Inc(aCounters.DstMaxUp);
+    darSrcMaxDn: Inc(aCounters.SrcMaxDn);
+    darSrcNoFreeSlot: Inc(aCounters.SrcNoFreeSlot);
+    darDstNoFreeSlot: Inc(aCounters.DstNoFreeSlot);
     darSiteOffline: Inc(aCounters.SiteOffline);
     darTaskNotReady: Inc(aCounters.TaskNotReady);
     darMaxUpPerRip: Inc(aCounters.MaxUpPerRip);
@@ -699,7 +711,7 @@ const
   FMT = '[DIAG] WAITTASKS active=%d created=%d done=%d avg=%dms peak=%dms stuck>5s=%d stuck>30s=%d' + sLineBreak +
         '[DIAG] QUEUE total=%d race=%d dirlist=%d auto=%d other=%d assigned=%d dirlists_done=%d fbt_calls=%d' + sLineBreak +
         '[DIAG] SLOTS online=%d offline=%d down=%d markeddown=%d busy=%d free=%d wait_busy=%d freeslots=%d up=%d/%d dn=%d/%d up_cd=%ds dn_cd=%ds' + sLineBreak +
-        '[DIAG] RACE-ABORT freeslots=%d maxsim_up=%d maxsim_down=%d no_slot=%d offline=%d not_ready=%d maxupperrip=%d other=%d' + sLineBreak +
+        '[DIAG] RACE-ABORT freeslots=%d maxsim_up=%d maxsim_down=%d no_slot=%d dstmaxup=%d srcmaxdn=%d srcnoslot=%d dstnoslot=%d offline=%d not_ready=%d maxupperrip=%d other=%d' + sLineBreak +
         '[DIAG] SLOT-ABORT freeslots=%d maxsim_up=%d maxsim_down=%d no_slot=%d offline=%d not_ready=%d maxupperrip=%d other=%d' + sLineBreak +
         '[DIAG] FBT-NIL no_tasks=%d no_slots=%d cooldown=%d delayed=%d no_ready=%d other=%d' + sLineBreak +
         '[DIAG] FBT-TYPE delayed race=%d dirlist=%d auto=%d other=%d | no_ready race=%d dirlist=%d auto=%d other=%d' + sLineBreak +
@@ -718,6 +730,8 @@ begin
      m.Slots.UpCooldown, m.Slots.DnCooldown,
      m.AssignRace.FreeslotsZero, m.AssignRace.MaxSimUpCooldown,
      m.AssignRace.MaxSimDownCooldown, m.AssignRace.NoSlotAvailable,
+     m.AssignRace.DstMaxUp, m.AssignRace.SrcMaxDn,
+     m.AssignRace.SrcNoFreeSlot, m.AssignRace.DstNoFreeSlot,
      m.AssignRace.SiteOffline, m.AssignRace.TaskNotReady,
      m.AssignRace.MaxUpPerRip, m.AssignRace.Other,
      m.AssignSlots.FreeslotsZero, m.AssignSlots.MaxSimUpCooldown,
