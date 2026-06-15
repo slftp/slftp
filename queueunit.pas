@@ -594,11 +594,27 @@ begin
   inherited;
 end;
 
+function CountSiteUploadingSlots(const aSite: TSite): Integer;
+var
+  i: Integer;
+  ss: TSiteSlot;
+begin
+  Result := 0;
+  if aSite = nil then Exit;
+  for i := 0 to aSite.slots.Count - 1 do
+  begin
+    ss := TSiteSlot(aSite.slots[i]);
+    if ss.uploadingto then
+      Inc(Result);
+  end;
+end;
+
 procedure TQueueThread.TryToAssignRaceSlots(t: TPazoRaceTask);
 var
   s1, s2: TSite;
   i: integer;
   ss1, ss2, fSiteSlotLoop: TSiteSlot;
+  actualUp: Integer;
 begin
   try
     s1 := TSite(t.ssite1);
@@ -658,6 +674,8 @@ begin
 
     if s2.num_up >= s2.max_up then
     begin
+      Debug(dpSpam, section, Format('RACE-ABORT dstmaxup (pre-lock): site=%s num_up=%d max_up=%d task=%s',
+        [s2.Name, s2.num_up, s2.max_up, t.FullName]));
       DiagRecordAssignRaceAbort(darDstMaxUp, fSiteName);
       exit;
     end;
@@ -728,6 +746,12 @@ begin
       // check again now that we have the lock at the destination
       if s2.num_up >= s2.max_up then
       begin
+        actualUp := CountSiteUploadingSlots(s2);
+        Debug(dpSpam, section, Format('RACE-ABORT dstmaxup (locked): site=%s num_up=%d max_up=%d actual_uploading_slots=%d task=%s',
+          [s2.Name, s2.num_up, s2.max_up, actualUp, t.FullName]));
+        if actualUp <> s2.num_up then
+          Debug(dpError, section, Format('RACE-ABORT dstmaxup SLOT MISMATCH: site=%s num_up=%d actual_uploading_slots=%d',
+            [s2.Name, s2.num_up, actualUp]));
         DiagRecordAssignRaceAbort(darDstMaxUp, fSiteName);
         exit;
       end;
