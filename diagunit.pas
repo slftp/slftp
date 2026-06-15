@@ -192,20 +192,57 @@ type
   end;
   TDiagWaitTaskDetails = array of TDiagWaitTaskDetail;
 
+{ Recent abort details for dstmaxup / maxupperrip investigations. }
+const
+  CDiagDetailBufferSize = 20;
+
+type
+  TDiagDstMaxUpDetail = record
+    Timestamp: TDateTime;
+    SiteName: String;
+    NumUp: Integer;
+    MaxUp: Integer;
+    ActualUploadingSlots: Integer;
+    TaskName: String;
+  end;
+
+  TDiagMaxUpPerRipDetail = record
+    Timestamp: TDateTime;
+    SiteName: String;
+    MaxUpPerRip: Integer;
+    ActiveTransferCount: Integer;
+    TaskName: String;
+  end;
+
 { These are populated by taskrace.pas / queueunit.pas when WAITTASKs start/stop.
   Protected by GlDiagCS. }
 var
   GlDiagActiveWaitTasks: array of TDiagWaitTaskDetail;
+
+  GlDiagDstMaxUpDetails: array[0..CDiagDetailBufferSize - 1] of TDiagDstMaxUpDetail;
+  GlDiagDstMaxUpDetailIndex: Integer;
+  GlDiagDstMaxUpDetailCount: Integer;
+
+  GlDiagMaxUpPerRipDetails: array[0..CDiagDetailBufferSize - 1] of TDiagMaxUpPerRipDetail;
+  GlDiagMaxUpPerRipDetailIndex: Integer;
+  GlDiagMaxUpPerRipDetailCount: Integer;
 
 procedure DiagAddActiveWaitTask(const aSiteName, aWaitFor: String; const aStartTime: TDateTime);
 procedure DiagUpdateActiveWaitTask(const aSiteName, aWaitFor: String;
   const aReady, aWaitDone: Boolean);
 procedure DiagRemoveActiveWaitTask(const aSiteName, aWaitFor: String);
 
+{ Recent-abort detail recorders. Called from queueunit.pas under main_lock. }
+procedure DiagRecordDstMaxUpDetail(const aSiteName: String; const aNumUp, aMaxUp,
+  aActualUploadingSlots: Integer; const aTaskName: String);
+procedure DiagRecordMaxUpPerRipDetail(const aSiteName: String; const aMaxUpPerRip,
+  aActiveTransferCount: Integer; const aTaskName: String);
+
 { Output helpers }
 function DiagFormatCurrent(const aSiteName: String = ''): String;
 function DiagFormatHistory: String;
 function DiagFormatActiveWaitTasks: String;
+function DiagFormatAbortDetails: String;
 function DiagSaveToFile(const aFilename: String): Boolean;
 
 implementation
@@ -270,6 +307,12 @@ begin
   GlDiagHistoryIndex := 0;
   GlDiagHistoryCount := 0;
   SetLength(GlDiagActiveWaitTasks, 0);
+  FillChar(GlDiagDstMaxUpDetails, SizeOf(GlDiagDstMaxUpDetails), 0);
+  GlDiagDstMaxUpDetailIndex := 0;
+  GlDiagDstMaxUpDetailCount := 0;
+  FillChar(GlDiagMaxUpPerRipDetails, SizeOf(GlDiagMaxUpPerRipDetails), 0);
+  GlDiagMaxUpPerRipDetailIndex := 0;
+  GlDiagMaxUpPerRipDetailCount := 0;
 end;
 
 procedure DiagUninit;
@@ -704,6 +747,51 @@ begin
   end;
 end;
 
+{ Recent-abort detail recorders }
+
+procedure DiagRecordDstMaxUpDetail(const aSiteName: String; const aNumUp, aMaxUp,
+  aActualUploadingSlots: Integer; const aTaskName: String);
+begin
+  GlDiagCS.Enter('DiagRecordDstMaxUpDetail');
+  try
+    with GlDiagDstMaxUpDetails[GlDiagDstMaxUpDetailIndex] do
+    begin
+      Timestamp := Now;
+      SiteName := aSiteName;
+      NumUp := aNumUp;
+      MaxUp := aMaxUp;
+      ActualUploadingSlots := aActualUploadingSlots;
+      TaskName := aTaskName;
+    end;
+    GlDiagDstMaxUpDetailIndex := (GlDiagDstMaxUpDetailIndex + 1) mod CDiagDetailBufferSize;
+    if GlDiagDstMaxUpDetailCount < CDiagDetailBufferSize then
+      Inc(GlDiagDstMaxUpDetailCount);
+  finally
+    GlDiagCS.Leave;
+  end;
+end;
+
+procedure DiagRecordMaxUpPerRipDetail(const aSiteName: String; const aMaxUpPerRip,
+  aActiveTransferCount: Integer; const aTaskName: String);
+begin
+  GlDiagCS.Enter('DiagRecordMaxUpPerRipDetail');
+  try
+    with GlDiagMaxUpPerRipDetails[GlDiagMaxUpPerRipDetailIndex] do
+    begin
+      Timestamp := Now;
+      SiteName := aSiteName;
+      MaxUpPerRip := aMaxUpPerRip;
+      ActiveTransferCount := aActiveTransferCount;
+      TaskName := aTaskName;
+    end;
+    GlDiagMaxUpPerRipDetailIndex := (GlDiagMaxUpPerRipDetailIndex + 1) mod CDiagDetailBufferSize;
+    if GlDiagMaxUpPerRipDetailCount < CDiagDetailBufferSize then
+      Inc(GlDiagMaxUpPerRipDetailCount);
+  finally
+    GlDiagCS.Leave;
+  end;
+end;
+
 { Output helpers }
 
 function DiagFormatMetrics(const m: TDiagMetrics): String;
@@ -829,6 +917,60 @@ begin
   end;
 end;
 
+function DiagFormatAbortDetails: String;
+var
+  i, idx, n: Integer;
+  elapsedSec: Double;
+  haveAny: Boolean;
+begin
+  Result := '';
+  haveAny := False;
+  GlDiagCS.Enter('DiagFormatAbortDetails');
+  try
+    if GlDiagDstMaxUpDetailCount > 0 then
+    begin
+      haveAny := True;
+      Result := Result + '[DIAG] recent dstmaxup aborts:' + sLineBreak;
+      for i := 0 to GlDiagDstMaxUpDetailCount - 1 do
+      begin
+        idx := (GlDiagDstMaxUpDetailIndex - 1 - i + CDiagDetailBufferSize) mod CDiagDetailBufferSize;
+        elapsedSec := MilliSecondsBetween(Now, GlDiagDstMaxUpDetails[idx].Timestamp) / 1000.0;
+        Result := Result + Format('[DIAG]  #%d site=%s num_up=%d max_up=%d actual_up_slots=%d age=%.1fs task=%s' + sLineBreak,
+          [i + 1,
+           GlDiagDstMaxUpDetails[idx].SiteName,
+           GlDiagDstMaxUpDetails[idx].NumUp,
+           GlDiagDstMaxUpDetails[idx].MaxUp,
+           GlDiagDstMaxUpDetails[idx].ActualUploadingSlots,
+           elapsedSec,
+           GlDiagDstMaxUpDetails[idx].TaskName]);
+      end;
+    end;
+
+    if GlDiagMaxUpPerRipDetailCount > 0 then
+    begin
+      haveAny := True;
+      Result := Result + '[DIAG] recent maxupperrip aborts:' + sLineBreak;
+      for i := 0 to GlDiagMaxUpPerRipDetailCount - 1 do
+      begin
+        idx := (GlDiagMaxUpPerRipDetailIndex - 1 - i + CDiagDetailBufferSize) mod CDiagDetailBufferSize;
+        elapsedSec := MilliSecondsBetween(Now, GlDiagMaxUpPerRipDetails[idx].Timestamp) / 1000.0;
+        Result := Result + Format('[DIAG]  #%d site=%s maxupperrip=%d active_transfer_count=%d age=%.1fs task=%s' + sLineBreak,
+          [i + 1,
+           GlDiagMaxUpPerRipDetails[idx].SiteName,
+           GlDiagMaxUpPerRipDetails[idx].MaxUpPerRip,
+           GlDiagMaxUpPerRipDetails[idx].ActiveTransferCount,
+           elapsedSec,
+           GlDiagMaxUpPerRipDetails[idx].TaskName]);
+      end;
+    end;
+
+    if not haveAny then
+      Result := '[DIAG] no recent abort details';
+  finally
+    GlDiagCS.Leave;
+  end;
+end;
+
 function DiagSaveToFile(const aFilename: String): Boolean;
 var
   f: TextFile;
@@ -854,6 +996,8 @@ begin
       end;
       WriteLn(f, sLineBreak + '--- active WAITTASKs ---');
       WriteLn(f, DiagFormatActiveWaitTasks);
+      WriteLn(f, sLineBreak + '--- recent abort details ---');
+      WriteLn(f, DiagFormatAbortDetails);
       WriteLn(f, sLineBreak + '--- history ---');
       WriteLn(f, DiagFormatHistory);
       Result := True;

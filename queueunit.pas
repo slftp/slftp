@@ -674,8 +674,6 @@ begin
 
     if s2.num_up >= s2.max_up then
     begin
-      Debug(dpSpam, section, Format('RACE-ABORT dstmaxup (pre-lock): site=%s num_up=%d max_up=%d task=%s',
-        [s2.Name, s2.num_up, s2.max_up, t.FullName]));
       DiagRecordAssignRaceAbort(darDstMaxUp, fSiteName);
       exit;
     end;
@@ -747,11 +745,7 @@ begin
       if s2.num_up >= s2.max_up then
       begin
         actualUp := CountSiteUploadingSlots(s2);
-        Debug(dpSpam, section, Format('RACE-ABORT dstmaxup (locked): site=%s num_up=%d max_up=%d actual_uploading_slots=%d task=%s',
-          [s2.Name, s2.num_up, s2.max_up, actualUp, t.FullName]));
-        if actualUp <> s2.num_up then
-          Debug(dpError, section, Format('RACE-ABORT dstmaxup SLOT MISMATCH: site=%s num_up=%d actual_uploading_slots=%d',
-            [s2.Name, s2.num_up, actualUp]));
+        DiagRecordDstMaxUpDetail(s2.Name, s2.num_up, s2.max_up, actualUp, t.FullName);
         DiagRecordAssignRaceAbort(darDstMaxUp, fSiteName);
         exit;
       end;
@@ -783,8 +777,7 @@ begin
       i := ss2.site.MaxUpPerRip;
       if ((i > 0) and (t.ps2.ActiveTransferCount >= i)) then
       begin
-        Debug(dpSpam, section, Format('RACE-ABORT maxupperrip: site=%s maxupperrip=%d active_transfer_count=%d task=%s',
-          [ss2.Name, i, t.ps2.ActiveTransferCount, t.FullName]));
+        DiagRecordMaxUpPerRipDetail(ss2.Name, i, t.ps2.ActiveTransferCount, t.FullName);
         DiagRecordAssignRaceAbort(darMaxUpPerRip, fSiteName);
         exit;
       end;

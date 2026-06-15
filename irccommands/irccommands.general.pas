@@ -309,6 +309,17 @@ begin
     finally
       fLines.Free;
     end;
+
+    irc_addtext(netname, channel, 'Recent abort details:');
+    fLines := TStringList.Create;
+    try
+      fLines.Text := DiagFormatAbortDetails;
+      for i := 0 to fLines.Count - 1 do
+        if fLines[i] <> '' then
+          irc_addtext(netname, channel, fLines[i]);
+    finally
+      fLines.Free;
+    end;
     Result := True;
     exit;
   end;
