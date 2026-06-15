@@ -783,7 +783,8 @@ begin
       i := ss2.site.MaxUpPerRip;
       if ((i > 0) and (t.ps2.ActiveTransferCount >= i)) then
       begin
-        Debug(dpSpam, section, 'We shouldnt upload more than maxupperrip value [' + IntToStr(i) + '] for' + ss2.Name);
+        Debug(dpSpam, section, Format('RACE-ABORT maxupperrip: site=%s maxupperrip=%d active_transfer_count=%d task=%s',
+          [ss2.Name, i, t.ps2.ActiveTransferCount, t.FullName]));
         DiagRecordAssignRaceAbort(darMaxUpPerRip, fSiteName);
         exit;
       end;
