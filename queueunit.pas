@@ -765,6 +765,7 @@ begin
 
       Debug(dpSpam, section, 'FOUND SLOTS FOR ' + t.FullName + ': ' + ss1.Name + ' ' + ss2.Name);
       t.dst      := TWaitTask.Create(t.netname, t.channel, t.site2);
+      t.dst.parentRaceTask := Pointer(t);
       t.assigned := Now;
       t.dst.assigned := Now;
       t.dst.wait_for := t.Name;

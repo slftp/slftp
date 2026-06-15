@@ -47,6 +47,11 @@ type
       Used by the queue thread to avoid freeing the wait task while the slot
       thread is still executing inside it. }
     wait_done: Boolean;
+    { Owning RACE task that created this WAITTASK. Stored as Pointer because
+      TPazoRaceTask is declared later in this unit. When the WAITTASK is freed
+      it clears the back-reference so the race task can no longer signal a
+      dangling dst pointer. }
+    parentRaceTask: Pointer;
     destructor Destroy; override;
     constructor Create(const netname, channel, site1: String);
     function Execute(slot: Pointer): boolean; override;
@@ -3633,6 +3638,13 @@ end;
 
 destructor TWaitTask.Destroy;
 begin
+  { Clear the back-reference in the owning race task before the event is freed,
+    so the race task cannot later signal a dangling dst pointer. }
+  if parentRaceTask <> nil then
+  begin
+    TPazoRaceTask(parentRaceTask).dst := nil;
+    parentRaceTask := nil;
+  end;
   event.Free;
   inherited;
 end;
