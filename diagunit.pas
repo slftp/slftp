@@ -41,6 +41,8 @@ type
     dfbnCooldown,
     dfbnDelayed,
     dfbnNoReadyTask,
+    dfbnNoReadyTaskMkdir,
+    dfbnNoReadyTaskOther,
     dfbnOther
   );
 
@@ -95,6 +97,9 @@ type
     FindBestNilNoReadyDirlist: Int64;
     FindBestNilNoReadyAuto: Int64;
     FindBestNilNoReadyOther: Int64;
+    { Breakdown of no_ready race tasks. }
+    FindBestNilNoReadyRaceMkdir: Int64;
+    FindBestNilNoReadyRaceOther: Int64;
   end;
 
   TDiagReasonCounters = record
@@ -442,6 +447,18 @@ begin
           Inc(aSnap.FindBestNilNoReadyOther);
         end;
       end;
+    dfbnNoReadyTaskMkdir:
+      begin
+        Inc(aSnap.FindBestNilNoReadyTask);
+        Inc(aSnap.FindBestNilNoReadyRace);
+        Inc(aSnap.FindBestNilNoReadyRaceMkdir);
+      end;
+    dfbnNoReadyTaskOther:
+      begin
+        Inc(aSnap.FindBestNilNoReadyTask);
+        Inc(aSnap.FindBestNilNoReadyRace);
+        Inc(aSnap.FindBestNilNoReadyRaceOther);
+      end;
     dfbnOther: Inc(aSnap.FindBestNilOther);
   end;
 end;
@@ -666,10 +683,32 @@ begin
   end;
 end;
 
+procedure _UpdateStuckCounters;
+var
+  i: Integer;
+  elapsedMs: Int64;
+begin
+  GlDiagCurrent.WaitTasks.StuckOver5s := 0;
+  GlDiagCurrent.WaitTasks.StuckOver30s := 0;
+  for i := 0 to High(GlDiagActiveWaitTasks) do
+  begin
+    try
+      elapsedMs := MilliSecondsBetween(Now, GlDiagActiveWaitTasks[i].StartTime);
+      if elapsedMs > 30000 then
+        Inc(GlDiagCurrent.WaitTasks.StuckOver30s)
+      else if elapsedMs > 5000 then
+        Inc(GlDiagCurrent.WaitTasks.StuckOver5s);
+    except
+      // Ignore bad StartTime values; do not let stuck-counter calculation fail.
+    end;
+  end;
+end;
+
 procedure DiagTakeSnapshot;
 begin
   GlDiagCS.Enter('DiagTakeSnapshot');
   try
+    _UpdateStuckCounters;
     GlDiagCurrent.Timestamp := Now;
     GlDiagHistory[GlDiagHistoryIndex] := GlDiagCurrent;
     GlDiagHistoryIndex := (GlDiagHistoryIndex + 1) mod CDiagHistorySize;
@@ -848,7 +887,7 @@ const
         '[DIAG] RACE-ABORT freeslots=%d maxsim_up=%d maxsim_down=%d no_slot=%d dstmaxup=%d srcmaxdn=%d srcnoslot=%d dstnoslot=%d offline=%d not_ready=%d maxupperrip=%d other=%d' + sLineBreak +
         '[DIAG] SLOT-ABORT freeslots=%d maxsim_up=%d maxsim_down=%d no_slot=%d offline=%d not_ready=%d maxupperrip=%d other=%d' + sLineBreak +
         '[DIAG] FBT-NIL no_tasks=%d no_slots=%d cooldown=%d delayed=%d no_ready=%d other=%d' + sLineBreak +
-        '[DIAG] FBT-TYPE delayed race=%d dirlist=%d auto=%d other=%d | no_ready race=%d dirlist=%d auto=%d other=%d' + sLineBreak +
+        '[DIAG] FBT-TYPE delayed race=%d dirlist=%d auto=%d other=%d | no_ready race=%d(mkdir=%d|other=%d) dirlist=%d auto=%d other=%d' + sLineBreak +
         '[DIAG] DIRLIST-WAIT count=%d avg=%dms peak=%dms';
 begin
   Result := Format(FMT,
@@ -877,7 +916,8 @@ begin
      m.Queue.FindBestNilNoReadyTask, m.Queue.FindBestNilOther,
      m.Queue.FindBestNilDelayedRace, m.Queue.FindBestNilDelayedDirlist,
      m.Queue.FindBestNilDelayedAuto, m.Queue.FindBestNilDelayedOther,
-     m.Queue.FindBestNilNoReadyRace, m.Queue.FindBestNilNoReadyDirlist,
+     m.Queue.FindBestNilNoReadyRace, m.Queue.FindBestNilNoReadyRaceMkdir,
+     m.Queue.FindBestNilNoReadyRaceOther, m.Queue.FindBestNilNoReadyDirlist,
      m.Queue.FindBestNilNoReadyAuto, m.Queue.FindBestNilNoReadyOther,
      m.DirlistWait.Count, m.DirlistWait.AvgMs, m.DirlistWait.PeakMs]);
 end;

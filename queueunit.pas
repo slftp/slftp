@@ -448,7 +448,14 @@ begin
     // Skip tasks not ready to execute
     if not t.IsReadyToBeExecuted then
     begin
-      DiagRecordFindBestTaskNil(dfbnNoReadyTask, t.ClassName, fSiteName);
+      if (t is TPazoRaceTask) and (TPazoTask(t).FDependingOnDirlist <> nil) and
+         TPazoTask(t).FDependingOnDirlist.need_mkdir and
+         (not TPazoTask(t).FDependingOnDirlist.error) then
+        DiagRecordFindBestTaskNil(dfbnNoReadyTaskMkdir, t.ClassName, fSiteName)
+      else if t is TPazoRaceTask then
+        DiagRecordFindBestTaskNil(dfbnNoReadyTaskOther, t.ClassName, fSiteName)
+      else
+        DiagRecordFindBestTaskNil(dfbnNoReadyTask, t.ClassName, fSiteName);
       Continue;
     end;
 

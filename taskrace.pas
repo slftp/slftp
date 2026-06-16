@@ -3719,12 +3719,38 @@ begin
     soon as it sees wait_done=True. }
   wait_done := True;
   try
-    fElapsedMs := MilliSecondsBetween(Now, wait_start);
-    DiagRecordWaitTaskDone(fElapsedMs, site1);
-    DiagUpdateActiveWaitTask(site1, wait_for, ready, wait_done);
+    try
+      if (wait_start > 0) and (wait_start <= Now) then
+        fElapsedMs := MilliSecondsBetween(Now, wait_start)
+      else
+      begin
+        Debug(dpError, c_section, Format('[DIAG] TWaitTask.Execute invalid wait_start for %s: %s', [wait_for, DateTimeToStr(wait_start)]));
+        fElapsedMs := 0;
+      end;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, c_section, Format('[EXCEPTION] TWaitTask.Execute diag stage (elapsed): %s wait_start=%s', [E.Message, DateTimeToStr(wait_start)]));
+        fElapsedMs := 0;
+      end;
+    end;
+
+    try
+      DiagRecordWaitTaskDone(fElapsedMs, site1);
+    except
+      on E: Exception do
+        Debug(dpError, c_section, Format('[EXCEPTION] TWaitTask.Execute diag stage (record done): %s', [E.Message]));
+    end;
+
+    try
+      DiagUpdateActiveWaitTask(site1, wait_for, ready, wait_done);
+    except
+      on E: Exception do
+        Debug(dpError, c_section, Format('[EXCEPTION] TWaitTask.Execute diag stage (update active): %s', [E.Message]));
+    end;
   except
     on E: Exception do
-      Debug(dpError, c_section, Format('[EXCEPTION] TWaitTask.Execute diag stage: %s', [E.Message]));
+      Debug(dpError, c_section, Format('[EXCEPTION] TWaitTask.Execute diag stage (outer): %s', [E.Message]));
   end;
 end;
 
