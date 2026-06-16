@@ -615,7 +615,9 @@ var
   i: integer;
   ss1, ss2, fSiteSlotLoop: TSiteSlot;
   actualUp: Integer;
+  fTransferRegistered: Boolean;
 begin
+  fTransferRegistered := False;
   try
     s1 := TSite(t.ssite1);
     s2 := TSite(t.ssite2);
@@ -760,13 +762,6 @@ begin
         exit;
       end;
 
-      // again check if this file is already being sent to the destination now that we have the slot assignment lock
-      if t.ps2.HasActiveTransfer(t.dir + t.filename) then
-      begin
-        DiagRecordAssignRaceAbort(darOther, fSiteName);
-        exit; // we are already sending this file to the same destination site
-      end;
-
       ss2 := nil;
       for fSiteSlotLoop in s2.slots do
       begin
@@ -792,6 +787,14 @@ begin
         exit;
       end;
 
+      // atomically check and register the active transfer while holding the destination lock
+      if not t.ps2.TryAddActiveTransfer(t.dir + t.filename, s1.Name) then
+      begin
+        DiagRecordAssignRaceAbort(darOther, fSiteName);
+        exit;
+      end;
+      fTransferRegistered := True;
+
       Debug(dpSpam, section, 'FOUND SLOTS FOR ' + t.FullName + ': ' + ss1.Name + ' ' + ss2.Name);
       t.dst      := TWaitTask.Create(t.netname, t.channel, t.site2);
       t.dst.parentRaceTask := Pointer(t);
@@ -801,7 +804,6 @@ begin
       t.dst.slot1 := ss2;
       DiagAddActiveWaitTask(t.dst.site1, t.dst.wait_for, t.dst.assigned);
       AddTask(t.dst);
-      t.ps2.AddActiveTransfer(t.dir + t.filename, s1.Name);
       t.slot1      := ss1;
       t.slot1name  := ss1.Name;
       t.slot2      := ss2;
@@ -814,6 +816,11 @@ begin
       ss1.Fire;
       DiagRecordRaceTaskAssigned(fSiteName);
     finally
+      // If we registered the active transfer but failed to assign slots (or an
+      // exception occurred before t.slot2 was set), remove the registration so
+      // the file does not stay blocked forever.
+      if fTransferRegistered and (t.slot2 = nil) then
+        t.ps2.RemoveActiveTransfer(t.dir + t.filename);
       s2.ReleaseSlotsAssignmentLock;
     end;
   except

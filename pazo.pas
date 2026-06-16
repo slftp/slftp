@@ -162,6 +162,7 @@ type
     function HasActiveTransfer(const aFilepath: String): boolean; overload;
     function HasActiveTransfer(const aFilepath, aSourceSite: String): boolean; overload;
     procedure AddActiveTransfer(const aFilepath, aSourceSite: String);
+    function TryAddActiveTransfer(const aFilepath, aSourceSite: String): Boolean;
 
   end;
 
@@ -2420,6 +2421,18 @@ begin
     begin
       Debug(dpError, section, Format('[WARN] TPazoSite.AddActiveTransfer: Tried to add active transfer, but it was already there %s: %s', [Name, aFilepath]));
     end;
+  finally
+    FActiveTransfersCS.Leave;
+  end;
+end;
+
+function TPazoSite.TryAddActiveTransfer(const aFilepath, aSourceSite: String): Boolean;
+begin
+  FActiveTransfersCS.Enter;
+  try
+    Result := FActiveTransfers.TryAdd(aFilepath, aSourceSite);
+    if not Result then
+      Debug(dpSpam, section, Format('[DIAG] TPazoSite.TryAddActiveTransfer: rejected duplicate active transfer %s: %s', [Name, aFilepath]));
   finally
     FActiveTransfersCS.Leave;
   end;
