@@ -749,12 +749,54 @@ end;
 
 { Recent-abort detail recorders }
 
+function _FindDstMaxUpDetailIndexByTaskName(const aTaskName: String): Integer;
+var
+  i, idx: Integer;
+begin
+  Result := -1;
+  for i := 0 to GlDiagDstMaxUpDetailCount - 1 do
+  begin
+    idx := (GlDiagDstMaxUpDetailIndex - 1 - i + CDiagDetailBufferSize) mod CDiagDetailBufferSize;
+    if GlDiagDstMaxUpDetails[idx].TaskName = aTaskName then
+    begin
+      Result := idx;
+      Exit;
+    end;
+  end;
+end;
+
+function _FindMaxUpPerRipDetailIndexByTaskName(const aTaskName: String): Integer;
+var
+  i, idx: Integer;
+begin
+  Result := -1;
+  for i := 0 to GlDiagMaxUpPerRipDetailCount - 1 do
+  begin
+    idx := (GlDiagMaxUpPerRipDetailIndex - 1 - i + CDiagDetailBufferSize) mod CDiagDetailBufferSize;
+    if GlDiagMaxUpPerRipDetails[idx].TaskName = aTaskName then
+    begin
+      Result := idx;
+      Exit;
+    end;
+  end;
+end;
+
 procedure DiagRecordDstMaxUpDetail(const aSiteName: String; const aNumUp, aMaxUp,
   aActualUploadingSlots: Integer; const aTaskName: String);
+var
+  idx: Integer;
 begin
   GlDiagCS.Enter('DiagRecordDstMaxUpDetail');
   try
-    with GlDiagDstMaxUpDetails[GlDiagDstMaxUpDetailIndex] do
+    idx := _FindDstMaxUpDetailIndexByTaskName(aTaskName);
+    if idx < 0 then
+    begin
+      idx := GlDiagDstMaxUpDetailIndex;
+      GlDiagDstMaxUpDetailIndex := (GlDiagDstMaxUpDetailIndex + 1) mod CDiagDetailBufferSize;
+      if GlDiagDstMaxUpDetailCount < CDiagDetailBufferSize then
+        Inc(GlDiagDstMaxUpDetailCount);
+    end;
+    with GlDiagDstMaxUpDetails[idx] do
     begin
       Timestamp := Now;
       SiteName := aSiteName;
@@ -763,9 +805,6 @@ begin
       ActualUploadingSlots := aActualUploadingSlots;
       TaskName := aTaskName;
     end;
-    GlDiagDstMaxUpDetailIndex := (GlDiagDstMaxUpDetailIndex + 1) mod CDiagDetailBufferSize;
-    if GlDiagDstMaxUpDetailCount < CDiagDetailBufferSize then
-      Inc(GlDiagDstMaxUpDetailCount);
   finally
     GlDiagCS.Leave;
   end;
@@ -773,10 +812,20 @@ end;
 
 procedure DiagRecordMaxUpPerRipDetail(const aSiteName: String; const aMaxUpPerRip,
   aActiveTransferCount: Integer; const aTaskName: String);
+var
+  idx: Integer;
 begin
   GlDiagCS.Enter('DiagRecordMaxUpPerRipDetail');
   try
-    with GlDiagMaxUpPerRipDetails[GlDiagMaxUpPerRipDetailIndex] do
+    idx := _FindMaxUpPerRipDetailIndexByTaskName(aTaskName);
+    if idx < 0 then
+    begin
+      idx := GlDiagMaxUpPerRipDetailIndex;
+      GlDiagMaxUpPerRipDetailIndex := (GlDiagMaxUpPerRipDetailIndex + 1) mod CDiagDetailBufferSize;
+      if GlDiagMaxUpPerRipDetailCount < CDiagDetailBufferSize then
+        Inc(GlDiagMaxUpPerRipDetailCount);
+    end;
+    with GlDiagMaxUpPerRipDetails[idx] do
     begin
       Timestamp := Now;
       SiteName := aSiteName;
@@ -784,9 +833,6 @@ begin
       ActiveTransferCount := aActiveTransferCount;
       TaskName := aTaskName;
     end;
-    GlDiagMaxUpPerRipDetailIndex := (GlDiagMaxUpPerRipDetailIndex + 1) mod CDiagDetailBufferSize;
-    if GlDiagMaxUpPerRipDetailCount < CDiagDetailBufferSize then
-      Inc(GlDiagMaxUpPerRipDetailCount);
   finally
     GlDiagCS.Leave;
   end;

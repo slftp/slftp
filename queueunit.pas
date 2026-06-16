@@ -745,6 +745,16 @@ begin
       if s2.num_up >= s2.max_up then
       begin
         actualUp := CountSiteUploadingSlots(s2);
+        if (actualUp <> s2.num_up) then
+        begin
+          Debug(dpError, section, Format('[DIAG] %s num_up mismatch: num_up=%d actual_uploading_slots=%d max_up=%d (task: %s)',
+            [s2.Name, s2.num_up, actualUp, s2.max_up, t.FullName]));
+        end;
+        if (s2.num_up < 0) or (s2.num_up > s2.slots.Count) then
+        begin
+          Debug(dpError, section, Format('[DIAG] %s num_up out of range: num_up=%d slots=%d (task: %s)',
+            [s2.Name, s2.num_up, s2.slots.Count, t.FullName]));
+        end;
         DiagRecordDstMaxUpDetail(s2.Name, s2.num_up, s2.max_up, actualUp, t.FullName);
         DiagRecordAssignRaceAbort(darDstMaxUp, fSiteName);
         exit;
