@@ -8,8 +8,11 @@ export default defineConfig({
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
-        manualChunks: {
-          monaco: ['@monaco-editor/react'],
+        manualChunks: (id) => {
+          if (id.includes('@monaco-editor/react')) {
+            return 'monaco';
+          }
+          return undefined;
         },
       },
     },
