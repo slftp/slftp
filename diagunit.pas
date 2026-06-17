@@ -104,6 +104,9 @@ type
     MkdirTasksCreated: Int64;
     MkdirTasksDone: Int64;
     MkdirTasksFailed: Int64;
+    { Current dirlists with need_mkdir and race tasks blocked by them. }
+    NeedMkdirDirlists: Integer;
+    RaceTasksWaitingOnMkdir: Integer;
   end;
 
   TDiagReasonCounters = record
@@ -183,7 +186,12 @@ procedure DiagRecordDirlistWait(const aWaitMs: Int64; const aSiteName: String = 
 { Snapshots. Optional aSiteName updates per-site snapshot too. }
 procedure DiagUpdateQueueSnapshot(const aTotal, aRace, aDirlist, aAuto, aOther: Integer;
   const aRaceAssigned: Integer; const aDirlistsDone: Int64; const aSiteName: String = '');
+procedure DiagUpdateNeedMkdirStats(const aNeedMkdirDirlists, aRaceTasksWaiting: Integer;
+  const aSiteName: String = '');
 function DiagGetRaceTasksAssigned(const aSiteName: String = ''): Int64;
+
+
+
 procedure DiagUpdateSlotSnapshot(const aOnline, aOffline, aDown, aMarkedDown,
   aBusy, aFree, aWaitTaskBusy, aFreeslots, aNumUp, aMaxUp, aNumDn, aMaxDn,
   aUpCooldown, aDnCooldown: Integer; const aSiteName: String = '');
@@ -695,6 +703,44 @@ begin
   end;
 end;
 
+procedure DiagUpdateNeedMkdirStats(const aNeedMkdirDirlists, aRaceTasksWaiting: Integer;
+  const aSiteName: String = '');
+var
+  idx: Integer;
+  fTotalDirlists, fTotalRaceTasks: Integer;
+  procedure _Update(var aSnap: TDiagQueueSnapshot);
+  begin
+    aSnap.NeedMkdirDirlists := aNeedMkdirDirlists;
+    aSnap.RaceTasksWaitingOnMkdir := aRaceTasksWaiting;
+  end;
+begin
+  GlDiagCS.Enter('DiagUpdateNeedMkdirStats');
+  try
+    if aSiteName = '' then
+    begin
+      _Update(GlDiagCurrent.Queue);
+    end
+    else
+    begin
+      idx := DiagEnsureSiteIndex(aSiteName);
+      _Update(GlDiagSites[idx].Metrics.Queue);
+
+      // Recalculate global values as the sum of all per-site snapshots.
+      fTotalDirlists := 0;
+      fTotalRaceTasks := 0;
+      for idx := 0 to High(GlDiagSites) do
+      begin
+        Inc(fTotalDirlists, GlDiagSites[idx].Metrics.Queue.NeedMkdirDirlists);
+        Inc(fTotalRaceTasks, GlDiagSites[idx].Metrics.Queue.RaceTasksWaitingOnMkdir);
+      end;
+      GlDiagCurrent.Queue.NeedMkdirDirlists := fTotalDirlists;
+      GlDiagCurrent.Queue.RaceTasksWaitingOnMkdir := fTotalRaceTasks;
+    end;
+  finally
+    GlDiagCS.Leave;
+  end;
+end;
+
 procedure DiagUpdateSlotSnapshot(const aOnline, aOffline, aDown, aMarkedDown,
   aBusy, aFree, aWaitTaskBusy, aFreeslots, aNumUp, aMaxUp, aNumDn, aMaxDn,
   aUpCooldown, aDnCooldown: Integer; const aSiteName: String = '');
@@ -957,7 +1003,8 @@ const
         '[DIAG] FBT-NIL no_tasks=%d no_slots=%d cooldown=%d delayed=%d no_ready=%d other=%d' + sLineBreak +
         '[DIAG] FBT-TYPE delayed race=%d dirlist=%d auto=%d other=%d | no_ready race=%d(mkdir=%d|other=%d) dirlist=%d auto=%d other=%d' + sLineBreak +
         '[DIAG] DIRLIST-WAIT count=%d avg=%dms peak=%dms' + sLineBreak +
-        '[DIAG] MKDIR created=%d done=%d failed=%d pending=%d';
+        '[DIAG] MKDIR created=%d done=%d failed=%d pending=%d' + sLineBreak +
+        '[DIAG] NEEDMKDIR dirlists=%d race_tasks_waiting=%d';
 begin
   Result := Format(FMT,
     [m.WaitTasks.ActiveNow, m.WaitTasks.CreatedTotal, m.WaitTasks.DoneTotal,
@@ -991,7 +1038,8 @@ begin
      m.DirlistWait.Count, m.DirlistWait.AvgMs, m.DirlistWait.PeakMs,
      m.Queue.MkdirTasksCreated, m.Queue.MkdirTasksDone,
      m.Queue.MkdirTasksFailed,
-     m.Queue.MkdirTasksCreated - m.Queue.MkdirTasksDone]);
+     m.Queue.MkdirTasksCreated - m.Queue.MkdirTasksDone,
+     m.Queue.NeedMkdirDirlists, m.Queue.RaceTasksWaitingOnMkdir]);
 end;
 
 function DiagFormatCurrent(const aSiteName: String = ''): String;

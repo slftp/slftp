@@ -809,17 +809,14 @@ begin
       de.IsOnSite := True;
     end;
 
-    // entries found means the dir exists
-    if ((need_mkdir)) then
+    // A successful parse means the directory exists on the site.
+    // Clear need_mkdir even if the directory is currently empty, otherwise
+    // race tasks depending on this dirlist would stall forever waiting for an
+    // MKDIR that is no longer necessary. Also clear any stale dependency marker.
+    if need_mkdir or (dependency_mkdir <> '') then
     begin
-      for de in entries.Values do
-      begin
-        if de.IsOnSite then
-        begin
-          need_mkdir := False;
-          break;
-        end;
-      end;
+      need_mkdir := False;
+      dependency_mkdir := '';
     end;
 
   finally

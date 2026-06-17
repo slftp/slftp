@@ -66,6 +66,7 @@ type
     function TaskAlreadyInQueue(t: TTask): boolean;
     procedure QueueStat;
     procedure FlushPerfLog(const aTaskCount: Integer);
+    procedure CollectNeedMkdirStats(out aNeedMkdirDirlists, aRaceTasksWaiting: Integer);
 
 public
   { Phase 5b: lazy-rebuilt map of destination-site -> pending race task count.
@@ -1874,6 +1875,7 @@ var
   { Diagnostics slot counters }
   fDiagOnline, fDiagOffline, fDiagDown, fDiagMarkedDown,
   fDiagBusy, fDiagFree, fDiagWaitTaskBusy: Integer;
+  fDiagNeedMkdirDirlists, fDiagRaceTasksWaitingOnMkdir: Integer;
   fDiagSlot: TSiteSlot;
 begin
   while ((not slshutdown) and (not Terminated)) do
@@ -2288,6 +2290,8 @@ begin
           fQueueStat.FRaceTaskCount, fQueueStat.FDirlistTaskCount,
           fQueueStat.FAutoTaskCount, fQueueStat.FOtherTaskCount,
           DiagGetRaceTasksAssigned(fSiteName), GlDirlistCompletedCounter.Value, fSiteName);
+        CollectNeedMkdirStats(fDiagNeedMkdirDirlists, fDiagRaceTasksWaitingOnMkdir);
+        DiagUpdateNeedMkdirStats(fDiagNeedMkdirDirlists, fDiagRaceTasksWaitingOnMkdir, fSiteName);
         DiagTakeSnapshot;
       end;
 
@@ -2865,6 +2869,55 @@ begin
       QueuePerfLog.Delete(0);
   finally
     QueuePerfLogCS.Leave;
+  end;
+end;
+
+procedure TQueueThread.CollectNeedMkdirStats(out aNeedMkdirDirlists, aRaceTasksWaiting: Integer);
+var
+  fTask: TTask;
+  fRaceTask: TPazoRaceTask;
+  fDirlist: TDirList;
+  fDirlists: TList<TDirList>;
+begin
+  aNeedMkdirDirlists := 0;
+  aRaceTasksWaiting := 0;
+  fDirlists := TList<TDirList>.Create;
+  try
+    main_lock.Enter('CollectNeedMkdirStats');
+    try
+      for fTask in tasks do
+      begin
+        try
+          if not (fTask is TPazoRaceTask) then
+            Continue;
+          fRaceTask := TPazoRaceTask(fTask);
+          if fRaceTask.ready or fRaceTask.readyerror then
+            Continue;
+          if (fRaceTask.slot1 <> nil) or (fRaceTask.slot2 <> nil) then
+            Continue;
+          if fRaceTask.FDependingOnDirlist = nil then
+            Continue;
+          if not fRaceTask.FDependingOnDirlist.need_mkdir then
+            Continue;
+
+          Inc(aRaceTasksWaiting);
+          fDirlist := fRaceTask.FDependingOnDirlist;
+          if fDirlists.IndexOf(fDirlist) = -1 then
+            fDirlists.Add(fDirlist);
+        except
+          on E: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] TQueueThread.CollectNeedMkdirStats: %s', [E.Message]));
+            Continue;
+          end;
+        end;
+      end;
+    finally
+      main_lock.Leave;
+    end;
+    aNeedMkdirDirlists := fDirlists.Count;
+  finally
+    fDirlists.Free;
   end;
 end;
 
