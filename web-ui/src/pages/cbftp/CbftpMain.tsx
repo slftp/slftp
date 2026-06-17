@@ -175,11 +175,13 @@ function SitesTable({ sites }: { sites: CbftpMainSiteEntry[] }) {
               <Table.Th style={{ width: '4%' }}>UP</Table.Th>
               <Table.Th style={{ width: '4%' }}>DOWN</Table.Th>
               <Table.Th style={{ width: '6%' }}>DISABLED</Table.Th>
-              <Table.Th style={{ width: '10%' }}>UP 24HR</Table.Th>
-              <Table.Th style={{ width: '10%' }}>DOWN 24HR</Table.Th>
-              <Table.Th style={{ width: '10%' }}>ALLUP</Table.Th>
-              <Table.Th style={{ width: '10%' }}>ALLDOWN</Table.Th>
-              <Table.Th style={{ width: '10%' }}>PRIORITY</Table.Th>
+              <Table.Th style={{ width: '9%' }}>UP 24HR</Table.Th>
+              <Table.Th style={{ width: '9%' }}>DOWN 24HR</Table.Th>
+              <Table.Th style={{ width: '5%' }}>RATIO 24H</Table.Th>
+              <Table.Th style={{ width: '9%' }}>ALLUP</Table.Th>
+              <Table.Th style={{ width: '9%' }}>ALLDOWN</Table.Th>
+              <Table.Th style={{ width: '5%' }}>RATIO ALL</Table.Th>
+              <Table.Th style={{ width: '8%' }}>PRIORITY</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -215,17 +217,23 @@ function SitesTable({ sites }: { sites: CbftpMainSiteEntry[] }) {
                   <Text size="xs">{site.down24hr || '-'}</Text>
                 </Table.Td>
                 <Table.Td>
+                  <Text size="xs" fw={500}>{site.ratio24h || '-'}</Text>
+                </Table.Td>
+                <Table.Td>
                   <Text size="xs">{site.allup || '-'}</Text>
                 </Table.Td>
                 <Table.Td>
                   <Text size="xs">{site.alldown || '-'}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="xs" fw={500}>{site.ratioall || '-'}</Text>
                 </Table.Td>
                 <Table.Td>{getPriorityBadge(site.priority)}</Table.Td>
               </Table.Tr>
             ))}
             {sites.length === 0 && (
               <Table.Tr>
-                <Table.Td colSpan={12}>
+                <Table.Td colSpan={14}>
                   <Text c="dimmed" ta="center" size="sm">No sites</Text>
                 </Table.Td>
               </Table.Tr>

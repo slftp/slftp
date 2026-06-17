@@ -531,6 +531,8 @@ export interface CbftpMainSiteEntry {
   down24hr: string;
   allup: string;
   alldown: string;
+  ratio24h: string;
+  ratioall: string;
   priority: string;
 }
 

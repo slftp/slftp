@@ -327,6 +327,16 @@ begin
     Result := Format('%.2f GB', [fGb]);
 end;
 
+function _FormatRatio(const aUpBytes, aDownBytes: Int64): string;
+begin
+  if aDownBytes <= 0 then
+  begin
+    Result := '-';
+    Exit;
+  end;
+  Result := Format('%.2f', [aUpBytes / aDownBytes]);
+end;
+
 procedure CbftpMainCacheAddJob(const aName, aSection: string; aStarted: TDateTime);
 var
   fIdx: Integer;
@@ -628,7 +638,8 @@ begin
         '"downloads_active":%,"downloads_max":%,' +
         '"up":%,"down":%,"disabled":%,' +
         '"up24hr":"%","down24hr":"%",' +
-        '"allup":"%","alldown":"%","priority":"%"}',
+        '"allup":"%","alldown":"%",' +
+        '"ratio24h":"%","ratioall":"%","priority":"%"}',
         [StringToUtf8(GlSites[i].Name),
          GlSites[i].LoginsActive,
          GlSites[i].LoginsMax,
@@ -643,6 +654,8 @@ begin
          StringToUtf8(_FormatBytesGbStyle(GlSites[i].Down24hrBytes)),
          StringToUtf8(_FormatBytesGbStyle(GlSites[i].AllUpBytes)),
          StringToUtf8(_FormatBytesGbStyle(GlSites[i].AllDownBytes)),
+         StringToUtf8(_FormatRatio(GlSites[i].Up24hrBytes, GlSites[i].Down24hrBytes)),
+         StringToUtf8(_FormatRatio(GlSites[i].AllUpBytes, GlSites[i].AllDownBytes)),
          StringToUtf8(GlSites[i].Priority)],
         []);
 
