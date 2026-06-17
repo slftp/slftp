@@ -2097,6 +2097,18 @@ begin
                   end;
                 end;
 
+                if (fTask.ClassType = TPazoMkdirTask) then
+                begin
+                  try
+                    DiagRecordMkdirTaskDone(fTask.readyerror, fTask.site1);
+                  except
+                    on E: Exception do
+                    begin
+                      Debug(dpError, section, Format('[AV-DEBUG] RemoveReady DiagRecordMkdirTaskDone failed for %s: %s', [fTask.Name, E.Message]));
+                    end;
+                  end;
+                end;
+
                 try
                   ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
                   try

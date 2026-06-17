@@ -821,6 +821,7 @@ constructor TPazoMkdirTask.Create(const netname, channel, site: String; pazo: TP
 begin
   self.dir := dir;
   inherited Create(netname, channel, site, '', pazo, aDependingOnDirlist);
+  DiagRecordMkdirTaskCreated(site1);
 end;
 
 function TPazoMkdirTask.Execute(slot: Pointer): boolean;

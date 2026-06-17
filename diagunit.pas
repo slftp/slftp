@@ -100,6 +100,10 @@ type
     { Breakdown of no_ready race tasks. }
     FindBestNilNoReadyRaceMkdir: Int64;
     FindBestNilNoReadyRaceOther: Int64;
+    { MKDIR task lifecycle counters. }
+    MkdirTasksCreated: Int64;
+    MkdirTasksDone: Int64;
+    MkdirTasksFailed: Int64;
   end;
 
   TDiagReasonCounters = record
@@ -161,6 +165,10 @@ procedure DiagUninit;
 procedure DiagRecordWaitTaskCreated(const aSiteName: String = '');
 procedure DiagRecordWaitTaskAssigned(const aSiteName: String = '');
 procedure DiagRecordWaitTaskDone(const aElapsedMs: Int64; const aSiteName: String = '');
+
+{ MKDIR task lifecycle. }
+procedure DiagRecordMkdirTaskCreated(const aSiteName: String = '');
+procedure DiagRecordMkdirTaskDone(const aFailed: Boolean; const aSiteName: String = '');
 
 { Queue scanning / assignment. Optional aSiteName updates per-site counters too. }
 procedure DiagRecordFindBestTaskNil(const aReason: TDiagFindBestNilReason;
@@ -390,6 +398,46 @@ begin
     begin
       idx := DiagEnsureSiteIndex(aSiteName);
       _UpdateWaitTaskDone(GlDiagSites[idx].Metrics.WaitTasks, aElapsedMs);
+    end;
+  finally
+    GlDiagCS.Leave;
+  end;
+end;
+
+{ MKDIR task lifecycle }
+
+procedure DiagRecordMkdirTaskCreated(const aSiteName: String = '');
+var
+  idx: Integer;
+begin
+  GlDiagCS.Enter('DiagRecordMkdirTaskCreated');
+  try
+    Inc(GlDiagCurrent.Queue.MkdirTasksCreated);
+    if aSiteName <> '' then
+    begin
+      idx := DiagEnsureSiteIndex(aSiteName);
+      Inc(GlDiagSites[idx].Metrics.Queue.MkdirTasksCreated);
+    end;
+  finally
+    GlDiagCS.Leave;
+  end;
+end;
+
+procedure DiagRecordMkdirTaskDone(const aFailed: Boolean; const aSiteName: String = '');
+var
+  idx: Integer;
+begin
+  GlDiagCS.Enter('DiagRecordMkdirTaskDone');
+  try
+    Inc(GlDiagCurrent.Queue.MkdirTasksDone);
+    if aFailed then
+      Inc(GlDiagCurrent.Queue.MkdirTasksFailed);
+    if aSiteName <> '' then
+    begin
+      idx := DiagEnsureSiteIndex(aSiteName);
+      Inc(GlDiagSites[idx].Metrics.Queue.MkdirTasksDone);
+      if aFailed then
+        Inc(GlDiagSites[idx].Metrics.Queue.MkdirTasksFailed);
     end;
   finally
     GlDiagCS.Leave;
@@ -908,7 +956,8 @@ const
         '[DIAG] SLOT-ABORT freeslots=%d maxsim_up=%d maxsim_down=%d no_slot=%d offline=%d not_ready=%d maxupperrip=%d other=%d' + sLineBreak +
         '[DIAG] FBT-NIL no_tasks=%d no_slots=%d cooldown=%d delayed=%d no_ready=%d other=%d' + sLineBreak +
         '[DIAG] FBT-TYPE delayed race=%d dirlist=%d auto=%d other=%d | no_ready race=%d(mkdir=%d|other=%d) dirlist=%d auto=%d other=%d' + sLineBreak +
-        '[DIAG] DIRLIST-WAIT count=%d avg=%dms peak=%dms';
+        '[DIAG] DIRLIST-WAIT count=%d avg=%dms peak=%dms' + sLineBreak +
+        '[DIAG] MKDIR created=%d done=%d failed=%d pending=%d';
 begin
   Result := Format(FMT,
     [m.WaitTasks.ActiveNow, m.WaitTasks.CreatedTotal, m.WaitTasks.DoneTotal,
@@ -939,7 +988,10 @@ begin
      m.Queue.FindBestNilNoReadyRace, m.Queue.FindBestNilNoReadyRaceMkdir,
      m.Queue.FindBestNilNoReadyRaceOther, m.Queue.FindBestNilNoReadyDirlist,
      m.Queue.FindBestNilNoReadyAuto, m.Queue.FindBestNilNoReadyOther,
-     m.DirlistWait.Count, m.DirlistWait.AvgMs, m.DirlistWait.PeakMs]);
+     m.DirlistWait.Count, m.DirlistWait.AvgMs, m.DirlistWait.PeakMs,
+     m.Queue.MkdirTasksCreated, m.Queue.MkdirTasksDone,
+     m.Queue.MkdirTasksFailed,
+     m.Queue.MkdirTasksCreated - m.Queue.MkdirTasksDone]);
 end;
 
 function DiagFormatCurrent(const aSiteName: String = ''): String;
