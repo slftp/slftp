@@ -685,19 +685,39 @@ end;
 
 procedure _UpdateStuckCounters;
 var
-  i: Integer;
+  i, idx: Integer;
   elapsedMs: Int64;
+  siteName: String;
 begin
+  // Reset global counters.
   GlDiagCurrent.WaitTasks.StuckOver5s := 0;
   GlDiagCurrent.WaitTasks.StuckOver30s := 0;
+  // Reset per-site counters.
+  for i := 0 to High(GlDiagSites) do
+  begin
+    GlDiagSites[i].Metrics.WaitTasks.StuckOver5s := 0;
+    GlDiagSites[i].Metrics.WaitTasks.StuckOver30s := 0;
+  end;
+
   for i := 0 to High(GlDiagActiveWaitTasks) do
   begin
     try
       elapsedMs := MilliSecondsBetween(Now, GlDiagActiveWaitTasks[i].StartTime);
+      siteName := GlDiagActiveWaitTasks[i].SiteName;
+      idx := DiagSiteIndex(siteName);
+
       if elapsedMs > 30000 then
-        Inc(GlDiagCurrent.WaitTasks.StuckOver30s)
+      begin
+        Inc(GlDiagCurrent.WaitTasks.StuckOver30s);
+        if idx >= 0 then
+          Inc(GlDiagSites[idx].Metrics.WaitTasks.StuckOver30s);
+      end
       else if elapsedMs > 5000 then
+      begin
         Inc(GlDiagCurrent.WaitTasks.StuckOver5s);
+        if idx >= 0 then
+          Inc(GlDiagSites[idx].Metrics.WaitTasks.StuckOver5s);
+      end;
     except
       // Ignore bad StartTime values; do not let stuck-counter calculation fail.
     end;
