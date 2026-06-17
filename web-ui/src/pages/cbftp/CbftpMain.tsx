@@ -25,6 +25,16 @@ function getPctColor(pct: number): string {
   return 'red';
 }
 
+function getRatioColor(ratio: string): string | undefined {
+  const value = parseFloat(ratio);
+  if (Number.isNaN(value)) {
+    return undefined;
+  }
+  if (value < 1) return 'green';
+  if (value > 1) return 'red';
+  return undefined;
+}
+
 function getStatusBadge(status: string) {
   switch (status?.toUpperCase()) {
     case 'RUNNING':
@@ -217,7 +227,7 @@ function SitesTable({ sites }: { sites: CbftpMainSiteEntry[] }) {
                   <Text size="xs">{site.down24hr || '-'}</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Text size="xs" fw={500}>{site.ratio24h || '-'}</Text>
+                  <Text size="xs" fw={500} c={getRatioColor(site.ratio24h)}>{site.ratio24h || '-'}</Text>
                 </Table.Td>
                 <Table.Td>
                   <Text size="xs">{site.allup || '-'}</Text>
@@ -226,7 +236,7 @@ function SitesTable({ sites }: { sites: CbftpMainSiteEntry[] }) {
                   <Text size="xs">{site.alldown || '-'}</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Text size="xs" fw={500}>{site.ratioall || '-'}</Text>
+                  <Text size="xs" fw={500} c={getRatioColor(site.ratioall)}>{site.ratioall || '-'}</Text>
                 </Table.Td>
                 <Table.Td>{getPriorityBadge(site.priority)}</Table.Td>
               </Table.Tr>
