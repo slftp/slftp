@@ -153,6 +153,7 @@ export function AffilSync() {
       }
 
       queryClient.invalidateQueries({ queryKey: ['cbftp-sites-details-sync'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardCbftpSyncSummary'] });
       setSelectedSites(new Set());
     },
     onError: (error: Error) => {

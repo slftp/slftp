@@ -552,6 +552,7 @@ export function Sections() {
       }
 
       queryClient.invalidateQueries({ queryKey: ['slftp-sites-sections-full'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardCbftpSyncSummary'] });
       setSelectedSites(new Set());
     },
     onError: (error: Error) => {
