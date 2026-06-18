@@ -1,7 +1,8 @@
 import { Tabs, Title, Container, Text, Alert, Loader, Center } from '@mantine/core';
 import { IconServer, IconFolders, IconTrophy, IconArrowsLeftRight, IconTerminal, IconInfoCircle, IconAlertCircle, IconUsers, IconLayoutDashboard, IconRoute } from '@tabler/icons-react';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { isCbftpEnabled } from '../../api/cbftpClient';
 import { Sites } from './Sites';
 import { Sections } from './Sections';
@@ -13,8 +14,23 @@ import { AffilSync } from './AffilSync';
 import { CbftpMain } from './CbftpMain';
 import { Routes } from './Routes';
 
+const VALID_TABS = ['main', 'sites', 'sections', 'spreadjobs', 'transferjobs', 'raw', 'affilsync', 'routes', 'info'];
+
 export function Cbftp() {
-  const [activeTab, setActiveTab] = useState<string | null>('main');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = VALID_TABS.includes(searchParams.get('tab') || '')
+    ? searchParams.get('tab')
+    : 'main';
+  const [activeTab, setActiveTab] = useState<string | null>(initialTab);
+
+  const handleTabChange = useCallback((value: string | null) => {
+    setActiveTab(value);
+    if (value && value !== 'main') {
+      setSearchParams({ tab: value });
+    } else {
+      setSearchParams({});
+    }
+  }, [setSearchParams]);
 
   const { data: enabled, isLoading } = useQuery({
     queryKey: ['cbftp-enabled'],
@@ -51,7 +67,7 @@ export function Cbftp() {
         Note: This integration does not expose all cbftp API features yet. More to come.
       </Text>
       
-      <Tabs value={activeTab} onChange={setActiveTab}>
+      <Tabs value={activeTab} onChange={handleTabChange}>
         <Tabs.List>
           <Tabs.Tab value="main" leftSection={<IconLayoutDashboard size="0.8rem" />}>Main</Tabs.Tab>
           <Tabs.Tab value="sites" leftSection={<IconServer size="0.8rem" />}>Sites</Tabs.Tab>

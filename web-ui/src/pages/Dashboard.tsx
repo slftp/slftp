@@ -437,9 +437,9 @@ export function Dashboard() {
                   variant="light"
                   color="yellow"
                   leftSection={<IconArrowRight size="14" />}
-                  onClick={() => navigate('/cbftp')}
+                  onClick={() => navigate('/cbftp?tab=sections')}
                 >
-                  Open cbftp
+                  Open Sections
                 </Button>
               </Group>
             </Alert>
@@ -467,9 +467,9 @@ export function Dashboard() {
                   variant="light"
                   color="yellow"
                   leftSection={<IconArrowRight size="14" />}
-                  onClick={() => navigate('/cbftp')}
+                  onClick={() => navigate('/cbftp?tab=affilsync')}
                 >
-                  Open cbftp
+                  Open Affil Sync
                 </Button>
               </Group>
             </Alert>
