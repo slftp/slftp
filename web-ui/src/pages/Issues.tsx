@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Card, Checkbox, Group, Loader, ScrollArea, Stack, Table, Text, TextInput, Title, Tooltip, Modal, ActionIcon, Breadcrumbs, Center, Pill } from '@mantine/core';
-import { IconAlertCircle, IconRefresh, IconSearch, IconPlus, IconBook, IconFolderOpen, IconArrowUp, IconChevronUp, IconChevronDown, IconSelector, IconLink, IconTrash } from '@tabler/icons-react';
+import { IconAlertCircle, IconRefresh, IconSearch, IconPlus, IconBook, IconFolderOpen, IconArrowUp, IconChevronUp, IconChevronDown, IconSelector, IconLink, IconTrash, IconCopy } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -180,6 +180,54 @@ export function Issues() {
       });
     },
   });
+
+  const handleCopyIssues = async () => {
+    if (!filtered.length) {
+      notifications.show({
+        title: 'Nothing to copy',
+        message: 'The issues table is empty.',
+        color: 'orange',
+      });
+      return;
+    }
+
+    const clean = (value: string | undefined) =>
+      String(value ?? '').replace(/[\t\n\r]/g, ' ');
+
+    const formatTime = (ts: number | undefined) => {
+      if (!ts) return '';
+      const d = new Date(ts * 1000);
+      return `${d.toLocaleDateString()} ${d.toLocaleTimeString()}`;
+    };
+
+    const header = ['Time', 'Type', 'Section', 'Release', 'Site', 'Event', 'Reason'];
+    const rows = filtered.map((i) => [
+      formatTime(i.TsUnix),
+      clean(i.IssueType),
+      clean(i.Section),
+      clean(i.ReleaseName),
+      clean(i.SiteName),
+      clean(i.KbEvent),
+      clean(i.Reason),
+    ]);
+
+    const tsv = [header.join('\t'), ...rows.map((r) => r.join('\t'))].join('\n');
+
+    try {
+      await navigator.clipboard.writeText(tsv);
+      notifications.show({
+        title: 'Copied',
+        message: `${filtered.length} issue${filtered.length !== 1 ? 's' : ''} copied to clipboard.`,
+        color: 'green',
+      });
+    } catch (err) {
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to copy to clipboard.',
+        color: 'red',
+      });
+    }
+  };
 
   const { data: cbftpBrowserData, isLoading: browserLoading, isRefetching: browserRefetching, error: browserError } = useQuery({
     queryKey: ['issues-browser-cbftp', selectedIssue?.SiteName, browserPath],
@@ -382,6 +430,9 @@ export function Issues() {
       <Group justify="space-between" align="center">
         <Title order={2}>Issues</Title>
         <Group gap="xs">
+          <Button leftSection={<IconCopy size="1rem" />} onClick={handleCopyIssues} variant="light" color="blue">
+            Copy
+          </Button>
           <Button leftSection={<IconTrash size="1rem" />} variant="light" color="gray" onClick={() => clearIssuesMutation.mutate()} loading={clearIssuesMutation.isPending}>
             Clear
           </Button>
