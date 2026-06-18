@@ -10,6 +10,7 @@ import {
   Loader,
   Alert,
   Badge,
+  Button,
   Table,
   ScrollArea,
   Modal,
@@ -27,11 +28,17 @@ import {
   IconServer,
   IconActivity,
   IconCpu,
+  IconFolders,
+  IconUsers,
+  IconArrowRight,
 } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import type { SystemStatus, IssuesSummary } from '../api/client';
+import { getSites as getCbftpSites, getSite as getCbftpSite } from '../api/cbftpClient';
+import type { CbftpSite } from '../api/cbftpClient';
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { StatCard, MiniStatCard } from '../components/StatCard';
 
 interface ReleaseInfo {
@@ -78,12 +85,111 @@ interface ReleaseDetails {
   AddedToLastTaskMs?: number;
 }
 
+interface SlftpSection {
+  section: string;
+  dir: string;
+}
+
+interface CbftpSyncSummary {
+  sectionNeedSyncCount: number;
+  affilNeedSyncCount: number;
+}
+
+async function fetchCbftpSyncSummary(): Promise<CbftpSyncSummary> {
+  const sitesRes = await apiClient.post('/ApiSitesService/GetSites', { Filter: '' });
+  let sitesData = sitesRes.data;
+  if (sitesRes.data.result && Array.isArray(sitesRes.data.result)) {
+    sitesData = sitesRes.data.result[0];
+  }
+
+  let sitesList: any[] = [];
+  if (typeof sitesData.Sites === 'string') {
+    try { sitesList = JSON.parse(sitesData.Sites); } catch { sitesList = []; }
+  } else if (Array.isArray(sitesData.Sites)) {
+    sitesList = sitesData.Sites;
+  }
+
+  const cbftpNames = await getCbftpSites().catch(() => [] as string[]);
+  const cbftpNamesSet = new Set(cbftpNames);
+
+  const cbftpSites = await Promise.all(
+    cbftpNames.map((name) => getCbftpSite(name).catch(() => null))
+  );
+  const cbftpSitesMap = new Map<string, CbftpSite>();
+  cbftpSites.forEach((site) => {
+    if (site) cbftpSitesMap.set(site.name, site);
+  });
+
+  let sectionNeedSyncCount = 0;
+  let affilNeedSyncCount = 0;
+
+  for (const site of sitesList) {
+    const name = site.name || site.Name;
+    if (!name || name.toLowerCase() === 'slftp') continue;
+
+    try {
+      const sectionsRes = await apiClient.post('/ApiSitesService/GetSiteSections', { SiteName: name });
+      let slSections = sectionsRes.data.result?.[0] || sectionsRes.data;
+      if (typeof slSections === 'string') {
+        try { slSections = JSON.parse(slSections); } catch { slSections = []; }
+      }
+      const slftpSections: SlftpSection[] = (Array.isArray(slSections) ? slSections : [])
+        .filter((ss: SlftpSection) => ss.dir && ss.dir.trim().length > 0);
+
+      const cbftpSite = cbftpSitesMap.get(name);
+      const cbftpSections = cbftpSite?.sections || [];
+      const cbftpSectionMap = new Map(cbftpSections.map((s) => [s.name, s.path]));
+      const slftpSectionNames = new Set(slftpSections.map((ss) => ss.section));
+
+      let needsSync = false;
+      for (const ss of slftpSections) {
+        const cbftpPath = cbftpSectionMap.get(ss.section) ?? null;
+        if (cbftpPath === null) {
+          needsSync = true;
+        } else {
+          const normalizedSlftp = ss.dir.replace(/\/$/, '');
+          const normalizedCbftp = cbftpPath.replace(/\/$/, '');
+          if (normalizedSlftp !== normalizedCbftp) needsSync = true;
+        }
+      }
+      for (const cs of cbftpSections) {
+        if (!slftpSectionNames.has(cs.name)) needsSync = true;
+      }
+      if (needsSync && cbftpNamesSet.has(name)) sectionNeedSyncCount++;
+    } catch {
+      // ignore per-site errors
+    }
+
+    try {
+      const infoRes = await apiClient.post('/ApiSitesService/GetSiteInfo', { SiteName: name });
+      const info = infoRes.data.result?.[0] || infoRes.data;
+      const affilsStr: string = info.Affils || '';
+      const slftpAffils: string[] = affilsStr.split(/\s+/).filter((a: string) => a.trim() !== '');
+
+      const cbftpSite = cbftpSitesMap.get(name);
+      if (cbftpSite) {
+        const cbftpAffils = cbftpSite.affils || [];
+        const slftpSet = new Set(slftpAffils);
+        const cbftpSet = new Set(cbftpAffils);
+        const needsSync = slftpSet.size !== cbftpSet.size ||
+          [...slftpSet].some((a) => !cbftpSet.has(a));
+        if (needsSync) affilNeedSyncCount++;
+      }
+    } catch {
+      // ignore per-site errors
+    }
+  }
+
+  return { sectionNeedSyncCount, affilNeedSyncCount };
+}
+
 
 export function Dashboard() {
+  const navigate = useNavigate();
   const [selectedPazoId, setSelectedPazoId] = useState<number | null>(null);
   const [modalOpened, setModalOpened] = useState(false);
 
-  const { data, isLoading, error } = useQuery({
+  const { data: systemStatusData, isLoading, error } = useQuery({
     queryKey: ['systemStatus'],
     queryFn: async () => {
       const res = await apiClient.post('/ApiSystemService/GetStatus');
@@ -135,6 +241,15 @@ export function Dashboard() {
     },
     refetchInterval: 30000,
     refetchOnWindowFocus: false,
+  });
+
+  const { data: cbftpSyncSummary } = useQuery({
+    queryKey: ['dashboardCbftpSyncSummary'],
+    queryFn: fetchCbftpSyncSummary,
+    enabled: !!systemStatusData && systemStatusData.CbftpEnabled && systemStatusData.CbftpConnected,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: false,
+    staleTime: 30000,
   });
 
 
@@ -216,7 +331,7 @@ export function Dashboard() {
     </Alert>
   );
 
-  const stats = data!;
+  const stats = systemStatusData!;
 
   const formatUptime = (seconds: number) => {
     const d = Math.floor(seconds / (3600 * 24));
@@ -294,6 +409,73 @@ export function Dashboard() {
           </Group>
         </Group>
       </Box>
+
+      {/* cbftp Sync Warnings */}
+      {stats.CbftpEnabled && stats.CbftpConnected && cbftpSyncSummary &&
+        (cbftpSyncSummary.sectionNeedSyncCount > 0 || cbftpSyncSummary.affilNeedSyncCount > 0) && (
+        <Stack gap="sm">
+          {cbftpSyncSummary.sectionNeedSyncCount > 0 && (
+            <Alert
+              icon={<IconFolders size="1.25rem" />}
+              title="cbftp Section Sync Required"
+              color="yellow"
+              radius="lg"
+              styles={{
+                root: {
+                  background: 'rgba(255, 181, 71, 0.1)',
+                  border: '1px solid rgba(255, 181, 71, 0.3)',
+                },
+              }}
+            >
+              <Group justify="space-between" wrap="nowrap">
+                <Text size="sm">
+                  {cbftpSyncSummary.sectionNeedSyncCount} site
+                  {cbftpSyncSummary.sectionNeedSyncCount === 1 ? '' : 's'} have section paths that are out of sync with cbftp.
+                </Text>
+                <Button
+                  size="xs"
+                  variant="light"
+                  color="yellow"
+                  leftSection={<IconArrowRight size="14" />}
+                  onClick={() => navigate('/cbftp')}
+                >
+                  Open cbftp
+                </Button>
+              </Group>
+            </Alert>
+          )}
+          {cbftpSyncSummary.affilNeedSyncCount > 0 && (
+            <Alert
+              icon={<IconUsers size="1.25rem" />}
+              title="cbftp Affil Sync Required"
+              color="yellow"
+              radius="lg"
+              styles={{
+                root: {
+                  background: 'rgba(255, 181, 71, 0.1)',
+                  border: '1px solid rgba(255, 181, 71, 0.3)',
+                },
+              }}
+            >
+              <Group justify="space-between" wrap="nowrap">
+                <Text size="sm">
+                  {cbftpSyncSummary.affilNeedSyncCount} site
+                  {cbftpSyncSummary.affilNeedSyncCount === 1 ? '' : 's'} have affils that are out of sync with cbftp.
+                </Text>
+                <Button
+                  size="xs"
+                  variant="light"
+                  color="yellow"
+                  leftSection={<IconArrowRight size="14" />}
+                  onClick={() => navigate('/cbftp')}
+                >
+                  Open cbftp
+                </Button>
+              </Group>
+            </Alert>
+          )}
+        </Stack>
+      )}
 
       {/* Main Stats Grid */}
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
