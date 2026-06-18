@@ -1065,10 +1065,12 @@ begin
           if (0 <> Pos('File exists', s.lastResponse)) then
           begin
             failure := False;
+            DiagRecordMkdirUnnecessary(site1);
           end
           else if (0 <> Pos('already exists', s.lastResponse)) then
           begin
             failure := False;
+            DiagRecordMkdirUnnecessary(site1);
           end
 
           else if ((0 <> Pos('it was last created at', s.lastResponse)) and (dir <> '')) then

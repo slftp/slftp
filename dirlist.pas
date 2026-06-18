@@ -2,7 +2,7 @@ unit dirlist;
 
 interface
 
-uses Classes, Contnrs, SyncObjs, slcriticalsection2, skiplists, globals, Generics.Collections, IniFiles, sfv, tags;
+uses Classes, Contnrs, SyncObjs, slcriticalsection2, skiplists, globals, Generics.Collections, IniFiles, sfv, tags, diagunit;
 
 type
   {
@@ -137,6 +137,12 @@ type
     site_name: String; //< sitename
     error: Boolean;
     need_mkdir: Boolean; //< @true if MKDIR'ing is still needed (default), @false otherwise.
+    { Timing fields for diagnosing need_mkdir / MKDIR stalls. }
+    need_mkdir_set_at: TDateTime;
+    need_mkdir_cleared_at: TDateTime;
+    first_dirlist_completed_at: TDateTime;
+    mkdir_started_at: TDateTime;
+    mkdir_unnecessary: Boolean;
     sfv_status: TdlSFV;
     biggestcd: Integer;
     parent: TDirListEntry;
@@ -438,6 +444,11 @@ begin
   error := False;
 
   need_mkdir := True;
+  need_mkdir_set_at := Now();
+  need_mkdir_cleared_at := 0;
+  first_dirlist_completed_at := 0;
+  mkdir_started_at := 0;
+  mkdir_unnecessary := False;
   FCachedCompleteResult := False;
   FHasNFO := False;
   FHasSFV := False;
@@ -809,13 +820,22 @@ begin
       de.IsOnSite := True;
     end;
 
+    // Record the first successful dirlist for this directory.
+    if first_dirlist_completed_at = 0 then
+      first_dirlist_completed_at := Now();
+
     // A successful parse means the directory exists on the site.
     // Clear need_mkdir even if the directory is currently empty, otherwise
     // race tasks depending on this dirlist would stall forever waiting for an
     // MKDIR that is no longer necessary. Also clear any stale dependency marker.
     if need_mkdir or (dependency_mkdir <> '') then
     begin
-      need_mkdir := False;
+      if need_mkdir then
+      begin
+        need_mkdir := False;
+        need_mkdir_cleared_at := Now();
+        DiagRecordNeedMkdirClear(MilliSecondsBetween(need_mkdir_cleared_at, first_dirlist_completed_at), site_name);
+      end;
       dependency_mkdir := '';
     end;
 

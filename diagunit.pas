@@ -107,6 +107,11 @@ type
     { Current dirlists with need_mkdir and race tasks blocked by them. }
     NeedMkdirDirlists: Integer;
     RaceTasksWaitingOnMkdir: Integer;
+    { need_mkdir lifecycle timing. }
+    NeedMkdirClearCount: Int64;
+    NeedMkdirClearTotalMs: Int64;
+    NeedMkdirClearPeakMs: Int64;
+    MkdirUnnecessaryCount: Int64;
   end;
 
   TDiagReasonCounters = record
@@ -172,6 +177,10 @@ procedure DiagRecordWaitTaskDone(const aElapsedMs: Int64; const aSiteName: Strin
 { MKDIR task lifecycle. }
 procedure DiagRecordMkdirTaskCreated(const aSiteName: String = '');
 procedure DiagRecordMkdirTaskDone(const aFailed: Boolean; const aSiteName: String = '');
+procedure DiagRecordMkdirUnnecessary(const aSiteName: String = '');
+
+{ need_mkdir lifecycle timing. }
+procedure DiagRecordNeedMkdirClear(const aElapsedMs: Int64; const aSiteName: String = '');
 
 { Queue scanning / assignment. Optional aSiteName updates per-site counters too. }
 procedure DiagRecordFindBestTaskNil(const aReason: TDiagFindBestNilReason;
@@ -446,6 +455,47 @@ begin
       Inc(GlDiagSites[idx].Metrics.Queue.MkdirTasksDone);
       if aFailed then
         Inc(GlDiagSites[idx].Metrics.Queue.MkdirTasksFailed);
+    end;
+  finally
+    GlDiagCS.Leave;
+  end;
+end;
+
+procedure DiagRecordMkdirUnnecessary(const aSiteName: String = '');
+var
+  idx: Integer;
+begin
+  GlDiagCS.Enter('DiagRecordMkdirUnnecessary');
+  try
+    Inc(GlDiagCurrent.Queue.MkdirUnnecessaryCount);
+    if aSiteName <> '' then
+    begin
+      idx := DiagEnsureSiteIndex(aSiteName);
+      Inc(GlDiagSites[idx].Metrics.Queue.MkdirUnnecessaryCount);
+    end;
+  finally
+    GlDiagCS.Leave;
+  end;
+end;
+
+procedure DiagRecordNeedMkdirClear(const aElapsedMs: Int64; const aSiteName: String = '');
+var
+  idx: Integer;
+  procedure _Update(var aSnap: TDiagQueueSnapshot);
+  begin
+    Inc(aSnap.NeedMkdirClearCount);
+    aSnap.NeedMkdirClearTotalMs := aSnap.NeedMkdirClearTotalMs + aElapsedMs;
+    if aElapsedMs > aSnap.NeedMkdirClearPeakMs then
+      aSnap.NeedMkdirClearPeakMs := aElapsedMs;
+  end;
+begin
+  GlDiagCS.Enter('DiagRecordNeedMkdirClear');
+  try
+    _Update(GlDiagCurrent.Queue);
+    if aSiteName <> '' then
+    begin
+      idx := DiagEnsureSiteIndex(aSiteName);
+      _Update(GlDiagSites[idx].Metrics.Queue);
     end;
   finally
     GlDiagCS.Leave;
@@ -994,6 +1044,13 @@ end;
 { Output helpers }
 
 function DiagFormatMetrics(const m: TDiagMetrics): String;
+  function _SafeDiv(const aTotal, aCount: Int64): Int64;
+  begin
+    if aCount <= 0 then
+      Result := 0
+    else
+      Result := aTotal div aCount;
+  end;
 const
   FMT = '[DIAG] WAITTASKS active=%d created=%d done=%d avg=%dms peak=%dms stuck>5s=%d stuck>30s=%d' + sLineBreak +
         '[DIAG] QUEUE total=%d race=%d dirlist=%d auto=%d other=%d assigned=%d dirlists_done=%d fbt_calls=%d' + sLineBreak +
@@ -1003,8 +1060,9 @@ const
         '[DIAG] FBT-NIL no_tasks=%d no_slots=%d cooldown=%d delayed=%d no_ready=%d other=%d' + sLineBreak +
         '[DIAG] FBT-TYPE delayed race=%d dirlist=%d auto=%d other=%d | no_ready race=%d(mkdir=%d|other=%d) dirlist=%d auto=%d other=%d' + sLineBreak +
         '[DIAG] DIRLIST-WAIT count=%d avg=%dms peak=%dms' + sLineBreak +
-        '[DIAG] MKDIR created=%d done=%d failed=%d pending=%d' + sLineBreak +
-        '[DIAG] NEEDMKDIR dirlists=%d race_tasks_waiting=%d';
+        '[DIAG] MKDIR created=%d done=%d failed=%d pending=%d unnecessary=%d' + sLineBreak +
+        '[DIAG] NEEDMKDIR dirlists=%d race_tasks_waiting=%d' + sLineBreak +
+        '[DIAG] NEEDMKDIR-CLEAR count=%d avg=%dms peak=%dms';
 begin
   Result := Format(FMT,
     [m.WaitTasks.ActiveNow, m.WaitTasks.CreatedTotal, m.WaitTasks.DoneTotal,
@@ -1039,7 +1097,11 @@ begin
      m.Queue.MkdirTasksCreated, m.Queue.MkdirTasksDone,
      m.Queue.MkdirTasksFailed,
      m.Queue.MkdirTasksCreated - m.Queue.MkdirTasksDone,
-     m.Queue.NeedMkdirDirlists, m.Queue.RaceTasksWaitingOnMkdir]);
+     m.Queue.MkdirUnnecessaryCount,
+     m.Queue.NeedMkdirDirlists, m.Queue.RaceTasksWaitingOnMkdir,
+     m.Queue.NeedMkdirClearCount,
+     _SafeDiv(m.Queue.NeedMkdirClearTotalMs, m.Queue.NeedMkdirClearCount),
+     m.Queue.NeedMkdirClearPeakMs]);
 end;
 
 function DiagFormatCurrent(const aSiteName: String = ''): String;

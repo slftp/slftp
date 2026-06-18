@@ -697,6 +697,7 @@ begin
               if dst.delay_upload > 0 then
                 pm.startat := IncSecond(Now, dst.delay_upload);
 
+              dstdl.mkdir_started_at := Now();
               dstdl.dependency_mkdir := pm.UidText;
             end;
           finally
