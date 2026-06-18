@@ -181,6 +181,33 @@ export function Issues() {
     },
   });
 
+  async function copyToClipboard(text: string): Promise<void> {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    // Fallback for non-HTTPS contexts or blocked clipboard API
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    textarea.style.top = '-9999px';
+    textarea.setAttribute('readonly', '');
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+
+    try {
+      const success = document.execCommand('copy');
+      if (!success) {
+        throw new Error('document.execCommand("copy") returned false');
+      }
+    } finally {
+      document.body.removeChild(textarea);
+    }
+  }
+
   const handleCopyIssues = async () => {
     if (!filtered.length) {
       notifications.show({
@@ -214,7 +241,7 @@ export function Issues() {
     const tsv = [header.join('\t'), ...rows.map((r) => r.join('\t'))].join('\n');
 
     try {
-      await navigator.clipboard.writeText(tsv);
+      await copyToClipboard(tsv);
       notifications.show({
         title: 'Copied',
         message: `${filtered.length} issue${filtered.length !== 1 ? 's' : ''} copied to clipboard.`,
@@ -223,7 +250,7 @@ export function Issues() {
     } catch (err) {
       notifications.show({
         title: 'Error',
-        message: 'Failed to copy to clipboard.',
+        message: err instanceof Error ? err.message : 'Failed to copy to clipboard.',
         color: 'red',
       });
     }
