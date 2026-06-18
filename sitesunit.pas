@@ -1685,6 +1685,32 @@ begin
 
         Debug(dpSpam, section, Format('<-- %s', [Name]));
 
+        // For WAITTASKs: clear todotask immediately after Execute returns.
+        // TWaitTask.Execute sets wait_done at the very end, which allows RemoveReady
+        // to free the task object. We must not dereference fCurrentTask after this
+        // point, so we clear todotask unconditionally while we still know this slot
+        // was running a WAITTASK. This prevents the next loop iteration from calling
+        // Execute again on an already-freed task.
+        if fCurrentTaskIsWaitTask then
+        begin
+          try
+            self.site.AcquireSlotsAssignmentLock('Reset TodoTask wait early');
+            try
+              SetTodotask(nil);
+            finally
+              self.site.ReleaseSlotsAssignmentLock;
+            end;
+          except
+            on E: Exception do
+            begin
+              todotask := nil;
+              Debug(dpError, section,
+                Format('[EXCEPTION] TSiteSlot.Execute : Exception remove WAITTASK todotask early : %s',
+                [e.Message]));
+            end;
+          end;
+        end;
+
         uploadingto := False;
         downloadingfrom := False;
 
@@ -1735,8 +1761,7 @@ begin
                 try
                   self.site.AcquireSlotsAssignmentLock('Reset TodoTask wait');
                   try
-                    if self.todotask = fCurrentTask then
-                      SetTodotask(nil);
+                    SetTodotask(nil);
                   finally
                     self.site.ReleaseSlotsAssignmentLock;
                   end;
