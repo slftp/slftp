@@ -581,7 +581,7 @@ begin
   begin
     DiagRecordFindBestTaskNil(dfbnNoReadyTaskMkdir, 'TPazoRaceTask', fSiteName, fNilNoReadyMkdir);
     if fSampleMkdirBlockedTask <> nil then
-      Debug(dpSpam, section, 'FindBestTask %s: %d race tasks blocked by need_mkdir (sample: %s)', [fSiteName, fNilNoReadyMkdir, fSampleMkdirBlockedTask.Name]);
+      Debug(dpError, section, 'FindBestTask %s: %d race tasks blocked by need_mkdir (sample: %s)', [fSiteName, fNilNoReadyMkdir, fSampleMkdirBlockedTask.Name]);
   end;
   if fNilNoReadyRaceOther > 0 then
     DiagRecordFindBestTaskNil(dfbnNoReadyTaskOther, 'TPazoRaceTask', fSiteName, fNilNoReadyRaceOther);
