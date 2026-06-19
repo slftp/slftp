@@ -21,7 +21,7 @@ implementation
 uses
   SysUtils, Classes, Contnrs, SyncObjs, sitesunit, pazo, taskrace, taskspeedtest, irc, notify, taskfilesize,
   speedstatsunit, kb, mystrings, dirlist, taskdirlist, configunit, queueunit, IdGlobal, irccommandsunit,
-  irccommands.work, slcriticalsection2, Generics.Collections;
+  irccommands.work, slcriticalsection2, Generics.Collections, cbftpclient;
 
 const
   section = 'irccommands.speed';
@@ -233,6 +233,13 @@ var
 begin
   Result := False;
   tn := nil;
+
+  if IsCbftpMode then
+  begin
+    irc_addtext(Netname, Channel, 'Native speedtest is disabled in cbftp mode.');
+    Result := True;
+    Exit;
+  end;
 
   // First, validate all the parameters ...
   fParams := Trim(UpperCase(params));
@@ -459,6 +466,14 @@ var
 begin
   Result := False;
   fssitename := '';
+
+  if IsCbftpMode then
+  begin
+    irc_addtext(Netname, Channel, 'Native speedtest is disabled in cbftp mode.');
+    Result := True;
+    Exit;
+  end;
+
   // eloszor validaljuk az osszes parametert... we first validate all the parameters ...
   fParams := Trim(UpperCase(params));
   oparams := fParams;

@@ -780,6 +780,10 @@ begin
 
             // Create the race task
             Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding RACE task on %s %s', [fd, Name, dst.Name, dst.Name, de.filename]);
+
+            if IsCbftpMode then
+              Continue;
+
             pr := TPazoRaceTask.Create(netname, channel, Name, dst.Name, pazo, dstdl, dir, de.filename, de.filesize, dstrank);
 
             // Set file type for subdirs

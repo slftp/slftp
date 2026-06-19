@@ -45,7 +45,8 @@ uses
   delphimd5,
   RegExpr,
   slcriticalsection2,
-  globals;
+  globals,
+  cbftpclient;
 
 { MONITORING FEATURE DISABLED - Functions kept as stubs for API compatibility
   function ApiGetSlotsRuntimeJson(const SiteName: RawUTF8): RawJSON;
@@ -3979,6 +3980,13 @@ begin
     fDstPs.status := rssAllowed;
     if (fSrcPs.dirlist <> nil) then
       fSrcPs.dirlist.dirlistadded := True;
+
+    if IsCbftpMode then
+    begin
+      Debug(dpMessage, section, 'CreateTransferTask: native transfer not supported in cbftp mode');
+      Result := 0;
+      Exit;
+    end;
 
     fTask := TPazoRaceTask.Create('CONSOLE', 'Browser', fSourceSite, fDestSite, fPazo, nil, '', fBaseName, 0, 1);
     AddTask(fTask, True);
