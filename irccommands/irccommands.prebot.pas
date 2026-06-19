@@ -27,7 +27,7 @@ implementation
 uses
   SysUtils, Classes, StrUtils, DateUtils, Contnrs, SyncObjs, irc, sitesunit, configunit, dirlist, pazo,
   debugunit, queueunit, mystrings, notify, taskdel, statsunit, kb, kb.releaseinfo, taskdirlist, taskraw, slmasks, skiplists,
-  rulesunit, irccommands.work, irccommands.site, irccommandsunit, Generics.Collections;
+  rulesunit, irccommands.work, irccommands.site, irccommandsunit, Generics.Collections, cbftpclient;
 
 const
   section = 'irccommands.prebot';
@@ -134,6 +134,13 @@ var
   checkedlist: TStringList;
 begin
   Result := False;
+
+  if IsCbftpMode then
+  begin
+    irc_addtext(netname, channel, 'Native check is disabled in cbftp mode.');
+    Result := True;
+    Exit;
+  end;
 
   sitename := UpperCase(SubString(params, ' ', 1));
   section  := UpperCase(SubString(params, ' ', 2));
@@ -389,6 +396,13 @@ var
   sleep_value: integer;
 begin
   Result := False;
+
+  if IsCbftpMode then
+  begin
+    irc_addtext(netname, channel, 'Native pre is disabled in cbftp mode.');
+    Result := True;
+    Exit;
+  end;
 
   try
     section := UpperCase(SubString(params, ' ', 1));
