@@ -1,3 +1,0 @@
-Usage: <cmd> SITENAME 1 or 0
-Description: Sets a Site permanent down, including all autotasks.
-It'll be down even after a <cmdprefix>bnctest or slftp restart!

@@ -43,6 +43,9 @@ function FindIrcCommand(const aCmd: String): integer;
 { help section handler }
 function IrcHelpHeader(const netname, channel, params: String): boolean;
 
+{ Stub for removed commands. Prints a deprecation message instead of executing. }
+function IrcCommandRemoved(const netname, channel, params: String): boolean;
+
 const
   { Names of IRC command groups for @link(hlpgrp) }
   helpCommands: array[0..22] of String = ('general', 'site', 'auto', 'route',
@@ -73,7 +76,7 @@ const
     (cmd: 'siteuser'; hnd: IrcSiteUser; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'sitepass'; hnd: IrcSitePass; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'setdown'; hnd: IrcSetdown; minparams: 1; maxparams: - 1; hlpgrp: 'site'),
-    (cmd: 'setpermdown'; hnd: IrcSetSitePermdown; minparams: 1; maxparams: 2; hlpgrp: 'site'),
+    (cmd: 'setpermdown'; hnd: IrcCommandRemoved; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'setdir'; hnd: IrcSetDir; minparams: 2; maxparams: - 1; hlpgrp: 'site'),
     (cmd: 'slots'; hnd: IrcSlots; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'maxupdn'; hnd: IrcMaxUpDn; minparams: 3; maxparams: 4; hlpgrp: 'site'),
@@ -394,6 +397,12 @@ end;
 function IrcHelpHeader(const netname, channel, params: String): boolean;
 begin
   Result := False;
+end;
+
+function IrcCommandRemoved(const netname, channel, params: String): boolean;
+begin
+  Result := False;
+  irc_Addtext(netname, channel, '<c4><b>Removed:</c></b> this command is no longer available. In cbftp mode site status is managed via the cbftp Web UI.');
 end;
 
 procedure IrcLineBreak(const Netname, Channel, commatext: String; QuoteChar: Char = '"'; fronttext: String = ''; breakafter: integer = 16);
