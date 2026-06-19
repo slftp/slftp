@@ -4097,6 +4097,13 @@ begin
          ps_src.dirlist.dirlistadded := True;
     end;
 
+    if IsCbftpMode then
+    begin
+      Debug(dpMessage, section, 'CreateReleaseTransferTask: native transfer not supported in cbftp mode');
+      Result := 0;
+      Exit;
+    end;
+
     // Create the Dirlist Task which starts the chain reaction
     pd := TPazoDirlistTask.Create('CONSOLE', 'Browser', ps_src.Name, p, '', False, False);
     AddTask(pd, True);

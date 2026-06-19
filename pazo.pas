@@ -751,6 +751,12 @@ begin
         Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Checking if dirlist is needed on %s', [fd, Name, dst.Name, dst.Name]);
         if ((dst.status <> rssNotAllowed) and (not dstdl.dirlistadded) and (not dst.dirlistgaveup)) then
         begin
+          if IsCbftpMode then
+          begin
+            dstdl.dirlistadded := True;
+            Continue;
+          end;
+
           try
             pd := TPazoDirlistTask.Create(netname, channel, dst.Name, pazo, dir, False);
             Debug(dpSpam, section, '%s %s :: Checking routes from %s to %s :: Dirlist added to %s (DEST SITE)', [fd, dir, Name, dst.Name, dst.Name]);

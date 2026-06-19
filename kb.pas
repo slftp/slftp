@@ -1684,6 +1684,14 @@ var
 begin
   Result := False;
   p := TPazo(pazo);
+
+  if IsCbftpMode then
+  begin
+    Debug(dpSpam, rsections, 'AddCompleteTransfers skipped in cbftp mode: %s', [p.rls.rlsname]);
+    Result := True;
+    Exit;
+  end;
+
   Debug(dpMessage, rsections, '<!-- START AddCompleteTransfers %s', [p.rls.rlsname]);
 
   sources := TList<TPazoSite>.Create;

@@ -24,7 +24,7 @@ uses
   SysUtils, Classes, math, DateUtils, Contnrs, SyncObjs, irccommandsunit, sitesunit, dirlist, pazo,
   kb, kb.releaseinfo, rulesunit, mystrings, debugunit, queueunit, notify, irc, taskrace, statsunit, nuke,
   globalskipunit, configunit, mainthread, RegExpr, taskraw, sltcp, mygrouphelpers, Generics.Collections,
-  dirlist.helpers, delphimasks, StrUtils;
+  dirlist.helpers, delphimasks, StrUtils, cbftpclient;
 
 const
   section = 'irccommands.work';
@@ -695,6 +695,13 @@ var
   i, j, k: String;
 begin
   Result := False;
+
+  if IsCbftpMode then
+  begin
+    irc_addtext(Netname, Channel, 'Native transfer is disabled in cbftp mode.');
+    Result := True;
+    Exit;
+  end;
 
   srcsitename := UpperCase(SubString(params, ' ', 1));
   dstsitename := UpperCase(SubString(params, ' ', 2));

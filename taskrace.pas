@@ -80,7 +80,7 @@ uses
   Classes, Contnrs, StrUtils, kb, sitesunit, configunit, taskdel, DateUtils,
   SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc,
   midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news, dirlist.helpers,
-  globals, Math;
+  globals, Math, cbftpclient;
 
 const
   c_section = 'taskrace';
@@ -205,6 +205,13 @@ begin
   s := slot;
   tname := Name;
   fSubDirlistTasks := nil;
+
+  if IsCbftpMode then
+  begin
+    ready := True;
+    Result := True;
+    Exit;
+  end;
 
   if mainpazo.stopped then
   begin
@@ -1529,6 +1536,13 @@ begin
   tname := Name;
   fSrcDirlist := nil;
   fDstDirlist := nil;
+
+  if IsCbftpMode then
+  begin
+    ready := True;
+    Result := True;
+    Exit;
+  end;
 
 
   if mainpazo.stopped then
