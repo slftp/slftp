@@ -683,22 +683,33 @@ begin
         begin
           dstdl.dirlist_lock.Enter('TPazoSite.Tuzelj');
           try
-            if ((dstdl.need_mkdir) and (dstdl.dependency_mkdir = '')) then
+            if (dstdl.need_mkdir) then
             begin
-              Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding MKDIR task on %s', [fd, Name, dst.Name, dst.Name]);
+              if (dstdl.dependency_mkdir = '') then
+              begin
+                Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding MKDIR task on %s', [fd, Name, dst.Name, dst.Name]);
 
-            // Create the mkdir task
-              if (dstdl.parent <> nil) then
-                pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, dstdl.parent.dirlist, dir)
+                // Create the mkdir task
+                if (dstdl.parent <> nil) then
+                  pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, dstdl.parent.dirlist, dir)
+                else
+                  pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, nil, dir);
+
+                // add delay to mkdir if delay_upload enabled
+                if dst.delay_upload > 0 then
+                  pm.startat := IncSecond(Now, dst.delay_upload);
+
+                dstdl.mkdir_started_at := Now();
+                dstdl.dependency_mkdir := pm.UidText;
+              end
               else
-                pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, nil, dir);
-
-              // add delay to mkdir if delay_upload enabled
-              if dst.delay_upload > 0 then
-                pm.startat := IncSecond(Now, dst.delay_upload);
-
-              dstdl.mkdir_started_at := Now();
-              dstdl.dependency_mkdir := pm.UidText;
+              begin
+                Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: MKDIR already pending on %s (dep=%s)', [fd, Name, dst.Name, dst.Name, dstdl.dependency_mkdir]);
+              end;
+            end
+            else
+            begin
+              Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: need_mkdir already cleared on %s', [fd, Name, dst.Name, dst.Name]);
             end;
           finally
             dstdl.dirlist_lock.Leave;
@@ -1719,6 +1730,14 @@ begin
     if d.need_mkdir then
     begin
       Result := True;
+      if d.mkdir_started_at > 0 then
+        Debug(dpSpam, section, 'MkdirReady clearing need_mkdir for %s/%s after %d ms', [Name, dir, MilliSecondsBetween(Now, d.mkdir_started_at)])
+      else
+        Debug(dpSpam, section, 'MkdirReady clearing need_mkdir for %s/%s (no mkdir_started_at)', [Name, dir]);
+    end
+    else
+    begin
+      Debug(dpSpam, section, 'MkdirReady called for %s/%s but need_mkdir already false', [Name, dir]);
     end;
     // dir exist, we can set need_mkdir to false
     d.dirlist_lock.Enter('TPazoSite.MkdirReady');
@@ -1782,6 +1801,7 @@ begin
   begin
     debug(dpSpam, section, 'MkdirError ' + Name + ' ' + dir);
     irc_Addstats(Format('<c7>[MKDIR ERROR]</c> : %s %s/%s @ <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, dir, Name]));
+    Debug(dpSpam, section, 'MkdirError re-setting need_mkdir=True and error=True for %s/%s', [Name, dir]);
     d.need_mkdir := True;
     d.error := True;
   end;

@@ -423,6 +423,7 @@ var
   fNilDelayedRace, fNilDelayedDirlist, fNilDelayedAuto, fNilDelayedOther: Int64;
   fNilNoReadyRace, fNilNoReadyDirlist, fNilNoReadyAuto, fNilNoReadyOther: Int64;
   fNilNoReadyMkdir, fNilNoReadyRaceOther: Int64;
+  fSampleMkdirBlockedTask: TTask;
 
   procedure _IncDelayed(const aClassName: String);
   begin
@@ -464,6 +465,7 @@ begin
   fNilNoReadyRace := 0; fNilNoReadyDirlist := 0; fNilNoReadyAuto := 0; fNilNoReadyOther := 0;
   fNilNoReadyMkdir := 0;
   fNilNoReadyRaceOther := 0;
+  fSampleMkdirBlockedTask := nil;
 
   DiagRecordFindBestTaskCall(fSiteName);
 
@@ -496,7 +498,11 @@ begin
       if (t is TPazoRaceTask) and (TPazoTask(t).FDependingOnDirlist <> nil) and
          TPazoTask(t).FDependingOnDirlist.need_mkdir and
          (not TPazoTask(t).FDependingOnDirlist.error) then
-        Inc(fNilNoReadyMkdir)
+      begin
+        Inc(fNilNoReadyMkdir);
+        if fSampleMkdirBlockedTask = nil then
+          fSampleMkdirBlockedTask := t;
+      end
       else if t is TPazoRaceTask then
         Inc(fNilNoReadyRaceOther)
       else
@@ -572,7 +578,11 @@ begin
     DiagRecordFindBestTaskNil(dfbnDelayed, '', fSiteName, fNilDelayedOther);
 
   if fNilNoReadyMkdir > 0 then
+  begin
     DiagRecordFindBestTaskNil(dfbnNoReadyTaskMkdir, 'TPazoRaceTask', fSiteName, fNilNoReadyMkdir);
+    if fSampleMkdirBlockedTask <> nil then
+      Debug(dpSpam, section, 'FindBestTask %s: %d race tasks blocked by need_mkdir (sample: %s)', [fSiteName, fNilNoReadyMkdir, fSampleMkdirBlockedTask.Name]);
+  end;
   if fNilNoReadyRaceOther > 0 then
     DiagRecordFindBestTaskNil(dfbnNoReadyTaskOther, 'TPazoRaceTask', fSiteName, fNilNoReadyRaceOther);
   if fNilNoReadyRace > 0 then

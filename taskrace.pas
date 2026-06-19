@@ -835,6 +835,7 @@ var
   rule_err: String;
   numerrors: integer;
   tname: String;
+  fMkdirStart: TDateTime;
 
   function checkForSiteFailure: boolean;
   var
@@ -869,6 +870,7 @@ begin
   end;
 
   Debug(dpMessage, c_section, '--> ' + tname);
+  fMkdirStart := Now();
 
   mainpazo.lastTouch := Now();
 
@@ -1207,6 +1209,7 @@ begin
       end;
       ps1.MkdirError(dir);
       readyerror := True;
+      Debug(dpMessage, c_section, '<-- %s (failure after %d ms)', [tname, MilliSecondsBetween(Now, fMkdirStart)]);
       Result := True;
       exit;
     end;
@@ -1233,7 +1236,7 @@ begin
     end;
   end;
 
-  Debug(dpMessage, c_section, '<-- ' + tname);
+  Debug(dpMessage, c_section, '<-- %s (success after %d ms)', [tname, MilliSecondsBetween(Now, fMkdirStart)]);
 
   readyerror := failure;
   ready := True;
