@@ -416,10 +416,54 @@ var
   t: TTask;
   score: Int64;
   tpr: TPazoRaceTask;
+  fTaskClassName: String;
+  // Aggregated per-reason counters. Recording every single discarded task under
+  // the global GlDiagCS lock caused severe lock contention (spinlocks in perf).
+  fNilNoTasks, fNilNoSlots, fNilCooldown, fNilOther: Int64;
+  fNilDelayedRace, fNilDelayedDirlist, fNilDelayedAuto, fNilDelayedOther: Int64;
+  fNilNoReadyRace, fNilNoReadyDirlist, fNilNoReadyAuto, fNilNoReadyOther: Int64;
+  fNilNoReadyMkdir, fNilNoReadyRaceOther: Int64;
+
+  procedure _IncDelayed(const aClassName: String);
+  begin
+    if aClassName = 'TPazoRaceTask' then
+      Inc(fNilDelayedRace)
+    else if aClassName = 'TPazoDirlistTask' then
+      Inc(fNilDelayedDirlist)
+    else if (aClassName = 'TAutoNukeTask') or (aClassName = 'TAutoDirlistTask') or
+            (aClassName = 'TAutoIndexTask') or (aClassName = 'TLoginTask') or
+            (aClassName = 'TRulesTask') then
+      Inc(fNilDelayedAuto)
+    else
+      Inc(fNilDelayedOther);
+  end;
+
+  procedure _IncNoReady(const aClassName: String);
+  begin
+    if aClassName = 'TPazoRaceTask' then
+      Inc(fNilNoReadyRace)
+    else if aClassName = 'TPazoDirlistTask' then
+      Inc(fNilNoReadyDirlist)
+    else if (aClassName = 'TAutoNukeTask') or (aClassName = 'TAutoDirlistTask') or
+            (aClassName = 'TAutoIndexTask') or (aClassName = 'TLoginTask') or
+            (aClassName = 'TRulesTask') then
+      Inc(fNilNoReadyAuto)
+    else
+      Inc(fNilNoReadyOther);
+  end;
+
 begin
   Result := nil;
   bestTask := nil;
   bestScore := Low(Int64);
+  fNilNoTasks := 0;
+  fNilNoSlots := 0;
+  fNilCooldown := 0;
+  fNilOther := 0;
+  fNilDelayedRace := 0; fNilDelayedDirlist := 0; fNilDelayedAuto := 0; fNilDelayedOther := 0;
+  fNilNoReadyRace := 0; fNilNoReadyDirlist := 0; fNilNoReadyAuto := 0; fNilNoReadyOther := 0;
+  fNilNoReadyMkdir := 0;
+  fNilNoReadyRaceOther := 0;
 
   DiagRecordFindBestTaskCall(fSiteName);
 
@@ -428,21 +472,21 @@ begin
     // Skip tasks in our skipped/tried list
     if (aSkippedTasks <> nil) and (aSkippedTasks.IndexOf(t) >= 0) then
     begin
-      DiagRecordFindBestTaskNil(dfbnOther, t.ClassName, fSiteName);
+      Inc(fNilOther);
       Continue;
     end;
 
     // Skip tasks that are already assigned, ready, or have errors
     if ((t.slot1 <> nil) or (t.slot2 <> nil) or t.ready or t.readyerror) then
     begin
-      DiagRecordFindBestTaskNil(dfbnOther, t.ClassName, fSiteName);
+      Inc(fNilOther);
       Continue;
     end;
 
     // Skip delayed tasks
     if (t.startat > 0) and (t.startat > aNow) then
     begin
-      DiagRecordFindBestTaskNil(dfbnDelayed, t.ClassName, fSiteName);
+      _IncDelayed(t.ClassName);
       Continue;
     end;
 
@@ -452,11 +496,11 @@ begin
       if (t is TPazoRaceTask) and (TPazoTask(t).FDependingOnDirlist <> nil) and
          TPazoTask(t).FDependingOnDirlist.need_mkdir and
          (not TPazoTask(t).FDependingOnDirlist.error) then
-        DiagRecordFindBestTaskNil(dfbnNoReadyTaskMkdir, t.ClassName, fSiteName)
+        Inc(fNilNoReadyMkdir)
       else if t is TPazoRaceTask then
-        DiagRecordFindBestTaskNil(dfbnNoReadyTaskOther, t.ClassName, fSiteName)
+        Inc(fNilNoReadyRaceOther)
       else
-        DiagRecordFindBestTaskNil(dfbnNoReadyTask, t.ClassName, fSiteName);
+        _IncNoReady(t.ClassName);
       Continue;
     end;
 
@@ -466,7 +510,7 @@ begin
       tpr := TPazoRaceTask(t);
       if _IsLowPriorityRaceTask(tpr) and aHasImportantWaiting then
       begin
-        DiagRecordFindBestTaskNil(dfbnCooldown, t.ClassName, fSiteName);
+        Inc(fNilCooldown);
         Continue;
       end;
     end;
@@ -482,18 +526,18 @@ begin
       tpr := TPazoRaceTask(t);
       if (tpr.ssite1 <> nil) and (TSite(tpr.ssite1).freeslots <= 0) then
       begin
-        DiagRecordFindBestTaskNil(dfbnNoSlots, t.ClassName, fSiteName);
+        Inc(fNilNoSlots);
         Continue;
       end;
       if (tpr.ssite2 <> nil) and (TSite(tpr.ssite2).freeslots <= 0) then
       begin
-        DiagRecordFindBestTaskNil(dfbnNoSlots, t.ClassName, fSiteName);
+        Inc(fNilNoSlots);
         Continue;
       end;
     end
     else if (t.ssite1 <> nil) and (TSite(t.ssite1).freeslots <= 0) then
     begin
-      DiagRecordFindBestTaskNil(dfbnNoSlots, t.ClassName, fSiteName);
+      Inc(fNilNoSlots);
       Continue;
     end;
 
@@ -505,7 +549,40 @@ begin
   end;
 
   if (bestTask = nil) and (tasks.Count = 0) then
-    DiagRecordFindBestTaskNil(dfbnNoTasks, '', fSiteName);
+    Inc(fNilNoTasks);
+
+  // Flush aggregated counters once per FindBestTask call instead of once per
+  // discarded task. This avoids the global GlDiagCS lock storm.
+  if fNilNoTasks > 0 then
+    DiagRecordFindBestTaskNil(dfbnNoTasks, '', fSiteName, fNilNoTasks);
+  if fNilNoSlots > 0 then
+    DiagRecordFindBestTaskNil(dfbnNoSlots, '', fSiteName, fNilNoSlots);
+  if fNilCooldown > 0 then
+    DiagRecordFindBestTaskNil(dfbnCooldown, '', fSiteName, fNilCooldown);
+  if fNilOther > 0 then
+    DiagRecordFindBestTaskNil(dfbnOther, '', fSiteName, fNilOther);
+
+  if fNilDelayedRace > 0 then
+    DiagRecordFindBestTaskNil(dfbnDelayed, 'TPazoRaceTask', fSiteName, fNilDelayedRace);
+  if fNilDelayedDirlist > 0 then
+    DiagRecordFindBestTaskNil(dfbnDelayed, 'TPazoDirlistTask', fSiteName, fNilDelayedDirlist);
+  if fNilDelayedAuto > 0 then
+    DiagRecordFindBestTaskNil(dfbnDelayed, 'TAutoDirlistTask', fSiteName, fNilDelayedAuto);
+  if fNilDelayedOther > 0 then
+    DiagRecordFindBestTaskNil(dfbnDelayed, '', fSiteName, fNilDelayedOther);
+
+  if fNilNoReadyMkdir > 0 then
+    DiagRecordFindBestTaskNil(dfbnNoReadyTaskMkdir, 'TPazoRaceTask', fSiteName, fNilNoReadyMkdir);
+  if fNilNoReadyRaceOther > 0 then
+    DiagRecordFindBestTaskNil(dfbnNoReadyTaskOther, 'TPazoRaceTask', fSiteName, fNilNoReadyRaceOther);
+  if fNilNoReadyRace > 0 then
+    DiagRecordFindBestTaskNil(dfbnNoReadyTask, 'TPazoRaceTask', fSiteName, fNilNoReadyRace);
+  if fNilNoReadyDirlist > 0 then
+    DiagRecordFindBestTaskNil(dfbnNoReadyTask, 'TPazoDirlistTask', fSiteName, fNilNoReadyDirlist);
+  if fNilNoReadyAuto > 0 then
+    DiagRecordFindBestTaskNil(dfbnNoReadyTask, 'TAutoDirlistTask', fSiteName, fNilNoReadyAuto);
+  if fNilNoReadyOther > 0 then
+    DiagRecordFindBestTaskNil(dfbnNoReadyTask, '', fSiteName, fNilNoReadyOther);
 
   Result := bestTask;
 end;
@@ -2046,6 +2123,22 @@ begin
 
               if (fTask.slot1 = nil) then
               begin
+                // For WAITTASKs: never remove the task object until wait_done is
+                // True. TWaitTask.Execute sets slot1 := nil in its finally block
+                // before it has finished clearing the slot's todotask reference
+                // and setting wait_done. Removing the task here would free memory
+                // that the slot thread is still using.
+                if (fTask.ClassType = TWaitTask) and (not TWaitTask(fTask).wait_done) then
+                begin
+                  try
+                    TWaitTask(fTask).event.SetEvent;
+                  except
+                    on E: Exception do
+                      Debug(dpError, section, Format('[AV-DEBUG] RemoveReady TWaitTask event.SetEvent (slot1=nil) failed for %s: %s', [fTask.Name, E.Message]));
+                  end;
+                  Continue;
+                end;
+
                 try
                   ss := fTask.uidtext;
                 except

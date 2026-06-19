@@ -184,7 +184,8 @@ procedure DiagRecordNeedMkdirClear(const aElapsedMs: Int64; const aSiteName: Str
 
 { Queue scanning / assignment. Optional aSiteName updates per-site counters too. }
 procedure DiagRecordFindBestTaskNil(const aReason: TDiagFindBestNilReason;
-  const aTaskClassName: String = ''; const aSiteName: String = '');
+  const aTaskClassName: String = ''; const aSiteName: String = '';
+  const aCount: Int64 = 1);
   // aTaskClassName helps distinguish delayed/no_ready counters by task type.
 procedure DiagRecordFindBestTaskCall(const aSiteName: String = '');
 procedure DiagRecordAssignRaceAbort(const aReason: TDiagAssignAbortReason; const aSiteName: String = '');
@@ -521,66 +522,69 @@ begin
     Result := 3;
 end;
 
-procedure _IncFindBestNilReason(var aSnap: TDiagQueueSnapshot; const aReason: TDiagFindBestNilReason; const aTaskClassName: String);
+procedure _IncFindBestNilReason(var aSnap: TDiagQueueSnapshot; const aReason: TDiagFindBestNilReason; const aTaskClassName: String; const aCount: Int64 = 1);
 var
   taskType: Integer;
 begin
   case aReason of
-    dfbnNoTasks: Inc(aSnap.FindBestNilNoTasks);
-    dfbnNoSlots: Inc(aSnap.FindBestNilNoSlots);
-    dfbnCooldown: Inc(aSnap.FindBestNilCooldown);
+    dfbnNoTasks: Inc(aSnap.FindBestNilNoTasks, aCount);
+    dfbnNoSlots: Inc(aSnap.FindBestNilNoSlots, aCount);
+    dfbnCooldown: Inc(aSnap.FindBestNilCooldown, aCount);
     dfbnDelayed:
       begin
-        Inc(aSnap.FindBestNilDelayed);
+        Inc(aSnap.FindBestNilDelayed, aCount);
         taskType := _DiagTaskTypeFromClassName(aTaskClassName);
         case taskType of
-          0: Inc(aSnap.FindBestNilDelayedRace);
-          1: Inc(aSnap.FindBestNilDelayedDirlist);
-          2: Inc(aSnap.FindBestNilDelayedAuto);
+          0: Inc(aSnap.FindBestNilDelayedRace, aCount);
+          1: Inc(aSnap.FindBestNilDelayedDirlist, aCount);
+          2: Inc(aSnap.FindBestNilDelayedAuto, aCount);
         else
-          Inc(aSnap.FindBestNilDelayedOther);
+          Inc(aSnap.FindBestNilDelayedOther, aCount);
         end;
       end;
     dfbnNoReadyTask:
       begin
-        Inc(aSnap.FindBestNilNoReadyTask);
+        Inc(aSnap.FindBestNilNoReadyTask, aCount);
         taskType := _DiagTaskTypeFromClassName(aTaskClassName);
         case taskType of
-          0: Inc(aSnap.FindBestNilNoReadyRace);
-          1: Inc(aSnap.FindBestNilNoReadyDirlist);
-          2: Inc(aSnap.FindBestNilNoReadyAuto);
+          0: Inc(aSnap.FindBestNilNoReadyRace, aCount);
+          1: Inc(aSnap.FindBestNilNoReadyDirlist, aCount);
+          2: Inc(aSnap.FindBestNilNoReadyAuto, aCount);
         else
-          Inc(aSnap.FindBestNilNoReadyOther);
+          Inc(aSnap.FindBestNilNoReadyOther, aCount);
         end;
       end;
     dfbnNoReadyTaskMkdir:
       begin
-        Inc(aSnap.FindBestNilNoReadyTask);
-        Inc(aSnap.FindBestNilNoReadyRace);
-        Inc(aSnap.FindBestNilNoReadyRaceMkdir);
+        Inc(aSnap.FindBestNilNoReadyTask, aCount);
+        Inc(aSnap.FindBestNilNoReadyRace, aCount);
+        Inc(aSnap.FindBestNilNoReadyRaceMkdir, aCount);
       end;
     dfbnNoReadyTaskOther:
       begin
-        Inc(aSnap.FindBestNilNoReadyTask);
-        Inc(aSnap.FindBestNilNoReadyRace);
-        Inc(aSnap.FindBestNilNoReadyRaceOther);
+        Inc(aSnap.FindBestNilNoReadyTask, aCount);
+        Inc(aSnap.FindBestNilNoReadyRace, aCount);
+        Inc(aSnap.FindBestNilNoReadyRaceOther, aCount);
       end;
-    dfbnOther: Inc(aSnap.FindBestNilOther);
+    dfbnOther: Inc(aSnap.FindBestNilOther, aCount);
   end;
 end;
 
 procedure DiagRecordFindBestTaskNil(const aReason: TDiagFindBestNilReason;
-  const aTaskClassName: String; const aSiteName: String);
+  const aTaskClassName: String; const aSiteName: String;
+  const aCount: Int64);
 var
   idx: Integer;
 begin
+  if aCount <= 0 then
+    Exit;
   GlDiagCS.Enter('DiagRecordFindBestTaskNil');
   try
-    _IncFindBestNilReason(GlDiagCurrent.Queue, aReason, aTaskClassName);
+    _IncFindBestNilReason(GlDiagCurrent.Queue, aReason, aTaskClassName, aCount);
     if aSiteName <> '' then
     begin
       idx := DiagEnsureSiteIndex(aSiteName);
-      _IncFindBestNilReason(GlDiagSites[idx].Metrics.Queue, aReason, aTaskClassName);
+      _IncFindBestNilReason(GlDiagSites[idx].Metrics.Queue, aReason, aTaskClassName, aCount);
     end;
   finally
     GlDiagCS.Leave;
