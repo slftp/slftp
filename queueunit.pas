@@ -401,6 +401,13 @@ begin
   begin
     // Other pazo tasks (dirlist, etc.)
     Result := 60000000;
+
+    // Anti-starvation: dirlist tasks that have been waiting a long time must
+    // not be perpetually skipped while race tasks keep consuming all slots.
+    // Without periodic dirlists no new race tasks are discovered, so the queue
+    // eventually runs dry.  Boost long-waiting dirlists above fresh race tasks.
+    if (aTask is TPazoDirlistTask) and (SecondsBetween(aTask.created, Now) > 60) then
+      Result := Result + 25000000;
   end
   else
   begin
