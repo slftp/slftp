@@ -1854,7 +1854,10 @@ var
   p: TPazo;
   fIncFillPazos, fFinishedPazos, fFinishedRankCalcPazos, fDeletedPazos: TList<TPazo>;
   fIsSpecialKB, fTryToCompleteTimeReached: boolean;
+  fLastSiteSync: TDateTime;
 begin
+  fLastSiteSync := 0;
+
   fIncFillPazos := TList<TPazo>.Create;
   fFinishedPazos := TList<TPazo>.Create;
   fFinishedRankCalcPazos := TList<TPazo>.Create;
@@ -1995,6 +1998,17 @@ begin
             Debug(dpError, rsections, '[EXCEPTION] kb_Save : %s', [e.Message]);
           end;
         end;
+      end;
+
+      if IsCbftpMode and (SecondsBetween(Now, fLastSiteSync) >= 60) then
+      begin
+        try
+          SyncSitesFromCbftp;
+        except
+          on e: Exception do
+            Debug(dpError, rsections, '[EXCEPTION] periodic SyncSitesFromCbftp: %s', [e.Message]);
+        end;
+        fLastSiteSync := Now;
       end;
 
       kbevent.WaitFor(5000);
