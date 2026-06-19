@@ -99,12 +99,14 @@ Site Setup:
     - UDP site_status events (pushed by cbftp)
     - Live REST API polling (cbftp sites table in Web UI)
 
-  Sites can be kept active in slftp for BNC management, or set to
-  permdown to conserve resources:
+  Site status (enabled / disabled) is owned by cbftp in cbftp mode.
+  To disable a site, use the cbftp Web UI; slftp will reflect the
+  change within seconds via the UDP site_status event. The legacy
+  `!setpermdown` IRC command and `PATCH /api/sites/{name}/permdown`
+  endpoint have been removed; in cbftp mode slftp has no business
+  toggling site status.
 
-    !setpermdown * 1
-
-  Rules always evaluate regardless of permdown status when UDP is
+  Rules always evaluate regardless of site status when UDP is
   enabled. cbftp handles all actual FTP connections and transfers.
 
 --------------------------------------------------------------------------------
