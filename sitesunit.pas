@@ -1321,7 +1321,7 @@ begin
       Continue;
     if ((Netname <> 'CONSOLE') and (Netname <> '') and (s.noannounce)) then
       Continue;
-    if s.PermDown then
+    if (not IsCbftpMode) and s.PermDown then
     begin
       sitespd.Add(s.Name);
       Continue;
@@ -1462,8 +1462,8 @@ begin
         fSite := TSite.Create(fSitename);
         AddSite(fSite);
 
-        //add a login task if autologin is enabled
-        if (((autologin) or (fSite.RCBool('autologin', False))) and not fSite.PermDown) then
+        //add a login task if autologin is enabled (not needed in cbftp mode)
+        if (((autologin) or (fSite.RCBool('autologin', False))) and not fSite.PermDown and not IsCbftpMode) then
         begin
           AddTask(TLoginTask.Create('', '', fSite.Name, False, False));
         end;
@@ -4213,7 +4213,7 @@ procedure TSite.AutoDirlist;
 var
   t: TAutoDirlistTask;
 begin
-  if PermDown then
+  if PermDown or IsCbftpMode then
     Exit;
   t := FetchAutoDirlist;
   if t <> nil then
@@ -4236,7 +4236,7 @@ procedure TSite.AutoNuke;
 var
   t: TAutoNukeTask;
 begin
-  if PermDown then
+  if PermDown or IsCbftpMode then
     Exit;
   t := FetchAutoNuke;
   if t <> nil then
@@ -4252,7 +4252,7 @@ procedure TSite.AutoIndex;
 var
   t: TAutoIndexTask;
 begin
-  if PermDown then
+  if PermDown or IsCbftpMode then
     Exit;
   if nil <> FetchAutoIndex then
     exit;
