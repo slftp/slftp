@@ -2000,17 +2000,6 @@ begin
         end;
       end;
 
-      if IsCbftpMode and (SecondsBetween(Now, fLastSiteSync) >= 60) then
-      begin
-        try
-          SyncSitesFromCbftp;
-        except
-          on e: Exception do
-            Debug(dpError, rsections, '[EXCEPTION] periodic SyncSitesFromCbftp: %s', [e.Message]);
-        end;
-        fLastSiteSync := Now;
-      end;
-
       kbevent.WaitFor(5000);
     end;
   finally
@@ -2513,8 +2502,8 @@ begin
 
       cetSiteStatus:
       begin
-        Debug(dpMessage, rsections, Format('[cbftp] site_status event: %s disabled=%d',
-          [aEvent.Site, Ord(aEvent.Disabled)]));
+        Debug(dpMessage, rsections, Format('[cbftp] site_status event: %s disabled=%d max_logins=%d current_logins=%d',
+          [aEvent.Site, Ord(aEvent.Disabled), aEvent.MaxLogins, aEvent.CurrentLogins]));
         CbftpMainCacheUpdateSiteDisabled(aEvent.Site, aEvent.Disabled);
         fSite := FindSiteByName('', aEvent.Site);
         if fSite <> nil then
@@ -2529,6 +2518,9 @@ begin
             if fSite.WorkingStatus <> sstUp then
               fSite.WorkingStatus := sstUp;
           end;
+
+          if aEvent.HasSlotFields and (aEvent.MaxLogins > 0) then
+            fSite.SyncSlots(aEvent.MaxLogins, aEvent.CurrentLogins);
         end;
       end;
     end;

@@ -41,6 +41,9 @@ type
     Filename: string;
     Disabled: Boolean;
     HasUpFields: Boolean;
+    MaxLogins: Integer;
+    CurrentLogins: Integer;
+    HasSlotFields: Boolean;
   end;
 
   TCbftpEventCallback = procedure(const aEvent: TCbftpEvent);
@@ -337,6 +340,12 @@ begin
       Result.EventType := cetSiteStatus;
       Result.Site := _GetStr(obj, 'name');
       Result.Disabled := _GetBool(obj, 'disabled');
+      Result.HasSlotFields := (obj.Field['max_logins'] <> nil);
+      if Result.HasSlotFields then
+      begin
+        Result.MaxLogins := _GetInt(obj, 'max_logins');
+        Result.CurrentLogins := _GetInt(obj, 'current_logins');
+      end;
     end;
   finally
     obj.Free;
