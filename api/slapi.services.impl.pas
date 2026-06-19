@@ -45,8 +45,7 @@ uses
   delphimd5,
   RegExpr,
   slcriticalsection2,
-  globals,
-  cbftpclient;
+  globals;
 
 { MONITORING FEATURE DISABLED - Functions kept as stubs for API compatibility
   function ApiGetSlotsRuntimeJson(const SiteName: RawUTF8): RawJSON;
