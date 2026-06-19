@@ -4932,15 +4932,19 @@ end;
 
 function TSite.GetPermDownStatus: boolean;
 begin
-  Result := fPermDownStatus;
+  if IsCbftpMode then
+    Result := WorkingStatus = sstMarkedAsDownByUser
+  else
+    Result := fPermDownStatus;
 end;
 
 procedure TSite.SetPermDownStatus(Value: boolean);
 begin
-  fPermDownStatus := Value;
-  WCBool('permdown', Value);
-  if GlCbftpClient <> nil then
+  if IsCbftpMode then
   begin
+    // In cbftp mode PermDown is just a proxy for cbftp's disabled flag.
+    // WorkingStatus is already kept in sync by UDP events; updating cbftp
+    // here makes !setpermdown / API calls affect cbftp directly.
     if Value then
     begin
       GlCbftpClient.UpdateSite(StringToUtf8(Name), '{"disabled":true}');
@@ -4951,7 +4955,11 @@ begin
       GlCbftpClient.UpdateSite(StringToUtf8(Name), '{"disabled":false}');
       WorkingStatus := sstUp;
     end;
+    Exit;
   end;
+
+  fPermDownStatus := Value;
+  WCBool('permdown', Value);
 end;
 
 function TSite.GetUseReverseFxpSource: boolean;
