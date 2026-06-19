@@ -921,6 +921,7 @@ end;
 function TPazo.RoutesText: String;
 var
   ps: TPazoSite;
+  psSite: TSite;
   cbftpLine: String;
   sitelist: String;
   shouldSendUDP: Boolean;
@@ -940,8 +941,12 @@ begin
 
   for ps in PazoSitesList do
   begin
-    if not (ps.status in [rssNotAllowed, rssNotAllowedButItsThere]) then
-      Result := Result + ps.RoutesText;
+    if (ps.status in [rssNotAllowed, rssNotAllowedButItsThere]) then
+      continue;
+    psSite := FindSiteByName('', ps.Name);
+    if (psSite <> nil) and (psSite.WorkingStatus = sstMarkedAsDownByUser) then
+      continue;
+    Result := Result + ps.RoutesText;
   end;
 
   cbftpLine := '';
@@ -955,10 +960,12 @@ begin
   begin
     for ps in PazoSitesList do
     begin
-      if (ps.status in [rssAllowed, rssShouldPre, rssRealPre]) then
-      begin
-        sitelist := sitelist + ps.Name + ',';
-      end;
+      if not (ps.status in [rssAllowed, rssShouldPre, rssRealPre]) then
+        continue;
+      psSite := FindSiteByName('', ps.Name);
+      if (psSite <> nil) and (psSite.WorkingStatus = sstMarkedAsDownByUser) then
+        continue;
+      sitelist := sitelist + ps.Name + ',';
     end;
 
     if sitelist <> '' then
