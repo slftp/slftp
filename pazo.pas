@@ -704,12 +704,12 @@ begin
               end
               else
               begin
-                Debug(dpError, section, '%s :: Checking routes from %s to %s :: MKDIR already pending on %s (dep=%s)', [fd, Name, dst.Name, dst.Name, dstdl.dependency_mkdir]);
+                Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: MKDIR already pending on %s (dep=%s)', [fd, Name, dst.Name, dst.Name, dstdl.dependency_mkdir]);
               end;
             end
             else
             begin
-              Debug(dpError, section, '%s :: Checking routes from %s to %s :: need_mkdir already cleared on %s', [fd, Name, dst.Name, dst.Name]);
+              Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: need_mkdir already cleared on %s', [fd, Name, dst.Name, dst.Name]);
             end;
           finally
             dstdl.dirlist_lock.Leave;
@@ -1731,13 +1731,13 @@ begin
     begin
       Result := True;
       if d.mkdir_started_at > 0 then
-        Debug(dpError, section, 'MkdirReady clearing need_mkdir for %s/%s after %d ms', [Name, dir, MilliSecondsBetween(Now, d.mkdir_started_at)])
+        Debug(dpSpam, section, 'MkdirReady clearing need_mkdir for %s/%s after %d ms', [Name, dir, MilliSecondsBetween(Now, d.mkdir_started_at)])
       else
-        Debug(dpError, section, 'MkdirReady clearing need_mkdir for %s/%s (no mkdir_started_at)', [Name, dir]);
+        Debug(dpSpam, section, 'MkdirReady clearing need_mkdir for %s/%s (no mkdir_started_at)', [Name, dir]);
     end
     else
     begin
-      Debug(dpError, section, 'MkdirReady called for %s/%s but need_mkdir already false', [Name, dir]);
+      Debug(dpSpam, section, 'MkdirReady called for %s/%s but need_mkdir already false', [Name, dir]);
     end;
     // dir exist, we can set need_mkdir to false
     d.dirlist_lock.Enter('TPazoSite.MkdirReady');
@@ -1758,9 +1758,11 @@ begin
         begin
           if (fDestinationRank.FPazoSite.Name = self.Name) then
           begin
-            if not fSitesList.Contains(fDestinationRank.PazoSite.Name) then
+            // fPazoSite is a source site that has this site as destination.
+            // We must wake its queue, not the destination's queue.
+            if not fSitesList.Contains(fPazoSite.Name) then
             begin
-              fSitesList.Add(fDestinationRank.PazoSite.Name);
+              fSitesList.Add(fPazoSite.Name);
             end;
             break;
           end;
@@ -1801,7 +1803,7 @@ begin
   begin
     debug(dpSpam, section, 'MkdirError ' + Name + ' ' + dir);
     irc_Addstats(Format('<c7>[MKDIR ERROR]</c> : %s %s/%s @ <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, dir, Name]));
-    Debug(dpError, section, 'MkdirError re-setting need_mkdir=True and error=True for %s/%s', [Name, dir]);
+    Debug(dpSpam, section, 'MkdirError re-setting need_mkdir=True and error=True for %s/%s', [Name, dir]);
     d.need_mkdir := True;
     d.error := True;
   end;
@@ -1816,8 +1818,19 @@ var
   fFoundDirListEntries, fRemovePazoRaceEntries: TObjectList<TDirListEntry>;
   fTasksAdded: boolean;
   fSite: TSite;
+  fSourceSite: TSite;
+  fNeedMkdirBefore: Boolean;
+  fNeedMkdirCleared: Boolean;
+  fDependencyMkdirBefore: String;
+  fDependencyCleared: Boolean;
+  fPazoSite: TPazoSite;
+  fDestinationRank: TDestinationRank;
 begin
   Result := False;
+  fNeedMkdirBefore := False;
+  fNeedMkdirCleared := False;
+  fDependencyMkdirBefore := '';
+  fDependencyCleared := False;
 
   // exit if no access to dirlist object
   if dirlist = nil then
@@ -1838,6 +1851,16 @@ begin
   if d = nil then
     exit;
 
+  // remember need_mkdir/dependency_mkdir state before parse so we can detect
+  // when the dirlist proves the directory already exists and clears the flags
+  d.dirlist_lock.Enter('TPazoSite.ParseDirlist before parse');
+  try
+    fNeedMkdirBefore := d.need_mkdir;
+    fDependencyMkdirBefore := d.dependency_mkdir;
+  finally
+    d.dirlist_lock.Leave;
+  end;
+
   // parse the dirlist
   try
     d.ParseDirlist(liststring);
@@ -1846,6 +1869,37 @@ begin
     begin
       DebugException(dpError, section, 'TPazoSite.ParseDirlist (d.ParseDirlist)', e);
       exit;
+    end;
+  end;
+
+  // check whether the parse cleared need_mkdir or dependency_mkdir
+  // (directory exists on site or the blocking mkdir finished)
+  d.dirlist_lock.Enter('TPazoSite.ParseDirlist after parse');
+  try
+    fNeedMkdirCleared := fNeedMkdirBefore and not d.need_mkdir;
+    fDependencyCleared := (fDependencyMkdirBefore <> '') and (d.dependency_mkdir = '');
+  finally
+    d.dirlist_lock.Leave;
+  end;
+
+  // if need_mkdir/dependency_mkdir was cleared we must wake every source site
+  // that has pending race tasks waiting for this destination directory,
+  // otherwise those tasks will sleep until the next queue timer fires.
+  if fNeedMkdirCleared or fDependencyCleared then
+  begin
+    Debug(dpSpam, section, 'ParseDirlist cleared mkdir block for %s/%s (need_mkdir=%s dep=%s), firing source site queues', [Name, dir, BoolToStr(fNeedMkdirCleared, True), BoolToStr(fDependencyCleared, True)]);
+    for fPazoSite in self.pazo.PazoSitesList do
+    begin
+      for fDestinationRank in fPazoSite.FDestinations do
+      begin
+        if fDestinationRank.FPazoSite.Name = self.Name then
+        begin
+          fSourceSite := FindSiteByName('', fPazoSite.Name);
+          if fSourceSite <> nil then
+            fSourceSite.QueueFire;
+          break;
+        end;
+      end;
     end;
   end;
 

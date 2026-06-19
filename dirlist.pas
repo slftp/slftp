@@ -834,12 +834,12 @@ begin
       begin
         need_mkdir := False;
         need_mkdir_cleared_at := Now();
-        Debug(dpError, section, 'ParseDirlist cleared need_mkdir for %s (%d entries, dep=%s)', [FFullPath, entries.Count, dependency_mkdir]);
+        Debug(dpSpam, section, 'ParseDirlist cleared need_mkdir for %s (%d entries, dep=%s)', [FFullPath, entries.Count, dependency_mkdir]);
         DiagRecordNeedMkdirClear(MilliSecondsBetween(need_mkdir_cleared_at, first_dirlist_completed_at), site_name);
       end
       else if dependency_mkdir <> '' then
       begin
-        Debug(dpError, section, 'ParseDirlist cleared stale dependency_mkdir=%s for %s', [dependency_mkdir, FFullPath]);
+        Debug(dpSpam, section, 'ParseDirlist cleared stale dependency_mkdir=%s for %s', [dependency_mkdir, FFullPath]);
       end;
       dependency_mkdir := '';
     end;

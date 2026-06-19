@@ -1209,7 +1209,7 @@ begin
       end;
       ps1.MkdirError(dir);
       readyerror := True;
-      Debug(dpError, c_section, '<-- %s (failure after %d ms)', [tname, MilliSecondsBetween(Now, fMkdirStart)]);
+      Debug(dpSpam, c_section, '<-- %s (failure after %d ms)', [tname, MilliSecondsBetween(Now, fMkdirStart)]);
       Result := True;
       exit;
     end;
@@ -1236,7 +1236,7 @@ begin
     end;
   end;
 
-  Debug(dpError, c_section, '<-- %s (success after %d ms)', [tname, MilliSecondsBetween(Now, fMkdirStart)]);
+  Debug(dpSpam, c_section, '<-- %s (success after %d ms)', [tname, MilliSecondsBetween(Now, fMkdirStart)]);
 
   readyerror := failure;
   ready := True;
