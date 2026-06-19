@@ -5,7 +5,7 @@ interface
 uses
   Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
-  taskrules, taskrace, queueunit, Generics.Collections, pazo, slcriticalsection2,
+  taskrules, taskrace, taskraw, queueunit, Generics.Collections, pazo, slcriticalsection2,
   variantcache, routeconfig, StrUtils;
 
 type
@@ -1627,7 +1627,9 @@ begin
         Debug(dpSpam, section, Format('--> %s', [Name]));
 
         try
-          if (GlCbftpClient <> nil) and (site.Name <> getAdminSiteName) and (not (todotask is TRulesTask)) then
+          if (GlCbftpClient <> nil) and (site.Name <> getAdminSiteName)
+             and (not (todotask is TRulesTask))
+             and (not (todotask is TRawTask)) then
           begin
             todotask.ready := True;
             todotask.readyerror := True;
@@ -4560,6 +4562,12 @@ var
   end;
 
 begin
+  // In cbftp mode the FTP engine is owned by cbftp. slftp does not maintain
+  // site logins and creating TLoginTasks here only pollutes the queue
+  // (the tasks are then killed as no-ops by TSiteSlot.Execute anyway).
+  if IsCbftpMode then
+    Exit;
+
   fLoginTaskNeeded := False;
   fWantedSlot := '';
 
