@@ -1744,7 +1744,12 @@ begin
                     for fPair in fPazoSite.destinations do
                     begin
                       if fPair.PazoSite.Name = site.Name then
-                        FindSiteByName('', fPazoSite.Name).QueueFire;
+                      begin
+                        fSite := FindSiteByName('', fPazoSite.Name);
+                        if fSite <> nil then
+                          fSite.QueueFire;
+                        break;
+                      end;
                     end;
                   end;
                 end;

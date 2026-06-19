@@ -2224,10 +2224,20 @@ begin
                       begin
                         // Destructor raised — item may still be in list in a partially-freed
                         // state. Remove it by index to prevent repeated AV on future passes.
-                        Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady Remove): %s [%s]', [e.Message, ss]));
+                        try
+                          Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady Remove): %s [%s] class=%s', [e.Message, ss, fTask.ClassName]));
+                        except
+                          on e2: Exception do
+                            Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady Remove): %s [%s] class=<unreadable>', [e.Message, ss]));
+                        end;
                         try
                           tasks.OwnsObjects := False;
-                          tasks.Remove(fTask);
+                          try
+                            tasks.Remove(fTask);
+                          except
+                            on e2: Exception do
+                              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady Remove fallback): %s [%s]', [e2.Message, ss]));
+                          end;
                         finally
                           tasks.OwnsObjects := True;
                         end;
