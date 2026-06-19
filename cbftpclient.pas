@@ -161,6 +161,9 @@ type
   { Start a spread job using the global client }
   function cbftpclient_StartSpreadJob(const aSection, aRelease, aSitesCsv: String): Boolean;
 
+  { Returns True if slftp is running in cbftp delegation mode }
+  function IsCbftpMode: Boolean;
+
 implementation
 
 uses
@@ -617,6 +620,11 @@ begin
   finally
     FreeAndNil(siteList);
   end;
+end;
+
+function IsCbftpMode: Boolean;
+begin
+  Result := GlCbftpClient <> nil;
 end;
 
 end.
