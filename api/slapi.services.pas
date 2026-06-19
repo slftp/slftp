@@ -107,10 +107,6 @@ type
     /// Sets max pre-download tasks (queue limiter)
     function SetSiteMaxPreDn(const SiteName: RawUTF8; MaxPreDn: integer): boolean;
 
-    /// PATCH /api/sites/{name}/permdown
-    /// Permanently disable/enable a site
-    function SetSitePermDown(const SiteName: RawUTF8; PermDown: boolean): boolean;
-
     /// PATCH /api/sites/{name}/autologin
     /// Enable/disable autologin
     function SetSiteAutoLogin(const SiteName: RawUTF8; Enabled: boolean): boolean;

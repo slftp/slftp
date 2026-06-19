@@ -85,7 +85,6 @@ type
     function SetSiteSlots(const SiteName: RawUTF8; Slots: integer): boolean;
     function SetSiteMaxUpDn(const SiteName: RawUTF8; MaxUp, MaxDn: integer): boolean;
     function SetSiteMaxPreDn(const SiteName: RawUTF8; MaxPreDn: integer): boolean;
-    function SetSitePermDown(const SiteName: RawUTF8; PermDown: boolean): boolean;
     function SetSiteAutoLogin(const SiteName: RawUTF8; Enabled: boolean): boolean;
     function SetSiteRankLock(const SiteName: RawUTF8; RankLock: integer): boolean;
     function SetSiteAutoRules(const SiteName: RawUTF8; IntervalSeconds: integer): boolean;
@@ -2549,28 +2548,6 @@ begin
     on E: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] SetSiteMaxPreDn: %s', [E.Message]));
-      Result := False;
-    end;
-  end;
-end;
-
-function TApiSitesServiceImpl.SetSitePermDown(const SiteName: RawUTF8; PermDown: boolean): boolean;
-var
-  s: TSite;
-begin
-  Result := False;
-  try
-    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
-    if s = nil then
-      Exit;
-
-    s.PermDown := PermDown;
-    Debug(dpMessage, section, Format('SetSitePermDown API: %s -> %s', [UTF8ToString(SiteName), BoolToStr(PermDown, True)]));
-    Result := True;
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] SetSitePermDown: %s', [E.Message]));
       Result := False;
     end;
   end;
