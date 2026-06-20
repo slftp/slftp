@@ -1752,12 +1752,16 @@ var
   t: TPazoPlainTask;
   fTask: TTask;
   fSlotsToRebuild: TList<TSiteSlot>;
+  fTasksToRemove: TList<TTask>;
   fSlot: TSiteSlot;
   fSlotsRebuilt: Boolean;
+  fNeedsQueueFire: Boolean;
 begin
   Result := False;
   fSlotsRebuilt := False;
+  fNeedsQueueFire := False;
   fSlotsToRebuild := TList<TSiteSlot>.Create;
+  fTasksToRemove := TList<TTask>.Create;
   try
     main_lock.Enter('RemovePazo');
     try
@@ -1771,7 +1775,11 @@ begin
             begin
               if t.slot1 = nil then
               begin
-                t.readyerror := True;
+                // Unassigned task: collect for immediate removal while the pazo
+                // object is still alive.  If we only mark readyerror, RemoveReady
+                // may run after TPazo.Destroy has freed mainpazo/ps1, causing the
+                // task destructor (which touches those objects) to AV.
+                fTasksToRemove.Add(fTask);
               end
               else if aForce then
               begin
@@ -1805,6 +1813,19 @@ begin
           end;
         end;
       end;
+
+      // Remove unassigned tasks immediately while main_lock protects the list
+      // and the owning pazo is still valid.
+      for fTask in fTasksToRemove do
+      begin
+        try
+          tasks.Remove(fTask);
+        except
+          on E: Exception do
+            Debug(dpError, section, Format('[EXCEPTION] RemovePazo (remove unassigned task): %s', [e.Message]));
+        end;
+      end;
+      fNeedsQueueFire := fTasksToRemove.Count > 0;
     finally
       main_lock.Leave;
     end;
@@ -1825,6 +1846,7 @@ begin
       end;
     end;
     fSlotsToRebuild.Free;
+    fTasksToRemove.Free;
   except
     on E: Exception do
     begin
@@ -1834,7 +1856,8 @@ begin
   end;
 
   // Wake up the queue thread so it can reuse any slots that were rebuilt
-  if fSlotsRebuilt then
+  // and so it notices the freed list entries.
+  if fSlotsRebuilt or fNeedsQueueFire then
     self.QueueFire;
 end;
 
