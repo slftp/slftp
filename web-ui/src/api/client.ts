@@ -307,3 +307,22 @@ export const loadSectionTesterData = async (): Promise<string> => {
   }
   return response.data || '';
 };
+
+// Sites API — section operations
+// SetSiteSection creates (or updates) a section on a slftp site when Dir is non-empty,
+// or removes it when Dir is empty.
+export const setSiteSection = async (
+  siteName: string,
+  section: string,
+  dir: string
+): Promise<boolean> => {
+  const response = await apiClient.post<any>('/ApiSitesService/SetSiteSection', {
+    SiteName: siteName,
+    Section: section,
+    Dir: dir,
+  });
+  if (response.data?.result && Array.isArray(response.data.result)) {
+    return response.data.result[0] as boolean;
+  }
+  return response.data as boolean;
+};

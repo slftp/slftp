@@ -67,7 +67,7 @@ interface SiteComparison {
 }
 
 // Direction: 'slftp' = use slftp path, 'cbftp' = use cbftp path
-type SyncDirection = 'slftp' | 'cbftp';
+type SyncDirection = 'slftp' | 'cbftp' | 'skip';
 
 interface SyncResult {
   site: string;
@@ -235,6 +235,9 @@ function SiteRow({ comp, isSelected, isExpanded, onToggle, onToggleSelect, onSyn
               <ScrollArea h={Math.min(displaySections.length * 55 + 20, 400)}>
                 <Stack gap="xs">
                   {displaySections.map((sec) => {
+                    // Default direction: adopt (slftp) for EXTRA_IN_CBFTP and MISMATCH.
+                    // 'slftp' = use slftp path (for MISMATCH) / adopt in slftp (for EXTRA).
+                    // The user can override per section via the SegmentedControl.
                     const direction = syncDirections.get(sec.name) || 'slftp';
                     return (
                     <Group key={sec.name} gap="md" wrap="nowrap" p="xs" style={{ 
@@ -255,9 +258,28 @@ function SiteRow({ comp, isSelected, isExpanded, onToggle, onToggleSelect, onSyn
                         {sec.status === 'EXTRA_IN_CBFTP' ? (
                           <>
                             <Text size="sm" c="dimmed" fs="italic" style={{ fontFamily: 'monospace', minWidth: 150 }}>(not in slftp)</Text>
-                            <IconArrowRight size={14} style={{ flexShrink: 0 }} />
-                            <Text size="sm" c="red" fw={500} style={{ fontFamily: 'monospace' }}>{sec.cbftpPath}</Text>
-                            <Badge size="sm" color="red" variant="light">Will be removed</Badge>
+                            <IconArrowLeft size={14} style={{ flexShrink: 0 }} />
+                            <Text size="sm" fw={500} style={{ fontFamily: 'monospace' }}>{sec.cbftpPath}</Text>
+                            {/* Direction selector: adopt (slftp) | delete (cbftp) | skip */}
+                            <SegmentedControl
+                              size="xs"
+                              value={direction}
+                              onChange={(val) => handleDirectionChange(sec.name, val as SyncDirection)}
+                              data={[
+                                { value: 'slftp', label: <Tooltip label="Adopt in slftp"><IconArrowLeft size={14} /></Tooltip> },
+                                { value: 'cbftp', label: <Tooltip label="Remove from cbftp"><IconX size={14} /></Tooltip> },
+                                { value: 'skip',  label: <Tooltip label="Skip"><IconArrowRight size={14} /></Tooltip> },
+                              ]}
+                            />
+                            {direction === 'slftp' && (
+                              <Badge size="sm" color="grape" variant="light">adopt in slftp</Badge>
+                            )}
+                            {direction === 'cbftp' && (
+                              <Badge size="sm" color="red" variant="light">remove from cbftp</Badge>
+                            )}
+                            {direction === 'skip' && (
+                              <Badge size="sm" color="gray" variant="light">skip</Badge>
+                            )}
                           </>
                         ) : (
                           <>
@@ -334,7 +356,7 @@ export function Sections() {
     queryFn: async (): Promise<SiteComparison[]> => {
       // 1. Get sites from slftp
       const res = await apiClient.post('/ApiSitesService/GetSites', { Filter: '' });
-      let rawSitesData = res.data.result?.[0] || res.data;
+      const rawSitesData = res.data.result?.[0] || res.data;
       let sitesList = rawSitesData.Sites || [];
       
       if (typeof sitesList === 'string') {
@@ -346,7 +368,7 @@ export function Sections() {
       const cbftpNamesSet = new Set(cbftpNames);
 
       // 3. Get detailed cbftp sites with sections
-      let cbftpSitesMap = new Map<string, CbftpSite>();
+      const cbftpSitesMap = new Map<string, CbftpSite>();
       try {
         const cbftpSites = await Promise.all(
           cbftpNames.map(name => 
@@ -465,8 +487,23 @@ export function Sections() {
 
           try {
             if (s.status === 'EXTRA_IN_CBFTP') {
-              // Delete extra section from site in cbftp
-              await deleteSiteSection(siteName, s.name);
+              // Default 'slftp' = adopt into slftp. Safer than 'cbftp' (delete)
+              // because losing cbftp sections is destructive.
+              const extraDir = siteDirections.get(s.name) || 'slftp';
+              if (extraDir === 'slftp' && s.cbftpPath) {
+                // Adopt the cbftp section into slftp with its path
+                let path = s.cbftpPath;
+                if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
+                await apiClient.post('/ApiSitesService/SetSiteSection', {
+                  SiteName: siteName,
+                  Section: s.name,
+                  Dir: path,
+                });
+              } else if (extraDir === 'cbftp') {
+                // Delete extra section from site in cbftp
+                await deleteSiteSection(siteName, s.name);
+              }
+              // 'skip' or empty cbftpPath: no action
               successCount++;
               continue;
             }
@@ -508,8 +545,9 @@ export function Sections() {
               await updateSiteSection(siteName, s.name, { path });
             }
             successCount++;
-          } catch (error: any) {
-            errorMsg = `${s.name}: ${error.message || String(error)}`;
+          } catch (error: unknown) {
+            const errMsg = error instanceof Error ? error.message : String(error);
+            errorMsg = `${s.name}: ${errMsg}`;
             console.error(`Failed to sync section ${s.name} for site ${siteName}:`, error);
           }
         }
