@@ -57,7 +57,7 @@ uses
   identserver, tasksunit, dirlist, ircchansettings, sltcp, slssl, kb, fake, console, sllanguagebase, irc, mycrypto, queueunit,
   sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
   mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
-  dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, tasklogin, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
+  dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, tasklogin, cbftpclient, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
   StrUtils, news, dbhandler, mormot.db.raw.sqlite3, mormot.db.sql.sqlite3, ZPlainMySqlDriver, mormot.db.sql.zeos, mormot.db.core, irccommands.prebot,
   taskautodirlist, slcriticalsection2, mormot.core.unicode, mormot.core.base, slapi, slapi.services.impl,
   IdGlobal, ZClasses, FLRE, RegExpr;
@@ -311,7 +311,9 @@ begin
   if (not glStartupGhostKillDone) and (SecondsBetween(Now, started) >= 15) then
   begin
     glStartupGhostKillDone := True;
-    if config.ReadBool('sites', 'kill_ghosts_on_startup', True) then
+    // In cbftp mode the FTP connections are owned by cbftp; ghost-kill via native
+    // slftp login tasks is obsolete and would create dead LOGIN tasks in the queue.
+    if (not IsCbftpMode) and config.ReadBool('sites', 'kill_ghosts_on_startup', True) then
     begin
       Debug(dpMessage, section, 'Startup: Triggering automatic ghost kill for all sites...');
       for i := 0 to sites.Count - 1 do
