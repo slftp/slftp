@@ -1742,18 +1742,29 @@ begin
         fFinishedPazos.Clear;
         fFinishedRankCalcPazos.Clear;
 
-        for p in fDeletedPazos do
+        for i := fDeletedPazos.Count - 1 downto 0 do
         begin
+          p := fDeletedPazos[i];
           try
-            p.Free;
+            if p.queuenumber.Value <= 0 then
+            begin
+              p.Free;
+              fDeletedPazos.Delete(i);
+            end
+            else
+            begin
+              Debug(dpSpam, rsections, 'TKBThread.Execute: delaying free of pazo %d (%s), queuenumber=%d - tasks still pending',
+                [p.pazo_id, p.rls.rlsname, p.queuenumber.Value]);
+            end;
           except
             on e: Exception do
             begin
               Debug(dpError, rsections, '[EXCEPTION] TKBThread.Execute FreePazo: %s', [e.Message]);
+              // Drop the pazo from the list so a bad one does not loop forever.
+              fDeletedPazos.Delete(i);
             end;
           end;
         end;
-        fDeletedPazos.Clear;
 
       except
         on e: Exception do

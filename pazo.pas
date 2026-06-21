@@ -1200,6 +1200,16 @@ begin
     glAlivePazosCS.Leave;
   end;
 
+  if queuenumber.Value > 0 then
+  begin
+    if rls <> nil then
+      Debug(dpError, section, Format('TPazo.Destroy called for pazo %d (%s) while queuenumber=%d - tasks still pending',
+        [pazo_id, rls.rlsname, queuenumber.Value]))
+    else
+      Debug(dpError, section, Format('TPazo.Destroy called for pazo %d while queuenumber=%d - tasks still pending',
+        [pazo_id, queuenumber.Value]));
+  end;
+
   Clear;
   PazoSitesList.Free;
   queuenumber.Free;
