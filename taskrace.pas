@@ -52,9 +52,6 @@ type
       it clears the back-reference so the race task can no longer signal a
       dangling dst pointer. }
     parentRaceTask: Pointer;
-    { Set to True once a stuck-WAITTASK diagnostic message has been emitted for
-      this task, so RemoveReady does not spam IRC with the same stuck task. }
-    stuck_logged: Boolean;
     destructor Destroy; override;
     constructor Create(const netname, channel, site1: String);
     function Execute(slot: Pointer): boolean; override;
@@ -3659,7 +3656,6 @@ begin
   event := TSynEvent.Create;
   wait_done := False;
   wait_start := 0;
-  stuck_logged := False;
   DiagRecordWaitTaskCreated(site1);
 end;
 
@@ -3753,6 +3749,8 @@ begin
 
     try
       DiagRecordWaitTaskDone(fElapsedMs, site1);
+      if fElapsedMs > 60000 then
+        Debug(dpError, c_section, Format('[QUEUE-DIAG] WAITTASK woke after %d ms: site=%s wait_for=%s slot1=%p', [fElapsedMs, site1, wait_for, Pointer(slot1)]));
     except
       on E: Exception do
         Debug(dpError, c_section, Format('[EXCEPTION] TWaitTask.Execute diag stage (record done): %s', [E.Message]));

@@ -1989,6 +1989,7 @@ var
   fFindBestTaskCount: Integer;
   fSuccessfulAssignments: Integer;
   fPerfLine: String;
+  fStuckLog: String;
   { Diagnostics slot counters }
   fDiagOnline, fDiagOffline, fDiagDown, fDiagMarkedDown,
   fDiagBusy, fDiagFree, fDiagWaitTaskBusy: Integer;
@@ -2108,20 +2109,28 @@ begin
                   // will no longer touch the task object.
                   if not TWaitTask(fTask).wait_done then
                   begin
-                    if (not TWaitTask(fTask).stuck_logged) and
-                       (TWaitTask(fTask).wait_start > 0) and
+                    if (TWaitTask(fTask).wait_start > 0) and
                        (SecondsBetween(Now, TWaitTask(fTask).wait_start) > 60) then
                     begin
                       try
-                        irc_Addadmin(Format('[QUEUE-DIAG] Stuck WAITTASK on %s (slot1 set): uid=%d name=%s wait_start=%s age=%ds ready=%s wait_done=%s',
+                        fStuckLog := Format('[QUEUE-DIAG] Stuck WAITTASK on %s (slot1 set): uid=%d name=%s wait_start=%s age=%ds ready=%s wait_done=%s',
                           [fSiteName, fTask.uid, fTask.Name, DateTimeToStr(TWaitTask(fTask).wait_start),
                            SecondsBetween(Now, TWaitTask(fTask).wait_start),
-                           BoolToStr(fTask.ready, True), BoolToStr(TWaitTask(fTask).wait_done, True)]));
+                           BoolToStr(fTask.ready, True), BoolToStr(TWaitTask(fTask).wait_done, True)]);
+                        try
+                          s := TSiteSlot(fTask.slot1);
+                          fStuckLog := fStuckLog + Format(' slot=%s todotask=%s iszombie=%s threadrunning=%s',
+                            [s.Name, BoolToStr(s.todotask = fTask, True),
+                             BoolToStr(s.IsZombie, True), BoolToStr(s.IsThreadRunning, True)]);
+                        except
+                          on E: Exception do
+                            fStuckLog := fStuckLog + Format(' slot=<inaccessible: %s>', [E.Message]);
+                        end;
+                        Debug(dpError, section, fStuckLog);
                       except
                         on E: Exception do
                           Debug(dpError, section, Format('[EXCEPTION] RemoveReady stuck WAITTASK log (slot1 set): %s', [E.Message]));
                       end;
-                      TWaitTask(fTask).stuck_logged := True;
                     end;
                     try
                       TWaitTask(fTask).event.SetEvent;
@@ -2185,20 +2194,20 @@ begin
                 // that the slot thread is still using.
                 if (fTask.ClassType = TWaitTask) and (not TWaitTask(fTask).wait_done) then
                 begin
-                  if (not TWaitTask(fTask).stuck_logged) and
-                     (TWaitTask(fTask).wait_start > 0) and
+                  if (TWaitTask(fTask).wait_start > 0) and
                      (SecondsBetween(Now, TWaitTask(fTask).wait_start) > 60) then
                   begin
                     try
-                      irc_Addadmin(Format('[QUEUE-DIAG] Stuck WAITTASK on %s (slot1 nil): uid=%d name=%s wait_start=%s age=%ds ready=%s wait_done=%s',
+                      fStuckLog := Format('[QUEUE-DIAG] Stuck WAITTASK on %s (slot1 nil): uid=%d name=%s wait_start=%s age=%ds ready=%s wait_done=%s parent=%p',
                         [fSiteName, fTask.uid, fTask.Name, DateTimeToStr(TWaitTask(fTask).wait_start),
                          SecondsBetween(Now, TWaitTask(fTask).wait_start),
-                         BoolToStr(fTask.ready, True), BoolToStr(TWaitTask(fTask).wait_done, True)]));
+                         BoolToStr(fTask.ready, True), BoolToStr(TWaitTask(fTask).wait_done, True),
+                         TWaitTask(fTask).parentRaceTask]);
+                      Debug(dpError, section, fStuckLog);
                     except
                       on E: Exception do
                         Debug(dpError, section, Format('[EXCEPTION] RemoveReady stuck WAITTASK log (slot1 nil): %s', [E.Message]));
                     end;
-                    TWaitTask(fTask).stuck_logged := True;
                   end;
                   try
                     TWaitTask(fTask).event.SetEvent;

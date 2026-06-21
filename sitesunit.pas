@@ -3473,6 +3473,8 @@ begin
     Debug(dpSpam, section, 'Slot %s stop begin', [Name]);
     shouldquit := True;
     event.SetEvent;
+    if (fCurrentWaitEvent = nil) and (ftodotask <> nil) and (ftodotask.ClassType = TWaitTask) then
+      Debug(dpError, section, Format('[QUEUE-DIAG] TSiteSlot.Stop: %s has WAITTASK %s but no cached wait event - task may never wake', [Name, ftodotask.Name]));
     // If the slot thread is currently executing a WAITTASK it is blocked on
     // the task's own event, not on this slot's event, so Fire above would not
     // wake it. Signal the wait task event as well so the slot thread can
@@ -4788,6 +4790,9 @@ begin
   { Now stop and join the old slot thread. It is no longer in the slots list,
     so no other thread will touch it. }
   try
+    if (fOldSiteSlot.todotask <> nil) and (fOldSiteSlot.todotask.ClassType = TWaitTask) then
+      Debug(dpError, section, Format('[QUEUE-DIAG] TSite.RebuildSlot rebuilding slot %d for %s with WAITTASK %s (threadrunning=%s)',
+        [aSlotNumber, self.Name, fOldSiteSlot.todotask.Name, BoolToStr(fOldSiteSlot.IsThreadRunning, True)]));
     fOldSiteSlot.Stop;
   except
     on E: Exception do
