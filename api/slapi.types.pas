@@ -66,6 +66,8 @@ type
     FQueueAutoCount: integer;
     FQueueOtherCount: integer;
     FCbftpVersion: RawUTF8;
+    FCbftpGitHash: RawUTF8;
+    FCbftpDistributionTag: RawUTF8;
     FCbftpUptime: Int64;
     FCbftpConnected: boolean;
     FCbftpEnabled: boolean;
@@ -73,6 +75,8 @@ type
     property Version: RawUTF8 read FVersion write FVersion;
     property Uptime: Int64 read FUptime write FUptime;
     property CbftpVersion: RawUTF8 read FCbftpVersion write FCbftpVersion;
+    property CbftpGitHash: RawUTF8 read FCbftpGitHash write FCbftpGitHash;
+    property CbftpDistributionTag: RawUTF8 read FCbftpDistributionTag write FCbftpDistributionTag;
     property CbftpUptime: Int64 read FCbftpUptime write FCbftpUptime;
     property CbftpConnected: boolean read FCbftpConnected write FCbftpConnected;
     property CbftpEnabled: boolean read FCbftpEnabled write FCbftpEnabled;

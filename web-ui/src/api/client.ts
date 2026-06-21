@@ -84,6 +84,8 @@ export interface SystemStatus {
   QueueAutoCount: number;
   QueueOtherCount: number;
   CbftpVersion?: string;
+  CbftpGitHash?: string;
+  CbftpDistributionTag?: string;
   CbftpUptime?: number;
   CbftpConnected?: boolean;
   CbftpEnabled?: boolean;

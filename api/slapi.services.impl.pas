@@ -1077,6 +1077,8 @@ begin
             end;
             if _Safe(v.build_info)^.Kind = dvObject then
             begin
+              Response.CbftpGitHash := StringToUTF8(string(v.build_info.git_hash));
+              Response.CbftpDistributionTag := StringToUTF8(string(v.build_info.distribution_tag));
               if v.build_info.git_hash <> '' then
                 Response.CbftpVersion := StringToUTF8(Format('%s (git# %s)', [string(v.build_info.version_tag), string(v.build_info.git_hash)]))
               else

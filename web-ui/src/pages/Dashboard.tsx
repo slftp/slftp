@@ -356,6 +356,12 @@ export function Dashboard() {
     return ver;
   };
 
+  const cbftpIsCompatible =
+    (stats.CbftpGitHash?.startsWith('DEADC0DE-') ?? false) ||
+    stats.CbftpDistributionTag === 'DEADC0DE';
+  const showWrongVersionBanner =
+    stats.CbftpEnabled && stats.CbftpConnected && !cbftpIsCompatible;
+
   const uptimeStr = formatUptime(stats.Uptime);
   const cbftpUptimeStr = stats.CbftpUptime ? formatUptime(stats.CbftpUptime) : '';
   const totalSites = stats.SitesCount;
@@ -409,6 +415,55 @@ export function Dashboard() {
           </Group>
         </Group>
       </Box>
+
+      {/* Wrong cbftp Version Warning */}
+      {showWrongVersionBanner && (
+        <Alert
+          icon={<IconAlertCircle size="1.25rem" />}
+          title="Wrong cbftp Version detected"
+          color="red"
+          radius="lg"
+          variant="filled"
+          styles={{
+            root: {
+              background: 'rgba(255, 77, 77, 0.15)',
+              border: '1px solid rgba(255, 77, 77, 0.5)',
+            },
+            title: {
+              color: '#ff4d4d',
+            },
+          }}
+        >
+          <Stack gap={6}>
+            <Text size="sm">
+              Connected to cbftp{' '}
+              <Text component="span" fw={700} style={{ fontFamily: 'monospace' }}>
+                {stats.CbftpVersion || 'unknown'}
+              </Text>
+              {stats.CbftpDistributionTag && stats.CbftpDistributionTag !== 'DEADC0DE' && (
+                <>
+                  {' '}distribution_tag={stats.CbftpDistributionTag}
+                </>
+              )}
+              . This version has no back-channel to slftp (no UDP events:
+              race_started/progress/done, site_status, speed_sample, nfo_available).
+              Stats, race orchestration and site status are non-functional.
+            </Text>
+            <Text size="sm">
+              Please deploy the DEADC0DE fork — see{' '}
+              <Text component="span" fw={600} style={{ fontFamily: 'monospace' }}>
+                /mnt/cbftp_fast
+              </Text>{' '}
+              on the server. Build with <code>make</code> (using{' '}
+              <code>-j$(nproc)</code>), then copy the binary to{' '}
+              <Text component="span" style={{ fontFamily: 'monospace' }}>
+                /home/cbftp/cbftp
+              </Text>
+              .
+            </Text>
+          </Stack>
+        </Alert>
+      )}
 
       {/* cbftp Sync Warnings */}
       {stats.CbftpEnabled && stats.CbftpConnected && cbftpSyncSummary &&
