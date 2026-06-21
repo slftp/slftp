@@ -20,7 +20,7 @@ implementation
 
 uses
   SysUtils, SyncObjs, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags, console, dbaddimdb,
-  configunit, tasksunit, dirlist, mystrings, sitesunit, dbaddnfo, dbaddurl, kb.releaseinfo;
+  configunit, tasksunit, dirlist, mystrings, sitesunit, dbaddnfo, dbaddurl, kb.releaseinfo, cbftpclient;
 
 const
   section = 'tasksitenfo';
@@ -83,8 +83,11 @@ begin
     exit;
   end;
 
-  if mainpazo.IsUDPEnabled then
+  if IsCbftpMode then
   begin
+    // In cbftp mode NFO downloads are driven by the nfo_available UDP event
+    // (kb.pas cetNfoAvailable handler) which fetches the NFO via cbftp REST.
+    // A native FTP leech would be redundant and would only add queue noise.
     ready := True;
     Result := True;
     exit;
