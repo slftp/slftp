@@ -272,6 +272,7 @@ function PazoAdd(const rls: TRelease): TPazo;
 procedure PazoInit;
 
 function FindMostCompleteSite(pazo: TPazo): TPazoSite;
+function IsPazoAlive(const aPazo: TPazo): Boolean;
 
 type
   TCbftpLatencyEntry = record
@@ -293,6 +294,14 @@ uses
 
 const
   section = 'pazo';
+
+var
+  { Tracks pazo objects that are still alive.  Task destructors use this to
+    avoid touching a TPazo (and its sites/counters) that has already been
+    destroyed, which would otherwise cause access violations when a task
+    outlives its owning pazo. }
+  glAlivePazos: TDictionary<Pointer, Boolean>;
+  glAlivePazosCS: TSLCriticalSection2;
 
 var
   local_pazo_id: integer;
@@ -1149,7 +1158,31 @@ begin
 
   LoadUDPConfig;
 
+  glAlivePazosCS.Enter('TPazo.Create');
+  try
+    if glAlivePazos = nil then
+      glAlivePazos := TDictionary<Pointer, Boolean>.Create;
+    glAlivePazos.AddOrSetValue(Pointer(Self), True);
+  finally
+    glAlivePazosCS.Leave;
+  end;
+
   inherited Create;
+end;
+
+function IsPazoAlive(const aPazo: TPazo): Boolean;
+begin
+  Result := False;
+  if aPazo = nil then
+    Exit;
+  if glAlivePazosCS = nil then
+    Exit;
+  glAlivePazosCS.Enter('IsPazoAlive');
+  try
+    Result := (glAlivePazos <> nil) and glAlivePazos.ContainsKey(Pointer(aPazo));
+  finally
+    glAlivePazosCS.Leave;
+  end;
 end;
 
 destructor TPazo.Destroy;
@@ -1158,6 +1191,15 @@ begin
     Debug(dpSpam, section, 'TPazo.Destroy: %s', [rls.rlsname])
   else
     Debug(dpSpam, section, 'TPazo.Destroy: SPEEDTEST');
+
+  glAlivePazosCS.Enter('TPazo.Destroy');
+  try
+    if glAlivePazos <> nil then
+      glAlivePazos.Remove(Pointer(Self));
+  finally
+    glAlivePazosCS.Leave;
+  end;
+
   Clear;
   PazoSitesList.Free;
   queuenumber.Free;
@@ -2516,9 +2558,13 @@ end;
 initialization
   GCbftpLatencyMap := TDictionary<String, TCbftpLatencyEntry>.Create;
   GCbftpLatencyLock := TSlCriticalSection2.Create('CbftpLatency');
+  glAlivePazosCS := TSLCriticalSection2.Create('AlivePazos');
+  glAlivePazos := TDictionary<Pointer, Boolean>.Create;
 
 finalization
   GCbftpLatencyMap.Free;
   GCbftpLatencyLock.Free;
+  glAlivePazos.Free;
+  glAlivePazosCS.Free;
 
 end.

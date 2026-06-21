@@ -121,7 +121,7 @@ end;
 
 destructor TPazoPlainTask.Destroy;
 begin
-  if readyerror then
+  if readyerror and IsPazoAlive(mainpazo) then
     mainpazo.readyerror := True;
 
   inherited;
@@ -158,22 +158,28 @@ end;
 
 destructor TPazoTask.Destroy;
 begin
-  mainpazo.queuenumber.Decrease;
+  if IsPazoAlive(mainpazo) then
+  begin
+    mainpazo.queuenumber.Decrease;
 
-  if ClassType = TPazoRaceTask then
-  begin
-    mainpazo.racetasks.Decrement;
-    ps1.s_racetasks.Decrement;
-  end;
-  if ClassType = TPazoMkdirTask then
-  begin
-    mainpazo.mkdirtasks.Decrement;
-    ps1.s_mkdirtasks.Decrement;
-  end;
-  if ClassType = TPazoDirlistTask then
-  begin
-    mainpazo.dirlisttasks.Decrement;
-    ps1.s_dirlisttasks.Decrement;
+    if ClassType = TPazoRaceTask then
+    begin
+      mainpazo.racetasks.Decrement;
+      if ps1 <> nil then
+        ps1.s_racetasks.Decrement;
+    end;
+    if ClassType = TPazoMkdirTask then
+    begin
+      mainpazo.mkdirtasks.Decrement;
+      if ps1 <> nil then
+        ps1.s_mkdirtasks.Decrement;
+    end;
+    if ClassType = TPazoDirlistTask then
+    begin
+      mainpazo.dirlisttasks.Decrement;
+      if ps1 <> nil then
+        ps1.s_dirlisttasks.Decrement;
+    end;
   end;
 
   inherited;
