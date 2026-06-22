@@ -1604,6 +1604,9 @@ var
   fPendingCount: Integer;
   fCurrentTask: TTask;
   fCurrentTaskIsWaitTask: Boolean;
+  fTaskStart: TDateTime;
+  fTaskElapsedMs: Int64;
+  fTaskIsRace: Boolean;
 begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
   tname := 'nil';
@@ -1625,6 +1628,9 @@ begin
         // wait_done in its own finally block), so we must not dereference
         // fCurrentTask for WAITTASK cleanup decisions.
         fCurrentTaskIsWaitTask := (fCurrentTask <> nil) and (fCurrentTask is TWaitTask);
+        fTaskIsRace := (fCurrentTask <> nil) and (not fCurrentTaskIsWaitTask) and (fCurrentTask is TPazoRaceTask);
+        if fTaskIsRace then
+          fTaskStart := Now;
         try
           tname := fCurrentTask.Name;
         except
@@ -1684,6 +1690,20 @@ begin
         end;
 
         Debug(dpSpam, section, Format('<-- %s', [Name]));
+
+        if fTaskIsRace then
+        begin
+          fTaskElapsedMs := MilliSecondsBetween(Now, fTaskStart);
+          if fTaskElapsedMs > 60000 then
+          begin
+            try
+              Debug(dpError, section, Format('[QUEUE-DIAG] RACE task took %d ms on %s: %s', [fTaskElapsedMs, Name, tname]));
+            except
+              on E: Exception do
+                Debug(dpError, section, Format('[QUEUE-DIAG] RACE task took %d ms on %s: <name unreadable: %s>', [fTaskElapsedMs, Name, E.Message]));
+            end;
+          end;
+        end;
 
         // For WAITTASKs: clear todotask immediately after Execute returns.
         // TWaitTask.Execute sets wait_done at the very end, which allows RemoveReady
