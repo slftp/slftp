@@ -3048,6 +3048,7 @@ end;
 
 procedure TQueueThread.QueueDebugSnapshot;
 var
+  i: Integer;
   fTask: TTask;
   fTotal, fRace, fRaceAssigned, fRaceUnassigned: Integer;
   fDirlist, fAuto, fOther: Integer;
@@ -3059,7 +3060,8 @@ var
   fOldestRaceAge: Integer;
   fOldestRaceName: String;
   fReport: String;
-  fSite: TSite;
+  fLocalSite: TSite;
+  fIsRace, fIsWait: Boolean;
 begin
   fTotal := 0;
   fRace := 0;
@@ -3076,29 +3078,63 @@ begin
   fOldestRaceAge := 0;
   fOldestRaceName := '';
 
-  for fTask in tasks do
+  if tasks = nil then
+  begin
+    Debug(dpError, section, Format('[QUEUE-DEBUG] site=%s tasks=nil', [fSiteName]));
+    Exit;
+  end;
+
+  for i := 0 to tasks.Count - 1 do
   begin
     try
+      fTask := TTask(tasks[i]);
+      if fTask = nil then
+        Continue;
       Inc(fTotal);
-      if fTask is TPazoRaceTask then
+
+      fIsRace := False;
+      fIsWait := False;
+      try
+        fIsRace := fTask is TPazoRaceTask;
+        if not fIsRace then
+          fIsWait := fTask is TWaitTask;
+      except
+        on E: Exception do
+        begin
+          Debug(dpError, section, Format('[QUEUE-DEBUG] site=%s task #%d class check failed: %s', [fSiteName, i, E.Message]));
+          Continue;
+        end;
+      end;
+
+      if fIsRace then
       begin
         Inc(fRace);
-        if fTask.slot1 <> nil then
-          Inc(fRaceAssigned)
-        else
-          Inc(fRaceUnassigned);
-        if (fTask.assigned > 0) and (fTask.slot1 = nil) then
-        begin
-          fAge := SecondsBetween(Now, fTask.assigned);
-          if fAge > fOldestRaceAge then
+        try
+          if fTask.slot1 <> nil then
+            Inc(fRaceAssigned)
+          else
+            Inc(fRaceUnassigned);
+        except
+          on E: Exception do
+            Debug(dpError, section, Format('[QUEUE-DEBUG] site=%s race task #%d slot1 check failed: %s', [fSiteName, i, E.Message]));
+        end;
+        try
+          if (fTask.assigned > 0) and (fTask.slot1 = nil) then
           begin
-            fOldestRaceAge := fAge;
-            try
-              fOldestRaceName := fTask.Name;
-            except
-              fOldestRaceName := '<name unreadable>';
+            fAge := SecondsBetween(Now, fTask.assigned);
+            if fAge > fOldestRaceAge then
+            begin
+              fOldestRaceAge := fAge;
+              try
+                fOldestRaceName := fTask.Name;
+              except
+                fOldestRaceName := '<name unreadable>';
+              end;
             end;
           end;
+        except
+          on E: Exception do
+            Debug(dpError, section, Format('[QUEUE-DEBUG] site=%s race task #%d assigned check failed: %s', [fSiteName, i, E.Message]));
         end;
       end
       else if fTask is TPazoDirlistTask then
@@ -3108,32 +3144,37 @@ begin
       else
         Inc(fOther);
 
-      if fTask is TWaitTask then
+      if fIsWait then
       begin
         Inc(fWaitTotal);
-        if not TWaitTask(fTask).wait_done then
-        begin
-          Inc(fWaitActive);
-          if (TWaitTask(fTask).wait_start > 0) then
+        try
+          if not TWaitTask(fTask).wait_done then
           begin
-            fAge := SecondsBetween(Now, TWaitTask(fTask).wait_start);
-            if fAge > 60 then
-              Inc(fWaitStuck);
-            if fAge > fOldestWaitAge then
+            Inc(fWaitActive);
+            if (TWaitTask(fTask).wait_start > 0) then
             begin
-              fOldestWaitAge := fAge;
-              try
-                fOldestWaitName := fTask.Name;
-              except
-                fOldestWaitName := '<name unreadable>';
+              fAge := SecondsBetween(Now, TWaitTask(fTask).wait_start);
+              if fAge > 60 then
+                Inc(fWaitStuck);
+              if fAge > fOldestWaitAge then
+              begin
+                fOldestWaitAge := fAge;
+                try
+                  fOldestWaitName := fTask.Name;
+                except
+                  fOldestWaitName := '<name unreadable>';
+                end;
               end;
             end;
           end;
+        except
+          on E: Exception do
+            Debug(dpError, section, Format('[QUEUE-DEBUG] site=%s wait task #%d state check failed: %s', [fSiteName, i, E.Message]));
         end;
       end;
     except
       on E: Exception do
-        Debug(dpError, section, Format('[EXCEPTION] QueueDebugSnapshot task scan: %s', [E.Message]));
+        Debug(dpError, section, Format('[QUEUE-DEBUG] site=%s task #%d scan failed: %s', [fSiteName, i, E.Message]));
     end;
   end;
 
@@ -3143,43 +3184,53 @@ begin
   fSlotMarkedDown := 0;
   fSlotBusy := 0;
   fSlotFree := 0;
-  fSite := TSite(fSite);
-  if fSite <> nil then
+  fLocalSite := TSite(Self.fSite);
+  if (fLocalSite <> nil) and (fLocalSite.slots <> nil) then
   begin
-    fSite.fFreeSlotsCS.Enter('QueueDebugSnapshot slot scan');
     try
-      for fDiagSlot in fSite.slots do
-      begin
-        try
-          case fDiagSlot.status of
-            ssOnline: Inc(fSlotOnline);
-            ssOffline: Inc(fSlotOffline);
-            ssDown: Inc(fSlotDown);
-            ssMarkedDown: Inc(fSlotMarkedDown);
+      fLocalSite.fFreeSlotsCS.Enter('QueueDebugSnapshot slot scan');
+      try
+        for fDiagSlot in fLocalSite.slots do
+        begin
+          try
+            case fDiagSlot.status of
+              ssOnline: Inc(fSlotOnline);
+              ssOffline: Inc(fSlotOffline);
+              ssDown: Inc(fSlotDown);
+              ssMarkedDown: Inc(fSlotMarkedDown);
+            end;
+            if fDiagSlot.todotask <> nil then
+              Inc(fSlotBusy)
+            else
+              Inc(fSlotFree);
+          except
+            on E: Exception do
+              Debug(dpError, section, Format('[QUEUE-DEBUG] site=%s slot scan failed: %s', [fSiteName, E.Message]));
           end;
-          if fDiagSlot.todotask <> nil then
-            Inc(fSlotBusy)
-          else
-            Inc(fSlotFree);
-        except
-          on E: Exception do
-            Debug(dpError, section, Format('[EXCEPTION] QueueDebugSnapshot slot scan: %s', [E.Message]));
         end;
+      finally
+        fLocalSite.fFreeSlotsCS.Leave;
       end;
-    finally
-      fSite.fFreeSlotsCS.Leave;
+    except
+      on E: Exception do
+        Debug(dpError, section, Format('[QUEUE-DEBUG] site=%s slot scan lock failed: %s', [fSiteName, E.Message]));
     end;
   end;
 
-  fReport := Format('[QUEUE-DEBUG] site=%s total=%d race=%d(assigned=%d unassigned=%d) dirlist=%d auto=%d other=%d wait=%d(active=%d stuck>60s=%d) slots=%d/%d/%d/%d busy=%d free=%d',
-    [fSiteName, fTotal, fRace, fRaceAssigned, fRaceUnassigned, fDirlist, fAuto, fOther,
-     fWaitTotal, fWaitActive, fWaitStuck, fSlotOnline, fSlotOffline, fSlotDown, fSlotMarkedDown,
-     fSlotBusy, fSlotFree]);
-  if fOldestWaitAge > 0 then
-    fReport := fReport + Format(' oldest_wait=%ds:%s', [fOldestWaitAge, fOldestWaitName]);
-  if fOldestRaceAge > 0 then
-    fReport := fReport + Format(' oldest_unassigned_race=%ds:%s', [fOldestRaceAge, fOldestRaceName]);
-  Debug(dpError, section, fReport);
+  try
+    fReport := Format('[QUEUE-DEBUG] site=%s total=%d race=%d(assigned=%d unassigned=%d) dirlist=%d auto=%d other=%d wait=%d(active=%d stuck>60s=%d) slots=%d/%d/%d/%d busy=%d free=%d',
+      [fSiteName, fTotal, fRace, fRaceAssigned, fRaceUnassigned, fDirlist, fAuto, fOther,
+       fWaitTotal, fWaitActive, fWaitStuck, fSlotOnline, fSlotOffline, fSlotDown, fSlotMarkedDown,
+       fSlotBusy, fSlotFree]);
+    if fOldestWaitAge > 0 then
+      fReport := fReport + Format(' oldest_wait=%ds:%s', [fOldestWaitAge, fOldestWaitName]);
+    if fOldestRaceAge > 0 then
+      fReport := fReport + Format(' oldest_unassigned_race=%ds:%s', [fOldestRaceAge, fOldestRaceName]);
+    Debug(dpError, section, fReport);
+  except
+    on E: Exception do
+      Debug(dpError, section, Format('[QUEUE-DEBUG] site=%s report formatting failed: %s', [fSiteName, E.Message]));
+  end;
 end;
 
 procedure TQueueThread.FlushPerfLog(const aTaskCount: Integer);
