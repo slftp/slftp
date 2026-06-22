@@ -42,6 +42,7 @@ type
   queueclean_last_run: TDateTime;
   queue_last_stat_update: TDateTime;
   fLastDiagSnapshotTime: TDateTime;
+  fLastQueueDebugSnapshot: TDateTime;
   fLastRecalcFreeslotsTime: TDateTime;
   fLastDirlistCheckTime: TDateTime;
   fLastLowPriorityLogTime: TDateTime;
@@ -102,6 +103,8 @@ function FetchAutoDirlist: TAutoDirlistTask;
 function FetchAutoNuke: TAutoNukeTask;
 { @abstract(Returns count of pending race tasks targeting the given destination site) }
 function GetPendingRaceTasksToDestination(const aDestinationSiteName: String): integer;
+{ Periodic debug snapshot of this site's queue state (logged to dpError). }
+procedure QueueDebugSnapshot;
 
 { Send the current tasks to the queue console window. }
 procedure QueueSendCurrentTasksToConsole;
@@ -631,6 +634,7 @@ begin
     queueclean_last_run := Now;
     queue_last_stat_update := Now;
     fLastDiagSnapshotTime := Now;
+    fLastQueueDebugSnapshot := Now;
     fLastRecalcFreeslotsTime := Now;
     FreeOnTerminate := True;
     fQueueStat := TQueueStat.Create();
@@ -2475,6 +2479,17 @@ begin
         CollectNeedMkdirStats(fDiagNeedMkdirDirlists, fDiagRaceTasksWaitingOnMkdir);
         DiagUpdateNeedMkdirStats(fDiagNeedMkdirDirlists, fDiagRaceTasksWaitingOnMkdir, fSiteName);
         DiagTakeSnapshot;
+
+        if MilliSecondsBetween(fLastQueueDebugSnapshot, Now) >= 60000 then
+        begin
+          fLastQueueDebugSnapshot := Now;
+          try
+            QueueDebugSnapshot;
+          except
+            on E: Exception do
+              Debug(dpError, section, Format('[EXCEPTION] QueueDebugSnapshot: %s', [E.Message]));
+          end;
+        end;
       end;
 
       fLastStep := 'IdleQuitTasks';
@@ -3029,6 +3044,142 @@ begin
   end;
 
   //Debug(dpMessage, section, 'QueueClean end %d', [tasks.Count]);
+end;
+
+procedure TQueueThread.QueueDebugSnapshot;
+var
+  fTask: TTask;
+  fTotal, fRace, fRaceAssigned, fRaceUnassigned: Integer;
+  fDirlist, fAuto, fOther: Integer;
+  fWaitTotal, fWaitActive, fWaitStuck: Integer;
+  fSlotOnline, fSlotOffline, fSlotDown, fSlotMarkedDown, fSlotBusy, fSlotFree: Integer;
+  fDiagSlot: TSiteSlot;
+  fOldestWaitAge, fAge: Integer;
+  fOldestWaitName: String;
+  fOldestRaceAge: Integer;
+  fOldestRaceName: String;
+  fReport: String;
+  fSite: TSite;
+begin
+  fTotal := 0;
+  fRace := 0;
+  fRaceAssigned := 0;
+  fRaceUnassigned := 0;
+  fDirlist := 0;
+  fAuto := 0;
+  fOther := 0;
+  fWaitTotal := 0;
+  fWaitActive := 0;
+  fWaitStuck := 0;
+  fOldestWaitAge := 0;
+  fOldestWaitName := '';
+  fOldestRaceAge := 0;
+  fOldestRaceName := '';
+
+  for fTask in tasks do
+  begin
+    try
+      Inc(fTotal);
+      if fTask is TPazoRaceTask then
+      begin
+        Inc(fRace);
+        if fTask.slot1 <> nil then
+          Inc(fRaceAssigned)
+        else
+          Inc(fRaceUnassigned);
+        if (fTask.assigned > 0) and (fTask.slot1 = nil) then
+        begin
+          fAge := SecondsBetween(Now, fTask.assigned);
+          if fAge > fOldestRaceAge then
+          begin
+            fOldestRaceAge := fAge;
+            try
+              fOldestRaceName := fTask.Name;
+            except
+              fOldestRaceName := '<name unreadable>';
+            end;
+          end;
+        end;
+      end
+      else if fTask is TPazoDirlistTask then
+        Inc(fDirlist)
+      else if fTask is TAutoDirlistTask then
+        Inc(fAuto)
+      else
+        Inc(fOther);
+
+      if fTask is TWaitTask then
+      begin
+        Inc(fWaitTotal);
+        if not TWaitTask(fTask).wait_done then
+        begin
+          Inc(fWaitActive);
+          if (TWaitTask(fTask).wait_start > 0) then
+          begin
+            fAge := SecondsBetween(Now, TWaitTask(fTask).wait_start);
+            if fAge > 60 then
+              Inc(fWaitStuck);
+            if fAge > fOldestWaitAge then
+            begin
+              fOldestWaitAge := fAge;
+              try
+                fOldestWaitName := fTask.Name;
+              except
+                fOldestWaitName := '<name unreadable>';
+              end;
+            end;
+          end;
+        end;
+      end;
+    except
+      on E: Exception do
+        Debug(dpError, section, Format('[EXCEPTION] QueueDebugSnapshot task scan: %s', [E.Message]));
+    end;
+  end;
+
+  fSlotOnline := 0;
+  fSlotOffline := 0;
+  fSlotDown := 0;
+  fSlotMarkedDown := 0;
+  fSlotBusy := 0;
+  fSlotFree := 0;
+  fSite := TSite(fSite);
+  if fSite <> nil then
+  begin
+    fSite.fFreeSlotsCS.Enter('QueueDebugSnapshot slot scan');
+    try
+      for fDiagSlot in fSite.slots do
+      begin
+        try
+          case fDiagSlot.status of
+            ssOnline: Inc(fSlotOnline);
+            ssOffline: Inc(fSlotOffline);
+            ssDown: Inc(fSlotDown);
+            ssMarkedDown: Inc(fSlotMarkedDown);
+          end;
+          if fDiagSlot.todotask <> nil then
+            Inc(fSlotBusy)
+          else
+            Inc(fSlotFree);
+        except
+          on E: Exception do
+            Debug(dpError, section, Format('[EXCEPTION] QueueDebugSnapshot slot scan: %s', [E.Message]));
+        end;
+      end;
+    finally
+      fSite.fFreeSlotsCS.Leave;
+    end;
+  end;
+
+  fReport := Format('[QUEUE-DEBUG] site=%s total=%d race=%d(assigned=%d unassigned=%d) dirlist=%d auto=%d other=%d wait=%d(active=%d stuck>60s=%d) slots=%d/%d/%d/%d busy=%d free=%d',
+    [fSiteName, fTotal, fRace, fRaceAssigned, fRaceUnassigned, fDirlist, fAuto, fOther,
+     fWaitTotal, fWaitActive, fWaitStuck, fSlotOnline, fSlotOffline, fSlotDown, fSlotMarkedDown,
+     fSlotBusy, fSlotFree]);
+  if fOldestWaitAge > 0 then
+    fReport := fReport + Format(' oldest_wait=%ds:%s', [fOldestWaitAge, fOldestWaitName]);
+  if fOldestRaceAge > 0 then
+    fReport := fReport + Format(' oldest_unassigned_race=%ds:%s', [fOldestRaceAge, fOldestRaceName]);
+  Debug(dpError, section, fReport);
 end;
 
 procedure TQueueThread.FlushPerfLog(const aTaskCount: Integer);
