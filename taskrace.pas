@@ -1335,6 +1335,7 @@ var
   srcPercentStr, dstPercentStr: String;
   fSrcDirlist: TDirlist;
   fDstDirlist: TDirlist;
+  fMethodStart, fReadyStart, fTransferEnd, fMethodEnd: TDateTime;
 
   { FXP partial completion timeout tracking }
   fSourceCompleteTimestamp: TDateTime; //< Timestamp when source sent 226 (GetTickCount64)
@@ -1583,6 +1584,7 @@ begin
   Debug(dpMessage, c_section, '--> ' + tname);
 
   TryAgain:
+  fMethodStart := Now;
   if ((ps1.error) or (ps2.error) or (ps1.status = rssNuked) or (ps2.status = rssNuked) or (slshutdown)) then
   begin
     readyerror := True;
@@ -2567,6 +2569,7 @@ begin
   Debug(dpSpam, 'taskrace', '--> SENT: RETR %s', [ssrc.TranslateFilename(filename)]);
   Debug(dpSpam, 'taskrace', '<-- RECEIVED: %s', [lastResponse]);
 
+  fReadyStart := Now;
   started := Now;
   fLastSrcFileSize := -1;
   fLastSrcUploader := '';
@@ -2931,6 +2934,7 @@ begin
   end;
 
   Debug(dpSpam, 'taskrace', '<-- WAIT');
+  fTransferEnd := Now;
 
   //TODO: [ERROR FXP] TPazoRaceTask DST/0, RACE 4727 SRC->DST: Mortal.Kombat.XL-PLAZA plaza-mortal.kombat.xl.s04 (36) 421 421 Timeout (60 seconds): closing control connection.
   //      RACE 4727 SRC->DST: Mortal.Kombat.XL-PLAZA plaza-mortal.kombat.xl.s04 (36) 238.42mB @ 1.16mB/s <-- shouldn't be there, wasn't transfered because a timeout occur
@@ -3380,8 +3384,24 @@ begin
   // *** transfer was successful! ***
   debug(dpSpam, c_section, 'File transfer ready %s->%s %s', [site1, site2, filename]);
   ended := Now;
+  fMethodEnd := Now;
   time_race := MilliSecondsBetween(ended, started);
   response := IntToStr(time_race);
+
+  if MilliSecondsBetween(fMethodEnd, fMethodStart) > 60000 then
+  begin
+    try
+      Debug(dpError, c_section, Format('[QUEUE-DIAG] RACE phases total=%dms ready=%dms transfer=%dms post=%dms on %s/%s: %s',
+        [MilliSecondsBetween(fMethodEnd, fMethodStart),
+         MilliSecondsBetween(fReadyStart, fMethodStart),
+         MilliSecondsBetween(fTransferEnd, fReadyStart),
+         MilliSecondsBetween(fMethodEnd, fTransferEnd),
+         ssrc.Name, sdst.Name, tname]));
+    except
+      on E: Exception do
+        Debug(dpError, c_section, Format('[QUEUE-DIAG] RACE phases log failed: %s', [E.Message]));
+    end;
+  end;
 
 
 

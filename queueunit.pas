@@ -3246,6 +3246,8 @@ begin
      fPerfAggAssign, fPerfAggQueueStat, fPerfAggIdleQuit,
      fPerfAggFindBestTaskCount, fPerfAggSuccessfulAssignments]);
 
+  Debug(dpError, section, '[QUEUE-PERF] ' + fLine);
+
   QueuePerfLogCS.Enter('PerfLog');
   try
     QueuePerfLog.Add(fLine);
