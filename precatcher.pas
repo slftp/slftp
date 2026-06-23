@@ -1389,17 +1389,8 @@ procedure TriggerAutoDirlistFill(const aSitename, aSection, aRelease: String);
 var
   sitesArr: array of RawUtf8;
 begin
-  if GlCbftpClient = nil then
-  begin
-    Debug(dpError, rsections, Format('[AUTOREQFILL] cbftp client not initialised, skipping %s -> %s', [aRelease, aSitename]));
+  if (GlCbftpClient = nil) or (aSection = '') then
     Exit;
-  end;
-
-  if aSection = '' then
-  begin
-    Debug(dpError, rsections, Format('[AUTOREQFILL] empty section for %s -> %s, skipping', [aRelease, aSitename]));
-    Exit;
-  end;
 
   SetLength(sitesArr, 1);
   sitesArr[0] := StringToUtf8(aSitename);
@@ -1408,9 +1399,7 @@ begin
   begin
     irc_Addstats(Format('<b>[AUTOREQFILL]</b> Spread started: %s/%s to %s', [aSection, aRelease, aSitename]));
     news.SlftpNewsAdd('AUTOREQFILL', Format('Spread started: %s/%s to %s', [aSection, aRelease, aSitename]));
-  end
-  else
-    Debug(dpError, rsections, Format('[AUTOREQFILL] StartSpreadJob failed for %s/%s -> %s', [aSection, aRelease, aSitename]));
+  end;
 end;
 
 end.
