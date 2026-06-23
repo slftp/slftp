@@ -77,6 +77,7 @@ var
   speedstats_recalc_routes_interval: integer;
   backup_interval: integer;
   new_news_announce_interval: integer;
+  autorules_last_tick: TDateTime;
 
 function kilepescsekker(socket: TslTCPSocket): boolean;
 begin
@@ -294,6 +295,7 @@ begin
   speedstats_recalc_routes_interval := config.readInteger('speedstats', 'recalc_routes_interval', 3600);
   backup_interval := config.ReadInteger('backup', 'backup_interval', 0); //< time value in seconds for automatic backup
   new_news_announce_interval := config.ReadInteger('news', 'new_news_announce_interval', 3); //< time value in hours for announcing unread news count
+  autorules_last_tick := 0;
 end;
 
 procedure Main_Iter;
@@ -452,6 +454,31 @@ begin
           Debug(dpError, section, '[EXCEPTION] Main_Iter(SlftpNewsStatus): %s', [e.Message]);
           last_news_announce := Now;
         end;
+      end;
+    end;
+  end;
+
+  // autorules scheduler (cbftp mode only): poll per-site NextAutoRulesTime once per
+  // second and call TSite.AutoRulesSync for each site whose timer has expired.
+  // AutoRulesSync issues a synchronous cbftp REST call (~100ms-2s) so we only do
+  // one site per tick to keep Main_Iter responsive.
+  if IsCbftpMode and (SecondsBetween(Now, autorules_last_tick) >= 1) then
+  begin
+    autorules_last_tick := Now;
+    fSite := nil;
+    for i := 0 to sites.Count - 1 do
+    begin
+      fSite := TSite(sites.Items[i]);
+      if (fSite.AutoRulesStatus > 0) and
+         ((fSite.NextAutoRulesTime = 0) or (Now >= fSite.NextAutoRulesTime)) then
+      begin
+        try
+          fSite.AutoRulesSync;
+        except
+          on E: Exception do
+            Debug(dpError, section, Format('[EXCEPTION] Main_Iter(AutoRulesSync) %s: %s', [fSite.Name, E.Message]));
+        end;
+        Break; // one site per second to keep Main_Iter responsive
       end;
     end;
   end;

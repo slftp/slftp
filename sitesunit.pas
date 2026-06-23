@@ -210,6 +210,7 @@ type
     fNumDn: integer;
     fNumUp: integer;
     fQueue: TQueueThread;
+    fNextAutoRulesTime: TDateTime;
     fMaxUp: integer;
     fMaxDn: integer;
     fMaxPreDn: integer;
@@ -475,6 +476,15 @@ type
     procedure AutoNuke;
     procedure AutoIndex;
     procedure Auto;
+    // cbftp-mode: synchronously fetch and process SITE RULES via cbftp REST.
+    // No task is queued - safe to call from any thread (blocks briefly).
+    procedure AutoRulesSync;
+    // Helper: parse rules string, diff against stored file, emit IRC/news, save.
+    // Returns True on success.
+    function ProcessSiteRulesDiff(const rules: String): Boolean;
+    // Helper: call cbftp REST /raw with "SITE RULES" for this site.
+    // Returns the rules string or empty on error.
+    function FetchSiteRulesViaCbftp: String;
 
     procedure RecalcFreeslots;
     procedure FullLogin;
@@ -654,6 +664,7 @@ type
     property IsUp: Boolean read GetIsUp;
 
     property AutoRulesStatus: integer read GetAutoRulesStatus write SetAutoRulesStatus; //< Interval in seconds for autorules, zero means turned off
+    property NextAutoRulesTime: TDateTime read fNextAutoRulesTime write fNextAutoRulesTime; //< When the next cbftp autorules fetch should fire (0 = fetch on next tick)
     property SetDownOnOutOfSpace: Boolean read GetSetDownOnOutOfSpace write SetSetDownOnOutOfSpace; //< per site set_down_on_out_of_space setting, uses global if not set
     property SetDownOnOutOfCredits: Boolean read GetSetDownOnOutOfCredits write SetSetDownOnOutOfCredits; //< per site set_down_on_out_of_credits setting, uses global if not set
     property UseReverseFxpSource: boolean read GetUseReverseFxpSource write SetUseReverseFxpSource; //< a value indicating whether reverse FXP will be used if the site is the source for the transfer
@@ -791,7 +802,9 @@ implementation
 uses
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
-  dirlist.helpers, tags, Generics.Defaults, cbftpclient, mormot.core.base, mormot.core.unicode;
+  dirlist.helpers, tags, Generics.Defaults, cbftpclient, mormot.core.base, mormot.core.unicode,
+  mormot.core.variants,
+  Diff, HashUnit, news, uLkJSON;
 
 const
   section = 'sites';
@@ -1628,7 +1641,6 @@ begin
 
         try
           if (GlCbftpClient <> nil) and (site.Name <> getAdminSiteName)
-             and (not (todotask is TRulesTask))
              and (not (todotask is TRawTask)) then
           begin
             todotask.ready := True;
@@ -3274,6 +3286,7 @@ begin
 
   siteinvited := False;
   foutofannounce := 0;
+  fNextAutoRulesTime := 0;
   // reset to explore it again on first login
   WCInteger('sw', integer(sswUnknown));
   WorkingStatus := sstUnknown;
@@ -4195,6 +4208,14 @@ var
 begin
   if PermDown then
     Exit;
+  if IsCbftpMode then
+  begin
+    // In cbftp mode slftp drives the autorules schedule (via AutoRulesSync from
+    // Main_Iter). Manual triggers (IRC !autorules, API RunSiteAutoRules) also
+    // call AutoRulesSync here so the user gets immediate feedback.
+    AutoRulesSync;
+    Exit;
+  end;
   t := FetchAutoRules;
   if t <> nil then
     exit;
@@ -4364,9 +4385,17 @@ end;
 procedure SiteAutoStart;
 var
   i: integer;
+  fSite: TSite;
 begin
+  // In cbftp mode, stagger initial autorules fetches across sites to avoid a
+  // burst of REST calls at startup (Main_Iter fires one site per second).
   for i := 0 to sites.Count - 1 do
-    TSite(sites[i]).Auto;
+  begin
+    fSite := TSite(sites[i]);
+    if IsCbftpMode and (fSite.AutoRulesStatus > 0) then
+      fSite.NextAutoRulesTime := Now + (i * 5) / SecsPerDay;
+    fSite.Auto;
+  end;
 end;
 
 function TSite.Software: TSiteSW;
@@ -4693,6 +4722,8 @@ end;
 procedure TSite.SetAutoRulesStatus(const Value: integer);
 begin
   WCInteger('autorules', Value);
+  if Value > 0 then
+    fNextAutoRulesTime := 0; // fetch on next Main_Iter tick
 end;
 
 function TSite.GetSetDownOnOutOfSpace: boolean;
@@ -5277,6 +5308,237 @@ end;
 procedure TSite.SetNewdirDirlistReadd(const Value: integer);
 begin
   WCInteger('newdir_dirlist_readd', Value);
+end;
+
+{ TSite.AutoRulesSync - fetch and process SITE RULES via cbftp REST in cbftp mode.
+  Blocks the calling thread for the duration of the HTTP call (~100ms-2s).
+  Updates fNextAutoRulesTime to Now + AutoRulesStatus days for the next tick. }
+procedure TSite.AutoRulesSync;
+var
+  rules: String;
+begin
+  if not IsCbftpMode then
+    Exit;
+  if AutoRulesStatus <= 0 then
+    Exit;
+
+  rules := FetchSiteRulesViaCbftp;
+  if rules = '' then
+  begin
+    Debug(dpError, section, Format('AutoRulesSync: empty SITE RULES response for %s', [Name]));
+    // Still advance the timer to avoid hammering cbftp on every tick
+    fNextAutoRulesTime := Now + AutoRulesStatus / SecsPerDay;
+    Exit;
+  end;
+
+  if not ProcessSiteRulesDiff(rules) then
+    Debug(dpError, section, Format('AutoRulesSync: ProcessSiteRulesDiff failed for %s', [Name]));
+  fNextAutoRulesTime := Now + AutoRulesStatus / SecsPerDay;
+end;
+
+{ TSite.FetchSiteRulesViaCbftp - call cbftp REST /raw with "SITE RULES" and parse
+  the synchronous response. Returns the rules body (one rule per line) or '' on
+  error / empty successes array. }
+function TSite.FetchSiteRulesViaCbftp: String;
+var
+  response: RawUtf8;
+  doc: TDocVariantData;
+  successes: PDocVariantData;
+begin
+  Result := '';
+  if GlCbftpClient = nil then
+  begin
+    Debug(dpError, section, 'FetchSiteRulesViaCbftp: GlCbftpClient is nil');
+    Exit;
+  end;
+
+  response := GlCbftpClient.SendRawCommand('{"sites":["' + StringToUtf8(Name) + '"],"command":"SITE RULES"}');
+  if response = '' then
+  begin
+    Debug(dpError, section, Format('FetchSiteRulesViaCbftp: empty cbftp response for %s', [Name]));
+    Exit;
+  end;
+
+  try
+    if not doc.InitJson(response) then
+    begin
+      Debug(dpError, section, Format('FetchSiteRulesViaCbftp: InitJson failed for %s (response length=%d)',
+        [Name, Length(response)]));
+      Exit;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('FetchSiteRulesViaCbftp: InitJson exception for %s: %s', [Name, E.Message]));
+      Exit;
+    end;
+  end;
+
+  successes := doc.A_['successes'];
+  if (successes = nil) or (successes^.Count = 0) then
+  begin
+    Debug(dpError, section, Format('FetchSiteRulesViaCbftp: empty successes[] for %s', [Name]));
+    Exit;
+  end;
+  Result := string(PDocVariantData(@successes^.Values[0])^.U['result']);
+end;
+
+{ TSite.ProcessSiteRulesDiff - parse rules string, diff against stored file,
+  emit IRC/news notifications on changes, save new rules. Returns True on success. }
+function TSite.ProcessSiteRulesDiff(const rules: String): Boolean;
+var
+  i: Integer;
+  rules_path, rules_file: String;
+  f: TStringList;
+  new_rules, old_rules: TStringList;
+  hash_new_rules, hash_old_rules: TList;
+  Diff: TDiff;
+begin
+  Result := False;
+  new_rules := TStringList.Create;
+  old_rules := TStringList.Create;
+  try
+    // Use TStringList.Text to handle all line ending variants (LF, CRLF, mixed).
+    // It splits on any line break and gives us the count of rules directly.
+    if Length(rules) > 0 then
+    begin
+      new_rules.Text := rules;
+      // Drop any trailing empty line that may result from a final CRLF/LF
+      if (new_rules.Count > 0) and (new_rules[new_rules.Count - 1] = '') then
+        new_rules.Delete(new_rules.Count - 1);
+    end;
+
+    if (config.ReadBool('sites', 'split_site_data', True)) then
+    begin
+      rules_path := ExtractFilePath(ParamStr(0)) + 'rtpl';
+      rules_file := rules_path + PathDelim + Name + '.siterules';
+    end
+    else
+    begin
+      rules_path := ExtractFilePath(ParamStr(0)) + 'rules';
+      rules_file := rules_path + PathDelim + Name + '.rules';
+    end;
+
+    try
+      ForceDirectories(rules_path);
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] ProcessSiteRulesDiff ForceDirectories: %s', [E.Message]));
+        Exit;
+      end;
+    end;
+
+    f := TStringList.Create;
+    try
+      if FileExists(rules_file) then
+      begin
+        f.LoadFromFile(rules_file);
+
+        hash_old_rules := TList.Create;
+        hash_new_rules := TList.Create;
+        try
+          for i := 0 to f.Count - 1 do
+          begin
+            old_rules.Add(f[i]);
+            hash_old_rules.Add(HashLine(f[i], True, True));
+          end;
+
+          for i := 0 to new_rules.Count - 1 do
+            hash_new_rules.Add(HashLine(new_rules[i], True, True));
+
+          Diff := TDiff.Create;
+          try
+            try
+              Diff.Execute(PInteger(hash_old_rules.list), PInteger(hash_new_rules.list),
+                           hash_old_rules.Count, hash_new_rules.Count);
+            except
+              on E: Exception do
+              begin
+                Debug(dpError, section, Format('[EXCEPTION] ProcessSiteRulesDiff Diff.Execute: %s', [E.Message]));
+                Exit;
+              end;
+            end;
+
+            with Diff.DiffStats do
+            begin
+              if ((modifies > 0) or (adds > 0) or (deletes > 0)) then
+              begin
+                try
+                  for i := 0 to Diff.Count - 1 do
+                  begin
+                    with Diff.Compares[i] do
+                    begin
+                      if Kind = ckNone then
+                        Continue;
+
+                      if Kind <> ckAdd then
+                      begin
+                        news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s] <c4>-</c></b> %d %s',
+                          [Name, oldIndex1 + 1, old_rules[oldIndex1]]));
+                        irc_Addstats(Format('<b>[AUTORULES %s] <c4>-</c></b> %d %s',
+                          [Name, oldIndex1 + 1, old_rules[oldIndex1]]));
+                      end;
+
+                      if Kind <> ckDelete then
+                      begin
+                        news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s] <c4>+</c></b> %d %s',
+                          [Name, oldIndex2 + 1, new_rules[oldIndex2]]));
+                        irc_Addstats(Format('<b>[AUTORULES %s] <c4>+</c></b> %d %s',
+                          [Name, oldIndex2 + 1, new_rules[oldIndex2]]));
+                      end;
+                    end;
+                  end;
+                except
+                  on E: Exception do
+                    Debug(dpError, section, Format('[EXCEPTION] ProcessSiteRulesDiff %s: %s', [Name, E.Message]));
+                end;
+
+                news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s]</b> Matches: %d', [Name, matches]));
+                news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s]</b> Modifies: %d', [Name, modifies]));
+                news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s]</b> Adds: %d', [Name, adds]));
+                news.SlftpNewsAdd('AUTORULES', Format('<b>[AUTORULES %s]</b> Deletes: %d', [Name, deletes]));
+
+                irc_Addstats(Format('<b>[AUTORULES %s]</b> Matches: %d', [Name, matches]));
+                irc_Addstats(Format('<b>[AUTORULES %s]</b> Modifies: %d', [Name, modifies]));
+                irc_Addstats(Format('<b>[AUTORULES %s]</b> Adds: %d', [Name, adds]));
+                irc_Addstats(Format('<b>[AUTORULES %s]</b> Deletes: %d', [Name, deletes]));
+              end
+              else
+              begin
+                if spamcfg.readbool('sites', 'rules_nochange', False) then
+                  irc_Addstats(Format('<b>[AUTORULES %s]</b> No Changes.', [Name]));
+              end;
+            end;
+          finally
+            Diff.Free;
+          end;
+        finally
+          hash_old_rules.Free;
+          hash_new_rules.Free;
+        end;
+      end;
+
+      f.Clear;
+      for i := 0 to new_rules.Count - 1 do
+        f.Add(new_rules[i]);
+      try
+        f.SaveToFile(rules_file);
+      except
+        on E: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] ProcessSiteRulesDiff SaveToFile: %s', [E.Message]));
+          Exit;
+        end;
+      end;
+    finally
+      f.Free;
+    end;
+  finally
+    old_rules.Free;
+    new_rules.Free;
+  end;
+  Result := True;
 end;
 
 
