@@ -61,6 +61,8 @@ type
 function precatcherauto: boolean;
 procedure setprecatcherauto(const aPrecatcherAutoValue: boolean);
 
+procedure TriggerAutoDirlistFill(const aSitename, aSection, aRelease: String);
+
 procedure Precatcher_DelSiteChans(const sitename: String);
 function PrecatcherReload: String;
 procedure PrecatcherRebuild();
@@ -115,7 +117,7 @@ uses
   Generics.Collections,
   sitesunit, irc, queueunit, mystrings, precatcher.helpers,
   inifiles, DebugUnit, StrUtils, configunit, Regexpr, globalskipunit, dbaddpre,
-  console, mrdohutils, SlCriticalSection2, taskautodirlist, IdGlobal, slapi.issueshook {$IFDEF MSWINDOWS}, Windows{$ENDIF}
+  console, mrdohutils, SlCriticalSection2, taskautodirlist, IdGlobal, slapi.issueshook, news, cbftpclient, mormot.core.base, mormot.core.unicode, mormot.core.variants, mormot.core.json {$IFDEF MSWINDOWS}, Windows{$ENDIF}
   ;
 
 const
@@ -775,8 +777,7 @@ begin
               MyDebug('Event: ' + KBEventTypeToString(ss.eventtype));
               if not precatcher_debug then
               begin
-                fRequestDirlistTask := TAutoDirlistTask.Create(net, chan, sc.sitename, rls);
-                AddTask(fRequestDirlistTask);
+                TriggerAutoDirlistFill(sc.sitename, 'REQUEST', rls);
               end;
               exit;
             end;
@@ -1382,6 +1383,34 @@ procedure setprecatcherauto(const aPrecatcherAutoValue: boolean);
 begin
   precatcher_auto := aPrecatcherAutoValue;
   sitesdat.WriteBool('precatcher', 'auto', aPrecatcherAutoValue);
+end;
+
+procedure TriggerAutoDirlistFill(const aSitename, aSection, aRelease: String);
+var
+  sitesArr: array of RawUtf8;
+begin
+  if GlCbftpClient = nil then
+  begin
+    Debug(dpError, rsections, Format('[AUTOREQFILL] cbftp client not initialised, skipping %s -> %s', [aRelease, aSitename]));
+    Exit;
+  end;
+
+  if aSection = '' then
+  begin
+    Debug(dpError, rsections, Format('[AUTOREQFILL] empty section for %s -> %s, skipping', [aRelease, aSitename]));
+    Exit;
+  end;
+
+  SetLength(sitesArr, 1);
+  sitesArr[0] := StringToUtf8(aSitename);
+
+  if GlCbftpClient.StartSpreadJobEx(StringToUtf8(aSection), aRelease, sitesArr) then
+  begin
+    irc_Addstats(Format('<b>[AUTOREQFILL]</b> Spread started: %s/%s to %s', [aSection, aRelease, aSitename]));
+    news.SlftpNewsAdd('AUTOREQFILL', Format('Spread started: %s/%s to %s', [aSection, aRelease, aSitename]));
+  end
+  else
+    Debug(dpError, rsections, Format('[AUTOREQFILL] StartSpreadJob failed for %s/%s -> %s', [aSection, aRelease, aSitename]));
 end;
 
 end.
