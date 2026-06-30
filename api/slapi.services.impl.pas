@@ -4835,13 +4835,54 @@ begin
 end;
 
 function TApiSpeedServiceImpl.GetSpeedResults(const SiteName: RawUTF8): RawJSON;
+var
+  jsonArr: TDocVariantData;
+  statObj: variant;
+  i: integer;
+  s: TSpeedStat;
+  filterSite: string;
 begin
-  Result := '[]';
+  filterSite := UTF8ToString(SiteName);
+  jsonArr.InitFast(dvArray);
+
+  if speedstats <> nil then
+  begin
+    speedstatlock.Enter('GetSpeedResultsAPI');
+    try
+      for i := 0 to speedstats.Count - 1 do
+      begin
+        s := TSpeedStat(speedstats[i]);
+        if (s <> nil) and ((filterSite = '') or (s.src = filterSite) or (s.dst = filterSite)) then
+        begin
+          TDocVariant.New(statObj);
+          TDocVariantData(statObj).AddValue('source', UTF8Encode(s.src));
+          TDocVariantData(statObj).AddValue('destination', UTF8Encode(s.dst));
+          TDocVariantData(statObj).AddValue('speed', s.speed / 1024.0);
+          TDocVariantData(statObj).AddValue('section', UTF8Encode(s.section));
+          TDocVariantData(statObj).AddValue('rlsname', UTF8Encode(s.rlsname));
+          jsonArr.AddItem(statObj);
+        end;
+      end;
+    finally
+      speedstatlock.Leave;
+    end;
+  end;
+
+  Result := jsonArr.ToJSON;
 end;
 
 function TApiSpeedServiceImpl.RecalculateRoutes: boolean;
 begin
-  Result := True;
+  try
+    SpeedStatsRecalc('CONSOLE', 'SPEEDSTATS');
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] RecalculateRoutes: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
 end;
 
 function TApiKnowledgeBaseServiceImpl.GetKBEntries(const Section: RawUTF8; Limit: integer): RawJSON;

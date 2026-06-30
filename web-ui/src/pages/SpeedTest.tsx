@@ -4,6 +4,7 @@ import { IconArrowRight, IconRefresh, IconTrash, IconActivity, IconCheck, IconX,
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
+import { notifications } from '@mantine/notifications';
 
 type Site = {
   name: string;
@@ -352,7 +353,100 @@ export function SpeedTest() {
     return { sites: siteArray, matrix };
   };
 
+  const { data: historicalSpeedsData } = useQuery({
+    queryKey: ['historical-speed-results'],
+    queryFn: async () => {
+      const res = await apiClient.post('/ApiSpeedService/GetSpeedResults', { SiteName: '' });
+      let data = res.data;
+      if (res.data.result && Array.isArray(res.data.result)) {
+        data = res.data.result[0];
+      }
+      if (typeof data === 'string') return JSON.parse(data);
+      return data;
+    },
+    refetchInterval: 30000,
+  });
+
+  const recalcRoutesMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.post('/ApiSpeedService/RecalculateRoutes', {});
+      return res.data;
+    },
+    onSuccess: () => {
+      notifications.show({
+        title: 'Recalculation Success',
+        message: 'Routes have been recalculated based on speed stats.',
+        color: 'green'
+      });
+    },
+    onError: (err: any) => {
+      notifications.show({
+        title: 'Recalculation Failed',
+        message: err.message,
+        color: 'red'
+      });
+    }
+  });
+
+  // Build historical matrix data structure
+  const buildHistoricalMatrix = () => {
+    if (!historicalSpeedsData || !Array.isArray(historicalSpeedsData)) {
+      return { sites: [], matrix: {} };
+    }
+
+    const sites = new Set<string>();
+    const sums: Record<string, Record<string, number>> = {};
+    const counts: Record<string, Record<string, number>> = {};
+
+    historicalSpeedsData.forEach(r => {
+      if (!r.source || !r.destination || typeof r.speed !== 'number') return;
+      sites.add(r.source);
+      sites.add(r.destination);
+
+      if (!sums[r.source]) sums[r.source] = {};
+      if (!counts[r.source]) counts[r.source] = {};
+
+      sums[r.source][r.destination] = (sums[r.source][r.destination] || 0) + r.speed;
+      counts[r.source][r.destination] = (counts[r.source][r.destination] || 0) + 1;
+    });
+
+    const siteArray = Array.from(sites).sort();
+    const matrix: Record<string, Record<string, SpeedTestResult | null>> = {};
+
+    siteArray.forEach(src => {
+      matrix[src] = {};
+      siteArray.forEach(dst => {
+        const count = counts[src]?.[dst] || 0;
+        if (count > 0) {
+          const avgSpeed = sums[src][dst] / count;
+          matrix[src][dst] = {
+            source: src,
+            destination: dst,
+            speed: avgSpeed.toFixed(2),
+            status: 'success',
+            success: true,
+            message: 'Historical Average',
+            amount: '',
+            time: '',
+            startTime: '',
+            endTime: ''
+          } as SpeedTestResult;
+        } else {
+          matrix[src][dst] = null;
+        }
+      });
+    });
+
+    return { sites: siteArray, matrix };
+  };
+
   const matrixData = buildMatrix();
+  const historicalMatrixData = buildHistoricalMatrix();
+  const showLiveMatrix = results.length > 0;
+  const activeMatrixData = showLiveMatrix ? matrixData : historicalMatrixData;
+  const matrixTitle = showLiveMatrix
+    ? `Connectivity Matrix (Current Test: ${testType})`
+    : 'Connectivity Matrix (Historical Average)';
 
   return (
     <Stack>
@@ -525,15 +619,28 @@ export function SpeedTest() {
         </Alert>
       )}
 
-      {matrixData.sites.length > 1 && (
+      {activeMatrixData.sites.length > 1 && (
         <Paper shadow="xs" p="md" withBorder>
-          <Title order={5} mb="md">Connectivity Matrix</Title>
+          <Group justify="space-between" mb="md">
+            <Title order={5}>{matrixTitle}</Title>
+            {!showLiveMatrix && (
+              <Button
+                size="xs"
+                variant="light"
+                onClick={() => recalcRoutesMutation.mutate()}
+                loading={recalcRoutesMutation.isPending}
+                leftSection={<IconRefresh size={14} />}
+              >
+                Recalculate Routes
+              </Button>
+            )}
+          </Group>
           <ScrollArea>
             <Table withTableBorder withColumnBorders>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th style={{ minWidth: '100px' }}>From \ To</Table.Th>
-                  {matrixData.sites.map(dst => (
+                  {activeMatrixData.sites.map(dst => (
                     <Table.Th key={dst} style={{ minWidth: '80px', textAlign: 'center' }}>
                       <Text size="xs" fw={700}>{dst}</Text>
                     </Table.Th>
@@ -541,11 +648,11 @@ export function SpeedTest() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {matrixData.sites.map(src => (
+                {activeMatrixData.sites.map(src => (
                   <Table.Tr key={src}>
                     <Table.Td style={{ fontWeight: 700 }}>{src}</Table.Td>
-                    {matrixData.sites.map(dst => {
-                      const result = matrixData.matrix[src][dst];
+                    {activeMatrixData.sites.map(dst => {
+                      const result = activeMatrixData.matrix[src][dst];
                       const speed = result ? formatSpeed(result.speed) : null;
 
                       if (src === dst) {
@@ -584,7 +691,7 @@ export function SpeedTest() {
                       }
 
                       if (result.status === 'success') {
-                        return <Tooltip key={dst} label={`${speed?.value} ${speed?.unit} - ${result.amount}`}>
+                        return <Tooltip key={dst} label={showLiveMatrix ? `${speed?.value} ${speed?.unit} - ${result.amount}` : `${speed?.value} ${speed?.unit} (Average)`}>
                           <Table.Td style={{
                             backgroundColor: colorScheme === 'dark' ? 'var(--mantine-color-green-9)' : 'var(--mantine-color-green-3)',
                             textAlign: 'center',
