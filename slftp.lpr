@@ -51,6 +51,7 @@ program slftp;
 uses
   {$IFDEF UNIX}
     cthreads,
+    baseunix,
   {$ENDIF}
   {$IFDEF CPUX86_64}
     mormot.core.fpcx64mm,
@@ -78,7 +79,17 @@ begin
     fCmdLine := fCmdLine.Trim;
 
     ParseCommandLine(fBinaryFilename, fCmdLine);
-    Exit;
+    // Command line modes (help/version/encrypt/decrypt) must terminate the
+    // process immediately. Using Exit/Halt would run finalization sections of
+    // units like console/FastMM5/PasMP which are not fully initialized in
+    // command line mode and can hang (e.g. PasMP worker thread termination
+    // spin-loop), leaving orphan processes that burn CPU.
+    Flush(Output);
+    {$IFDEF UNIX}
+    fpExit(0);
+    {$ELSE}
+    Halt(0);
+    {$ENDIF}
   end;
 
   ConsoleStart;

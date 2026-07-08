@@ -435,7 +435,7 @@ begin
           Debug(dpError, section, 'slFtp exiting');
           for fSite in sites do
           begin
-            fSite.QueueFire;
+            fSite.QueueFire(qfsConsole);
           end;
           SlotsFire;
         end;

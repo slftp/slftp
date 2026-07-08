@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, kb.releaseinfo, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections, IniFiles, sfv, slcriticalsection2,
-  routeconfig;
+  routeconfig, pazotaskgraph;
 
 type
   TQueueNotifyEvent = procedure(Sender: TObject; Value: integer) of object;
@@ -173,6 +173,10 @@ type
     FUniqueFileListOfRelease_cs: TSlCriticalSection2; //< Critical section for Add calls to @link(FUniqueFileListOfRelease)
     FUniqueFileListOfRelease: TDictionary<String, Int64>; //< Dictionary with files (including subdirs) and corresponding filesize (biggest value seen on any site) for this release, Key="dir + '/' + filename" and Value=filesize
     FPazoSFV: TPazoSFV;
+    FTaskGraph: TPazoTaskGraph;
+    FConstructorDone: Boolean;
+    FRaceTasksQueued: TDictionary<String, UInt64>; //< tracks already-queued (pazo_id,src,dst,dir,file) race tasks to avoid duplicate creation
+    FRaceTasksQueuedCS: TCriticalSection;
 
     { Creates/Updates the filesize for given subdir and filename combination
       @param(aDir Location of the file inside releasedir)
@@ -184,6 +188,8 @@ type
     function GetCountOfCachedFiles: integer;
 
     procedure QueueEvent(Sender: TObject; Value: integer);
+    procedure TaskGraphWakeTask(const aTaskUids: TList<UInt64>);
+    function _RaceTaskKey(const aSrc, aDst, aDir, aFile: String): String;
 
   public
     pazo_id: integer;
@@ -249,6 +255,14 @@ type
 
     property ExcludeFromIncfiller: Boolean read FExcludeFromIncfiller write FExcludeFromIncfiller;
     property PazoSFV: TPazoSFV read FPazoSFV;
+    property TaskGraph: TPazoTaskGraph read FTaskGraph;
+
+    { Returns true if a race task for the given tuple is already queued in this pazo }
+    function IsRaceTaskQueued(const aSrc, aDst, aDir, aFile: String): Boolean;
+    { Registers a newly queued race task so it is not created again }
+    procedure RegisterRaceTask(const aSrc, aDst, aDir, aFile: String; const aUid: UInt64);
+    { Unregisters a race task when it is done/removed so re-races are possible }
+    procedure UnregisterRaceTask(const aSrc, aDst, aDir, aFile: String);
   end;
 
 function PazoAdd(const rls: TRelease): TPazo;
@@ -261,7 +275,8 @@ implementation
 uses
   SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
   taskrace, mystrings, irc, sltcp, slhelper, Math, taskpretime, configunit,
-  mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv;
+  mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv,
+  taskregistry, tasksunit;
 
 const
   section = 'pazo';
@@ -432,6 +447,12 @@ var
   pm: TPazoMkdirTask;
   pr: TPazoRaceTask;
   pd: TPazoDirlistTask;
+  fDirlistUid: UInt64;
+  fMkdirUid: UInt64;
+  fParentDirlistUid: UInt64;
+  fParentMkdirUid: UInt64;
+  fDependsDirlistUid: UInt64;
+  fDependsMkdirUid: UInt64;
   de, dde: TDirListEntry;
   s: TSite;
   fd: String;
@@ -542,33 +563,60 @@ begin
             begin
               Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding MKDIR task on %s', [fd, Name, dst.Name, dst.Name]);
 
-            // Create the mkdir task
+              // Create the mkdir task
               if (dstdl.parent <> nil) then
-                pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, dstdl.parent.dirlist, dir)
+                pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, dir)
               else
-                pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, nil, dir);
+                pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, dir);
 
               // add delay to mkdir if delay_upload enabled
               if dst.delay_upload > 0 then
                 pm.startat := IncSecond(Now, dst.delay_upload);
 
-              dstdl.dependency_mkdir := pm.UidText;
+              fMkdirUid := pm.uid;
+              AddTask(pm, True);
+
+              // AddTask may free the task as a duplicate. Only register it in the graph,
+              // add dependencies and publish the mkdir uid if the object is still alive.
+              if (GlTaskRegistry <> nil) and (GlTaskRegistry.Lookup(fMkdirUid) <> nil) then
+              begin
+                pazo.TaskGraph.AddTask(fMkdirUid);
+                if (dstdl.parent <> nil) and (dstdl.parent.dirlist <> nil) and (dstdl.parent.dirlist.task_uid <> 0) then
+                  // Use IfExists because the parent dirlist may finish before we register the dependency.
+                  pazo.TaskGraph.AddDependencyIfExists(fMkdirUid, dstdl.parent.dirlist.task_uid);
+                // If the parent directory also needs a mkdir, wait for it so we don't
+                // try to create a subdir before the parent exists.
+                if (dstdl.parent <> nil) and (dstdl.parent.dirlist <> nil) and (dstdl.parent.dirlist.dependency_mkdir <> '') then
+                begin
+                  try
+                    // Use IfExists because the parent mkdir may finish before we register the dependency.
+                    pazo.TaskGraph.AddDependencyIfExists(fMkdirUid, StrToQWordDef(Copy(dstdl.parent.dirlist.dependency_mkdir, 2, MaxInt), 0));
+                  except
+                    on e: Exception do
+                      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj AddDependency(parent mkdir): %s', [e.Message]));
+                  end;
+                end;
+                dstdl.dependency_mkdir := pm.UidText;
+
+                fParentDirlistUid := 0;
+                fParentMkdirUid := 0;
+                if (dstdl.parent <> nil) and (dstdl.parent.dirlist <> nil) then
+                begin
+                  fParentDirlistUid := dstdl.parent.dirlist.task_uid;
+                  if dstdl.parent.dirlist.dependency_mkdir <> '' then
+                    fParentMkdirUid := StrToQWordDef(Copy(dstdl.parent.dirlist.dependency_mkdir, 2, MaxInt), 0);
+                end;
+                Debug(dpMessage, section, Format('[PAZOCASCADE] pazo_id=%d type=MkdirCreated uid=%d site=%s dir=%s parent_dirlist_uid=%d parent_mkdir_uid=%d',
+                  [pazo.pazo_id, fMkdirUid, dst.Name, dir, fParentDirlistUid, fParentMkdirUid]));
+              end
+              else
+              begin
+                Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: MKDIR task was a duplicate, not publishing dependency_mkdir', [fd, Name, dst.Name, dst.Name]);
+                pm := nil;
+              end;
             end;
           finally
             dstdl.dirlist_lock.Leave;
-          end;
-            // Finally add mkdir task
-          if pm <> nil then
-          begin
-            try
-              AddTask(pm, True);
-            except
-              on e: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj AddTask(pm): %s', [e.Message]));
-                Break;
-              end;
-            end;
           end;
         end;
 
@@ -578,10 +626,24 @@ begin
         begin
           try
             pd := TPazoDirlistTask.Create(netname, channel, dst.Name, pazo, dir, False);
-            Debug(dpSpam, section, '%s %s :: Checking routes from %s to %s :: Dirlist added to %s (DEST SITE)', [fd, dir, Name, dst.Name, dst.Name]);
-            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO]</c> %s %s %s Dirlist added to : %s (DEST SITE)', [fd, pazo.rls.rlsname, dir, dst.Name]));
-            dstdl.dirlistadded := True;
+            fDirlistUid := pd.uid;
             AddTask(pd, true);
+            // AddTask may free the task as a duplicate. Only register it in the graph
+            // and mark the dirlist as added if the object is still alive.
+            if (GlTaskRegistry <> nil) and (GlTaskRegistry.Lookup(fDirlistUid) <> nil) then
+            begin
+              pazo.TaskGraph.AddTask(fDirlistUid);
+              dstdl.task_uid := fDirlistUid;
+              dstdl.dirlistadded := True;
+              Debug(dpSpam, section, '%s %s :: Checking routes from %s to %s :: Dirlist added to %s (DEST SITE)', [fd, dir, Name, dst.Name, dst.Name]);
+              Debug(dpMessage, section, Format('[PAZOCASCADE] pazo_id=%d type=DirlistCreated uid=%d site=%s dir=%s',
+                [pazo.pazo_id, fDirlistUid, dst.Name, dir]));
+              irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO]</c> %s %s %s Dirlist added to : %s (DEST SITE)', [fd, pazo.rls.rlsname, dir, dst.Name]));
+            end
+            else
+            begin
+              Debug(dpSpam, section, '%s %s :: Checking routes from %s to %s :: Dirlist task was a duplicate, not marking as added', [fd, dir, Name, dst.Name, dst.Name]);
+            end;
           except
             on e: Exception do
             begin
@@ -603,9 +665,17 @@ begin
             if ((dstdl.HasNFO) and (de.IsNFO)) then
               Continue;
 
+            // Skip if a race for this exact tuple is already queued in this pazo.
+            // This avoids creating hundreds of duplicate race tasks on every dirlist refresh.
+            if pazo.IsRaceTaskQueued(Name, dst.Name, dir, de.filename) then
+            begin
+              Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Race task already queued for %s %s', [fd, Name, dst.Name, dst.Name, de.filename]);
+              Continue;
+            end;
+
             // Create the race task
             Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding RACE task on %s %s', [fd, Name, dst.Name, dst.Name, de.filename]);
-            pr := TPazoRaceTask.Create(netname, channel, Name, dst.Name, pazo, dstdl, dir, de.filename, de.filesize, dstrank);
+            pr := TPazoRaceTask.Create(netname, channel, Name, dst.Name, pazo, dir, de.filename, de.filesize, dstrank);
 
             // Set file type for subdirs
             if (dstdl.parent <> nil) then
@@ -643,14 +713,46 @@ begin
                 pr.startat := IncSecond(Now, dst.delay_upload);
             end;
 
+            // Register the race task in the dependency graph only after we are
+            // sure it will really be queued. Otherwise aborted races (e.g. missing
+            // sfv) leak as pending nodes forever.
+            pazo.TaskGraph.AddTask(pr.uid);
+            if dstdl.task_uid <> 0 then
+              // Use IfExists because the destination dirlist may finish before we register the dependency.
+              pazo.TaskGraph.AddDependencyIfExists(pr.uid, dstdl.task_uid);
+            // Subdir races should wait for the subdir mkdir as well, so we don't
+            // try to upload into a directory that has not been created yet.
+            if (dstdl.parent <> nil) and (dstdl.dependency_mkdir <> '') then
+            begin
+              try
+                // Use IfExists because the subdir mkdir may finish before we register the dependency.
+                pazo.TaskGraph.AddDependencyIfExists(pr.uid, StrToQWordDef(Copy(dstdl.dependency_mkdir, 2, MaxInt), 0));
+              except
+                on e: Exception do
+                  Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj AddDependency(subdir mkdir): %s', [e.Message]));
+              end;
+            end;
+
+            fDependsDirlistUid := dstdl.task_uid;
+            fDependsMkdirUid := 0;
+            if (dstdl.parent <> nil) and (dstdl.dependency_mkdir <> '') then
+              fDependsMkdirUid := StrToQWordDef(Copy(dstdl.dependency_mkdir, 2, MaxInt), 0);
+            Debug(dpMessage, section, Format('[PAZOCASCADE] pazo_id=%d type=RaceCreated uid=%d src=%s dst=%s dir=%s file=%s depends_dirlist_uid=%d depends_mkdir_uid=%d',
+              [pazo.pazo_id, pr.uid, Name, dst.Name, dir, de.filename, fDependsDirlistUid, fDependsMkdirUid]));
+
             // finally we can add the task
             try
               AddTask(pr);
               Result := True;
+              // Remember this race so we don't create duplicates on the next dirlist refresh.
+              pazo.RegisterRaceTask(Name, dst.Name, dir, de.filename, pr.uid);
             except
               on e: Exception do
               begin
                 Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj (AddTask(pr)): %s', [e.Message]));
+                // Remove the graph node we just added; the task object is about to
+                // be freed by the caller.
+                pazo.TaskGraph.RemoveTask(pr.uid);
                 Break;
               end;
             end;
@@ -802,59 +904,165 @@ begin
   Result := FUniqueFileListOfRelease.Count;
 end;
 
+function GetStackTraceString: String; forward;
+function GetExceptionStackTrace: String; forward;
+
 constructor TPazo.Create(const rls: TRelease; const pazo_id: integer);
 begin
-  if rls <> nil then
-  begin
-    Debug(dpSpam, section, 'TPazo.Create: %s', [rls.rlsname]);
-    sl := FindSkipList(rls.section);
-    self.rls := rls;
-  end
-  else
-  begin
-    Debug(dpSpam, section, 'TPazo.Create: SPEEDTEST');
-    self.rls := nil;
+  FConstructorDone := False;
+  try
+    if rls <> nil then
+    begin
+      Debug(dpSpam, section, 'TPazo.Create: %s', [rls.rlsname]);
+      sl := FindSkipList(rls.section);
+      self.rls := rls;
+    end
+    else
+    begin
+      Debug(dpSpam, section, 'TPazo.Create: SPEEDTEST');
+      self.rls := nil;
+    end;
+
+    added := Now;
+    queuenumber := TIdThreadSafeInt32WithEvent.Create;
+    queuenumber.OnChange := QueueEvent;
+    dirlisttasks := TIdThreadSafeInt32.Create;
+    racetasks := TIdThreadSafeInt32.Create;
+    mkdirtasks := TIdThreadSafeInt32.Create;
+    FTaskGraph := TPazoTaskGraph.Create(pazo_id);
+    FTaskGraph.OnWakeTask := TaskGraphWakeTask;
+
+    readyerror := False;
+    PazoSitesList := TObjectList<TPazoSite>.Create(True);
+    self.pazo_id := pazo_id;
+    stopped := False;
+    ready := False;
+    lastTouch := Now();
+    FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_' + rls.Name + '_' + IntToStr(pazo_id));
+    FUniqueFileListOfRelease := TDictionary<String, Int64>.Create;
+    FRaceTasksQueuedCS := TCriticalSection.Create;
+    FRaceTasksQueued := TDictionary<String, UInt64>.Create;
+
+    self.stated := False;
+    self.cleared := False;
+
+    FExcludeFromIncfiller := False;
+    if rls.IsSFVRelease then
+      FPazoSFV := TPazoSFV.Create;
+
+    inherited Create;
+    FConstructorDone := True;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, '[DIAG] TPazo.Create exception: %s (rls=%s, pazo_id=%d)', [e.Message, rls.rlsname, pazo_id]);
+      Debug(dpError, section, '[DIAG] TPazo.Create exception frames: %s', [GetExceptionStackTrace]);
+      raise;
+    end;
   end;
+end;
 
-  added := Now;
-  queuenumber := TIdThreadSafeInt32WithEvent.Create;
-  queuenumber.OnChange := QueueEvent;
-  dirlisttasks := TIdThreadSafeInt32.Create;
-  racetasks := TIdThreadSafeInt32.Create;
-  mkdirtasks := TIdThreadSafeInt32.Create;
+function GetStackTraceString: String;
+var
+  bp: Pointer;
+  i: Integer;
+begin
+  Result := '';
+  bp := get_frame;
+  i := 0;
+  while (bp <> nil) and (i < 16) do
+  begin
+    try
+      Result := Result + BackTraceStrFunc(get_caller_addr(bp));
+      bp := get_caller_frame(bp);
+      if bp <> nil then
+        Result := Result + ' -> ';
+    except
+      Break;
+    end;
+    Inc(i);
+  end;
+end;
 
-  readyerror := False;
-  PazoSitesList := TObjectList<TPazoSite>.Create(True);
-  self.pazo_id := pazo_id;
-  stopped := False;
-  ready := False;
-  lastTouch := Now();
-  FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_' + rls.Name + '_' + IntToStr(pazo_id));
-  FUniqueFileListOfRelease := TDictionary<String, Int64>.Create;
-
-  self.stated := False;
-  self.cleared := False;
-
-  FExcludeFromIncfiller := False;
-  if rls.IsSFVRelease then
-    FPazoSFV := TPazoSFV.Create;
-
-  inherited Create;
+function GetExceptionStackTrace: String;
+var
+  i: Integer;
+begin
+  Result := '';
+  try
+    for i := 0 to ExceptFrameCount - 1 do
+    begin
+      if Result <> '' then
+        Result := Result + ' -> ';
+      Result := Result + BackTraceStrFunc(ExceptFrames[i]);
+    end;
+  except
+    Result := '<stacktrace error>';
+  end;
 end;
 
 destructor TPazo.Destroy;
+var
+  fRlsName: String;
+  fAlreadyFreed: Boolean;
 begin
-  Debug(dpSpam, section, 'TPazo.Destroy: %s', [rls.rlsname]);
+  try
+    if not FConstructorDone then
+    begin
+      try
+        if rls <> nil then
+          fRlsName := rls.rlsname
+        else
+          fRlsName := '<no rls>';
+      except
+        fRlsName := '<corrupt rls>';
+      end;
+      Debug(dpError, section, '[DIAG] TPazo.Destroy called during failed construction (rls=%s)', [fRlsName]);
+      // do not exit - we must clean up the partially constructed object
+    end
+    else
+    begin
+      fAlreadyFreed := (PazoSitesList = nil);
+      if fAlreadyFreed then
+      begin
+        try
+          if rls <> nil then
+            fRlsName := rls.rlsname
+          else
+            fRlsName := '<no rls>';
+        except
+          fRlsName := '<corrupt rls>';
+        end;
+        Debug(dpError, section, '[DIAG] TPazo.Destroy called on already freed object (rls=%s) stack=%s', [fRlsName, GetStackTraceString]);
+        Exit;
+      end
+      else
+      begin
+        try
+          Debug(dpSpam, section, 'TPazo.Destroy: %s', [rls.rlsname]);
+        except
+          Debug(dpSpam, section, 'TPazo.Destroy: <rls access error>');
+        end;
+      end;
+    end;
+  except
+    on e: Exception do
+      Debug(dpError, section, '[EXCEPTION] TPazo.Destroy diag: %s', [e.Message]);
+  end;
+
   Clear;
-  PazoSitesList.Free;
-  queuenumber.Free;
-  dirlisttasks.Free;
-  racetasks.Free;
-  mkdirtasks.Free;
-  FUniqueFileListOfRelease.Free;
-  FUniqueFileListOfRelease_cs.Free;
+  FreeAndNil(PazoSitesList);
+  FreeAndNil(queuenumber);
+  FreeAndNil(dirlisttasks);
+  FreeAndNil(racetasks);
+  FreeAndNil(mkdirtasks);
+  FreeAndNil(FUniqueFileListOfRelease);
+  FreeAndNil(FUniqueFileListOfRelease_cs);
+  FreeAndNil(FRaceTasksQueued);
+  FreeAndNil(FRaceTasksQueuedCS);
+  FreeAndNil(FTaskGraph);
   FreeAndNil(rls);
-  if FPazoSFV <> nil then FPazoSFV.Free;
+  if FPazoSFV <> nil then FreeAndNil(FPazoSFV);
 
   inherited;
 end;
@@ -934,6 +1142,93 @@ begin
         irc_addstats('<c10>[<b>STATS</b>]</c> Pazo Stopped.');
       end;
     end;
+  end;
+end;
+
+procedure TPazo.TaskGraphWakeTask(const aTaskUids: TList<UInt64>);
+var
+  fTask: TTask;
+  fSite: TSite;
+  fSiteObj: TObject;
+  fUid: UInt64;
+  fSites: TList<TObject>;
+begin
+  if (aTaskUids = nil) or (aTaskUids.Count = 0) then
+    exit;
+
+  fSites := TList<TObject>.Create;
+  try
+    for fUid in aTaskUids do
+    begin
+      fTask := GlTaskRegistry.Lookup(fUid);
+      if fTask = nil then
+        Continue;
+
+      if fTask.site1 <> '' then
+      begin
+        fSite := FindSiteByName('', fTask.site1);
+        if (fSite <> nil) and (fSites.IndexOf(fSite) = -1) then
+          fSites.Add(fSite);
+      end;
+
+      if fTask.site2 <> '' then
+      begin
+        fSite := FindSiteByName('', fTask.site2);
+        if (fSite <> nil) and (fSites.IndexOf(fSite) = -1) then
+          fSites.Add(fSite);
+      end;
+    end;
+
+    for fSiteObj in fSites do
+    begin
+      TSite(fSiteObj).Queue.IncGraphWakeCount;
+      TSite(fSiteObj).QueueFire(qfsGraphWake);
+    end;
+  finally
+    fSites.Free;
+  end;
+end;
+
+function TPazo._RaceTaskKey(const aSrc, aDst, aDir, aFile: String): String;
+begin
+  // Use #0 as separator because it cannot appear in valid site names or filenames.
+  Result := aSrc + #0 + aDst + #0 + aDir + #0 + aFile;
+end;
+
+function TPazo.IsRaceTaskQueued(const aSrc, aDst, aDir, aFile: String): Boolean;
+begin
+  Result := False;
+  if FRaceTasksQueuedCS = nil then
+    exit;
+  FRaceTasksQueuedCS.Enter;
+  try
+    Result := FRaceTasksQueued.ContainsKey(_RaceTaskKey(aSrc, aDst, aDir, aFile));
+  finally
+    FRaceTasksQueuedCS.Leave;
+  end;
+end;
+
+procedure TPazo.RegisterRaceTask(const aSrc, aDst, aDir, aFile: String; const aUid: UInt64);
+begin
+  if FRaceTasksQueuedCS = nil then
+    exit;
+  FRaceTasksQueuedCS.Enter;
+  try
+    FRaceTasksQueued.AddOrSetValue(_RaceTaskKey(aSrc, aDst, aDir, aFile), aUid);
+  finally
+    FRaceTasksQueuedCS.Leave;
+  end;
+end;
+
+procedure TPazo.UnregisterRaceTask(const aSrc, aDst, aDir, aFile: String);
+begin
+  if FRaceTasksQueuedCS = nil then
+    exit;
+  FRaceTasksQueuedCS.Enter;
+  try
+    FRaceTasksQueued.Remove(_RaceTaskKey(aSrc, aDst, aDir, aFile));
+  finally
+    FRaceTasksQueuedCS.Leave;
   end;
 end;
 
@@ -1145,17 +1440,67 @@ end;
 procedure TPazo.Clear;
 begin
   try
-    RemovePazo(pazo_id, True);
+    try
+      RemovePazo(pazo_id, True);
+    except
+      on e: Exception do
+        Debug(dpError, section, '[EXCEPTION] TPazo.Clear.RemovePazo : %s', [e.Message]);
+    end;
 
-    FExcludeFromIncfiller := False;
-    stopped := False; // ha stoppoltak korabban akkor ez most szivas
-    ready := False;
-    readyerror := False;
-    errorreason := '';
-    FUniqueFileListOfRelease.Clear;
-    PazoSitesList.Clear;
+    try
+      FExcludeFromIncfiller := False;
+      stopped := False; // ha stoppoltak korabban akkor ez most szivas
+      ready := False;
+      readyerror := False;
+      errorreason := '';
+    except
+      on e: Exception do
+        Debug(dpError, section, '[EXCEPTION] TPazo.Clear.flags : %s', [e.Message]);
+    end;
 
-    self.cleared := True;
+    try
+      if FUniqueFileListOfRelease <> nil then
+        FUniqueFileListOfRelease.Clear
+      else
+        Debug(dpSpam, section, '[DIAG] TPazo.Clear.FUniqueFileListOfRelease is nil');
+    except
+      on e: Exception do
+        Debug(dpError, section, '[EXCEPTION] TPazo.Clear.FUniqueFileListOfRelease : %s', [e.Message]);
+    end;
+
+    try
+      if FRaceTasksQueuedCS <> nil then
+        FRaceTasksQueuedCS.Enter;
+      try
+        if FRaceTasksQueued <> nil then
+          FRaceTasksQueued.Clear
+        else
+          Debug(dpSpam, section, '[DIAG] TPazo.Clear.FRaceTasksQueued is nil');
+      finally
+        if FRaceTasksQueuedCS <> nil then
+          FRaceTasksQueuedCS.Leave;
+      end;
+    except
+      on e: Exception do
+        Debug(dpError, section, '[EXCEPTION] TPazo.Clear.FRaceTasksQueued : %s', [e.Message]);
+    end;
+
+    try
+      if PazoSitesList <> nil then
+        PazoSitesList.Clear
+      else
+        Debug(dpSpam, section, '[DIAG] TPazo.Clear.PazoSitesList is nil');
+    except
+      on e: Exception do
+        Debug(dpError, section, '[EXCEPTION] TPazo.Clear.PazoSitesList : %s', [e.Message]);
+    end;
+
+    try
+      self.cleared := True;
+    except
+      on e: Exception do
+        Debug(dpError, section, '[EXCEPTION] TPazo.Clear.set_cleared : %s', [e.Message]);
+    end;
   except
     on e: Exception do
     begin
@@ -1393,6 +1738,7 @@ var
   fPazoSite: TPazoSite;
   fSitesList: TList<String>;
   fDestinationRank: TDestinationRank;
+  fMkdirUid: UInt64;
 begin
   Result := False;
 
@@ -1405,6 +1751,12 @@ begin
     begin
       Result := True;
     end;
+
+    // remember the mkdir task uid before clearing dependency_mkdir
+    fMkdirUid := 0;
+    if d.dependency_mkdir <> '' then
+      fMkdirUid := StrToQWordDef(Copy(d.dependency_mkdir, 2, MaxInt), 0);
+
     // dir exist, we can set need_mkdir to false
     d.dirlist_lock.Enter('TPazoSite.MkdirReady');
     try
@@ -1414,7 +1766,11 @@ begin
       d.dirlist_lock.Leave;
     end;
 
-    //fire the queue for all source sites
+    // Mark the mkdir task as done in the dependency graph.
+    if (fMkdirUid <> 0) and (pazo.TaskGraph <> nil) then
+      pazo.TaskGraph.MarkDone(fMkdirUid);
+
+    //fire the queue for all source sites (legacy fallback)
     fSitesList := TList<String>.Create;
     try
       //find all sites which have this site as destination
@@ -1435,7 +1791,7 @@ begin
 
       for fSiteName in fSitesList do
       begin
-        FindSiteByName('', fSiteName).QueueFire;
+        FindSiteByName('', fSiteName).QueueFire(qfsPazo);
       end;
     finally
       fSitesList.Free;
@@ -1478,7 +1834,8 @@ function TPazoSite.ParseDirlist(const netname, channel, dir, liststring: String;
 var
   d: TDirList;
   de: TDirListEntry;
-  fFoundDirListEntries, fRemovePazoRaceEntries: TObjectList<TDirListEntry>;
+  fFilesToRace: TList<TDirListEntry>;
+  fRemovePazoRaceEntries: TObjectList<TDirListEntry>;
   fTasksAdded: boolean;
   fSite: TSite;
 begin
@@ -1524,51 +1881,56 @@ begin
   // Do some stuff obviously
   if d.entries.Count > 0 then
   begin
-    fFoundDirListEntries := TObjectList<TDirListEntry>.Create(False);
+    fFilesToRace := TList<TDirListEntry>.Create;
     fRemovePazoRaceEntries := TObjectList<TDirListEntry>.Create(False);
     try
       d.dirlist_lock.Enter('TPazoSite.ParseDirlist');
       try
         for de in d.entries.Values do
         begin
-          if ((not de.skiplisted) and (de.IsOnSite)) then
+          if ((not de.skiplisted) and (de.IsOnSite) and (not de.Directory)) then
           begin
-            if not de.Directory then
+            if (de.justadded) then
             begin
-              if (de.justadded) then
-              begin
-                de.justadded := False;
-                fRemovePazoRaceEntries.Add(de);
-              end;
+              de.justadded := False;
+              fRemovePazoRaceEntries.Add(de);
+              fFilesToRace.Add(de);
+            end
+            else if de.FSizeChanged then
+            begin
+              fFilesToRace.Add(de);
             end;
-
-            fFoundDirListEntries.Add(de);
           end;
         end;
       finally
         d.dirlist_lock.Leave;
       end;
 
-      SortDirlistEntries(fFoundDirListEntries);
-
-      //do this outside dirlist_lock to avoid deadlocks
-      fTasksAdded := Tuzelj(netname, channel, dir, fFoundDirListEntries);
-
-      if fTasksAdded then
+      if fFilesToRace.Count > 0 then
       begin
-        fSite := FindSiteByName('', Name);
-        fSite.QueueSort;
-        fSite.QueueFire;
-      end;
+        SortDirlistEntries(fFilesToRace);
+
+        //do this outside dirlist_lock to avoid deadlocks
+        fTasksAdded := Tuzelj(netname, channel, dir, fFilesToRace);
+
+        if fTasksAdded then
+        begin
+          fSite := FindSiteByName('', Name);
+          fSite.QueueSort;
+          fSite.QueueFire(qfsPazo);
+        end;
+      end
+      else
+        fTasksAdded := False;
 
       for de in fRemovePazoRaceEntries do
       begin
         RemovePazoRace(self, pazo.pazo_id, Name, dir, de.filename);
       end;
 
-      for de in fFoundDirListEntries do
+      for de in fFilesToRace do
       begin
-        if not de.Directory and de.FSizeChanged then
+        if de.FSizeChanged then
         begin
           pazo.PRegisterFile(dir, de);
           de.FSizeChanged := False;
@@ -1576,7 +1938,7 @@ begin
       end;
 
     finally
-      fFoundDirListEntries.Free;
+      fFilesToRace.Free;
       fRemovePazoRaceEntries.Free;
     end;
   end;
@@ -1710,7 +2072,7 @@ begin
       begin
         fSite := FindSiteByName('', Name);
         fSite.QueueSort;
-        fSite.QueueFire;
+        fSite.QueueFire(qfsPazo);
       end;
 
       for de in fFilesToRace do

@@ -20,7 +20,7 @@ implementation
 
 uses
   configunit, debugunit, encinifile, kb, sllanguagebase, globalskipunit, tags, dirlist, dbaddimdb, precatcher, knowngroups, skiplists, fake,
-  mrdohutils;
+  mrdohutils, tasksunit;
 
 procedure InitialConfigSetup;
 var
@@ -34,6 +34,7 @@ end;
 procedure InitialDebugSetup;
 begin
   DebugInit;
+  Tasks_Init;
 end;
 
 procedure InitialKbSetup;

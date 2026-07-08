@@ -5,8 +5,8 @@ interface
 uses
   Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
-  taskrules, taskrace, queueunit, Generics.Collections, pazo, slcriticalsection2,
-  variantcache, routeconfig, StrUtils;
+  taskrules, taskrace, queueunit, tasktraceunit, Generics.Collections, pazo,
+  slcriticalsection2, variantcache, routeconfig, StrUtils;
 
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
@@ -435,9 +435,11 @@ type
     procedure WCDateTime(const Name: String; const val: TDateTime);
 
     procedure AddTask(const t: TTask; const queueFire: boolean = false);
-    procedure QueueFire;
+    procedure QueueFire(const aSource: TQueueFireSource = qfsOther);
     procedure QueueClean;
     procedure QueueSort;
+
+    property Queue: TQueueThread read fQueue;
     function RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
     //procedure QueueEmpty(const sitename: String);
     procedure QueueFireInverval(const interval: integer);
@@ -1080,7 +1082,7 @@ begin
   end;
 
   fQueue.AddTask(t);
-  if queueFire then self.QueueFire;
+  if queueFire then self.QueueFire(qfsAddTask);
 end;
 
 procedure QueueFireInverval(const interval: integer);
@@ -1141,7 +1143,7 @@ procedure TSite.QueueFireInverval(const interval: integer);
 begin
   try
     if (fQueue <> nil) and (MilliSecondsBetween(Now, fQueue.QueueLastRun) >= interval) then
-      self.QueueFire;
+      self.QueueFire(qfsMainThread);
   except
     on e: Exception do
     begin
@@ -1168,8 +1170,9 @@ begin
   fQueue.QueueClean;
 end;
 
-procedure TSite.QueueFire;
+procedure TSite.QueueFire(const aSource: TQueueFireSource = qfsOther);
 begin
+  IncQueueFireCount(aSource);
   fQueue.QueueFire;
 end;
 
@@ -1555,6 +1558,7 @@ var
   fPazoSite: TPazoSite;
   fPair: TDestinationRank;
   fSite: TSite;
+  fTaskWasAuto: Boolean;
 begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
   tname := 'nil';
@@ -1567,6 +1571,8 @@ begin
 
       if (todotask <> nil) then
       begin
+        fTaskWasAuto := (todotask is TIdleTask) or (todotask is TLoginTask) or (todotask is TQuitTask);
+
         try
           tname := todotask.Name;
         except
@@ -1578,32 +1584,40 @@ begin
 
         Debug(dpSpam, section, Format('--> %s', [Name]));
 
+        todotask.BeforeExecute(self);
+        todotask.fTaskTraceIndex := GlTaskTrace.TraceStart(todotask.ClassName, tname, todotask.UidText, site.Name, Name, todotask.site2, todotask.slot2name);
+
         try
-          if todotask.Execute(self) then
-          begin
-            LastTaskExecution := Now();
-
-            if not (todotask is TIdleTask)
-
-              //if maxidle is reached, there will be a quit task. we don't want this to count as non-idle operation because
-              //then idle tasks would be created again right away
-              and not (todotask is TQuitTask)
-
-              //ignore login task if its set to readd (autobnctest)
-              and not ((todotask is TLoginTask) and TLoginTask(todotask).readd)
-            then
+          try
+            if todotask.Execute(self) then
             begin
-              LastNonIdleTaskExecution := LastTaskExecution;
+              LastTaskExecution := Now();
+
+              if not (todotask is TIdleTask)
+
+                //if maxidle is reached, there will be a quit task. we don't want this to count as non-idle operation because
+                //then idle tasks would be created again right away
+                and not (todotask is TQuitTask)
+
+                //ignore login task if its set to readd (autobnctest)
+                and not ((todotask is TLoginTask) and TLoginTask(todotask).readd)
+              then
+              begin
+                LastNonIdleTaskExecution := LastTaskExecution;
+              end;
+            end;
+          except
+            on E: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) %s: %s', [tname, e.Message]));
+
+              //make sure the task gets cleaned if an unhandled exception occured when executing the task
+              todotask.readyerror := True;
             end;
           end;
-        except
-          on E: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) %s: %s', [tname, e.Message]));
-
-            //make sure the task gets cleaned if an unhandled exception occured when executing the task
-            todotask.readyerror := True;
-          end;
+        finally
+          GlTaskTrace.TraceFinish(todotask.fTaskTraceIndex, not todotask.readyerror);
+          todotask.AfterExecute(self, not todotask.readyerror);
         end;
 
         Debug(dpSpam, section, Format('<-- %s', [Name]));
@@ -1628,6 +1642,12 @@ begin
                   end;
                 end;
 
+                Debug(dpMessage, section, '[RACE DONE] %s (uid=%d) on slot %s',
+                  [TPazoRaceTask(todotask).FullName, TPazoRaceTask(todotask).uid, Name]);
+
+                // Wake the paired wait task (if any) so the destination slot can be freed.
+                SignalPairedWaitTask(TPazoRaceTask(todotask).uid);
+
                 // prepare all possible destination sites for a possible new transfer by firing their queue
                 if ((not shouldquit) and (not slshutdown)) then
                 begin
@@ -1636,21 +1656,24 @@ begin
                     for fPair in fPazoSite.destinations do
                     begin
                       if fPair.PazoSite.Name = site.Name then
-                        FindSiteByName('', fPazoSite.Name).QueueFire;
+                        FindSiteByName('', fPazoSite.Name).QueueFire(qfsSlot);
                     end;
                   end;
                 end;
               end;
-
-              if (todotask.slot1 <> nil) then
-              begin
-                todotask.slot1 := nil;
-              end;
             finally
               try
+                // Detach the task from this slot atomically under the slot assignment lock.
+                // Otherwise the queue thread may see slot1=nil, remove the task from the list
+                // (which frees it) and then TryToAssignSlots could dereference sst.todotask.
                 self.site.AcquireSlotsAssignmentLock('Reset TodoTask');
                 try
-                  todotask := nil;
+                  if todotask <> nil then
+                  begin
+                    if todotask.slot1 <> nil then
+                      todotask.slot1 := nil;
+                    todotask := nil;
+                  end;
                 finally
                   self.site.ReleaseSlotsAssignmentLock;
                 end;
@@ -1678,7 +1701,12 @@ begin
 
         if ((not shouldquit) and (not slshutdown)) then
         begin
-          site.QueueFire;
+          // Auto-tasks (idle/login/quit) run very frequently and would otherwise
+          // wake the queue constantly even though there is nothing new to assign.
+          // Race-destinations are already handled above; graph wakes handle
+          // dirlist/mkdir completions, so only non-auto tasks need a fire here.
+          if not fTaskWasAuto then
+            site.QueueFire(qfsSlot);
         end;
       end
       else
@@ -3097,6 +3125,8 @@ begin
     else
     begin
       {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumDn);
+      // A download slot was released; the queue may now be able to start a race.
+      site.Queue.SignalRaceCheck;
       if GetDebugVerbosity = dpSpam then
         Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
     end;
@@ -3137,6 +3167,10 @@ begin
       else
       begin
         site.freeslots := site.freeslots + 1;
+        // A slot became available on this site; signal the queue so it can
+        // look for a race task. Other source-site queues that race to this
+        // destination are handled separately via the race-destination mapping.
+        site.Queue.SignalRaceCheck;
       end;
     finally
       site.fFreeSlotsCS.Leave;
@@ -4451,9 +4485,14 @@ begin
   if (aSlotNumber > self.slots.Count - 1) or (aSlotNumber < 0) then
     raise Exception.Create(Format('Invalid slot number: %d for site %s', [aSlotNumber, self.Name]));
 
-  fOldSiteSlot := TSiteSlot(self.slots[aSlotNumber]);
-  self.slots[aSlotNumber] := TSiteSlot.Create(self, aSlotNumber);
-  fOldSiteSlot.Free;
+  self.AcquireSlotsAssignmentLock('TSite.RebuildSlot');
+  try
+    fOldSiteSlot := TSiteSlot(self.slots[aSlotNumber]);
+    self.slots[aSlotNumber] := TSiteSlot.Create(self, aSlotNumber);
+    fOldSiteSlot.Free;
+  finally
+    self.ReleaseSlotsAssignmentLock;
+  end;
 end;
 
 procedure CheckSiteSlots(const aSite: TSite); overload;

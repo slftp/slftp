@@ -46,7 +46,7 @@ implementation
 uses
   SysUtils, Classes, StrUtils, Contnrs, irc, sitesunit, mystrings, notify, taskraw, RegExpr,
   globals, indexer, ranksunit, kb, configunit, precatcher, speedstatsunit, statsunit, rulesunit,
-  mainthread, tasklogin, irccommandsunit;
+  mainthread, tasklogin, irccommandsunit, queueunit;
 
 const
   section = 'irccommands.site';
@@ -688,7 +688,7 @@ begin
 
         s := TSite(sites[i]);
         s.WorkingStatus := sstMarkedAsDownByUser;
-        s.QueueFire; //to remove entries from queue
+        s.QueueFire(qfsIrc); //to remove entries from queue
       end;
     end
     else
@@ -709,7 +709,7 @@ begin
           Continue;
 
         s.WorkingStatus := sstMarkedAsDownByUser;
-        s.QueueFire; //to remove entries from queue
+        s.QueueFire(qfsIrc); //to remove entries from queue
       end;
     end;
   finally
@@ -2183,7 +2183,7 @@ begin
         if _Bnctest(Netname, Channel, s, tn) then
         begin
           added := True;
-          s.QueueFire;
+          s.QueueFire(qfsIrc);
         end;
       end;
     end
@@ -2205,7 +2205,7 @@ begin
         if _Bnctest(Netname, Channel, s, tn) then
         begin
           added := True;
-          s.QueueFire;
+          s.QueueFire(qfsIrc);
         end;
       end;
     end;
@@ -2254,7 +2254,7 @@ begin
     exit;
 
   if _Bnctest(Netname, Channel, s, nil, True) then
-    s.QueueFire;
+    s.QueueFire(qfsIrc);
 
   Result := True;
 end;

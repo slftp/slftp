@@ -467,15 +467,22 @@ begin
   s      := RTrimCRLF(s);
   p      := RPos(#13, s);
   l      := length(s);
-  if (p <= l - 3) then
+  if (p > 0) and (p <= l - 3) then
   begin
     Inc(p);
-    if CharInSet(s[p], [#13, #10]) then
+    if (p <= l) and CharInSet(s[p], [#13, #10]) then
       Inc(p);
 
-    Result := StrToIntDef(Copy(s, p, 3), 0);
-    if ((l > 3) and (s[p + 3] <> ' ')) then
-      Inc(Result, 1000);// and (p + 3 <= l)
+    if (p + 2 <= l) then
+      Result := StrToIntDef(Copy(s, p, 3), 0);
+    if ((p + 3 <= l) and (l > 3) and (s[p + 3] <> ' ')) then
+      Inc(Result, 1000);
+  end
+  else if (l >= 3) then
+  begin
+    Result := StrToIntDef(Copy(s, 1, 3), 0);
+    if (l > 3) and (s[4] <> ' ') then
+      Inc(Result, 1000);
   end;
 end;
 

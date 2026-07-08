@@ -319,7 +319,7 @@ begin
         begin
           Debug(dpSpam, section, 'Startup: Adding ghost kill task for site %s', [fSite.Name]);
           AddTask(TLoginTask.Create('', '', fSite.Name, True, False));
-          fSite.QueueFire;
+          fSite.QueueFire(qfsMainThread);
         end;
       end;
     end;
@@ -546,7 +546,7 @@ begin
   kb_Stop;
   kb_FreeList;
   for fSite in sites do
-    fSite.QueueFire();
+    fSite.QueueFire(qfsMainThread);
   Debug(dpSpam, section, 'Main_Stop end');
 end;
 

@@ -37,6 +37,9 @@ type
     uid: UInt64;
     time: TDateTime; //< some time value
 
+    // Index into the global task trace ring buffer while this task is running.
+    fTaskTraceIndex: Integer;
+
     wanted_up: Boolean;
     wanted_dn: Boolean;
 
@@ -44,6 +47,7 @@ type
 
     constructor Create(const netname, channel, site1: String); overload;
     constructor Create(const netname, channel, site1, site2: String); overload;
+    destructor Destroy; override;
 
     function Execute(slot: Pointer): Boolean; virtual; abstract;
 
@@ -53,6 +57,8 @@ type
     function UidText: String;
     function ScheduleText: String;
     function IsReadyToBeExecuted: boolean; virtual;
+    procedure BeforeExecute(const aSlot: Pointer); virtual;
+    procedure AfterExecute(const aSlot: Pointer; const aSuccess: Boolean); virtual;
     procedure DebugTask;
     procedure EnableNotify;
     property IsNotifyTask: Boolean read FIsNotifyTask;
@@ -77,7 +83,7 @@ var
 
 implementation
 
-uses SysUtils, Contnrs, SyncObjs, debugunit, queueunit, sitesunit, configunit, notify, mrdohutils;
+uses SysUtils, Contnrs, SyncObjs, debugunit, queueunit, sitesunit, configunit, notify, mrdohutils, taskregistry;
 
 const
   section = 'tasks';
@@ -115,6 +121,7 @@ begin
   slot1name := '';
   slot2name := '';
   FIsNotifyTask := False;
+  fTaskTraceIndex := -1;
 
   ssite1 := FindSiteByName('', site1);
   if ssite1 = nil then
@@ -134,6 +141,16 @@ begin
   finally
     uid_lock.Leave;
   end;
+
+  if GlTaskRegistry <> nil then
+    GlTaskRegistry.RegisterTask(Self);
+end;
+
+destructor TTask.Destroy;
+begin
+  if GlTaskRegistry <> nil then
+    GlTaskRegistry.UnregisterTask(Self);
+  inherited;
 end;
 
 procedure TTask.DebugTask;
@@ -168,6 +185,16 @@ begin
   Result := True;
 end;
 
+procedure TTask.BeforeExecute(const aSlot: Pointer);
+begin
+  // intentionally empty; descendants may override
+end;
+
+procedure TTask.AfterExecute(const aSlot: Pointer; const aSuccess: Boolean);
+begin
+  // intentionally empty; descendants may override
+end;
+
 procedure TTask.EnableNotify;
 begin
   FIsNotifyTask := True;
@@ -175,6 +202,7 @@ end;
 
 procedure Tasks_Init;
 begin
+  TaskRegistryInit;
   uid_lock := TCriticalSection.Create;
   GlConvertFilenamesToLowercase := config.ReadBool('taskrace', 'convert_filenames_to_lowercase', True);
   GlTaskSiteNfoReaddAttempts := config.ReadInteger('tasksitenfo', 'readd_attempts', 5);
@@ -191,6 +219,7 @@ procedure Tasks_Uninit;
 begin
   Debug(dpSpam, section, 'Uninit1');
   uid_lock.Free;
+  TaskRegistryUninit;
   Debug(dpSpam, section, 'Uninit2');
 end;
 

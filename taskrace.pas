@@ -14,8 +14,7 @@ type
   end;
 
   TPazoTask = class(TPazoPlainTask) // announce
-    FDependingOnDirlist: TDirList;
-    constructor Create(const netname, channel, site1, site2: String; pazo: TPazo; const aDependingOnDirlist: TDirList);
+    constructor Create(const netname, channel, site1, site2: String; pazo: TPazo);
     destructor Destroy; override;
     function IsReadyToBeExecuted: boolean; override;
   end;
@@ -32,7 +31,7 @@ type
 
   TPazoMkdirTask = class(TPazoTask)
     dir: String;
-    constructor Create(const netname, channel, site: String; pazo: TPazo; const aDependingOnDirlist: TDirList; const dir: String);
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const dir: String);
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
   end;
@@ -41,6 +40,8 @@ type
   public
     event: TEvent;
     wait_for: String;
+    race_task_uid: UInt64; //< uid of the paired TPazoRaceTask, 0 if none
+    mainpazo: TPazo; //< pazo that owns this wait task, used for graph cleanup
     destructor Destroy; override;
     constructor Create(const netname, channel, site1: String);
     function Execute(slot: Pointer): boolean; override;
@@ -68,11 +69,21 @@ type
     filesize: Int64;
     isSfv, IsNfo: Boolean;
     isSample, isProof, isCovers, isSubs: Boolean;
-    dst: TWaitTask;
-    constructor Create(const netname, channel, site1, site2: String; pazo: TPazo; const aDependingOnDirlist: TDirList; const dir, filename: String; const filesize: Int64; const rank: integer);
+    dst_uid: UInt64; //< uid of the paired TWaitTask, 0 if none
+    constructor Create(const netname, channel, site1, site2: String; pazo: TPazo; const dir, filename: String; const filesize: Int64; const rank: integer);
+    destructor Destroy; override;
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
   end;
+
+// Phase 2 diagnostics: task execution timing, shared with queueunit for logging.
+var
+  GlDiagDirlistExecMsTotal: Int64 = 0;
+  GlDiagDirlistExecCount: Integer = 0;
+  GlDiagRaceExecMsTotal: Int64 = 0;
+  GlDiagRaceExecCount: Integer = 0;
+  GlDiagMkdirExecMsTotal: Int64 = 0;
+  GlDiagMkdirExecCount: Integer = 0;
 
 implementation
 
@@ -80,7 +91,7 @@ uses
   Classes, Contnrs, StrUtils, kb, sitesunit, configunit, taskdel, DateUtils,
   SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc,
   midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news, dirlist.helpers,
-  globals, Math;
+  globals, Math, pazotaskgraph, taskregistry;
 
 const
   c_section = 'taskrace';
@@ -116,12 +127,11 @@ begin
   inherited;
 end;
 
-constructor TPazoTask.Create(const netname, channel, site1, site2: String; pazo: TPazo; const aDependingOnDirlist: TDirList);
+constructor TPazoTask.Create(const netname, channel, site1, site2: String; pazo: TPazo);
 begin
   inherited Create(netname, channel, site1, site2, pazo);
 
   mainpazo.queuenumber.Increase;
-  self.FDependingOnDirlist := aDependingOnDirlist;
 
   if ClassType = TPazoRaceTask then
   begin
@@ -165,7 +175,10 @@ end;
 
 function TPazoTask.IsReadyToBeExecuted: boolean;
 begin
-  Result := (self.FDependingOnDirlist = nil) or (not self.FDependingOnDirlist.need_mkdir) or self.FDependingOnDirlist.error;
+  // The dependency graph is used to wake dependent tasks when a task finishes,
+  // not to block execution. Blocking caused a massive backlog of pending nodes
+  // because mkdir/dirlist dependencies were not resolved fast enough in practice.
+  Result := True;
 end;
 
 
@@ -175,7 +188,7 @@ begin
   self.dir := dir;
   self.is_pre := is_pre;
   self.FDoIncFilling := aIsFromIncompleteFiller;
-  inherited Create(netname, channel, site, '', pazo, nil);
+  inherited Create(netname, channel, site, '', pazo);
 end;
 
 function TPazoDirlistTask.Execute(slot: Pointer): boolean;
@@ -186,6 +199,7 @@ var
   de: TDirListEntry;
   r, r_dst: TPazoDirlistTask;
   fSubDirlistTasks: TList<TPazoDirlistTask>;
+  fSubdirUid: UInt64;
   d, dst_d: TDirList;
   aktdir, fAbsoluteDir: String;
   itwasadded: boolean;
@@ -194,12 +208,39 @@ var
   ps: TPazoSite;
   fDestination: TDestinationRank;
   secondsWithNoChange, secondsSinceStart, secondsSinceCompleted: Int64;
+  fDirlistResult: Boolean;
 begin
   numerrors := 0;
   Result := False;
   s := slot;
   tname := Name;
   fSubDirlistTasks := nil;
+
+  // Defensive nil checks: these references come from the task constructor and
+  // should never be nil, but an access violation here is the #1 suspect for the
+  // crash seen on TH/XXX-PAYSITE dirlist tasks.
+  if mainpazo = nil then
+  begin
+    readyerror := True;
+    Debug(dpError, c_section, Format('[DIRLIST GUARD] mainpazo is nil, aborting task %s', [tname]));
+    exit;
+  end;
+
+  if ps1 = nil then
+  begin
+    readyerror := True;
+    mainpazo.errorreason := 'Dirlist error: ps1 is nil';
+    Debug(dpError, c_section, Format('[DIRLIST GUARD] ps1 is nil, aborting task %s', [tname]));
+    exit;
+  end;
+
+  if mainpazo.rls = nil then
+  begin
+    readyerror := True;
+    mainpazo.errorreason := 'Dirlist error: mainpazo.rls is nil';
+    Debug(dpError, c_section, Format('[DIRLIST GUARD] mainpazo.rls is nil, aborting task %s', [tname]));
+    exit;
+  end;
 
   if mainpazo.stopped then
   begin
@@ -209,6 +250,9 @@ begin
   end;
 
   Debug(dpSpam, c_section, '--> ' + tname);
+
+  Debug(dpMessage, c_section, Format('[PAZOTASK] pazo_id=%d type=Dirlist uid=%d site=%s dir=%s action=execute',
+    [mainpazo.pazo_id, uid, site1, dir]));
 
   mainpazo.lastTouch := Now();
 
@@ -317,9 +361,30 @@ begin
     ps1.midnightdone := True;
   end;
 
-  fAbsoluteDir := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
+  try
+    fAbsoluteDir := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, c_section, Format('[EXCEPTION] TPazoDirlistTask absolute dir: %s at dir=%s', [E.Message, dir]));
+      readyerror := True;
+      exit;
+    end;
+  end;
+
   // Trying to get the dirlist
-  if not s.Dirlist(fAbsoluteDir) then
+  fDirlistResult := False;
+  try
+    fDirlistResult := s.Dirlist(fAbsoluteDir);
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, c_section, Format('[EXCEPTION] s.Dirlist(%s): %s', [fAbsoluteDir, E.Message]));
+      fDirlistResult := False;
+    end;
+  end;
+
+  if not fDirlistResult then
   begin
     mainpazo.errorreason := Format('Cannot get the dirlist for source dir %s on %s.', [MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir, site1]);
 
@@ -465,9 +530,13 @@ begin
                 Format('<c7>[DIRLIST]</c> %s %s %s Dirlist (SUBDIR) added to : %s',
                 [mainpazo.rls.section, mainpazo.rls.rlsname, aktdir, site1]));
               try
-                fSubDirlistTasks.Add(TPazoDirlistTask.Create(netname, channel, site1, mainpazo, aktdir, is_pre));
+                r := TPazoDirlistTask.Create(netname, channel, site1, mainpazo, aktdir, is_pre);
+                fSubDirlistTasks.Add(r);
                 if (de.subdirlist <> nil) then
+                begin
                   de.subdirlist.dirlistadded := True;
+                  de.subdirlist.task_uid := r.uid;
+                end;
               except
                 on e: Exception do
                 begin
@@ -489,7 +558,22 @@ begin
       //add task outside the dirlist lock to avoid deadlocks with the queue lock
       for r in fSubDirlistTasks do
       begin
-        AddTask(r);
+        try
+          fSubdirUid := r.uid;
+          AddTask(r);
+          // AddTask may free duplicates; only register the uid if it is still alive.
+          if (GlTaskRegistry.Lookup(fSubdirUid) <> nil) and (mainpazo <> nil) and (mainpazo.TaskGraph <> nil) then
+          begin
+            mainpazo.TaskGraph.AddTask(fSubdirUid);
+            // Use IfExists because the parent dirlist may finish before we register the dependency.
+            mainpazo.TaskGraph.AddDependencyIfExists(fSubdirUid, self.uid);
+          end;
+        except
+          on E: Exception do
+          begin
+            Debug(dpError, c_section, Format('[EXCEPTION] TPazoDirlistTask subdir add: %s at dir=%s', [E.Message, dir]));
+          end;
+        end;
       end;
     end;
   except
@@ -501,15 +585,22 @@ begin
 
   FreeAndNil(fSubDirlistTasks);
 
-  if ((not is_pre) and (d <> nil) and (d.Complete) and (ps1.status <> rssComplete)) then
-  begin
-    if (dir <> '') then
+  try
+    if ((not is_pre) and (d <> nil) and (d.Complete) and (ps1.status <> rssComplete)) then
     begin
-      ps1.SetComplete(dir);
-    end
-    else
+      if (dir <> '') then
+      begin
+        ps1.SetComplete(dir);
+      end
+      else
+      begin
+        ps1.status := rssComplete;
+      end;
+    end;
+  except
+    on E: Exception do
     begin
-      ps1.status := rssComplete;
+      Debug(dpError, c_section, Format('[EXCEPTION] TPazoDirlistTask setcomplete: %s at dir=%s', [E.Message, dir]));
     end;
   end;
 
@@ -518,69 +609,76 @@ begin
   begin
 
     //check if we should give up with empty/incomplete/long release
-    if ( (d <> nil) AND (not d.Complete) AND (d.entries <> nil) AND not d.DirlistGaveUp ) then
-    begin
-      secondsWithNoChange := SecondsBetween(Now, d.LastChanged);
-
-      if ((d.entries.Count = 0) and (secondsWithNoChange > GetNewdirMaxEmptyValue())) then
+    try
+      if ( (d <> nil) AND (not d.Complete) AND (d.entries <> nil) AND not d.DirlistGaveUp ) then
       begin
-        if spamcfg.readbool(c_section, 'incomplete', True) then
-        begin
-          irc_Addstats(Format('<c11>[EMPTY]</c> %s: %s %s %s is still empty after %d seconds, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsWithNoChange]));
-        end;
-        d.DirlistGaveUp := True;
-        Debug(dpSpam, c_section, Format('EMPTY PS1 %s : LastChange(%d) > newdir_max_empty(%d)', [ps1.Name, secondsWithNoChange, GetNewdirMaxEmptyValue()]));
-      end;
+        secondsWithNoChange := SecondsBetween(Now, d.LastChanged);
 
-      if ((d.entries.Count > 0) and (secondsWithNoChange > GetNewdirMaxUnchangedValue())) then
-      begin
-        if spamcfg.readbool(c_section, 'incomplete', True) then
-        begin
-          irc_Addstats(Format('<c11>[iNCOMPLETE]</c> %s: %s %s %s is still incomplete after %d seconds with no change, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsWithNoChange]));
-        end;
-        d.DirlistGaveUp := True;
-        Debug(dpSpam, c_section, Format('INCOMPLETE PS1 %s : LastChange(%d) > newdir_max_unchanged(%d)', [ps1.Name, secondsWithNoChange, GetNewdirMaxUnchangedValue()]));
-      end;
-
-      secondsSinceCompleted := SecondsBetween(Now, d.CompletedTime);
-
-      if (is_pre) then
-      begin
-        if ( (d.CompletedTime <> 0) and (secondsSinceCompleted > GetNewdirMaxCompletedValue()) ) then
+        if ((d.entries.Count = 0) and (secondsWithNoChange > GetNewdirMaxEmptyValue())) then
         begin
           if spamcfg.readbool(c_section, 'incomplete', True) then
           begin
-            irc_Addstats(Format('<c11>[PRE]</c> %s: %s %s %s, giving up %d seconds after max. should be completed time...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceCompleted]));
+            irc_Addstats(Format('<c11>[EMPTY]</c> %s: %s %s %s is still empty after %d seconds, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsWithNoChange]));
           end;
           d.DirlistGaveUp := True;
-          Debug(dpSpam, c_section, Format('PRE PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, secondsSinceCompleted, GetNewdirMaxCompletedValue()]));
+          Debug(dpSpam, c_section, Format('EMPTY PS1 %s : LastChange(%d) > newdir_max_empty(%d)', [ps1.Name, secondsWithNoChange, GetNewdirMaxEmptyValue()]));
         end;
-      end
-      else
-      begin
-        secondsSinceStart := SecondsBetween(Now, d.StartedTime);
 
-        if ( (d.StartedTime <> 0) AND (secondsSinceStart > GetNewdirMaxCreatedValue()) ) then
+        if ((d.entries.Count > 0) and (secondsWithNoChange > GetNewdirMaxUnchangedValue())) then
         begin
           if spamcfg.readbool(c_section, 'incomplete', True) then
           begin
-            irc_Addstats(Format('<c11>[LONG]</c> %s: %s %s %s, giving up %d seconds after it started...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceStart]));
+            irc_Addstats(Format('<c11>[iNCOMPLETE]</c> %s: %s %s %s is still incomplete after %d seconds with no change, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsWithNoChange]));
           end;
           d.DirlistGaveUp := True;
-          Debug(dpSpam, c_section, Format('LONG PS1 %s : LastChange(%d) > newdir_max_created(%d)', [ps1.Name, secondsSinceStart, GetNewdirMaxCreatedValue()]));
+          Debug(dpSpam, c_section, Format('INCOMPLETE PS1 %s : LastChange(%d) > newdir_max_unchanged(%d)', [ps1.Name, secondsWithNoChange, GetNewdirMaxUnchangedValue()]));
         end;
 
-        if ( (d.CompletedTime <> 0) AND (secondsSinceCompleted > GetNewdirMaxCompletedValue()) ) then
+        secondsSinceCompleted := SecondsBetween(Now, d.CompletedTime);
+
+        if (is_pre) then
         begin
-          if spamcfg.readbool(c_section, 'incomplete', True) then
+          if ( (d.CompletedTime <> 0) and (secondsSinceCompleted > GetNewdirMaxCompletedValue()) ) then
           begin
-            irc_Addstats(Format('<c11>[FULL]</c> %s: %s %s %s is complete, giving up %d seconds after max. should be completed time...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceCompleted]));
+            if spamcfg.readbool(c_section, 'incomplete', True) then
+            begin
+              irc_Addstats(Format('<c11>[PRE]</c> %s: %s %s %s, giving up %d seconds after max. should be completed time...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceCompleted]));
+            end;
+            d.DirlistGaveUp := True;
+            Debug(dpSpam, c_section, Format('PRE PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, secondsSinceCompleted, GetNewdirMaxCompletedValue()]));
           end;
-          d.DirlistGaveUp := True;
-          Debug(dpSpam, c_section, Format('FULL PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, secondsSinceCompleted, GetNewdirMaxCompletedValue()]));
+        end
+        else
+        begin
+          secondsSinceStart := SecondsBetween(Now, d.StartedTime);
+
+          if ( (d.StartedTime <> 0) AND (secondsSinceStart > GetNewdirMaxCreatedValue()) ) then
+          begin
+            if spamcfg.readbool(c_section, 'incomplete', True) then
+            begin
+              irc_Addstats(Format('<c11>[LONG]</c> %s: %s %s %s, giving up %d seconds after it started...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceStart]));
+            end;
+            d.DirlistGaveUp := True;
+            Debug(dpSpam, c_section, Format('LONG PS1 %s : LastChange(%d) > newdir_max_created(%d)', [ps1.Name, secondsSinceStart, GetNewdirMaxCreatedValue()]));
+          end;
+
+          if ( (d.CompletedTime <> 0) AND (secondsSinceCompleted > GetNewdirMaxCompletedValue()) ) then
+          begin
+            if spamcfg.readbool(c_section, 'incomplete', True) then
+            begin
+              irc_Addstats(Format('<c11>[FULL]</c> %s: %s %s %s is complete, giving up %d seconds after max. should be completed time...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceCompleted]));
+            end;
+            d.DirlistGaveUp := True;
+            Debug(dpSpam, c_section, Format('FULL PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, secondsSinceCompleted, GetNewdirMaxCompletedValue()]));
+          end;
         end;
+
       end;
-
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, c_section, Format('[EXCEPTION] TPazoDirlistTask giveup: %s at dir=%s', [E.Message, dir]));
+      end;
     end;
 
   end;
@@ -593,17 +691,28 @@ begin
     if ((d <> nil) and (not is_pre) and (not d.Complete)) then
     begin
       // do more dirlist
-      r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-      r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue(ps1, d));
-
       try
-        AddTask(r);
-        itwasadded := True;
+        r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
+        r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue(ps1, d));
       except
-        on e: Exception do
+        on E: Exception do
         begin
-          Debug(dpError, c_section, Format('[EXCEPTION] TPazoDirlistTask AddTask: %s',
-            [e.Message]));
+          Debug(dpError, c_section, Format('[EXCEPTION] TPazoDirlistTask readd create: %s at dir=%s', [E.Message, dir]));
+          r := nil;
+        end;
+      end;
+
+      if r <> nil then
+      begin
+        try
+          AddTask(r);
+          itwasadded := True;
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, c_section, Format('[EXCEPTION] TPazoDirlistTask AddTask: %s',
+              [e.Message]));
+          end;
         end;
       end;
     end;
@@ -643,21 +752,35 @@ begin
           if is_pre or (ps.dirlist.entries.Count > 0)  then
           begin
             // do more dirlist
-            r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-            r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue(ps1, d));
-            r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
-            r_dst.startat := IncMilliSecond(Now(), r_dst.GetDirlistReaddValue(ps, dst_d));
-
+            r := nil;
+            r_dst := nil;
             try
-              AddTask(r);
-              AddTask(r_dst);
-              itwasadded := True;
-              Break;
+              r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
+              r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue(ps1, d));
+              r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
+              r_dst.startat := IncMilliSecond(Now(), r_dst.GetDirlistReaddValue(ps, dst_d));
             except
-              on e: Exception do
+              on E: Exception do
               begin
-                Debug(dpError, c_section,
-                  Format('[EXCEPTION] TPazoDirlistTask AddTask: %s', [e.Message]));
+                Debug(dpError, c_section, Format('[EXCEPTION] TPazoDirlistTask dst readd create: %s at dir=%s', [E.Message, dir]));
+                r := nil;
+                r_dst := nil;
+              end;
+            end;
+
+            if (r <> nil) and (r_dst <> nil) then
+            begin
+              try
+                AddTask(r);
+                AddTask(r_dst);
+                itwasadded := True;
+                Break;
+              except
+                on e: Exception do
+                begin
+                  Debug(dpError, c_section,
+                    Format('[EXCEPTION] TPazoDirlistTask AddTask: %s', [e.Message]));
+                end;
               end;
             end;
           end;
@@ -676,6 +799,20 @@ begin
 
   Result := True;
   ready := True;
+
+  if mainpazo <> nil then
+    Debug(dpMessage, c_section, Format('[PAZOTASK] pazo_id=%d type=Dirlist uid=%d site=%s dir=%s action=done readyerror=%s',
+      [mainpazo.pazo_id, uid, site1, dir, BoolToStr(readyerror, True)]));
+
+  if (mainpazo <> nil) and (mainpazo.TaskGraph <> nil) and mainpazo.TaskGraph.Contains(uid) then
+  begin
+    try
+      mainpazo.TaskGraph.MarkDone(uid);
+    except
+      on e: Exception do
+        Debug(dpError, c_section, Format('[EXCEPTION] TPazoDirlistTask MarkDone: %s', [e.Message]));
+    end;
+  end;
 end;
 
 function TPazoDirlistTask.Name: String;
@@ -734,10 +871,10 @@ begin
 end;
 
 { TPazoMkdirTask }
-constructor TPazoMkdirTask.Create(const netname, channel, site: String; pazo: TPazo; const aDependingOnDirlist: TDirList; const dir: String);
+constructor TPazoMkdirTask.Create(const netname, channel, site: String; pazo: TPazo; const dir: String);
 begin
   self.dir := dir;
-  inherited Create(netname, channel, site, '', pazo, aDependingOnDirlist);
+  inherited Create(netname, channel, site, '', pazo);
 end;
 
 function TPazoMkdirTask.Execute(slot: Pointer): boolean;
@@ -785,6 +922,10 @@ begin
   end;
 
   Debug(dpMessage, c_section, '--> ' + tname);
+
+  if mainpazo <> nil then
+    Debug(dpMessage, c_section, Format('[PAZOTASK] pazo_id=%d type=Mkdir uid=%d site=%s dir=%s action=execute',
+      [mainpazo.pazo_id, uid, site1, dir]));
 
   mainpazo.lastTouch := Now();
 
@@ -1122,6 +1263,10 @@ begin
     end;
 
     ps1.MkdirReady(dir);
+
+    // mark this mkdir task as done in the dependency graph
+    if (mainpazo <> nil) and (mainpazo.TaskGraph <> nil) and mainpazo.TaskGraph.Contains(uid) then
+      mainpazo.TaskGraph.MarkDone(uid);
   except
     on e: Exception do
     begin
@@ -1144,6 +1289,10 @@ begin
 
   Debug(dpMessage, c_section, '<-- ' + tname);
 
+  if mainpazo <> nil then
+    Debug(dpMessage, c_section, Format('[PAZOTASK] pazo_id=%d type=Mkdir uid=%d site=%s dir=%s action=done failure=%s',
+      [mainpazo.pazo_id, uid, site1, dir, BoolToStr(failure, True)]));
+
   readyerror := failure;
   ready := True;
   Result := True;
@@ -1159,9 +1308,9 @@ begin
 end;
 
 { TPazoRaceTask }
-constructor TPazoRaceTask.Create(const netname, channel, site1, site2: String; pazo: TPazo; const aDependingOnDirlist: TDirList; const dir, filename: String; const filesize: Int64; const rank: integer);
+constructor TPazoRaceTask.Create(const netname, channel, site1, site2: String; pazo: TPazo; const dir, filename: String; const filesize: Int64; const rank: integer);
 begin
-  inherited Create(netname, channel, site1, site2, pazo, aDependingOnDirlist);
+  inherited Create(netname, channel, site1, site2, pazo);
   self.dir := dir;
   self.rank := rank;
   self.filename := filename;
@@ -1171,6 +1320,25 @@ begin
     self.FFilenameForSTORCommand := filename;
 
   self.filesize := filesize;
+end;
+
+destructor TPazoRaceTask.Destroy;
+begin
+  // Make sure a potentially still-waiting paired wait task is woken before we go.
+  if dst_uid <> 0 then
+    SignalPairedWaitTask(uid);
+
+  // Remove this race from the pazo's dedup set so re-races are possible later.
+  if (mainpazo <> nil) and (site1 <> '') and (site2 <> '') then
+  begin
+    try
+      mainpazo.UnregisterRaceTask(site1, site2, dir, filename);
+    except
+      on e: Exception do
+        Debug(dpError, c_section, Format('[EXCEPTION] TPazoRaceTask.Destroy UnregisterRaceTask: %s', [e.Message]));
+    end;
+  end;
+  inherited;
 end;
 
 function GetSitePercent(const aSite: TPazoSite; const aDir: String): Integer;
@@ -1451,12 +1619,13 @@ var
 
 begin
   Result := False;
-  ssrc := slot1;
-  sdst := slot2;
-  numerrors := 0;
-  tname := Name;
-  fSrcDirlist := nil;
-  fDstDirlist := nil;
+  try
+    ssrc := slot1;
+    sdst := slot2;
+    numerrors := 0;
+    tname := Name;
+    fSrcDirlist := nil;
+    fDstDirlist := nil;
 
 
   if mainpazo.stopped then
@@ -1475,6 +1644,10 @@ begin
 
   mainpazo.lastTouch := Now();
   Debug(dpMessage, c_section, '--> ' + tname);
+
+  if mainpazo <> nil then
+    Debug(dpMessage, c_section, Format('[PAZOTASK] pazo_id=%d type=Race uid=%d src=%s dst=%s dir=%s file=%s action=execute',
+      [mainpazo.pazo_id, uid, site1, site2, dir, filename]));
 
   TryAgain:
   if ((ps1.error) or (ps2.error) or (ps1.status = rssNuked) or (ps2.status = rssNuked) or (slshutdown)) then
@@ -3471,6 +3644,14 @@ begin
 
   Result := True;
   ready := True;
+  finally
+    // Make sure every exit path (including early exits and exceptions) logs a done entry.
+    if not ready then
+      readyerror := True;
+    if mainpazo <> nil then
+      Debug(dpMessage, c_section, Format('[PAZOTASK] pazo_id=%d type=Race uid=%d src=%s dst=%s dir=%s file=%s action=done readyerror=%s',
+        [mainpazo.pazo_id, uid, site1, site2, dir, filename, BoolToStr(readyerror, True)]));
+  end;
 end;
 
 function TPazoRaceTask.Name: String;
@@ -3546,21 +3727,42 @@ end;
 function TWaitTask.Execute(slot: Pointer): boolean;
 begin
   Result := True;
-  event.WaitFor($FFFFFFFF);
-  (*
-  case event.WaitFor(15 * 60 * 1000) of
-    wrSignaled : { Event fired. Normal exit. }
-    begin
 
-    end;
-    else { Timeout reach }
+  if mainpazo <> nil then
+    Debug(dpMessage, c_section, Format('[PAZOTASK] pazo_id=%d type=Wait uid=%d race_task_uid=%d action=execute',
+      [mainpazo.pazo_id, uid, race_task_uid]));
+
+  case event.WaitFor(15 * 60 * 1000) of
+    wrSignaled:
     begin
+      // Event fired. Normal exit.
+    end;
+    else
+    begin
+      // Timeout reached. The paired race task did not wake us.
       irc_Adderror('TWaitTask.Execute: <c2>Force Leave</c>:'+Name+' TWaitTask 15min');
-      Debug(dpSpam, c_section,'TWaitTask.Execute: <c2>Force Leave</c>:'+Name+' TWaitTask 15min');
+      Debug(dpMessage, c_section,'TWaitTask.Execute: <c2>Force Leave</c>:'+Name+' TWaitTask 15min');
+      readyerror := True;
     end;
   end;
-  *)
+
   ready := True;
+
+  if mainpazo <> nil then
+    Debug(dpMessage, c_section, Format('[PAZOTASK] pazo_id=%d type=Wait uid=%d race_task_uid=%d action=done',
+      [mainpazo.pazo_id, uid, race_task_uid]));
+
+  // The wait task is done: remove it from the pazo dependency graph so we do
+  // not leak pending nodes for every race that finishes.
+  if (mainpazo <> nil) and (mainpazo.TaskGraph <> nil) and mainpazo.TaskGraph.Contains(uid) then
+  begin
+    try
+      mainpazo.TaskGraph.MarkDone(uid);
+    except
+      on e: Exception do
+        Debug(dpError, c_section, Format('[EXCEPTION] TWaitTask MarkDone: %s', [e.Message]));
+    end;
+  end;
 end;
 
 function TWaitTask.Name: String;

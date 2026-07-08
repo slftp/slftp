@@ -224,8 +224,11 @@ end;
 procedure irc_Addtext_b(const netname, channel, msg: String); overload;
 var
   fIrcNetThread: TMyIrcThread;
-  fStrArr: TArray<String>;
-  fStr: String;
+  fLines: TStringList;
+  fList: TList<TIrcEchoItem>;
+  fNormalizedMsg: String;
+  fChunk: String;
+  i: Integer;
 
   procedure _WriteToIRC(const aChannel, aMessage: String);
   begin
@@ -235,6 +238,30 @@ var
   procedure _AppendToQueue(const aChannel, aMessage: String);
   begin
     fIrcNetThread.PendingMessagesQueue.Add(TIrcEchoItem.Create(aChannel, aMessage));
+  end;
+
+  procedure _AppendChunksToQueue(const aChannel: String; const aChunks: TStringList);
+  var
+    j: Integer;
+  begin
+    fList := fIrcNetThread.PendingMessagesQueue.LockList;
+    try
+      for j := 0 to aChunks.Count - 1 do
+      begin
+        if aChunks[j] <> '' then
+          fList.Add(TIrcEchoItem.Create(aChannel, aChunks[j]));
+      end;
+    finally
+      fIrcNetThread.PendingMessagesQueue.UnlockList;
+    end;
+  end;
+
+  function _HardCapChunk(const aChunk: String): String;
+  begin
+    if Length(aChunk) > 250 then
+      Result := Copy(aChunk, 1, 250)
+    else
+      Result := aChunk;
   end;
 
 begin
@@ -276,17 +303,29 @@ begin
     else
     begin
       // message needs to be splitted due to encryption and a given max length per messages (~280 chars)
-      fStrArr := WrapText(msg, 250).Split([sLineBreak]);
+      // Use TStringList instead of TStringHelper.Split to avoid Range check errors
+      // with certain WrapText results (e.g. trailing single-character segments).
+      fLines := TStringList.Create;
+      try
+        // Normalize line endings so TStringList.Text parsing is deterministic.
+        fNormalizedMsg := StringReplace(msg, #13#10, #10, [rfReplaceAll]);
+        fNormalizedMsg := StringReplace(fNormalizedMsg, #13, #10, [rfReplaceAll]);
+        fLines.Text := WrapText(fNormalizedMsg, 250);
 
-      if (direct_echo) then
-      begin
-        for fStr in fStrArr do
-          _WriteToIRC(channel, fStr);
-      end
-      else
-      begin
-        for fStr in fStrArr do
-          _AppendToQueue(channel, fStr);
+        if (direct_echo) then
+        begin
+          for i := 0 to fLines.Count - 1 do
+          begin
+            if fLines[i] <> '' then
+              _WriteToIRC(channel, _HardCapChunk(fLines[i]));
+          end;
+        end
+        else
+        begin
+          _AppendChunksToQueue(channel, fLines);
+        end;
+      finally
+        fLines.Free;
       end;
     end;
   except

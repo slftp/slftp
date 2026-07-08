@@ -130,6 +130,7 @@ type
   public
     dirlist_lock: TSlCriticalSection2;
     dirlistadded: Boolean;
+    task_uid: UInt64; //< uid of the active TPazoDirlistTask for this dirlist, 0 if none
     site_name: String; //< sitename
     error: Boolean;
     need_mkdir: Boolean; //< @true if MKDIR'ing is still needed (default), @false otherwise.
@@ -1659,8 +1660,10 @@ var
   i: Integer;
   de: TDirListEntry;
 begin
-  allCdNumbers := '';
-  biggestcd := 0;
+
+  allCdNumbers := '';
+
+  biggestcd := 0;
 
   // find the biggest CD
   for de in entries.Values do

@@ -86,7 +86,8 @@ uses
   precatcherTests,
   slcriticalsection2Tests,
   variantCacheTests,
-  sltimerTests;
+  sltimerTests,
+  taskregistryTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}

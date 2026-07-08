@@ -1,0 +1,5 @@
+Display recent in-memory queue diagnostics.
+Without parameters shows the last 20 log lines; with a number shows the last N lines.
+<cmd> [N]
+Example:
+<cmd> 50

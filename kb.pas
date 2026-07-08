@@ -581,9 +581,28 @@ begin
     kb_lock.Leave;
   end;
 
-  Result := p.pazo_id;
-  if p.PazoSitesList.Count = 0 then
+  if p = nil then
+  begin
+    Debug(dpSpam, rsections, '[DIAG] kb_AddB: p is nil after kb_list lookup (section=%s rls=%s)', [section, rls]);
     exit;
+  end;
+  if p.rls = nil then
+  begin
+    Debug(dpSpam, rsections, '[DIAG] kb_AddB: p.rls is nil (pazo_id=%d section=%s rls=%s)', [p.pazo_id, section, rls]);
+    exit;
+  end;
+
+  try
+    Result := p.pazo_id;
+    if p.PazoSitesList.Count = 0 then
+      exit;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, '[EXCEPTION] kb_AddB.PazoSitesList.Count : %s (pazo_id=%d)', [e.Message, p.pazo_id]);
+      exit;
+    end;
+  end;
 
   if ((event <> kbeSPREAD) and (CheckIfGlobalSkippedGroup(rls))) then
   begin
@@ -594,7 +613,15 @@ begin
 
   if (event <> kbeADDPRE) then
   begin
-    psource := p.FindSite(sitename);
+    try
+      psource := p.FindSite(sitename);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, rsections, '[EXCEPTION] kb_AddB.FindSite : %s (pazo_id=%d site=%s)', [e.Message, p.pazo_id, sitename]);
+        exit;
+      end;
+    end;
     if psource = nil then
     begin
       s := FindSiteByName(netname, sitename);
@@ -707,9 +734,17 @@ begin
     end;
   end;
 
-  if not p.rls.aktualizalva then
-  begin
-    p.rls.Aktualizal(p);
+  try
+    if not p.rls.aktualizalva then
+    begin
+      p.rls.Aktualizal(p);
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, '[EXCEPTION] kb_AddB.Aktualizal : %s (pazo_id=%d)', [e.Message, p.pazo_id]);
+      exit;
+    end;
   end;
 
   // implement firerules, routes, stb. set rs.srcsite:= rss.sitename;
@@ -741,50 +776,68 @@ begin
 
   try
     // check rules for site only if needed
-    for i := p.PazoSitesList.Count - 1 downto 0 do
+    if (p = nil) or (p.PazoSitesList = nil) then
+      Debug(dpSpam, rsections, '[DIAG] kb_AddB.FireRules loop1: p or PazoSitesList is nil (pazo_id=%d)', [p.pazo_id])
+    else
     begin
-      try
-        if i < 0 then
-          Break;
-      except
-        Break;
-      end;
-      ps := TPazoSite(p.PazoSitesList[i]);
-      kb_lock.Enter('kb_AddB_4');
-      try
-        if (ps.status in [rssNotAllowed, rssNotAllowedButItsThere]) then
-        begin
-          if FireRuleSet(p, ps) = raAllow then
+      for i := p.PazoSitesList.Count - 1 downto 0 do
+      begin
+        try
+          if i < 0 then
+            Break;
+          ps := TPazoSite(p.PazoSitesList[i]);
+          kb_lock.Enter('kb_AddB_4');
+          try
+            if (ps.status in [rssNotAllowed, rssNotAllowedButItsThere]) then
+            begin
+              if FireRuleSet(p, ps) = raAllow then
+              begin
+                ps.status := rssAllowed;
+              end;
+            end;
+          finally
+            kb_lock.Leave;
+          end;
+        except
+          on e: Exception do
           begin
-            ps.status := rssAllowed;
+            Debug(dpError, rsections, '[EXCEPTION] kb_AddB.FireRules loop1 idx=%d : %s (pazo_id=%d)', [i, e.Message, p.pazo_id]);
+            Break;
           end;
         end;
-      finally
-        kb_lock.Leave;
       end;
     end;
 
     // now add all dst
-    for i := p.PazoSitesList.Count - 1 downto 0 do
+    if (p = nil) or (p.PazoSitesList = nil) then
+      Debug(dpSpam, rsections, '[DIAG] kb_AddB.FireRules loop2: p or PazoSitesList is nil (pazo_id=%d)', [p.pazo_id])
+    else
     begin
-      try
-        if i < 0 then
-          Break;
-      except
-        Break;
-      end;
-      ps := TPazoSite(p.PazoSitesList[i]);
-      kb_lock.Enter('kb_AddB_5');
-      try
-        FireRules(p, ps);
-      finally
-        kb_lock.Leave;
+      for i := p.PazoSitesList.Count - 1 downto 0 do
+      begin
+        try
+          if i < 0 then
+            Break;
+          ps := TPazoSite(p.PazoSitesList[i]);
+          kb_lock.Enter('kb_AddB_5');
+          try
+            FireRules(p, ps);
+          finally
+            kb_lock.Leave;
+          end;
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, rsections, '[EXCEPTION] kb_AddB.FireRules loop2 idx=%d : %s (pazo_id=%d)', [i, e.Message, p.pazo_id]);
+            Break;
+          end;
+        end;
       end;
     end;
   except
     on e: Exception do
     begin
-      Debug(dpError, rsections, Format('[EXCEPTION] KBAdd FireRules : %s',
+      Debug(dpError, rsections, Format('[EXCEPTION] KBAdd FireRules outer : %s',
         [e.Message]));
     end;
   end;
@@ -793,7 +846,15 @@ begin
     exit;
 
   // status changed
-  ss := p.RoutesText;
+  try
+    ss := p.RoutesText;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, '[EXCEPTION] kb_AddB.RoutesText : %s (pazo_id=%d)', [e.Message, p.pazo_id]);
+      ss := '';
+    end;
+  end;
   if ss <> '' then
   begin
     irc_SendROUTEINFOS(ss);
@@ -808,52 +869,52 @@ begin
   try
     if (event in [kbeNEWDIR, kbePRE, kbeSPREAD, kbeADDPRE, kbeUPDATE]) then
     begin
-      for i := p.PazoSitesList.Count - 1 downto 0 do
+      if (p = nil) or (p.PazoSitesList = nil) then
+        Debug(dpSpam, rsections, '[DIAG] kb_AddB.add dirlist: p or PazoSitesList is nil (pazo_id=%d)', [p.pazo_id])
+      else
       begin
-        try
-          if i < 0 then
-            Break;
-        except
-          Break;
-        end;
-        try
-          ps := TPazoSite(p.PazoSitesList[i]);
+        for i := p.PazoSitesList.Count - 1 downto 0 do
+        begin
+          try
+            if i < 0 then
+              Break;
+            ps := TPazoSite(p.PazoSitesList[i]);
 
-          // dirlist not available
-          if ps.dirlist = nil then
-          begin
-            Debug(dpError, section, 'ERROR: ps.dirlist = nil');
-            Continue;
-          end;
+            // dirlist not available
+            if ps.dirlist = nil then
+            begin
+              Debug(dpError, section, 'ERROR: ps.dirlist = nil');
+              Continue;
+            end;
 
-          // dirlist task already added
-          if (ps.dirlist.dirlistadded) and (event <> kbeUPDATE) then
-            Continue;
+            // dirlist task already added
+            if (ps.dirlist.dirlistadded) and (event <> kbeUPDATE) then
+              Continue;
 
-          // Source site is PRE site for this group
-          if ps.status in [rssShouldPre, rssRealPre] then
-          begin
-            r.PredOnAnySite := True;
-            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
-            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
-            ps.dirlist.dirlistadded := True;
-            AddTask(dlt, true);
-          end;
+            // Source site is PRE site for this group
+            if ps.status in [rssShouldPre, rssRealPre] then
+            begin
+              r.PredOnAnySite := True;
+              dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
+              irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
+              ps.dirlist.dirlistadded := True;
+              AddTask(dlt, true);
+            end;
 
-          // Source site is _not_ a PRE site for this group
-          if ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete] then
-          begin
-            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
-            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
-            ps.dirlist.dirlistadded := True;
-            AddTask(dlt, true);
-          end;
-
-        except
-          on E: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] kb_Add add dirlist iterate: %s', [e.Message]));
-            continue;
+            // Source site is _not_ a PRE site for this group
+            if ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete] then
+            begin
+              dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
+              irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
+              ps.dirlist.dirlistadded := True;
+              AddTask(dlt, true);
+            end;
+          except
+            on E: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] kb_Add add dirlist iterate idx=%d : %s (pazo_id=%d)', [i, e.Message, p.pazo_id]));
+              continue;
+            end;
           end;
         end;
       end;
@@ -1590,15 +1651,22 @@ var
   p: TPazo;
   fIncFillPazos, fFinishedPazos, fFinishedRankCalcPazos, fDeletedPazos: TList<TPazo>;
   fIsSpecialKB, fTryToCompleteTimeReached: boolean;
+  fLoggedStart: Boolean;
 begin
   fIncFillPazos := TList<TPazo>.Create;
   fFinishedPazos := TList<TPazo>.Create;
   fFinishedRankCalcPazos := TList<TPazo>.Create;
   fDeletedPazos := TList<TPazo>.Create;
+  fLoggedStart := False;
   try
     while (not slshutdown) do
     begin
       try
+        if not fLoggedStart then
+        begin
+          Debug(dpError, rsections, '[DIAG] TKBThread.Execute started');
+          fLoggedStart := True;
+        end;
         kb_lock.Enter('Execute');
         p := nil;
         try
@@ -1639,6 +1707,7 @@ begin
                 kb_latest.Delete(j);
               end;
               fDeletedPazos.Add(p);
+              Debug(dpError, rsections, '[DIAG] TKBThread.Execute added pazo to fDeletedPazos (pazo_id=%d, rls=%s)', [p.pazo_id, p.rls.rlsname]);
             end;
 
           end;
@@ -1680,18 +1749,64 @@ begin
         fFinishedPazos.Clear;
         fFinishedRankCalcPazos.Clear;
 
-        for p in fDeletedPazos do
-        begin
-          try
-            p.Free;
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, rsections, '[EXCEPTION] TKBThread.Execute FreePazo: %s', [e.Message]);
+        try
+          for p in fDeletedPazos do
+          begin
+            try
+              try
+                if (p = nil) then
+                begin
+                  Debug(dpSpam, rsections, '[DIAG] TKBThread.Execute fDeletedPazos contains nil');
+                  Continue;
+                end;
+                if (p.PazoSitesList = nil) then
+                begin
+                  Debug(dpSpam, rsections, '[DIAG] TKBThread.Execute about to double-free pazo (pazo_id=%d, rls=%s)', [p.pazo_id, p.rls.rlsname]);
+                  Continue;
+                end;
+              except
+                on e: Exception do
+                begin
+                  Debug(dpSpam, rsections, '[DIAG] TKBThread.Execute pazo state check failed: %s', [e.Message]);
+                  Continue;
+                end;
+              end;
+              // Remove every kb_list entry that points to this pazo before
+              // freeing it. The same pazo can be registered under multiple keys
+              // (e.g. SECTION-rls, INC-rls, TRANSFER-...); deleting only one
+              // leaves dangling pointers behind and causes a double-free.
+              kb_lock.Enter('Execute_FreePazo');
+              try
+                j := 0;
+                for i := kb_list.Count - 1 downto 0 do
+                begin
+                  if kb_list.Objects[i] = p then
+                  begin
+                    kb_list.Delete(i);
+                    Inc(j);
+                  end;
+                end;
+                if j = 0 then
+                begin
+                  Debug(dpSpam, rsections, '[DIAG] TKBThread.Execute pazo not in kb_list, skipping free');
+                  Continue;
+                end;
+              finally
+                kb_lock.Leave;
+              end;
+
+              Debug(dpError, rsections, '[DIAG] TKBThread.Execute freeing pazo (pazo_id=%d, rls=%s, deleted_kb_entries=%d)', [p.pazo_id, p.rls.rlsname, j]);
+              p.Free;
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, rsections, '[EXCEPTION] TKBThread.Execute FreePazo: %s', [e.Message]);
+              end;
             end;
           end;
+        finally
+          fDeletedPazos.Clear;
         end;
-        fDeletedPazos.Clear;
 
       except
         on e: Exception do

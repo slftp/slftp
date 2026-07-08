@@ -1,17 +1,108 @@
 unit queueunit;
 
+{$DEFINE DEDUP_RACE}   // test deduplication for race tasks
+{$DEFINE DEDUP_DIRLIST} // test deduplication for dirlist tasks
+
 interface
 
 uses
-  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection2, pazo, taskidle, taskquit, tasklogin, RegExpr, taskautoindex, taskrules, taskautodirlist, taskautonuke, Generics.Collections;
+  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection2, pazo,
+  taskidle, taskquit, tasklogin, RegExpr, taskautoindex, taskrules,
+  taskautodirlist, taskautonuke, tasktraceunit, Generics.Collections;
 
 
 type TQueueStat = class
+  private
+    FRaceHistory: TList<TDateTime>;
+  public
     FRaceTaskCount: integer;
     FDirlistTaskCount: integer;
     FAutoTaskCount: integer;
     FOtherTaskCount: integer;
+
+    // Phase 1 performance metrics
+    FTaskWaitMsTotal: Int64;
+    FTaskWaitCount: Integer;
+    FTasksAssignedThisRun: Integer;
+    FTasksSkippedThisRun: Integer;
+    FQueueIterateMsTotal: Int64;
+    FQueueIterateCount: Integer;
+    FQueueSortCount: Integer;
+    FQueueSortMsTotal: Int64;
+    FSlotIdleMsTotal: Int64;
+    FSlotIdleCount: Integer;
+    FGraphWakeCount: Integer;
+    FBusyDestinationsHitCount: Integer;
+
+    // Phase 2 diagnostics: per-method timing
+    FFindBestRaceMsTotal: Int64;
+    FFindBestRaceCount: Integer;
+    FTryToAssignRaceSlotsMsTotal: Int64;
+    FTryToAssignRaceSlotsCount: Integer;
+    FQueueStatMsTotal: Int64;
+    FQueueStatCount: Integer;
+
+    // Phase 2 diagnostics: task creation / dup counts
+    FTasksCreatedRace: Integer;
+    FTasksCreatedDirlist: Integer;
+    FTasksCreatedMkdir: Integer;
+    FTasksCreatedLogin: Integer;
+    FTasksCreatedOther: Integer;
+    FTasksDupRace: Integer;
+    FTasksDupDirlist: Integer;
+    FTasksDupMkdir: Integer;
+    FTasksDupLogin: Integer;
+
+    // Breakdown of why a race could not be assigned to a destination
+    FBusyDestNoFreeSlotsSource: Integer;
+    FBusyDestNoFreeSlotsDest: Integer;
+    FBusyDestMaxSimUpCooldown: Integer;
+    FBusyDestMaxSimDownCooldown: Integer;
+    FBusyDestBusyDict: Integer;
+    FBusyDestActiveTransferDst: Integer;
+    FBusyDestMaxUp: Integer;
+    FBusyDestActiveTransferSrc: Integer;
+    FBusyDestMaxDn: Integer;
+    FBusyDestNoSlotSource: Integer;
+    FBusyDestNoSlotDest: Integer;
+    FBusyDestMaxUpPerRip: Integer;
+
+    constructor Create;
+    destructor Destroy; override;
+    procedure CleanupOldRaceHistory;
+    procedure AddRaceToHistory;
+    function RecentRaceCount: Integer;
 end;
+
+{ Origin of a QueueFire call, used for queue-wake instrumentation. }
+TQueueFireSource = (qfsSlot, qfsGraphWake, qfsMainThread, qfsConsole, qfsIrc, qfsAddTask, qfsPazo, qfsOther);
+
+procedure IncQueueFireCount(const aSource: TQueueFireSource);
+
+{ In-memory ring buffer for queue diagnostics. }
+type TQueueDiagEntry = record
+  Timestamp: TDateTime;
+  Message: string;
+end;
+
+TQueueDiagLog = class
+private
+  FBuffer: array of TQueueDiagEntry;
+  FCapacity: Integer;
+  FCount: Integer;
+  FHead: Integer;
+  FCS: TCriticalSection;
+public
+  constructor Create(const aCapacity: Integer);
+  destructor Destroy; override;
+  procedure Add(const aMsg: string);
+  function GetRecent(const aCount: Integer): string;
+end;
+
+var
+  GlQueueDiag: TQueueDiagLog;
+
+procedure QueueDiagLog(const aMsg: string);
 
 type TQueueTask = class
   FFullname: string;
@@ -34,20 +125,76 @@ type
   fSite: TObject;
   fBusyDestinations: TDictionary<TObject, integer>;
 
+  // Fast lookup indexes for TaskAlreadyInQueue instead of linear scans.
+  // TStringList with Sorted=True gives O(log n) lookup/add/remove and avoids
+  // the FPC internal error seen with multiple TDictionary<String,Boolean> fields.
+  // Keys are kept in sync with tasks / waiting_tasks under main_lock.
+  fRaceTaskSet: TStringList;
+  fDirlistTaskSet: TStringList;
+  fMkdirTaskSet: TStringList;
+  fLoginTaskSet: TStringList;
+
   queue_last_run: TDateTime;
   queueclean_last_run: TDateTime;
   queue_last_stat_update: TDateTime;
+  queue_last_memory_diag: TDateTime;
+  fQueueIterateStart: TDateTime;
+  fLastSortTime: TDateTime;
+  fTasksMovedSinceSort: Integer;
+
+  // Race-check flag: set when a slot becomes free so FindBestRaceTask is only
+  // executed when it can actually find a race. Accessed with InterlockedExchange.
+  fNeedRaceCheck: Integer;
+
+  // Task currently assigned to a slot and executing. Used to allow exactly one
+  // legitimate follow-up task (e.g. a dirlist re-read) with the same key.
+  fExecutingTask: TTask;
+  fExecutingTaskAllowedDuplicate: Boolean;
+
+  // In-memory diagnostics counters (reset periodically)
+  fDiagFbrCalls: Integer;
+  fDiagFbrAssigned: Integer;
+  fDiagFbrNoCand: Integer;
+  fDiagFbrNoCandFreeslots: Integer;
+  fDiagFbrNoCandMaxUp: Integer;
+  fDiagFbrNoCandMaxDn: Integer;
+  fDiagFbrNoCandNoSlotDst: Integer;
+  fDiagFbrNoCandBusyDict: Integer;
+  fDiagFbrNoCandActiveTransfer: Integer;
+  fDiagFbrNoCandNotReady: Integer;
+  fDiagFbrNoCandOther: Integer;
+  fDiagFbrTriedFailed: Integer;
+  fDiagIterCount: Integer;
+  fDiagIterAssigned: Integer;
+  fDiagIterSkipped: Integer;
+  fDiagLastLogTime: TDateTime;
 
     procedure TryToAssignLoginSlot(t: TLoginTask);
     procedure TryToAssignRaceSlots(t: TPazoRaceTask);
+    function HasOnlineFreeSlot(const aSite: TObject): Boolean;
+    function HasPendingRaceTasks: Boolean;
+    function FindBestRaceTask: Boolean;
     function TaskAlreadyInQueue(t: TTask): boolean;
+    function IsExecutingTaskWithKey(const t: TTask; const aKey: String): Boolean;
+
+    // Key helpers and index maintenance for the duplicate lookup.
+    function RaceTaskKey(const t: TPazoRaceTask): String;
+    function DirlistTaskKey(const t: TPazoDirlistTask): String;
+    function MkdirTaskKey(const t: TPazoMkdirTask): String;
+    function LoginTaskKey(const t: TLoginTask): String;
+    procedure AddTaskToIndex(const t: TTask);
+    procedure RemoveTaskFromIndex(const t: TTask);
     procedure QueueStat;
+    procedure LogDiagSummary;
 
 public
 
 
 procedure QueueFire;
+procedure IncGraphWakeCount;
 procedure QueueStart;
+procedure SignalRaceCheck;
+
 procedure AddTask(t: TTask);
 procedure QueueEmpty(const sitename: String);
 procedure RemovePazoMKDIR(const pazo_id: integer; const dir: String);
@@ -81,9 +228,15 @@ property QueueLastRun: TDateTime read queue_last_run;
 property QueueCleanLastRun: TDateTime read queueclean_last_run;
 
   end;
+
+{ Wakes the TWaitTask paired with the given TPazoRaceTask (if any). }
+procedure SignalPairedWaitTask(const aRaceUid: UInt64);
+
 procedure QueueInit;
 procedure QueueUninit;
 procedure QueueStatAll;
+function QueueStatAllAsString: String;
+function QueueStatForSiteAsString(const aSiteName: String): String;
 
 var
   QueueStatUpdateDateTime: TDateTime;
@@ -92,7 +245,7 @@ implementation
 
 uses
   SysUtils, Types, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils,
-  tasktvinfolookup, taskhttpnfo, tasksitenfo, tasksitesfv, sitesunit;
+  tasktvinfolookup, taskhttpnfo, tasksitenfo, tasksitesfv, sitesunit, taskregistry, pazotaskgraph;
 
 const
   section = 'queue';
@@ -112,6 +265,132 @@ var
 
   StatsList: TObjectList<TQueueStat>;
   GlDefaultIterationWaitTimeout: Cardinal = 15 * 1000;
+  GlMinQueueWaitTimeout: Cardinal = 100;
+  GlQueueFireCounts: array[TQueueFireSource] of Int64;
+
+procedure IncQueueFireCount(const aSource: TQueueFireSource);
+begin
+  Inc(GlQueueFireCounts[aSource]);
+end;
+
+{ TQueueDiagLog }
+
+constructor TQueueDiagLog.Create(const aCapacity: Integer);
+begin
+  inherited Create;
+  FCapacity := aCapacity;
+  if FCapacity < 1 then
+    FCapacity := 1;
+  SetLength(FBuffer, FCapacity);
+  FCount := 0;
+  FHead := 0;
+  FCS := TCriticalSection.Create;
+end;
+
+destructor TQueueDiagLog.Destroy;
+begin
+  FCS.Free;
+  SetLength(FBuffer, 0);
+  inherited;
+end;
+
+procedure TQueueDiagLog.Add(const aMsg: string);
+begin
+  FCS.Enter;
+  try
+    FBuffer[FHead].Timestamp := Now;
+    FBuffer[FHead].Message := aMsg;
+    FHead := (FHead + 1) mod FCapacity;
+    if FCount < FCapacity then
+      Inc(FCount);
+  finally
+    FCS.Leave;
+  end;
+end;
+
+function TQueueDiagLog.GetRecent(const aCount: Integer): string;
+var
+  fIndex, fStart, fI, fRequested: Integer;
+  fEntry: TQueueDiagEntry;
+begin
+  Result := '';
+  fRequested := aCount;
+  if fRequested < 1 then
+    fRequested := 20;
+  if fRequested > FCapacity then
+    fRequested := FCapacity;
+
+  FCS.Enter;
+  try
+    if FCount = 0 then
+    begin
+      Result := 'No queue diagnostics logged yet.';
+      exit;
+    end;
+
+    if fRequested > FCount then
+      fRequested := FCount;
+
+    // FHead points to next write position; most recent entry is at (FHead - 1)
+    fStart := (FHead - 1 + FCapacity) mod FCapacity;
+    for fI := 0 to fRequested - 1 do
+    begin
+      fIndex := (fStart - fI + FCapacity) mod FCapacity;
+      fEntry := FBuffer[fIndex];
+      if Result <> '' then
+        Result := Result + #13#10;
+      Result := Result + Format('[%s] %s', [FormatDateTime('hh:nn:ss.zzz', fEntry.Timestamp), fEntry.Message]);
+    end;
+  finally
+    FCS.Leave;
+  end;
+end;
+
+procedure QueueDiagLog(const aMsg: string);
+begin
+  if GlQueueDiag <> nil then
+    GlQueueDiag.Add(aMsg);
+end;
+
+{ TQueueStat }
+
+constructor TQueueStat.Create;
+begin
+  inherited;
+  FRaceHistory := TList<TDateTime>.Create;
+end;
+
+destructor TQueueStat.Destroy;
+begin
+  FRaceHistory.Free;
+  inherited;
+end;
+
+procedure TQueueStat.CleanupOldRaceHistory;
+var
+  i: Integer;
+  fCutoff: TDateTime;
+begin
+  fCutoff := IncMilliSecond(Now, -60000);
+  for i := FRaceHistory.Count - 1 downto 0 do
+  begin
+    if FRaceHistory[i] < fCutoff then
+      FRaceHistory.Delete(i);
+  end;
+end;
+
+procedure TQueueStat.AddRaceToHistory;
+begin
+  FRaceHistory.Add(Now);
+  // keep the list bounded even if RecentRaceCount is not called
+  CleanupOldRaceHistory;
+end;
+
+function TQueueStat.RecentRaceCount: Integer;
+begin
+  CleanupOldRaceHistory;
+  Result := FRaceHistory.Count;
+end;
 
 procedure TQueueThread.QueueFire;
 begin
@@ -125,6 +404,11 @@ begin
       exit;
     end;
   end;
+end;
+
+procedure TQueueThread.IncGraphWakeCount;
+begin
+  Inc(fQueueStat.FGraphWakeCount);
 end;
 
 function QueueSorter(Item1, Item2: Pointer): integer;
@@ -411,6 +695,40 @@ begin
   QueueStatAll;
 end;
 
+procedure TQueueThread.SignalRaceCheck;
+begin
+  InterlockedExchange(fNeedRaceCheck, 1);
+end;
+
+procedure SignalPairedWaitTask(const aRaceUid: UInt64);
+var
+  fRaceTask: TTask;
+  fWaitTask: TTask;
+  fWait: TWaitTask;
+begin
+  if aRaceUid = 0 then
+    exit;
+
+  if GlTaskRegistry = nil then
+    exit;
+
+  fRaceTask := GlTaskRegistry.Lookup(aRaceUid);
+  if (fRaceTask = nil) or (fRaceTask.ClassType <> TPazoRaceTask) then
+    exit;
+
+  if TPazoRaceTask(fRaceTask).dst_uid = 0 then
+    exit;
+
+  fWaitTask := GlTaskRegistry.Lookup(TPazoRaceTask(fRaceTask).dst_uid);
+  if (fWaitTask = nil) or (fWaitTask.ClassType <> TWaitTask) then
+    exit;
+
+  fWait := TWaitTask(fWaitTask);
+  // Wake the wait task so it can finish even if the queue loop misses it.
+  fWait.ready := True;
+  fWait.event.SetEvent;
+end;
+
 constructor TQueueThread.Create(const aSiteName: String);
 begin
   main_lock := nil;
@@ -419,6 +737,10 @@ begin
   queueevent := nil;
   fQueueStat := nil;
   fBusyDestinations := nil;
+  fRaceTaskSet := nil;
+  fDirlistTaskSet := nil;
+  fMkdirTaskSet := nil;
+  fLoginTaskSet := nil;
 
   inherited Create(False);
   {$IFDEF DEBUG}
@@ -433,12 +755,50 @@ begin
     queue_last_run := Now;
     queueclean_last_run := Now;
     queue_last_stat_update := Now;
+    queue_last_memory_diag := Now;
+    fLastSortTime := 0;
+    fTasksMovedSinceSort := 0;
+    fNeedRaceCheck := 1;
+    fExecutingTask := nil;
+    fExecutingTaskAllowedDuplicate := False;
+    fDiagFbrCalls := 0;
+    fDiagFbrAssigned := 0;
+    fDiagFbrNoCand := 0;
+    fDiagFbrNoCandFreeslots := 0;
+    fDiagFbrNoCandMaxUp := 0;
+    fDiagFbrNoCandMaxDn := 0;
+    fDiagFbrNoCandNoSlotDst := 0;
+    fDiagFbrNoCandBusyDict := 0;
+    fDiagFbrNoCandActiveTransfer := 0;
+    fDiagFbrNoCandNotReady := 0;
+    fDiagFbrNoCandOther := 0;
+    fDiagFbrTriedFailed := 0;
+    fDiagIterCount := 0;
+    fDiagIterAssigned := 0;
+    fDiagIterSkipped := 0;
+    fDiagLastLogTime := Now;
     FreeOnTerminate := True;
     fQueueStat := TQueueStat.Create();
     StatsList.Add(fQueueStat);
     fSiteName := aSiteName;
     fBusyDestinations := TDictionary<TObject, integer>.Create;
+    fRaceTaskSet := TStringList.Create;
+    fRaceTaskSet.Sorted := True;
+    fRaceTaskSet.Duplicates := dupIgnore;
+    fDirlistTaskSet := TStringList.Create;
+    fDirlistTaskSet.Sorted := True;
+    fDirlistTaskSet.Duplicates := dupIgnore;
+    fMkdirTaskSet := TStringList.Create;
+    fMkdirTaskSet.Sorted := True;
+    fMkdirTaskSet.Duplicates := dupIgnore;
+    fLoginTaskSet := TStringList.Create;
+    fLoginTaskSet.Sorted := True;
+    fLoginTaskSet.Duplicates := dupIgnore;
   except
+    FreeAndNil(fRaceTaskSet);
+    FreeAndNil(fDirlistTaskSet);
+    FreeAndNil(fMkdirTaskSet);
+    FreeAndNil(fLoginTaskSet);
     FreeAndNil(fBusyDestinations);
     if fQueueStat <> nil then
     begin
@@ -459,7 +819,176 @@ begin
   tasks.Free;
   waiting_tasks.Free;
   queueevent.Free;
+  fRaceTaskSet.Free;
+  fDirlistTaskSet.Free;
+  fMkdirTaskSet.Free;
+  fLoginTaskSet.Free;
   inherited;
+end;
+
+function TQueueThread.HasOnlineFreeSlot(const aSite: TObject): Boolean;
+var
+  fSite: TSite;
+  fSlot: TSiteSlot;
+begin
+  Result := False;
+  fSite := TSite(aSite);
+  for fSlot in fSite.slots do
+  begin
+    if (fSlot.todotask = nil) and (fSlot.status = ssOnline) then
+    begin
+      Result := True;
+      exit;
+    end;
+  end;
+end;
+
+function TQueueThread.HasPendingRaceTasks: Boolean;
+var
+  fTask: TTask;
+begin
+  Result := False;
+  for fTask in tasks do
+  begin
+    if fTask is TPazoRaceTask then
+    begin
+      Result := True;
+      exit;
+    end;
+  end;
+end;
+
+function TQueueThread.FindBestRaceTask: Boolean;
+var
+  fTaskList: TList;
+  fTask: TTask;
+  i: integer;
+  s1, s2: TSite;
+  fRace: TPazoRaceTask;
+begin
+  Result := False;
+  s1 := TSite(self.fSite);
+
+  Inc(fDiagFbrCalls);
+
+  if s1.freeslots = 0 then
+  begin
+    Inc(fDiagFbrNoCand);
+    Inc(fDiagFbrNoCandFreeslots);
+    exit;
+  end;
+
+  fTaskList := TList.Create;
+  try
+    for fTask in tasks do
+    begin
+      if not (fTask is TPazoRaceTask) then
+        Continue;
+      if fTask.ssite1 <> s1 then
+        Continue;
+      if fTask.slot1 <> nil then
+        Continue;
+      if fTask.ready or fTask.readyerror then
+        Continue;
+      if not fTask.IsReadyToBeExecuted then
+      begin
+        Inc(fDiagFbrNoCandNotReady);
+        Continue;
+      end;
+
+      fRace := TPazoRaceTask(fTask);
+      s2 := TSite(fRace.ssite2);
+
+      // Hard prerequisites: only consider races that can actually be assigned
+      // right now. This prevents the expensive slot-assignment logic from being
+      // run for saturated destinations or already-active transfers.
+      if s2.freeslots = 0 then
+      begin
+        Inc(fDiagFbrNoCandFreeslots);
+        Continue;
+      end;
+      if s2.num_up >= s2.max_up then
+      begin
+        Inc(fDiagFbrNoCandMaxUp);
+        Continue;
+      end;
+      if s2.MaxSimUpCooldownActive then
+      begin
+        Inc(fDiagFbrNoCandOther);
+        Continue;
+      end;
+      if fBusyDestinations.ContainsKey(s2) then
+      begin
+        Inc(fDiagFbrNoCandBusyDict);
+        Continue;
+      end;
+
+      // Source download limits
+      if fRace.ps1.StatusRealPreOrShouldPre then
+      begin
+        if s1.num_dn >= s1.max_pre_dn then
+        begin
+          Inc(fDiagFbrNoCandMaxDn);
+          Continue;
+        end;
+      end
+      else
+      begin
+        if s1.num_dn >= s1.max_dn then
+        begin
+          Inc(fDiagFbrNoCandMaxDn);
+          Continue;
+        end;
+      end;
+
+      // Already transferring this file to/from the destination?
+      if fRace.ps2.HasActiveTransfer(fRace.dir + fRace.filename) then
+      begin
+        Inc(fDiagFbrNoCandActiveTransfer);
+        Continue;
+      end;
+      if fRace.ps1.HasActiveTransfer(fRace.dir + fRace.filename, s2.Name) then
+      begin
+        Inc(fDiagFbrNoCandActiveTransfer);
+        Continue;
+      end;
+
+      // Destination must have an online, free slot (not just any free slot)
+      if not HasOnlineFreeSlot(s2) then
+      begin
+        Inc(fDiagFbrNoCandNoSlotDst);
+        Continue;
+      end;
+
+      fTaskList.Add(fTask);
+    end;
+
+    if fTaskList.Count = 0 then
+    begin
+      Inc(fDiagFbrNoCand);
+      exit;
+    end;
+
+    fTaskList.Sort(@QueueSorter);
+
+    for i := 0 to fTaskList.Count - 1 do
+    begin
+      fTask := TTask(fTaskList[i]);
+      TryToAssignRaceSlots(TPazoRaceTask(fTask));
+      if fTask.slot1 <> nil then
+      begin
+        Inc(fDiagFbrAssigned);
+        Result := True;
+        exit;
+      end;
+    end;
+
+    // Candidates existed but none could be assigned (e.g. slot was taken between
+    // the cheap filter and the actual slot assignment).
+    Inc(fDiagFbrTriedFailed);
+  finally
+    fTaskList.Free;
+  end;
 end;
 
 procedure TQueueThread.TryToAssignRaceSlots(t: TPazoRaceTask);
@@ -467,19 +996,31 @@ var
   s1, s2: TSite;
   i: integer;
   ss1, ss2, fSiteSlotLoop: TSiteSlot;
+  fPartnerTask: TTask;
+  fWaitUid: UInt64;
 begin
   try
     s1 := TSite(t.ssite1);
     s2 := TSite(t.ssite2);
     if s1.freeslots = 0 then
+    begin
+      Inc(fQueueStat.FBusyDestNoFreeSlotsSource);
       exit;
+    end;
     if s2.freeslots = 0 then
+    begin
+      Inc(fQueueStat.FBusyDestNoFreeSlotsDest);
+      if not fBusyDestinations.ContainsKey(s2) then
+        fBusyDestinations.Add(s2, 0);
       exit;
+    end;
 
     if s2.MaxSimUpCooldownActive then
     begin
       if not fBusyDestinations.ContainsKey(s2) then
         fBusyDestinations.Add(s2, 0);
+      Inc(fQueueStat.FBusyDestinationsHitCount);
+      Inc(fQueueStat.FBusyDestMaxSimUpCooldown);
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Destination site %s is on MaxSim UP cooldown (%ds remaining), skipping %s',
         [s2.Name, s2.MaxSimUpCooldownRemainingSeconds, t.FullName]);
       exit;
@@ -487,6 +1028,7 @@ begin
 
     if s1.MaxSimDownCooldownActive then
     begin
+      Inc(fQueueStat.FBusyDestMaxSimDownCooldown);
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Source site %s is on MaxSim DOWN cooldown (%ds remaining), skipping %s',
         [s1.Name, s1.MaxSimDownCooldownRemainingSeconds, t.FullName]);
       exit;
@@ -494,31 +1036,48 @@ begin
 
     if fBusyDestinations.ContainsKey(s2) then
     begin
+      Inc(fQueueStat.FBusyDestinationsHitCount);
+      Inc(fQueueStat.FBusyDestBusyDict);
       Debug(dpSpam, section, 'Destination site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
       exit;
     end;
 
     // first watch if it is not already in process to upload the same file to the same place
     if t.ps2.HasActiveTransfer(t.dir + t.filename) then
+    begin
+      Inc(fQueueStat.FBusyDestActiveTransferDst);
       exit; // we are already sending this file to the same destination site
+    end;
 
     if s2.num_up >= s2.max_up then
+    begin
+      Inc(fQueueStat.FBusyDestMaxUp);
       exit;
+    end;
 
     if t.ps1.HasActiveTransfer(t.dir + t.filename, s2.Name) then
+    begin
+      Inc(fQueueStat.FBusyDestActiveTransferSrc);
       exit; // we are already sending this file the opposite route
+    end;
 
     // or use 'if t.ps1.StatusRealPreOrShouldPre then' from pazo.pas but will also pre true when status = rssShouldPre
     //if t.ps1.status = rssRealPre then
     if t.ps1.StatusRealPreOrShouldPre then
     begin
       if s1.num_dn >= s1.max_pre_dn then
+      begin
+        Inc(fQueueStat.FBusyDestMaxDn);
         exit;
+      end;
     end
     else
     begin
       if s1.num_dn >= s1.max_dn then
+      begin
+        Inc(fQueueStat.FBusyDestMaxDn);
         exit;
+      end;
     end;
 
     ss1 := nil;
@@ -545,23 +1104,34 @@ begin
       end;
     end;
     if ss1 = nil then
+    begin
+      Inc(fQueueStat.FBusyDestNoSlotSource);
       exit;
+    end;
 
 
     if not s2.AcquireSlotsAssignmentLock(1, 'TryToAssignRaceSlots') then
     begin
       fBusyDestinations.Add(s2, 0);
+      Inc(fQueueStat.FBusyDestinationsHitCount);
+      Inc(fQueueStat.FBusyDestBusyDict);
       exit;
     end;
 
     try
       // check again now that we have the lock at the destination
       if s2.num_up >= s2.max_up then
+      begin
+        Inc(fQueueStat.FBusyDestMaxUp);
         exit;
+      end;
 
       // again check if this file is already being sent to the destination now that we have the slot assignment lock
       if t.ps2.HasActiveTransfer(t.dir + t.filename) then
+      begin
+        Inc(fQueueStat.FBusyDestActiveTransferDst);
         exit; // we are already sending this file to the same destination site
+      end;
 
       ss2 := nil;
       for fSiteSlotLoop in s2.slots do
@@ -574,23 +1144,62 @@ begin
         end;
       end;
       if ss2 = nil then
+      begin
+        Inc(fQueueStat.FBusyDestNoSlotDest);
         exit;
+      end;
 
       // now you can relax, just check if you don't abuse your max simultaneous uploads for a rip
       i := ss2.site.MaxUpPerRip;
       if ((i > 0) and (t.ps2.ActiveTransferCount >= i)) then
       begin
+        Inc(fQueueStat.FBusyDestMaxUpPerRip);
         Debug(dpSpam, section, 'We shouldnt upload more than maxupperrip value [' + IntToStr(i) + '] for' + ss2.Name);
         exit;
       end;
 
       Debug(dpSpam, section, 'FOUND SLOTS FOR ' + t.FullName + ': ' + ss1.Name + ' ' + ss2.Name);
-      t.dst      := TWaitTask.Create(t.netname, t.channel, t.site2);
-      t.assigned := Now;
-      t.dst.assigned := Now;
-      t.dst.wait_for := t.Name;
-      t.dst.slot1 := ss2;
-      AddTask(t.dst);
+      if t.assigned = 0 then
+      begin
+        t.assigned := Now;
+        fQueueStat.FTaskWaitMsTotal := fQueueStat.FTaskWaitMsTotal + MilliSecondsBetween(t.assigned, t.created);
+        Inc(fQueueStat.FTaskWaitCount);
+      end;
+      Inc(fQueueStat.FTasksAssignedThisRun);
+      fQueueStat.AddRaceToHistory;
+      fPartnerTask := TWaitTask.Create(t.netname, t.channel, t.site2);
+      try
+        TWaitTask(fPartnerTask).assigned := Now;
+        TWaitTask(fPartnerTask).wait_for := t.Name;
+        TWaitTask(fPartnerTask).race_task_uid := t.uid;
+        TWaitTask(fPartnerTask).mainpazo := t.mainpazo;
+        TWaitTask(fPartnerTask).slot1 := ss2;
+        fWaitUid := TWaitTask(fPartnerTask).uid;
+        AddTask(fPartnerTask);
+        // Only link after successful add; AddTask may free duplicates.
+        t.dst_uid := fWaitUid;
+        if (t.mainpazo <> nil) and (t.mainpazo.TaskGraph <> nil) and
+           (GlTaskRegistry <> nil) and (GlTaskRegistry.Lookup(fWaitUid) <> nil) then
+        begin
+          t.mainpazo.TaskGraph.AddTask(fWaitUid);
+          // Use AddDependencyIfExists because the race task may finish and be
+          // removed from the graph before we can register the dependency here.
+          // The wait task is still woken by the race task via dst_uid/event.
+          t.mainpazo.TaskGraph.AddDependencyIfExists(fWaitUid, t.uid);
+          Debug(dpMessage, section, Format('[PAZOCASCADE] pazo_id=%d type=WaitCreated race_uid=%d wait_uid=%d',
+            [t.mainpazo.pazo_id, t.uid, fWaitUid]));
+        end;
+      except
+        on e: Exception do
+        begin
+          // If AddTask did not keep it, free it ourselves.
+          if GlTaskRegistry.Lookup(TWaitTask(fPartnerTask).uid) = nil then
+            FreeAndNil(fPartnerTask)
+          else
+            fPartnerTask := nil;
+          raise;
+        end;
+      end;
       t.ps2.AddActiveTransfer(t.dir + t.filename, s1.Name);
       t.slot1      := ss1;
       t.slot1name  := ss1.Name;
@@ -599,7 +1208,8 @@ begin
       ss1.downloadingfrom := True;
       ss2.uploadingto := True;
       ss1.todotask := t;
-      ss2.todotask := t.dst;
+      ss2.todotask := GlTaskRegistry.Lookup(t.dst_uid);
+      Debug(dpMessage, section, '[RACE ASSIGNED] %s (uid=%d) src=%s dst=%s', [t.FullName, t.uid, ss1.Name, ss2.Name]);
       ss2.Fire;
       ss1.Fire;
     finally
@@ -789,6 +1399,14 @@ begin
           on e: Exception do
             begin
               Debug(dpError, section, '[EXCEPTION] This should not happen anymore due to locking at todotask := nil. Else I don''t know why (Remove this if the exception never happens) : %s', [e.Message]);
+              try
+                Debug(dpError, section, '[DIAG] todotask AV context: site=%s slotidx=%d/%d sst_addr=%p todotask_addr=%p sst_name=%s', [s.Name, i, s.slots.Count, Pointer(sst), Pointer(sst.todotask), sst.Name]);
+              except
+                on e2: Exception do
+                begin
+                  Debug(dpError, section, '[DIAG] todotask AV context: site=%s slotidx=%d/%d sst_addr=%p todotask_addr=%p sst_name=INVALID (%s)', [s.Name, i, s.slots.Count, Pointer(sst), Pointer(sst.todotask), e2.Message]);
+                end;
+              end;
             end;
           end;
         end;
@@ -872,10 +1490,20 @@ begin
       Debug(dpSpam, section, 'FOUND SLOT FOR ' + t.FullName + ': ' + ss.Name);
       t.slot1     := ss;
       t.slot1name := ss.Name;
-      t.assigned  := Now;
+      if t.assigned = 0 then
+      begin
+        t.assigned := Now;
+        fQueueStat.FTaskWaitMsTotal := fQueueStat.FTaskWaitMsTotal + MilliSecondsBetween(t.assigned, t.created);
+        Inc(fQueueStat.FTaskWaitCount);
+      end;
+      Inc(fQueueStat.FTasksAssignedThisRun);
       ss.todotask := t;
+      fExecutingTask := t;
+      fExecutingTaskAllowedDuplicate := True;
       ss.Fire;
     finally
+      if t.slot1 = nil then
+        Inc(fQueueStat.FTasksSkippedThisRun);
       s.ReleaseSlotsAssignmentLock;
     end;
   except
@@ -922,6 +1550,8 @@ begin
     ti := TIdleTask.Create('', '', s.site.Name);
     ti.slot1 := s;
     ti.slot1name := s.Name;
+    aQueue.fQueueStat.FSlotIdleMsTotal := aQueue.fQueueStat.FSlotIdleMsTotal + MilliSecondsBetween(Now, s.LastNonIdleTaskExecution);
+    Inc(aQueue.fQueueStat.FSlotIdleCount);
     s.todotask := ti;
     AddTask(ti);
     s.Fire;
@@ -986,196 +1616,186 @@ begin
   Debug(dpSpam, section, 'QueueEmpty end: ' + sitename);
 end;
 
-function TQueueThread.TaskAlreadyInQueue(t: TTask): boolean;
-var
-  fTask:    TTask;
-  tpr, i_tpr: TPazoRaceTask;
-  tpd, i_tpd: TPazoDirlistTask;
-  tpm, i_tpm: TPazoMkdirTask;
-  tpl, i_tpl: TLoginTask;
-  fListIndex: Integer;
-  fList: TObjectList;
+function TQueueThread.RaceTaskKey(const t: TPazoRaceTask): String;
 begin
-  Result := False;
+  Result := IntToStr(t.pazo_id) + #0 + t.site1 + #0 + t.site2 + #0 + t.dir + #0 + t.filename;
+end;
 
-  if (t is TPazoRaceTask) then
-  begin
-    try
-      tpr := TPazoRaceTask(t);
-      main_lock.Enter('TaskAlreadyInQueue1');
-      try
-        for fListIndex := 0 to 1 do
-        begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for fTask in fList do
-          begin
-            try
-              if (fTask is TPazoRaceTask) then
-              begin
-                i_tpr := TPazoRaceTask(fTask);
-                if ((i_tpr.ready = False) and (i_tpr.readyerror = False) and
-                  (i_tpr.slot1 = nil) and (i_tpr.pazo_id = tpr.pazo_id) and
-                  (i_tpr.site1 = tpr.site1) and (i_tpr.site2 = tpr.site2) and
-                  (i_tpr.dir = tpr.dir) and (i_tpr.filename = tpr.filename)) then
-                begin
-                  Result := True;
-                  exit;
-                end;
-              end;
-            except
-              on E: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoRaceTask (loop) : %s', [e.Message]));
-                continue;
-              end;
-            end;
-          end;
-        end;
-      finally
-        main_lock.Leave;
-      end;
-    except
-      on E: Exception do
+function TQueueThread.DirlistTaskKey(const t: TPazoDirlistTask): String;
+begin
+  Result := IntToStr(t.pazo_id) + #0 + t.site1 + #0 + t.dir;
+end;
+
+function TQueueThread.MkdirTaskKey(const t: TPazoMkdirTask): String;
+begin
+  Result := IntToStr(t.pazo_id) + #0 + t.site1 + #0 + t.dir;
+end;
+
+function TQueueThread.LoginTaskKey(const t: TLoginTask): String;
+begin
+  Result := t.site1 + #0 + t.wantedslot + #0 + BoolToStr(t.readd, True) + #0 + BoolToStr(t.kill, True);
+end;
+
+procedure TQueueThread.AddTaskToIndex(const t: TTask);
+begin
+  if t is TPazoRaceTask then
+    fRaceTaskSet.Add(RaceTaskKey(TPazoRaceTask(t)))
+  else if t is TPazoDirlistTask then
+    fDirlistTaskSet.Add(DirlistTaskKey(TPazoDirlistTask(t)))
+  else if t is TPazoMkdirTask then
+    fMkdirTaskSet.Add(MkdirTaskKey(TPazoMkdirTask(t)))
+  else if t is TLoginTask then
+    fLoginTaskSet.Add(LoginTaskKey(TLoginTask(t)));
+end;
+
+procedure TQueueThread.RemoveTaskFromIndex(const t: TTask);
+var
+  fIdx: Integer;
+  fKey: String;
+begin
+  try
+    if t is TPazoRaceTask then
+    begin
+      fKey := RaceTaskKey(TPazoRaceTask(t));
+      fIdx := fRaceTaskSet.IndexOf(fKey);
+      if fIdx >= 0 then
       begin
-        Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoRaceTask : %s', [e.Message]));
-        Result := False;
-        exit;
+        fRaceTaskSet.Delete(fIdx);
+        // Trim capacity to avoid a memory leak: TStringList keeps the internal
+        // buffer even when all entries are deleted. Trim aggressively so the
+        // capacity stays close to the actual count under high churn.
+        if fRaceTaskSet.Capacity > fRaceTaskSet.Count * 2 + 16 then
+          fRaceTaskSet.Capacity := fRaceTaskSet.Count;
+      end;
+    end
+    else if t is TPazoDirlistTask then
+    begin
+      fKey := DirlistTaskKey(TPazoDirlistTask(t));
+      fIdx := fDirlistTaskSet.IndexOf(fKey);
+      if fIdx >= 0 then
+      begin
+        fDirlistTaskSet.Delete(fIdx);
+        if fDirlistTaskSet.Capacity > fDirlistTaskSet.Count * 2 + 16 then
+          fDirlistTaskSet.Capacity := fDirlistTaskSet.Count;
+      end;
+    end
+    else if t is TPazoMkdirTask then
+    begin
+      fKey := MkdirTaskKey(TPazoMkdirTask(t));
+      fIdx := fMkdirTaskSet.IndexOf(fKey);
+      if fIdx >= 0 then
+      begin
+        fMkdirTaskSet.Delete(fIdx);
+        if fMkdirTaskSet.Capacity > fMkdirTaskSet.Count * 2 + 16 then
+          fMkdirTaskSet.Capacity := fMkdirTaskSet.Count;
+      end;
+    end
+    else if t is TLoginTask then
+    begin
+      fKey := LoginTaskKey(TLoginTask(t));
+      fIdx := fLoginTaskSet.IndexOf(fKey);
+      if fIdx >= 0 then
+      begin
+        fLoginTaskSet.Delete(fIdx);
+        if fLoginTaskSet.Capacity > fLoginTaskSet.Count * 2 + 16 then
+          fLoginTaskSet.Capacity := fLoginTaskSet.Count;
       end;
     end;
-    exit;
-  end;
-
-  if (t is TPazoDirlistTask) then
-  begin
-    try
-      tpd := TPazoDirlistTask(t);
-      main_lock.Enter('TaskAlreadyInQueue2');
-      try
-        for fListIndex := 0 to 1 do
-        begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for fTask in fList do
-          begin
-            try
-              if (fTask is TPazoDirlistTask) then
-              begin
-                i_tpd := TPazoDirlistTask(fTask);
-                if ((i_tpd.ready = False) and (i_tpd.readyerror = False) and
-                  (i_tpd.slot1 = nil) and (i_tpd.pazo_id = tpd.pazo_id) and
-                  (i_tpd.site1 = tpd.site1) and (i_tpd.dir = tpd.dir)) then
-                begin
-                  Result := True;
-                  exit;
-                end;
-              end;
-            except
-              on E: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoDirlistTask (loop) : %s', [e.Message]));
-                continue;
-              end;
-            end;
-          end;
-        end;
-      finally
-        main_lock.Leave;
-      end;
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoDirlistTask : %s', [e.Message]));
-        Result := False;
-        exit;
-      end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] RemoveTaskFromIndex: %s', [E.Message]));
     end;
-    exit;
-  end;
-
-  if (t is TPazoMkdirTask) then
-  begin
-    try
-      tpm := TPazoMkdirTask(t);
-      main_lock.Enter('TaskAlreadyInQueue3');
-      try
-        for fListIndex := 0 to 1 do
-        begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for fTask in fList do
-          begin
-            try
-              if (fTask is TPazoMkdirTask) then
-              begin
-                i_tpm := TPazoMkdirTask(fTask);
-                if ((i_tpm.ready = False) and (i_tpm.readyerror = False) and
-                  (i_tpm.slot1 = nil) and (i_tpm.pazo_id = tpm.pazo_id) and
-                  (i_tpm.site1 = tpm.site1) and (i_tpm.dir = tpm.dir)) then
-                begin
-                  Result := True;
-                  exit;
-                end;
-              end;
-            except
-              on E: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoMkdirTask (loop) : %s', [e.Message]));
-                continue;
-              end;
-            end;
-          end;
-        end;
-      finally
-        main_lock.Leave;
-      end;
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoMkdirTask : %s', [e.Message]));
-        Result := False;
-        exit;
-      end;
-    end;
-    exit;
-  end;
-
-  if (t is TLoginTask) then
-  begin
-    try
-      tpl := TLoginTask(t);
-      main_lock.enter('TaskAlreadyInQueue4');
-      try
-        for fListIndex := 0 to 1 do
-        begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for fTask in fList do
-          begin
-            if (fTask is TLoginTask) then
-            begin
-              i_tpl := TLoginTask(fTask);
-              if ((i_tpl.ready = False) and (i_tpl.readyerror = False) and
-                (i_tpl.slot1 = nil) and (i_tpl.site1 = tpl.site1) and
-                (i_tpl.wantedslot = tpl.wantedslot) and (i_tpl.readd = tpl.readd) and (i_tpl.kill = tpl.kill)) then
-              begin
-                Result := True;
-                exit;
-              end;
-            end;
-          end;
-        end;
-      finally
-        main_lock.Leave;
-      end;
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TLoginTask : %s', [e.Message]));
-        Result := False;
-        exit;
-      end;
-    end;
-    exit;
   end;
 end;
 
+// Helper to verify that a task with the given index key still exists in a task list.
+// Used to detect stale index entries caused by tasks removed without updating the index.
+function TQueueThread.IsExecutingTaskWithKey(const t: TTask; const aKey: String): Boolean;
+var
+  fExecKey: String;
+begin
+  Result := False;
+  if fExecutingTask = nil then
+    Exit;
+  if fExecutingTask.ClassType <> t.ClassType then
+    Exit;
+
+  if t is TPazoRaceTask then
+    fExecKey := RaceTaskKey(TPazoRaceTask(fExecutingTask))
+  else if t is TPazoDirlistTask then
+    fExecKey := DirlistTaskKey(TPazoDirlistTask(fExecutingTask))
+  else if t is TPazoMkdirTask then
+    fExecKey := MkdirTaskKey(TPazoMkdirTask(fExecutingTask))
+  else if t is TLoginTask then
+    fExecKey := LoginTaskKey(TLoginTask(fExecutingTask))
+  else
+    Exit;
+
+  Result := fExecKey = aKey;
+end;
+
+function TQueueThread.TaskAlreadyInQueue(t: TTask): boolean;
+{$IFDEF DISABLE_DEDUP}
+begin
+  // TEMPORARY: deduplication disabled for performance root-cause analysis.
+  Result := False;
+end;
+{$ELSE}
+var
+  fKey: String;
+begin
+  Result := False;
+  try
+    if t is TPazoRaceTask then
+    begin
+      {$IFDEF DEDUP_RACE}
+      fKey := RaceTaskKey(TPazoRaceTask(t));
+      Result := fRaceTaskSet.IndexOf(fKey) >= 0;
+      {$ENDIF}
+    end
+    else if t is TPazoDirlistTask then
+    begin
+      {$IFDEF DEDUP_DIRLIST}
+      fKey := DirlistTaskKey(TPazoDirlistTask(t));
+      Result := fDirlistTaskSet.IndexOf(fKey) >= 0;
+      {$ENDIF}
+    end
+    else if t is TPazoMkdirTask then
+    begin
+      {$IFDEF DEDUP_MKDIR}
+      fKey := MkdirTaskKey(TPazoMkdirTask(t));
+      Result := fMkdirTaskSet.IndexOf(fKey) >= 0;
+      {$ENDIF}
+    end
+    else if t is TLoginTask then
+    begin
+      {$IFDEF DEDUP_LOGIN}
+      fKey := LoginTaskKey(TLoginTask(t));
+      Result := fLoginTaskSet.IndexOf(fKey) >= 0;
+      {$ENDIF}
+    end;
+
+    // A task that is currently executing may legitimately create exactly one
+    // follow-up task with the same key (e.g. a dirlist re-read). Allow that
+    // single duplicate and then block further identical tasks until the
+    // executing task has been removed from the queue.
+    if Result and (fKey <> '') and fExecutingTaskAllowedDuplicate and
+       IsExecutingTaskWithKey(t, fKey) then
+    begin
+      Result := False;
+      fExecutingTaskAllowedDuplicate := False;
+    end;
+
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue index lookup: %s', [e.Message]));
+      Result := False;
+    end;
+  end;
+end;
+{$ENDIF}
 
 procedure AddTaskToConsole(const aTask: TTask);
 var
@@ -1223,14 +1843,41 @@ begin
 
     Debug(dpSpam, section, Format('[iNFO] adding : %s', [t.Name]));
 
+    // Phase 2 diagnostics: count task creation by type.
+    if t is TPazoRaceTask then
+      Inc(fQueueStat.FTasksCreatedRace)
+    else if t is TPazoDirlistTask then
+      Inc(fQueueStat.FTasksCreatedDirlist)
+    else if t is TPazoMkdirTask then
+      Inc(fQueueStat.FTasksCreatedMkdir)
+    else if t is TLoginTask then
+      Inc(fQueueStat.FTasksCreatedLogin)
+    else
+      Inc(fQueueStat.FTasksCreatedOther);
+
     main_lock.Enter('AddTask');
     try
       if TaskAlreadyInQueue(t) then
       begin
+        // Phase 2 diagnostics: count discarded duplicates by type.
+        if t is TPazoRaceTask then
+          Inc(fQueueStat.FTasksDupRace)
+        else if t is TPazoDirlistTask then
+          Inc(fQueueStat.FTasksDupDirlist)
+        else if t is TPazoMkdirTask then
+          Inc(fQueueStat.FTasksDupMkdir)
+        else if t is TLoginTask then
+          Inc(fQueueStat.FTasksDupLogin);
+
         // don't add the task to the queue, just notify and free right away if it's a duplicate
         if t.IsNotifyTask then
           TaskReady(t);
-          
+
+        // If the task was already registered in the pazo dependency graph, remove
+        // it there as well so we don't leak pending nodes for discarded duplicates.
+        if (t is TPazoTask) and (TPazoTask(t).mainpazo <> nil) and (TPazoTask(t).mainpazo.TaskGraph <> nil) then
+          TPazoTask(t).mainpazo.TaskGraph.RemoveTask(t.uid);
+
         t.Free;
         exit;
       end;
@@ -1241,9 +1888,26 @@ begin
       else
         tasks.Add(t);
 
+      // Keep the O(1) duplicate indexes in sync with the task lists.
+      AddTaskToIndex(t);
+
+      // A race task was added; ensure FindBestRaceTask will scan on the next
+      // queue iteration even if no slot has been freed yet. If it could not be
+      // assigned directly, wake the queue so it retries soon.
+      if t is TPazoRaceTask then
+      begin
+        SignalRaceCheck;
+        if t.slot1 = nil then
+        begin
+          IncQueueFireCount(qfsAddTask);
+          QueueFire;
+        end;
+      end;
 
       try
-        if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted and (TSite(fSite).freeslots > 0)) then
+        if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted and
+            (TSite(fSite).freeslots > 0) and
+            (TSite(TPazoRaceTask(t).ssite2).freeslots > 0)) then
         begin
           TSite(fSite).AcquireSlotsAssignmentLock('AddTask-Slot');
           try
@@ -1323,7 +1987,10 @@ begin
           begin
             ttp := TPazoRaceTask(fTask);
             if ((ttp.ready = False) and (ttp.readyerror = False) and (ttp.slot1 = nil) and (ttp.pazo_id = pazo_id) and (ttp.site2 = sitename)) then
+            begin
               ttp.ready := True;
+              SignalPairedWaitTask(ttp.uid);
+            end;
           end;
         except
           on E: Exception do
@@ -1415,15 +2082,39 @@ begin
               if t.slot1 = nil then
               begin
                 t.readyerror := True;
+                if t is TPazoRaceTask then
+                  SignalPairedWaitTask(TPazoRaceTask(t).uid);
               end
               else if aForce then
               begin
                 Debug(dpMessage, section, Format('RemovePazo: Force removal of assigned task: %s', [t.Name]));
                 t.readyerror := True;
+                if t is TPazoRaceTask then
+                  SignalPairedWaitTask(TPazoRaceTask(t).uid);
 
-                // if the site slot actually has this task assigned, we need to rebuild it
-                if TSiteSlot(t.slot1).todotask = t then
+                if t.slot1 <> nil then
                 begin
+                  try
+                    // Reset the slot's todotask before detaching the task so that
+                    // TryToAssignSlots cannot dereference it after the task object is freed.
+                    if TSiteSlot(t.slot1).todotask = t then
+                    begin
+                      TSiteSlot(t.slot1).site.AcquireSlotsAssignmentLock('RemovePazo reset todotask');
+                      try
+                        if TSiteSlot(t.slot1).todotask = t then
+                          TSiteSlot(t.slot1).todotask := nil;
+                      finally
+                        TSiteSlot(t.slot1).site.ReleaseSlotsAssignmentLock;
+                      end;
+                    end;
+                  except
+                    on E: Exception do
+                    begin
+                      Debug(dpError, section, Format('[EXCEPTION] RemovePazo (reset todotask): %s', [e.Message]));
+                    end;
+                  end;
+
+                  // if the site slot actually had this task assigned, we need to rebuild it
                   fSlotsToRebuild.Add(TSiteSlot(t.slot1));
                 end;
 
@@ -1571,6 +2262,7 @@ begin
               (ttp.dir = dir) and (ttp.filename = filename)) then
             begin
               ttp.ready := True;
+              SignalPairedWaitTask(ttp.uid);
             end;
           end;
         except
@@ -1597,6 +2289,7 @@ procedure TQueueThread.Execute;
 var
   i: integer;
   fTask:    TTask;
+  fPartnerTask: TTask;
   s:    TSiteSlot;
   ss:   String;
   ts:   TSite;
@@ -1604,12 +2297,15 @@ var
   fNextTaskStartAt: TDateTime;
   fWaitTimerTimeout: Cardinal;
   bTasksMoved: Boolean;
+  fTasksMovedCount: Integer;
   fListIndex: Integer;
   fList: TObjectList;
+  fMethodStart: TDateTime;
 begin
   while ((not slshutdown) and (not Terminated)) do
   begin
     queue_last_run := Now();
+    fQueueIterateStart := queue_last_run;
 
     if fSite = nil then
       fSite := FindSiteByName('', fSiteName);
@@ -1628,6 +2324,7 @@ begin
     fBusyDestinations := TDictionary<TObject, integer>.Create;
     fNextTaskStartAt := MaxDateTime;
     bTasksMoved := False;
+    fTasksMovedCount := 0;
     //Debug(dpSpam, section, 'Queue Iteration begin (%s) [%d tasks]', [ts.Name, tasks.Count]);
     try
       main_lock.Enter('Execute');
@@ -1643,6 +2340,8 @@ begin
           begin
             waiting_tasks.Extract(fTask);
             tasks.Add(fTask);
+            Inc(fTasksMovedCount);
+            Inc(fTasksMovedSinceSort);
             bTasksMoved := True;
           end
           else if (fTask.startat > 0) and (fTask.startat < fNextTaskStartAt) then
@@ -1652,7 +2351,21 @@ begin
         end;
 
         if bTasksMoved then
-          tasks.Sort(@QueueSorter);
+        begin
+          // Avoid sorting on every single task move. Sort if enough tasks
+          // accumulated since the last sort or if the queue hasn't been sorted
+          // recently. This cuts overhead when tasks trickle in one by one.
+          if (fTasksMovedSinceSort >= 3) or (MilliSecondsBetween(Now, fLastSortTime) >= 500) then
+          begin
+            Debug(dpMessage, section, '[TASKS MOVED] %s: moved %d tasks from waiting to tasks (waiting left=%d, tasks now=%d)',
+              [ts.Name, fTasksMovedCount, waiting_tasks.Count, tasks.Count]);
+            Inc(fQueueStat.FQueueSortCount);
+            fQueueStat.FQueueSortMsTotal := fQueueStat.FQueueSortMsTotal + MilliSecondsBetween(Now, queue_last_run);
+            tasks.Sort(@QueueSorter);
+            fLastSortTime := Now;
+            fTasksMovedSinceSort := 0;
+          end;
+        end;
 
         for fListIndex := 0 to 1 do
         begin
@@ -1677,10 +2390,41 @@ begin
               if (fTask.ClassType = TPazoRaceTask) then
               begin
                 with TPazoRaceTask(fTask) do
-                if (dst <> nil) then
                 begin
-                  dst.event.SetEvent;
+                  if dst_uid <> 0 then
+                  begin
+                    fPartnerTask := GlTaskRegistry.Lookup(dst_uid);
+                    if (fPartnerTask <> nil) and (fPartnerTask.ClassType = TWaitTask) then
+                    begin
+                      fPartnerTask.ready := True;
+                      TWaitTask(fPartnerTask).event.SetEvent;
+                    end;
+                    dst_uid := 0;
+                  end;
                 end;
+              end;
+
+              // update the per-pazo dependency graph when a pazo task is removed
+              if (fTask is TPazoPlainTask) then
+              begin
+                with TPazoPlainTask(fTask) do
+                begin
+                  if (mainpazo <> nil) and (mainpazo.TaskGraph <> nil) and mainpazo.TaskGraph.Contains(uid) then
+                  begin
+                    if fTask.readyerror then
+                      mainpazo.TaskGraph.MarkError(uid)
+                    else
+                      mainpazo.TaskGraph.MarkDone(uid);
+                  end;
+                end;
+              end;
+
+              // Remove from the O(1) index BEFORE TObjectList.Remove frees the task.
+              RemoveTaskFromIndex(fTask);
+              if fTask = fExecutingTask then
+              begin
+                fExecutingTask := nil;
+                fExecutingTaskAllowedDuplicate := False;
               end;
               ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
               try
@@ -1702,6 +2446,23 @@ begin
 
         ts.AcquireSlotsAssignmentLock('Queue iterate');
         try
+          // Assign the best race task(s) first, but only when a slot has become
+          // free since the last check, there are pending race tasks and the source
+          // is not already saturated on all download limits.
+          // TEST: disable fNeedRaceCheck optimization to see if it causes low transfer rate.
+          if HasPendingRaceTasks then
+          begin
+            if ((ts.max_dn = 0) or (ts.num_dn < ts.max_dn)) or
+               ((ts.max_pre_dn = 0) or (ts.num_dn < ts.max_pre_dn)) then
+            begin
+              fMethodStart := Now;
+              while (ts.freeslots > 0) and FindBestRaceTask do
+                ;
+              fQueueStat.FFindBestRaceMsTotal := fQueueStat.FFindBestRaceMsTotal + MilliSecondsBetween(Now, fMethodStart);
+              Inc(fQueueStat.FFindBestRaceCount);
+            end;
+          end;
+
           for fTask in tasks do
           begin
             try
@@ -1720,6 +2481,12 @@ begin
               begin
                 if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
                 begin
+                  // Skip races whose destination is already saturated. FindBestRaceTask
+                  // handles the primary assignment; this avoids redundant work for
+                  // leftover race tasks in the main loop.
+                  if (fTask is TPazoRaceTask) and (TSite(TPazoRaceTask(fTask).ssite2).freeslots = 0) then
+                    Continue;
+
                   if fTask.IsReadyToBeExecuted then
                     TryToAssignSlots(fTask);
                 end
@@ -1744,9 +2511,22 @@ begin
         fBusyDestinationsTmp.Free;
       end;
 
-      QueueStat;
-
       // We are looking for idle
+      // update per-iteration metrics before QueueStat resets them
+      fQueueStat.FQueueIterateMsTotal := fQueueStat.FQueueIterateMsTotal + MilliSecondsBetween(Now, fQueueIterateStart);
+      Inc(fQueueStat.FQueueIterateCount);
+
+      // Copy per-iteration counters for the in-memory diagnostic log before
+      // QueueStat resets them.
+      Inc(fDiagIterCount);
+      Inc(fDiagIterAssigned, fQueueStat.FTasksAssignedThisRun);
+      Inc(fDiagIterSkipped, fQueueStat.FTasksSkippedThisRun);
+
+      fMethodStart := Now;
+      QueueStat;
+      fQueueStat.FQueueStatMsTotal := fQueueStat.FQueueStatMsTotal + MilliSecondsBetween(Now, fMethodStart);
+      Inc(fQueueStat.FQueueStatCount);
+      LogDiagSummary;
         for s in ts.slots do
         begin
           try
@@ -1822,17 +2602,26 @@ begin
         end
         else
         begin
-          // don't wait at all if the next task should already be assigned now
+          // The scheduled time is already in the past and there are free slots,
+          // but the task was not assigned (likely not ready yet). Sleeping a tiny
+          // bit avoids a busy-loop without adding meaningful latency.
           Debug(dpSpam, section, Format('TQueueThread.Execute: skip sleep %s', [ts.Name]));
-          continue;
+          fWaitTimerTimeout := GlMinQueueWaitTimeout;
         end;
+      end
+      else
+      begin
+        fWaitTimerTimeout := MilliSecondsBetween(Now, fNextTaskStartAt);
+
+        // Enforce a small minimum wait to prevent near-zero timeouts from
+        // spinning the queue when startat is only milliseconds in the future.
+        if fWaitTimerTimeout < GlMinQueueWaitTimeout then
+          fWaitTimerTimeout := GlMinQueueWaitTimeout;
+
+        // don't wait longer than the default wait time if that task is supposed to start later than that
+        if fWaitTimerTimeout > GlDefaultIterationWaitTimeout then
+          fWaitTimerTimeout := GlDefaultIterationWaitTimeout;
       end;
-
-      fWaitTimerTimeout := MilliSecondsBetween(Now, fNextTaskStartAt);
-
-      // don't wait longer than the default wait time if that task is supposed to start later than that
-      if fWaitTimerTimeout > GlDefaultIterationWaitTimeout then
-        fWaitTimerTimeout := GlDefaultIterationWaitTimeout;
     end;
 
     //queueevent.WaitFor($FFFFFFFF);
@@ -1883,11 +2672,16 @@ begin
   queue_recycle_post_to_irc := spamcfg.readbool(section, 'queue_recycle', True);
 
   StatsList := TObjectList<TQueueStat>.Create(True);
+  GlQueueDiag := TQueueDiagLog.Create(1000);
+  GlTaskTrace := TTaskTraceLog.Create(config.ReadInteger(section, 'tasktrace_buffersize', 1000));
+  GlTaskTrace.Enabled := config.ReadBool(section, 'enable_tasktrace', True);
 end;
 
 procedure QueueUninit;
 begin
   StatsList.Free;
+  GlQueueDiag.Free;
+  GlTaskTrace.Free;
 end;
 
 procedure TQueueThread.QueueClean(run_now: boolean = False);
@@ -1895,6 +2689,7 @@ var
   i, tkill_unassigne, tkill_race, tkill_other: integer;
   ss: String;
   t:  TTask;
+  fPartnerTask: TTask;
   ts, ts2: TSite;
   fListIndex: Integer;
   fList: TObjectList;
@@ -1935,7 +2730,7 @@ begin
         begin
           try
             t.ready := True;
-            Debug(dpError, section, Format('QueueClean: Remove Unassigned : %s', [t.Fullname]));
+            Debug(dpMessage, section, Format('QueueClean: Remove Unassigned : %s', [t.Fullname]));
           except
             on e: Exception do
             begin
@@ -1987,6 +2782,18 @@ begin
           ts2 := nil;
           ts.AcquireSlotsAssignmentLock('QueueClean race');
           try
+            // Invalidate the paired wait task before we drop the race task.
+            if TPazoRaceTask(t).dst_uid <> 0 then
+            begin
+              fPartnerTask := GlTaskRegistry.Lookup(TPazoRaceTask(t).dst_uid);
+              if (fPartnerTask <> nil) and (fPartnerTask.ClassType = TWaitTask) then
+              begin
+                fPartnerTask.ready := True;
+                TWaitTask(fPartnerTask).event.SetEvent;
+              end;
+              TPazoRaceTask(t).dst_uid := 0;
+            end;
+
             if (t.slot1 <> nil) then
             begin
               try
@@ -2025,7 +2832,28 @@ begin
 
             try
               Debug(dpSpam, section, Format('[QUEUECLEAN] Clean race task : %s', [t.Fullname]));
-              Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Fullname]));
+
+              // Remove the race task from the pazo dependency graph so it does not
+              // leak as a pending node when the race is killed by QueueClean.
+              if (TPazoRaceTask(t).mainpazo <> nil) and (TPazoRaceTask(t).mainpazo.TaskGraph <> nil) and
+                 TPazoRaceTask(t).mainpazo.TaskGraph.Contains(t.uid) then
+              begin
+                try
+                  TPazoRaceTask(t).mainpazo.TaskGraph.MarkError(t.uid);
+                except
+                  on e: Exception do
+                    Debug(dpError, section, Format('[EXCEPTION] QueueClean race MarkError: %s', [e.Message]));
+                end;
+              end;
+
+              Debug(dpMessage, section, Format('QueueClean: Remove : %s', [t.Fullname]));
+              // Remove from the O(1) index BEFORE TObjectList.Remove frees the task.
+              RemoveTaskFromIndex(t);
+              if t = fExecutingTask then
+              begin
+                fExecutingTask := nil;
+                fExecutingTaskAllowedDuplicate := False;
+              end;
               tasks.Remove(t);
             except
               on e: Exception do
@@ -2046,8 +2874,19 @@ begin
 
         if (t.ClassType = TWaitTask) then
         begin
+          // Tell the paired race task that its wait task is gone.
+          if TWaitTask(t).race_task_uid <> 0 then
+          begin
+            fPartnerTask := GlTaskRegistry.Lookup(TWaitTask(t).race_task_uid);
+            if (fPartnerTask <> nil) and (fPartnerTask.ClassType = TPazoRaceTask) then
+              TPazoRaceTask(fPartnerTask).dst_uid := 0;
+          end;
+
           with TWaitTask(t) do
+          begin
+            readyerror := True;
             event.SetEvent;
+          end;
 
           try
             //t := NIL;
@@ -2055,7 +2894,27 @@ begin
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean wait task : %s', [t.Fullname]));
             ts.AcquireSlotsAssignmentLock('QueueClean wait');
             try
-              Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Fullname]));
+              // Remove the wait task from the pazo dependency graph so it does not
+              // leak as a pending node when the wait task is killed by QueueClean.
+              if (TWaitTask(t).mainpazo <> nil) and (TWaitTask(t).mainpazo.TaskGraph <> nil) and
+                 TWaitTask(t).mainpazo.TaskGraph.Contains(t.uid) then
+              begin
+                try
+                  TWaitTask(t).mainpazo.TaskGraph.MarkError(t.uid);
+                except
+                  on e: Exception do
+                    Debug(dpError, section, Format('[EXCEPTION] QueueClean wait MarkError: %s', [e.Message]));
+                end;
+              end;
+
+              Debug(dpMessage, section, Format('QueueClean: Remove : %s', [t.Fullname]));
+              // Remove from the O(1) index BEFORE TObjectList.Remove frees the task.
+              RemoveTaskFromIndex(t);
+              if t = fExecutingTask then
+              begin
+                fExecutingTask := nil;
+                fExecutingTaskAllowedDuplicate := False;
+              end;
               tasks.Remove(t);
             finally
               ts.ReleaseSlotsAssignmentLock;
@@ -2105,7 +2964,14 @@ begin
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean other task : %s', [t.Fullname]));
             ts.AcquireSlotsAssignmentLock('QueueClean other');
             try
-              Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Fullname]));
+              Debug(dpMessage, section, Format('QueueClean: Remove : %s', [t.Fullname]));
+              // Remove from the O(1) index BEFORE TObjectList.Remove frees the task.
+              RemoveTaskFromIndex(t);
+              if t = fExecutingTask then
+              begin
+                fExecutingTask := nil;
+                fExecutingTaskAllowedDuplicate := False;
+              end;
               tasks.Remove(t);
             finally
               ts.ReleaseSlotsAssignmentLock;
@@ -2134,7 +3000,7 @@ begin
   begin
     irc_Addconsole(Format('QueueClean: Killed : %s unassigned tasks',
       [IntToStr(tkill_unassigne)]));
-    Debug(dpError, section, Format('QueueClean: Killed : %s unassigned tasks',
+    Debug(dpMessage, section, Format('QueueClean: Killed : %s unassigned tasks',
       [IntToStr(tkill_unassigne)]));
   end;
   if (tkill_race <> 0) then
@@ -2142,7 +3008,7 @@ begin
     irc_Addconsole(Format('QueueClean: Killed : %s race tasks', [IntToStr(tkill_race)]));
     irc_Adderror(Format('<c4>[CLEAN]</c> QueueClean: Killed : %s race tasks',
       [IntToStr(tkill_race)]));
-    Debug(dpError, section, Format('[CLEAN] QueueClean: Killed : %s race tasks',
+    Debug(dpMessage, section, Format('[CLEAN] QueueClean: Killed : %s race tasks',
       [IntToStr(tkill_race)]));
   end;
   if (tkill_other <> 0) then
@@ -2151,7 +3017,7 @@ begin
       [IntToStr(tkill_other)]));
     irc_Adderror(Format('<c4>[CLEAN]</c> QueueClean: Killed : %s other tasks',
       [IntToStr(tkill_other)]));
-    Debug(dpError, section, Format('[CLEAN] QueueClean: Killed : %s other tasks',
+    Debug(dpMessage, section, Format('[CLEAN] QueueClean: Killed : %s other tasks',
       [IntToStr(tkill_other)]));
   end;
 
@@ -2166,11 +3032,29 @@ begin
 end;
 
 procedure TQueueThread.QueueStat;
+  procedure CountTask(const t: TTask; var t_race, t_dir, t_auto, t_other: integer);
+  begin
+    if t = nil then exit;
+    // Use 'is' instead of ClassType so any descendants are counted as well.
+    if (t is TPazoRaceTask) or (t.ClassType = TWaitTask) then
+      Inc(t_race)
+    else if (t is TPazoDirlistTask) then
+      Inc(t_dir)
+    else if ((t is TAutoNukeTask) or (t is TAutoDirlistTask) or
+      (t is TAutoIndexTask) or (t is TLoginTask) or
+      (t is TRulesTask)) then
+      Inc(t_auto)
+    else
+      Inc(t_other);
+  end;
+
 var
   t_race, t_dir, t_auto, t_other: integer;
+  t_race_in_tasks, t_race_in_waiting, t_race_in_slots: integer;
   fTask: TTask;
   fListIndex: Integer;
   fList: TObjectList;
+  fSlot: TSiteSlot;
 begin
   if MilliSecondsBetween(queue_last_stat_update, Now) < 1000 then
     exit;
@@ -2180,6 +3064,9 @@ begin
   t_dir   := 0;
   t_auto  := 0;
   t_other := 0;
+  t_race_in_tasks := 0;
+  t_race_in_waiting := 0;
+  t_race_in_slots := 0;
 
   main_lock.Enter('QueueStat');
   try
@@ -2189,16 +3076,14 @@ begin
       for fTask in fList do
       begin
       try
-        if ((fTask.ClassType = TPazoRaceTask) or (fTask.ClassType = TWaitTask)) then
-          Inc(t_race)
-        else if ((fTask.ClassType = TPazoDirlistTask)) then
-          Inc(t_dir)
-        else if ((fTask.ClassType = TAutoNukeTask) or (fTask.ClassType = TAutoDirlistTask) or
-          (fTask.ClassType = TAutoIndexTask) or (fTask.ClassType = TLoginTask) or
-          (fTask.ClassType = TRulesTask)) then
-          Inc(t_auto)
-        else
-          Inc(t_other);
+        CountTask(fTask, t_race, t_dir, t_auto, t_other);
+        if (fTask <> nil) and (fTask is TPazoRaceTask) then
+        begin
+          if fListIndex = 0 then
+            Inc(t_race_in_tasks)
+          else
+            Inc(t_race_in_waiting);
+        end;
       except
       on e: Exception do
         begin
@@ -2208,25 +3093,247 @@ begin
       end;
       end;
     end;
+
+    // Also count tasks that are currently running in slots so the stats reflect
+    // real activity, not just queued-but-not-yet-assigned work.
+    if (fSite <> nil) then
+    begin
+      for fSlot in TSite(fSite).slots do
+      begin
+        try
+          CountTask(fSlot.todotask, t_race, t_dir, t_auto, t_other);
+          if (fSlot.todotask <> nil) and (fSlot.todotask is TPazoRaceTask) then
+            Inc(t_race_in_slots);
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] TQueueThread.QueueStat (slot): %s', [e.Message]));
+            Continue;
+          end;
+        end;
+      end;
+    end;
   finally
     main_lock.Leave;
+  end;
+
+  if fSite <> nil then
+    Debug(dpMessage, section,
+      '[QUEUESTAT] %s: race=%d (tasks=%d waiting=%d slots=%d) dir=%d auto=%d other=%d | tasks=%d waiting=%d slots=%d',
+      [TSite(fSite).Name, t_race, t_race_in_tasks, t_race_in_waiting, t_race_in_slots,
+       t_dir, t_auto, t_other, tasks.Count, waiting_tasks.Count, TSite(fSite).slots.Count]);
+
+  // Periodic memory diagnostic: log sizes of central data structures that are
+  // suspected to leak or accumulate. Only one queue thread logs per minute to
+  // avoid log spam.
+  if MilliSecondsBetween(queue_last_memory_diag, Now) >= 60000 then
+  begin
+    queue_last_memory_diag := Now;
+    if (GlTaskRegistry <> nil) and (StatsList <> nil) and (fQueueStat <> nil) then
+    begin
+      Debug(dpMessage, section,
+        '[MEMORYDIAG] site=%s taskregistry=%d statslist=%d racehistory=%d pazos=%d graphnodes_global=%d graphstats=T%d/D%d/E%d/R%d/P%d/L%d/Ad%.1f/Ae%.1f/Pd%d/Pk%s tasktypes=%s',
+        [TSite(fSite).Name, GlTaskRegistry.Count, StatsList.Count, fQueueStat.FRaceHistory.Count,
+         GetGlobalPazoTaskGraphInstanceCount,
+         GlPazoTaskGraphNodeCount,
+         GetGlobalPazoTaskGraphStats.Total,
+         GetGlobalPazoTaskGraphStats.Done,
+         GetGlobalPazoTaskGraphStats.ErrorState,
+         GetGlobalPazoTaskGraphStats.Running,
+         GetGlobalPazoTaskGraphStats.Pending,
+         GetGlobalPazoTaskGraphStats.LeafFinished,
+         GetGlobalPazoTaskGraphStats.AvgDependencies,
+         GetGlobalPazoTaskGraphStats.AvgDependents,
+         GetGlobalPazoTaskGraphStats.PendingDependencyKeys,
+         GetGlobalPazoTaskGraphStats.PendingDependencyKeyList,
+         GlTaskRegistry.CountsByType]);
+
+      // Periodic trim of index capacities to prevent slow memory growth when
+      // many transient tasks passed through the queue.
+      if fRaceTaskSet.Capacity > fRaceTaskSet.Count then
+        fRaceTaskSet.Capacity := fRaceTaskSet.Count;
+      if fDirlistTaskSet.Capacity > fDirlistTaskSet.Count then
+        fDirlistTaskSet.Capacity := fDirlistTaskSet.Count;
+      if fMkdirTaskSet.Capacity > fMkdirTaskSet.Count then
+        fMkdirTaskSet.Capacity := fMkdirTaskSet.Count;
+      if fLoginTaskSet.Capacity > fLoginTaskSet.Count then
+        fLoginTaskSet.Capacity := fLoginTaskSet.Count;
+    end;
   end;
 
   fQueueStat.FRaceTaskCount := t_race;
   fQueueStat.FDirlistTaskCount := t_dir;
   fQueueStat.FAutoTaskCount := t_auto;
   fQueueStat.FOtherTaskCount := t_other;
+
+  // reset per-iteration counters; aggregated totals are kept in the *Total fields
+  fQueueStat.FTasksAssignedThisRun := 0;
+  fQueueStat.FTasksSkippedThisRun := 0;
 end;
 
-procedure QueueStatAll;
+procedure TQueueThread.LogDiagSummary;
+var
+  fSiteName: string;
+  fMsg: string;
+  fNow: TDateTime;
+begin
+  fNow := Now;
+  if MilliSecondsBetween(fNow, fDiagLastLogTime) < 10000 then
+    exit;
+
+  if (fDiagIterCount = 0) and (fDiagFbrCalls = 0) then
+  begin
+    fDiagLastLogTime := fNow;
+    exit;
+  end;
+
+  if fSite <> nil then
+    fSiteName := TSite(fSite).Name
+  else
+    fSiteName := fSiteName;
+
+  fMsg := Format('%s DIAG iter=%d assigned=%d skipped=%d fbr=%d fbr_assigned=%d fbr_nocand=%d tried_fail=%d',
+    [fSiteName, fDiagIterCount, fDiagIterAssigned, fDiagIterSkipped,
+     fDiagFbrCalls, fDiagFbrAssigned, fDiagFbrNoCand, fDiagFbrTriedFailed]);
+
+  if fDiagFbrNoCand > 0 then
+    fMsg := fMsg + Format(' | no_cand: freeslots=%d maxup=%d maxdn=%d noslotdst=%d busydict=%d actxfer=%d notready=%d other=%d',
+      [fDiagFbrNoCandFreeslots, fDiagFbrNoCandMaxUp, fDiagFbrNoCandMaxDn,
+       fDiagFbrNoCandNoSlotDst, fDiagFbrNoCandBusyDict, fDiagFbrNoCandActiveTransfer,
+       fDiagFbrNoCandNotReady, fDiagFbrNoCandOther]);
+
+  // Phase 2 diagnostics: method timing + task creation/dup counts.
+  fMsg := fMsg + Format(' | times: fbr=%dms/%d qstat=%dms/%d',
+    [fQueueStat.FFindBestRaceMsTotal, fQueueStat.FFindBestRaceCount,
+     fQueueStat.FQueueStatMsTotal, fQueueStat.FQueueStatCount]);
+
+  fMsg := fMsg + Format(' | created: race=%d dir=%d mkdir=%d login=%d other=%d',
+    [fQueueStat.FTasksCreatedRace, fQueueStat.FTasksCreatedDirlist,
+     fQueueStat.FTasksCreatedMkdir, fQueueStat.FTasksCreatedLogin,
+     fQueueStat.FTasksCreatedOther]);
+
+  fMsg := fMsg + Format(' | dup: race=%d dir=%d mkdir=%d login=%d',
+    [fQueueStat.FTasksDupRace, fQueueStat.FTasksDupDirlist,
+     fQueueStat.FTasksDupMkdir, fQueueStat.FTasksDupLogin]);
+
+  fMsg := fMsg + Format(' | qfire: slot=%d graphwake=%d main=%d addtask=%d pazo=%d irc=%d console=%d other=%d',
+    [GlQueueFireCounts[qfsSlot], GlQueueFireCounts[qfsGraphWake],
+     GlQueueFireCounts[qfsMainThread], GlQueueFireCounts[qfsAddTask],
+     GlQueueFireCounts[qfsPazo], GlQueueFireCounts[qfsIrc],
+     GlQueueFireCounts[qfsConsole], GlQueueFireCounts[qfsOther]]);
+
+  Debug(dpError, section, '[QUEUEDIAG] ' + fMsg);
+
+  fDiagIterCount := 0;
+  fDiagIterAssigned := 0;
+  fDiagIterSkipped := 0;
+  fDiagFbrCalls := 0;
+  fDiagFbrAssigned := 0;
+  fDiagFbrNoCand := 0;
+  fDiagFbrNoCandFreeslots := 0;
+  fDiagFbrNoCandMaxUp := 0;
+  fDiagFbrNoCandMaxDn := 0;
+  fDiagFbrNoCandNoSlotDst := 0;
+  fDiagFbrNoCandBusyDict := 0;
+  fDiagFbrNoCandActiveTransfer := 0;
+  fDiagFbrNoCandNotReady := 0;
+  fDiagFbrNoCandOther := 0;
+  fDiagFbrTriedFailed := 0;
+
+  // Phase 2 diagnostics: reset per-window counters.
+  fQueueStat.FFindBestRaceMsTotal := 0;
+  fQueueStat.FFindBestRaceCount := 0;
+  fQueueStat.FQueueStatMsTotal := 0;
+  fQueueStat.FQueueStatCount := 0;
+  fQueueStat.FTasksCreatedRace := 0;
+  fQueueStat.FTasksCreatedDirlist := 0;
+  fQueueStat.FTasksCreatedMkdir := 0;
+  fQueueStat.FTasksCreatedLogin := 0;
+  fQueueStat.FTasksCreatedOther := 0;
+  fQueueStat.FTasksDupRace := 0;
+  fQueueStat.FTasksDupDirlist := 0;
+  fQueueStat.FTasksDupMkdir := 0;
+  fQueueStat.FTasksDupLogin := 0;
+
+  FillChar(GlQueueFireCounts, SizeOf(GlQueueFireCounts), 0);
+
+  fDiagLastLogTime := fNow;
+end;
+
+function FormatQueueStat(const aQueueStat: TQueueStat): String;
+begin
+  Result := Format('Race:%d(+%d/60s) Dir:%d Auto:%d Other:%d | waited=%d avg=%dms | iter=%d avg=%dms | sort=%d avg=%dms | idle=%d graph_wake=%d busy_dest=%d',
+    [aQueueStat.FRaceTaskCount, aQueueStat.RecentRaceCount, aQueueStat.FDirlistTaskCount, aQueueStat.FAutoTaskCount, aQueueStat.FOtherTaskCount,
+     aQueueStat.FTaskWaitCount, aQueueStat.FTaskWaitMsTotal div Max(aQueueStat.FTaskWaitCount, 1),
+     aQueueStat.FQueueIterateCount, aQueueStat.FQueueIterateMsTotal div Max(aQueueStat.FQueueIterateCount, 1),
+     aQueueStat.FQueueSortCount, aQueueStat.FQueueSortMsTotal div Max(aQueueStat.FQueueSortCount, 1),
+     aQueueStat.FSlotIdleCount, aQueueStat.FGraphWakeCount, aQueueStat.FBusyDestinationsHitCount]);
+end;
+
+function QueueStatForSiteAsString(const aSiteName: String): String;
+var
+  fSite: TSite;
+begin
+  Result := '';
+  if aSiteName = '' then
+    exit;
+
+  fSite := FindSiteByName('', aSiteName);
+  if fSite = nil then
+  begin
+    Result := Format('Site <b>%s</b> not found.', [aSiteName]);
+    exit;
+  end;
+
+  if fSite.Queue = nil then
+  begin
+    Result := Format('Site <b>%s</b> has no queue.', [aSiteName]);
+    exit;
+  end;
+
+  Result := Format('Queue stats for <b>%s</b>: %s', [aSiteName, FormatQueueStat(fSite.Queue.fQueueStat)]);
+end;
+
+function QueueStatAllAsString: String;
 var
 queueStat: TQueueStat;
 t_race, t_dir, t_auto, t_other: integer;
+t_recent_race: integer;
+t_wait_ms, t_wait_count, t_iter_ms, t_iter_count, t_sort_ms, t_sort_count,
+t_idle_ms, t_idle_count, t_graph_wake, t_busy_dest: Int64;
+t_bd_nosrc, t_bd_nodst, t_bd_maxsimup, t_bd_maxsimdn, t_bd_busydict,
+t_bd_actxfer_dst, t_bd_maxup, t_bd_actxfer_src, t_bd_maxdn,
+t_bd_noslotsrc, t_bd_noslotdst, t_bd_maxupperrip: Int64;
 begin
   t_race  := 0;
   t_dir   := 0;
   t_auto  := 0;
   t_other := 0;
+  t_wait_ms := 0;
+  t_wait_count := 0;
+  t_iter_ms := 0;
+  t_iter_count := 0;
+  t_sort_ms := 0;
+  t_sort_count := 0;
+  t_idle_ms := 0;
+  t_idle_count := 0;
+  t_graph_wake := 0;
+  t_busy_dest := 0;
+
+  t_recent_race := 0;
+
+  t_bd_nosrc := 0;
+  t_bd_nodst := 0;
+  t_bd_maxsimup := 0;
+  t_bd_maxsimdn := 0;
+  t_bd_busydict := 0;
+  t_bd_actxfer_dst := 0;
+  t_bd_maxup := 0;
+  t_bd_actxfer_src := 0;
+  t_bd_maxdn := 0;
+  t_bd_noslotsrc := 0;
+  t_bd_noslotdst := 0;
+  t_bd_maxupperrip := 0;
 
   for queueStat in StatsList do
   begin
@@ -2234,10 +3341,58 @@ begin
     t_dir := t_dir + queueStat.FDirlistTaskCount;
     t_auto := t_auto + queueStat.FAutoTaskCount;
     t_other := t_other + queueStat.FOtherTaskCount;
+
+    t_wait_ms := t_wait_ms + queueStat.FTaskWaitMsTotal;
+    t_wait_count := t_wait_count + queueStat.FTaskWaitCount;
+    t_iter_ms := t_iter_ms + queueStat.FQueueIterateMsTotal;
+    t_iter_count := t_iter_count + queueStat.FQueueIterateCount;
+    t_sort_ms := t_sort_ms + queueStat.FQueueSortMsTotal;
+    t_sort_count := t_sort_count + queueStat.FQueueSortCount;
+    t_idle_ms := t_idle_ms + queueStat.FSlotIdleMsTotal;
+    t_idle_count := t_idle_count + queueStat.FSlotIdleCount;
+    t_graph_wake := t_graph_wake + queueStat.FGraphWakeCount;
+    t_busy_dest := t_busy_dest + queueStat.FBusyDestinationsHitCount;
+    t_recent_race := t_recent_race + queueStat.RecentRaceCount;
+
+    t_bd_nosrc := t_bd_nosrc + queueStat.FBusyDestNoFreeSlotsSource;
+    t_bd_nodst := t_bd_nodst + queueStat.FBusyDestNoFreeSlotsDest;
+    t_bd_maxsimup := t_bd_maxsimup + queueStat.FBusyDestMaxSimUpCooldown;
+    t_bd_maxsimdn := t_bd_maxsimdn + queueStat.FBusyDestMaxSimDownCooldown;
+    t_bd_busydict := t_bd_busydict + queueStat.FBusyDestBusyDict;
+    t_bd_actxfer_dst := t_bd_actxfer_dst + queueStat.FBusyDestActiveTransferDst;
+    t_bd_maxup := t_bd_maxup + queueStat.FBusyDestMaxUp;
+    t_bd_actxfer_src := t_bd_actxfer_src + queueStat.FBusyDestActiveTransferSrc;
+    t_bd_maxdn := t_bd_maxdn + queueStat.FBusyDestMaxDn;
+    t_bd_noslotsrc := t_bd_noslotsrc + queueStat.FBusyDestNoSlotSource;
+    t_bd_noslotdst := t_bd_noslotdst + queueStat.FBusyDestNoSlotDest;
+    t_bd_maxupperrip := t_bd_maxupperrip + queueStat.FBusyDestMaxUpPerRip;
   end;
 
   QueueStatUpdateDateTime := Now;
   Console_QueueStat(t_race + t_dir + t_auto + t_other, t_race, t_dir, t_auto, t_other);
+
+  Result := Format('Queue: %d total (Race:%d(+%d/60s) Dir:%d Auto:%d Other:%d) | waited=%d avg=%dms | iter=%d avg=%dms | sort=%d avg=%dms | idle=%d graph_wake=%d busy_dest=%d | fires: slot=%d graph=%d main=%d add=%d pazo=%d irc=%d console=%d other=%d',
+    [t_race + t_dir + t_auto + t_other, t_race, t_recent_race, t_dir, t_auto, t_other,
+     t_wait_count, t_wait_ms div Max(t_wait_count, 1),
+     t_iter_count, t_iter_ms div Max(t_iter_count, 1),
+     t_sort_count, t_sort_ms div Max(t_sort_count, 1),
+     t_idle_count, t_graph_wake, t_busy_dest,
+     GlQueueFireCounts[qfsSlot], GlQueueFireCounts[qfsGraphWake],
+     GlQueueFireCounts[qfsMainThread], GlQueueFireCounts[qfsAddTask],
+     GlQueueFireCounts[qfsPazo], GlQueueFireCounts[qfsIrc],
+     GlQueueFireCounts[qfsConsole], GlQueueFireCounts[qfsOther]]);
+
+  Result := Result + #13#10 +
+    Format('busy_dest breakdown: nosrc=%d nodst=%d maxsimup=%d maxsimdn=%d busydict=%d actxfer_dst=%d maxup=%d actxfer_src=%d maxdn=%d noslotsrc=%d noslotdst=%d maxupperrip=%d',
+      [t_bd_nosrc, t_bd_nodst, t_bd_maxsimup, t_bd_maxsimdn, t_bd_busydict,
+       t_bd_actxfer_dst, t_bd_maxup, t_bd_actxfer_src, t_bd_maxdn,
+       t_bd_noslotsrc, t_bd_noslotdst, t_bd_maxupperrip]);
+end;
+
+procedure QueueStatAll;
+begin
+  // keep the existing console update behaviour; the returned string is intentionally ignored here
+  QueueStatAllAsString;
 end;
 
 procedure TQueueThread.QueueSendCurrentTasksToConsole;
@@ -2468,6 +3623,17 @@ begin
       begin
         irc_Addtext(netname, channel, 'Removing Task -> %s', [TPazoTask(fTask).FullName]);
         try
+          // If we are killing a race task, wake its paired wait task first.
+          if fTask is TPazoRaceTask then
+            SignalPairedWaitTask(TPazoRaceTask(fTask).uid);
+
+          // Remove from the O(1) index BEFORE TObjectList.Remove frees the task.
+          RemoveTaskFromIndex(fTask);
+          if fTask = fExecutingTask then
+          begin
+            fExecutingTask := nil;
+            fExecutingTaskAllowedDuplicate := False;
+          end;
           ts.AcquireSlotsAssignmentLock('killall');
             try
               fList.Remove(TPazoTask(fTask));

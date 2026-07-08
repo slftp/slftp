@@ -69,7 +69,11 @@ begin
     fCmdLine := fCmdLine.Trim;
 
     ParseCommandLine(fBinaryFilename, fCmdLine);
-    Exit;
+    // Command line modes (help/version/encrypt/decrypt) must terminate the
+    // process immediately. Using Exit would run finalization sections of units
+    // like console/FastMM5 which are not initialized in command line mode and
+    // can hang, leaving orphan processes that burn CPU.
+    Halt;
   end;
 
   ConsoleStart;

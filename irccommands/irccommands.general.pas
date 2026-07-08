@@ -8,6 +8,9 @@ function IrcDie(const netname, channel, params: String): boolean;
 function IrcUptime(const netname, channel, params: String): boolean;
 function IrcShowAppStatus(const netname, channel, params: String): boolean;
 function IrcQueue(const netname, channel, params: String): boolean;
+function IrcQueueStats(const netname, channel, params: String): boolean;
+function IrcQueueLog(const netname, channel, params: String): boolean;
+function IrcTaskTrace(const netname, channel, params: String): boolean;
 function IrcLastLog(const netname, channel, params: String): boolean;
 function IrcSetDebugverbosity(const netname, channel, params: String): boolean;
 function IrcCreateBackup(const netname, channel, params: String): boolean;
@@ -18,7 +21,7 @@ implementation
 uses
   SysUtils, Classes, StrUtils, Math, Contnrs, irccommandsunit, irc, RegExpr, statsunit, mainthread,
   debugunit, tasksunit, configunit, sitesunit, news, dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo,
-  console, precatcher, queueunit, kb, mystrings, backupunit, versioninfo, slssl, irccommands.site,
+  console, precatcher, queueunit, tasktraceunit, kb, mystrings, backupunit, versioninfo, slssl, irccommands.site,
   mormot.core.os {$IFDEF MSWINDOWS}, psAPI{$ELSE}, process{$ENDIF};
 
 const
@@ -274,6 +277,50 @@ end;
 function IrcQueue(const netname, channel, params: String): boolean;
 begin
   Result := IrcQueueShow(netname, channel, params);
+end;
+
+function IrcQueueStats(const netname, channel, params: String): boolean;
+begin
+  Result := True;
+  if Trim(params) = '' then
+    irc_addtext(netname, channel, 'Queue stats (all): ' + QueueStatAllAsString)
+  else
+    irc_addtext(netname, channel, QueueStatForSiteAsString(Trim(params)));
+end;
+
+function IrcQueueLog(const netname, channel, params: String): boolean;
+var
+  fCount: Integer;
+  fParam: string;
+begin
+  Result := True;
+  fParam := Trim(params);
+  if fParam = '' then
+    fCount := 20
+  else
+    fCount := StrToIntDef(fParam, 20);
+  irc_addtext(netname, channel, GlQueueDiag.GetRecent(fCount));
+end;
+
+function IrcTaskTrace(const netname, channel, params: String): boolean;
+var
+  fCount: Integer;
+  fParam: string;
+begin
+  Result := True;
+  fParam := Trim(params);
+  if fParam = 'stats' then
+  begin
+    irc_addtext(netname, channel, GlTaskTrace.GetStats);
+  end
+  else
+  begin
+    if fParam = '' then
+      fCount := 20
+    else
+      fCount := StrToIntDef(fParam, 20);
+    irc_addtext(netname, channel, GlTaskTrace.GetRecent(fCount));
+  end;
 end;
 
 function IrcLastLog(const netname, channel, params: String): boolean;

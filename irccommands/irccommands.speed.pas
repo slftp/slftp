@@ -255,8 +255,11 @@ begin
     ps := TPazoSite(p.PazoSitesList[i]);
     irc_addtext(Netname, Channel, 'Speedtesting %s -> %s ->> %s', [firstsite.Name, ps.Name, ps.maindir]);
     tn := AddNotify;
-    t := TPazoRaceTask.Create(Netname, Channel, firstsite.Name, ps.Name, p, nil, '', fsfilename, fsfilesize, 1);
+    t := TPazoRaceTask.Create(Netname, Channel, firstsite.Name, ps.Name, p, '', fsfilename, fsfilesize, 1);
     t.FFilenameForSTORCommand := speedtestfilename;
+
+    if (p.TaskGraph <> nil) then
+      p.TaskGraph.AddTask(t.uid);
 
     tn.AddTask(t);
 
@@ -480,8 +483,12 @@ begin
 
       tn := AddNotify;
 
-      t := TPazoRaceTask.Create(Netname, Channel, ps.Name, firstsite.Name, p, nil, '', fsfilename, fsfilesize, 1);
+      t := TPazoRaceTask.Create(Netname, Channel, ps.Name, firstsite.Name, p, '', fsfilename, fsfilesize, 1);
       t.FFilenameForSTORCommand := speedtestfilename;
+
+      if (p.TaskGraph <> nil) then
+        p.TaskGraph.AddTask(t.uid);
+
       tn.AddTask(t);
       AddTask(t);
 
