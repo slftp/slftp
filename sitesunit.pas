@@ -232,12 +232,20 @@ type
     fMaxIdle: integer;
     fKillConnectionOnStalledTransferSeconds: integer;
     fSpeedFromCS: TSlCriticalSection2;
-    fSpeedFromCache: TList<TSpeedFromRouteInfo>;
+    fSpeedFromCache: TSpeedFromRouteList;
+    fDelayCacheCS: TSlCriticalSection2;
+    fDelayLeechCache: TDictionary<String, Integer>;
+    fDelayUploadCache: TDictionary<String, Integer>;
     fFreeSlotsCS: TSlCriticalSection2;
     FSettingsCacheDict: TVariantCache; //< Cache for site-settings in the sites.dat to avoid the sites.dat bottleneck (lock)
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
+
+    { Invalidates cached delay-leech values. Pass empty string to clear all. }
+    procedure InvalidateDelayLeechCache(const aSection: String = '');
+    { Invalidates cached delay-upload values. Pass empty string to clear all. }
+    procedure InvalidateDelayUploadCache(const aSection: String = '');
 
     function GetPermDownStatus: boolean;
     procedure SetPermDownStatus(Value: boolean);
@@ -410,7 +418,7 @@ type
     function GetKillConnectionOnStalledTransferSeconds: integer;
     { Sets a value saying after how many seconds a stalled transfer should be ended by destroying the socket }
     procedure SetKillConnectionOnStalledTransferSeconds(const Value: integer);
-    function GetSpeed_From: TList<TSpeedFromRouteInfo>;
+    function GetSpeed_From: TSpeedFromRouteList;
   public
     emptyQueue: boolean;
     siteinvited: boolean;
@@ -632,7 +640,7 @@ type
     property UseSiteSearchOnReqFill: boolean read GetUseSiteSearchOnReqFill write SetUseSiteSearchOnReqFill; //< a value indicating whether the 'site search' cmd will be used to find requests
     property ReducedSpeedstatWeight: boolean read GetReducedSpeedstatWeight write SetReducedSpeedstatWeight; //< a value indicating whether speedstats should not change calculated rank for this destination site
     property KillConnectionOnStalledTransferSeconds: integer read GetKillConnectionOnStalledTransferSeconds write SetKillConnectionOnStalledTransferSeconds; //< a value saying after how many seconds a stalled transfer should be ended by destroying the socket
-    property Speed_From: TList<TSpeedFromRouteInfo> read GetSpeed_From; //< Access cached speed-from speedstats. Creates a new TStringList which you need to free yourself after use
+    property Speed_From: TSpeedFromRouteList read GetSpeed_From; //< Access cached speed-from routes. Returns a shared immutable list owned by this site.
   end;
 
 function ReadSites(): boolean;
@@ -3162,6 +3170,9 @@ begin
   fQueue := TQueueThread.Create(Name);
   self.fSpeedFromCS := TSlCriticalSection2.Create('SpeedFromCS_' + Name);
   self.fSpeedFromCache := nil;
+  self.fDelayCacheCS := TSlCriticalSection2.Create('DelayCacheCS_' + Name);
+  self.fDelayLeechCache := nil;
+  self.fDelayUploadCache := nil;
   self.fFreeSlotsCS := TSlCriticalSection2.Create('FreeSlotsCS_' + Name);
   FSettingsCacheDict := TVariantCache.Create;
 
@@ -3217,22 +3228,18 @@ end;
 
 function TSite.isRouteableTo(const sitename: String): boolean;
 var
-  fSpeedFromList: TList<TSpeedFromRouteInfo>;
+  fSpeedFromList: TSpeedFromRouteList;
   fSpeedFromItem: TSpeedFromRouteInfo;
 begin
   Result := False;
   fSpeedFromList := GetSpeed_From;
-  try
-    for fSpeedFromItem in fSpeedFromList do
+  for fSpeedFromItem in fSpeedFromList.Routes do
+  begin
+    if fSpeedFromItem.sitename = sitename then
     begin
-      if fSpeedFromItem.sitename = sitename then
-      begin
-        Result := True;
-        break;
-      end;
+      Result := True;
+      break;
     end;
-  finally
-    fSpeedFromList.Free;
   end;
 end;
 
@@ -3349,6 +3356,9 @@ begin
   fSlotsAssignmentLock.Free;
   fSpeedFromCS.Free;
   FreeAndNil(fSpeedFromCache);
+  fDelayCacheCS.Free;
+  FreeAndNil(fDelayLeechCache);
+  FreeAndNil(fDelayUploadCache);
   fFreeSlotsCS.Free;
   FSettingsCacheDict.Free;
   Debug(dpSpam, section, 'Site %s destroy end', [Name]);
@@ -3819,14 +3829,54 @@ begin
   Result := RCInteger('delayleech-' + aSection + '-max', 0);
 end;
 
+procedure TSite.InvalidateDelayLeechCache(const aSection: String);
+begin
+  self.fDelayCacheCS.Enter('InvalidateDelayLeechCache');
+  try
+    if self.fDelayLeechCache <> nil then
+    begin
+      if aSection = '' then
+        self.fDelayLeechCache.Clear
+      else
+        self.fDelayLeechCache.Remove(aSection);
+    end;
+  finally
+    self.fDelayCacheCS.Leave;
+  end;
+end;
+
+procedure TSite.InvalidateDelayUploadCache(const aSection: String);
+begin
+  self.fDelayCacheCS.Enter('InvalidateDelayUploadCache');
+  try
+    if self.fDelayUploadCache <> nil then
+    begin
+      if aSection = '' then
+        self.fDelayUploadCache.Clear
+      else
+        self.fDelayUploadCache.Remove(aSection);
+    end;
+  finally
+    self.fDelayCacheCS.Leave;
+  end;
+end;
+
 procedure TSite.SetDelayLeechMin(const aSection: String; const Value: integer);
 begin
   WCInteger('delayleech-' + aSection + '-min', Value);
+  if aSection = 'global' then
+    InvalidateDelayLeechCache('')
+  else
+    InvalidateDelayLeechCache(aSection);
 end;
 
 procedure TSite.SetDelayLeechMax(const aSection: String; const Value: integer);
 begin
   WCInteger('delayleech-' + aSection + '-max', Value);
+  if aSection = 'global' then
+    InvalidateDelayLeechCache('')
+  else
+    InvalidateDelayLeechCache(aSection);
 end;
 
 function TSite.GetDelayLeech(const aSection: String): integer;
@@ -3834,6 +3884,17 @@ var
   fMinValue, fMaxValue: Integer;
 begin
   Result := 0;
+
+  self.fDelayCacheCS.Enter('GetDelayLeech');
+  try
+    if self.fDelayLeechCache = nil then
+      self.fDelayLeechCache := TDictionary<String, Integer>.Create;
+
+    if self.fDelayLeechCache.TryGetValue(aSection, Result) then
+      Exit;
+  finally
+    self.fDelayCacheCS.Leave;
+  end;
 
   fMinValue := GetDelayLeechMin(aSection);
   if fMinValue <= 0 then
@@ -3849,6 +3910,13 @@ begin
 
   if (fMaxValue > 0) then
     Result := RandomRange(fMinValue, fMaxValue);
+
+  self.fDelayCacheCS.Enter('GetDelayLeechStore');
+  try
+    self.fDelayLeechCache.AddOrSetValue(aSection, Result);
+  finally
+    self.fDelayCacheCS.Leave;
+  end;
 end;
 
 function TSite.GetDelayUploadMin(const aSection: String): integer;
@@ -3864,11 +3932,19 @@ end;
 procedure TSite.SetDelayUploadMin(const aSection: String; const Value: integer);
 begin
   WCInteger('delayupload-' + aSection + '-min', Value);
+  if aSection = 'global' then
+    InvalidateDelayUploadCache('')
+  else
+    InvalidateDelayUploadCache(aSection);
 end;
 
 procedure TSite.SetDelayUploadMax(const aSection: String; const Value: integer);
 begin
   WCInteger('delayupload-' + aSection + '-max', Value);
+  if aSection = 'global' then
+    InvalidateDelayUploadCache('')
+  else
+    InvalidateDelayUploadCache(aSection);
 end;
 
 function TSite.GetDelayUpload(const aSection: String): integer;
@@ -3876,6 +3952,17 @@ var
   fMinValue, fMaxValue: Integer;
 begin
   Result := 0;
+
+  self.fDelayCacheCS.Enter('GetDelayUpload');
+  try
+    if self.fDelayUploadCache = nil then
+      self.fDelayUploadCache := TDictionary<String, Integer>.Create;
+
+    if self.fDelayUploadCache.TryGetValue(aSection, Result) then
+      Exit;
+  finally
+    self.fDelayCacheCS.Leave;
+  end;
 
   fMinValue := GetDelayUploadMin(aSection);
   if fMinValue <= 0 then
@@ -3891,6 +3978,13 @@ begin
 
   if (fMaxValue > 0) then
     Result := RandomRange(fMinValue, fMaxValue);
+
+  self.fDelayCacheCS.Enter('GetDelayUploadStore');
+  try
+    self.fDelayUploadCache.AddOrSetValue(aSection, Result);
+  finally
+    self.fDelayCacheCS.Leave;
+  end;
 end;
 
 function TSite.IsPretimeOk(const section: String; rlz_pretime: Int64): boolean;
@@ -4940,12 +5034,12 @@ begin
   end;
 end;
 
-function TSite.GetSpeed_From: TList<TSpeedFromRouteInfo>;
+function TSite.GetSpeed_From: TSpeedFromRouteList;
 begin
   if self.fSpeedFromCache = nil then
   begin
+    self.fSpeedFromCS.Enter('GetSpeed_From');
     try
-      self.fSpeedFromCS.Enter('GetSpeed_From1');
       if self.fSpeedFromCache = nil then
         self.UpdateSpeedFromCache;
     finally
@@ -4953,41 +5047,47 @@ begin
     end;
   end;
 
-  self.fSpeedFromCS.Enter('GetSpeed_From2');
-  try
-    Result := TList<TSpeedFromRouteInfo>.Create((self.fSpeedFromCache));
-  finally
-    self.fSpeedFromCS.Leave;
-  end;
+  Result := self.fSpeedFromCache;
 end;
 
 procedure TSite.UpdateSpeedFromCache;
 var
-  fNewValue, fOldValue: TList<TSpeedFromRouteInfo>;
+  fRouteList: TList<TSpeedFromRouteInfo>;
+  fNewRoutes: TArray<TSpeedFromRouteInfo>;
+  fNewValue, fOldValue: TSpeedFromRouteList;
   fSpeedInfo: TSpeedFromRouteInfo;
   fStringList: TStringList;
   i: Integer;
   fKey: string;
 begin
-  fNewValue := TList<TSpeedFromRouteInfo>.Create;
+  fRouteList := TList<TSpeedFromRouteInfo>.Create;
   fStringList := TStringList.Create;
-  sitesdat.ReadSectionValues('site-' + Name, fStringList);
+  try
+    sitesdat.ReadSectionValues('site-' + Name, fStringList);
 
-  if fStringList.Count > 0 then
-  begin
-    for i := 0 to fStringList.Count - 1 do
+    if fStringList.Count > 0 then
     begin
-      fKey := fStringList.Names[i];
-      if AnsiStartsText('speed-from-', fKey) then
+      for i := 0 to fStringList.Count - 1 do
       begin
-        fSpeedInfo := TSpeedFromRouteInfo.CreateFromConfigString(fStringList.ValueFromIndex[i]);
-        fSpeedInfo.Sitename := Copy(fKey, Length('speed-from-') + 1, Length(fKey));
-        fNewValue.Add(fSpeedInfo);
+        fKey := fStringList.Names[i];
+        if AnsiStartsText('speed-from-', fKey) then
+        begin
+          fSpeedInfo := TSpeedFromRouteInfo.CreateFromConfigString(fStringList.ValueFromIndex[i]);
+          fSpeedInfo.Sitename := Copy(fKey, Length('speed-from-') + 1, Length(fKey));
+          fRouteList.Add(fSpeedInfo);
+        end;
       end;
     end;
+
+    fRouteList.Sort(TComparer<TSpeedFromRouteInfo>.Construct(_mySpeedComparer));
+    fNewRoutes := fRouteList.ToArray;
+  finally
+    fRouteList.Free;
+    fStringList.Free;
   end;
 
-  fNewValue.Sort(TComparer<TSpeedFromRouteInfo>.Construct(_mySpeedComparer));
+  fNewValue := TSpeedFromRouteList.Create(fNewRoutes);
+
   self.fSpeedFromCS.Enter('UpdateSpeedFromCache');
   try
     fOldValue := self.fSpeedFromCache;
@@ -4997,7 +5097,6 @@ begin
   end;
 
   FreeAndNil(fOldValue);
-  FreeAndNil(fStringList);
 end;
 
 procedure TSite.MigrateSpeedFromConfig;

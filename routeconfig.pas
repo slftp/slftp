@@ -22,6 +22,13 @@ type
     constructor CreateFromConfigString(const aStrValue: string);
   end;
 
+  { Immutable shared list of speed-from routes. }
+  TSpeedFromRouteList = class
+  public
+    Routes: TArray<TSpeedFromRouteInfo>;
+    constructor Create(const aRoutes: TArray<TSpeedFromRouteInfo>);
+  end;
+
   { If you need to store a TSpeedFromRouteInfo record as an object (e.g. in a TStringList). }
   TSpeedFromRouteInfoObjectWrapper = class
     private
@@ -90,6 +97,13 @@ begin
     fRouteOptionInfo := '(' + fRouteOptionInfo + ')';
 
   Result := IntToStr(Speed) + fRouteOptionInfo;
+end;
+
+{ TSpeedFromRouteList }
+
+constructor TSpeedFromRouteList.Create(const aRoutes: TArray<TSpeedFromRouteInfo>);
+begin
+  Routes := aRoutes;
 end;
 
 { TSpeedFromRouteInfoObjectWrapper }

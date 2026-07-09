@@ -192,6 +192,7 @@ var
   dlt: TPazoDirlistTask;
   l: TLoginTask;
   fPretimeLookupTask: TPazoPretimeLookupTask;
+  fGlobalSkipped: boolean;
 
   { Removes the oldest knowledge base entries }
   procedure KbListsCleanUp;
@@ -471,6 +472,9 @@ begin
       end;
 
       p := PazoAdd(r);
+      p.AddTimelineEntry(rtpReleaseDetected, sitename, Format('event=%s', [KBEventTypeToString(event)]));
+      p.AddTimelineEntry(rtpKbAdd, sitename, Format('event=%s', [KBEventTypeToString(event)]));
+      p.AddTimelineEntry(rtpPazoCreated, sitename, Format('event=%s', [KBEventTypeToString(event)]));
 
       // need to search all sites where there is such a section ...
       p.AddSites;
@@ -481,6 +485,7 @@ begin
       finally
         kb_list.EndUpdate;
       end;
+      p.AddTimelineEntry(rtpKbListAdded, '', Format('sites=%d', [p.PazoSitesList.Count]));
 
       // announce event on admin chan
       if (event = kbeADDPRE) then
@@ -526,6 +531,7 @@ begin
             irc_Addstats(Format('<c3>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<b>%s</b>) (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, p.sl.sectionname, dbaddpre_GetPreduration(r.pretime), r.PretimeSource]));
         end;
       end;
+      p.AddTimelineEntry(rtpIrcAnnounced, '', Format('event=%s', [KBEventTypeToString(event)]));
     end
     else
     begin
@@ -585,7 +591,11 @@ begin
   if p.PazoSitesList.Count = 0 then
     exit;
 
-  if ((event <> kbeSPREAD) and (CheckIfGlobalSkippedGroup(rls))) then
+  p.AddTimelineEntry(rtpGlobalSkipCheckStart, '', '');
+  fGlobalSkipped := (event <> kbeSPREAD) and CheckIfGlobalSkippedGroup(rls);
+  p.AddTimelineEntry(rtpGlobalSkipCheckDone, '', Format('skipped=%s', [BoolToStr(fGlobalSkipped, True)]));
+  p.AddTimelineEntry(rtpGlobalSkipChecked, '', Format('skipped=%s', [BoolToStr(fGlobalSkipped, True)]));
+  if fGlobalSkipped then
   begin
     irc_addadmin(format('<b><c4>%s</c> @ %s </b>is a global skipped group!', [grp, rls]));
     debug(dpSpam, rsections, 'Group %s pred %s in %s but it is a global skipped group', [grp, rls, section]);
@@ -594,7 +604,9 @@ begin
 
   if (event <> kbeADDPRE) then
   begin
+    p.AddTimelineEntry(rtpPazoFindStart, '', Format('site=%s', [sitename]));
     psource := p.FindSite(sitename);
+    p.AddTimelineEntry(rtpPazoFindDone, '', Format('site=%s', [sitename]));
     if psource = nil then
     begin
       s := FindSiteByName(netname, sitename);
@@ -653,10 +665,12 @@ begin
 
       exit;
     end;
+    p.AddTimelineEntry(rtpSourceSiteFound, '', Format('site=%s', [psource.Name]));
 
     s := FindSiteByName(netname, psource.Name);
     if ((s <> nil) and (not (s.WorkingStatus in [sstUnknown, sstUp]))) then
       exit;
+    p.AddTimelineEntry(rtpSourceSiteResolved, '', Format('site=%s', [psource.Name]));
 
     psource.ircevent := True;
 
@@ -705,12 +719,15 @@ begin
         end;
       end;
     end;
+    p.AddTimelineEntry(rtpSourceStatusUpdated, '', Format('event=%s:site=%s', [KBEventTypeToString(event), psource.Name]));
   end;
 
+  p.AddTimelineEntry(rtpReleaseUpdateReady, '', '');
   if not p.rls.aktualizalva then
   begin
     p.rls.Aktualizal(p);
   end;
+  p.AddTimelineEntry(rtpReleaseUpdated, '', Format('aktualizalva=%s', [BoolToStr(p.rls.aktualizalva, True)]));
 
   // implement firerules, routes, stb. set rs.srcsite:= rss.sitename;
   if (not (event in [kbeNUKE, kbeADDPRE])) then
@@ -722,6 +739,7 @@ begin
     finally
       kb_lock.Leave;
     end;
+    p.AddTimelineEntry(rtpSourceRulesDone, '', Format('result=%d', [Ord(rule_result)]));
 
     // announce SKIP and DONT MATCH only if the site is not a PRE site
     if (psource <> nil) and (psource.status <> rssRealPre) then
@@ -763,8 +781,10 @@ begin
         kb_lock.Leave;
       end;
     end;
+    p.AddTimelineEntry(rtpSiteRulesDone, '', Format('sites=%d', [p.PazoSitesList.Count]));
 
     // now add all dst
+    p.AddTimelineEntry(rtpFireRulesStarted, '', Format('sites=%d', [p.PazoSitesList.Count]));
     for i := p.PazoSitesList.Count - 1 downto 0 do
     begin
       try
@@ -781,6 +801,7 @@ begin
         kb_lock.Leave;
       end;
     end;
+    p.AddTimelineEntry(rtpFireRulesDone, '', '');
   except
     on e: Exception do
     begin
@@ -789,13 +810,18 @@ begin
     end;
   end;
 
+  p.AddTimelineEntry(rtpRoutesTextStarted, '', '');
+  ss := p.RoutesText;
+  p.AddTimelineEntry(rtpRoutesTextDone, '', Format('len=%d', [Length(ss)]));
+  p.AddTimelineEntry(rtpRoutesCreated, '', Format('routes=%s', [ss]));
+
   if dontFire then
     exit;
 
   // status changed
-  ss := p.RoutesText;
   if ss <> '' then
   begin
+    p.AddTimelineEntry(rtpIrcRouteInfosSent, '', Format('len=%d', [Length(ss)]));
     irc_SendROUTEINFOS(ss);
   end;
 
@@ -858,6 +884,7 @@ begin
         end;
       end;
     end;
+    p.AddTimelineEntry(rtpInitialDirlistsCreated, '', '');
   except
     on E: Exception do
     begin
@@ -1510,12 +1537,14 @@ begin
     for ps in destinations do
     begin
       p.AddSite(ps.Name, ps.maindir);
-      site_allocation.Add(ps.Name, TStringList.Create);
+      if not site_allocation.ContainsKey(ps.Name) then
+        site_allocation.Add(ps.Name, TStringList.Create);
     end;
 
     for sps in sources do
     begin
-      site_allocation.Add(sps.Name, TStringList.Create);
+      if not site_allocation.ContainsKey(sps.Name) then
+        site_allocation.Add(sps.Name, TStringList.Create);
       ssites_info := site_allocation.Items[sps.Name];
       for ps in destinations do
       begin

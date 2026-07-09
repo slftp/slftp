@@ -1645,6 +1645,8 @@ begin
   if ps.error then
     exit;
 
+  p.AddTimelineEntry(rtpFireRulesSiteStart, ps.Name, Format('routes=%d', [Length(ps.speed_from.Routes)]));
+
   ps_s := FindSiteByName('', ps.Name);
   if ps_s = nil then
     exit;
@@ -1656,7 +1658,7 @@ begin
   p.srcsite := ps.Name;
   Debug(dpSpam, dsection, '-> ' + Format('%s: %s %s', [ps.Name, p.rls.section, p.rls.rlsname]));
 
-  for fSpeedInfo in ps.speed_from do
+  for fSpeedInfo in ps.speed_from.Routes do
   begin
     try
       dstps := p.FindSite(fSpeedInfo.Sitename);
@@ -1716,6 +1718,7 @@ begin
       end;
     end;
   end;
+  p.AddTimelineEntry(rtpFireRulesSiteDone, ps.Name, '');
   Debug(dpSpam, dsection, '<- ' + Format('%s: %s %s', [ps.Name, p.rls.section, p.rls.rlsname]));
 end;
 

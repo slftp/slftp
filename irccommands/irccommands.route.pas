@@ -321,7 +321,7 @@ var
   ii, i: integer;
   ss, fArrowDirection: String;
   fSite: TSite;
-  fSpeedFromListIterator: TList<TSpeedFromRouteInfo>;
+  fSpeedFromListIterator: TSpeedFromRouteList;
   fSpeedFromItem: TSpeedFromRouteInfo;
 begin
   case aRoutesToShow of
@@ -347,17 +347,13 @@ begin
       for fSite in sites do
       begin
         fSpeedFromListIterator := fSite.Speed_From;
-        try
-          for fSpeedFromItem in fSpeedFromListIterator do
+        for fSpeedFromItem in fSpeedFromListIterator.Routes do
+        begin
+          if fSpeedFromItem.sitename = sitename then
           begin
-            if fSpeedFromItem.sitename = sitename then
-            begin
-              fSitesAndRouteInfo.AddObject(fSite.Name, TSpeedFromRouteInfoObjectWrapper.Create(fSpeedFromItem));
-              break;
-            end;
+            fSitesAndRouteInfo.AddObject(fSite.Name, TSpeedFromRouteInfoObjectWrapper.Create(fSpeedFromItem));
+            break;
           end;
-        finally
-          fSpeedFromListIterator.Free;
         end;
       end;
     end
@@ -366,13 +362,9 @@ begin
       // to show the outgoing routes, we can just use the site's Speed_From information
       fSite := FindSiteByName(Netname, sitename);
       fSpeedFromListIterator := fSite.Speed_From;
-      try
-        for fSpeedFromItem in fSpeedFromListIterator do
-        begin
-          fSitesAndRouteInfo.AddObject(fSpeedFromItem.Sitename, TSpeedFromRouteInfoObjectWrapper.Create(fSpeedFromItem));
-        end;
-      finally
-        fSpeedFromListIterator.Free;
+      for fSpeedFromItem in fSpeedFromListIterator.Routes do
+      begin
+        fSitesAndRouteInfo.AddObject(fSpeedFromItem.Sitename, TSpeedFromRouteInfoObjectWrapper.Create(fSpeedFromItem));
       end;
     end;
 

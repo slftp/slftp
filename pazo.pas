@@ -48,6 +48,57 @@ type
       constructor Create(const aPazoSite: TPazoSite; const aRank: integer);
    end;
 
+  { Timeline phases for measuring race startup latency }
+  TRaceTimelinePhase = (
+    rtpReleaseDetected,        // T0: Release recognized via precatcher/IRC/etc.
+    rtpKbAdd,                  // T1: kb_Add called
+    rtpPazoCreated,            // T2: PazoAdd finished
+    rtpAddSitesStarted,        // T3a: AddSites loop begins
+    rtpSitesStatusFiltered,    // T3b: status/permdown/spreadjob checks done
+    rtpSitesSectionFiltered,   // T3c: sectiondir/datum/findsite checks done
+    rtpSitesPretimeFiltered,   // T3d: pretime checks done
+    rtpSitesCreateStarted,     // T3e1: TPazoSite creation loop begins
+    rtpSitesCreateDone,        // T3e2: TPazoSite creation loop done
+    rtpSitesAdded,             // T3e: AddSites finished
+    rtpKbListAdded,            // T3f: added to kb_list
+    rtpIrcAnnounced,           // T3g: IRC announcements done
+    rtpGlobalSkipChecked,      // T3g1: global skipped group check done
+    rtpGlobalSkipCheckStart,   // T3g1a: global skipped group check begins
+    rtpGlobalSkipCheckDone,    // T3g1b: global skipped group check done
+    rtpPazoFindStart,          // T3g1c: pazo.FindSite begins
+    rtpPazoFindDone,           // T3g1d: pazo.FindSite done
+    rtpSourceSiteFound,        // T3g2: source site found in pazo
+    rtpSourceSiteResolved,     // T3g3: source site resolved via sitesunit
+    rtpSourceStatusUpdated,    // T3g4: PRE/SPREAD/COMPLETE/NUKE handling done
+    rtpReleaseUpdateReady,     // T3g5: ready to call Aktualizal
+    rtpReleaseUpdated,         // T3h: release metadata updated
+    rtpSourceRulesDone,        // T3i: source site FireRuleSet done
+    rtpSiteRulesDone,          // T3j: all site FireRuleSet done
+    rtpFireRulesStarted,       // T4a: FireRules loop begins
+    rtpFireRulesSiteStart,     // T4a1: FireRules single site begins
+    rtpFireRulesSiteDone,      // T4a2: FireRules single site done
+    rtpFireRulesRouteStart,    // T4a3: FireRules single route begins
+    rtpFireRulesRouteDone,     // T4a4: FireRules single route done
+    rtpFireRulesDone,          // T4b: FireRules loop ends
+    rtpRoutesTextStarted,      // T4c1: RoutesText generation begins
+    rtpRoutesTextDone,         // T4c2: RoutesText generation done
+    rtpIrcRouteInfosSent,      // T4c3: IRC route announcement sent
+    rtpRoutesCreated,          // T5: destination routes added
+    rtpInitialDirlistsCreated, // T6: initial dirlist tasks created
+    rtpFirstDirlistResult,     // T7: first dirlist parsed, Tuzelj invoked
+    rtpMkdirCreated,           // T8: first mkdir task created
+    rtpRaceTasksCreated,       // T9: first race task created
+    rtpQueueAssignStarted,     // T10a: TryToAssignRaceSlots first called
+    rtpRaceStarted             // T10b: first race task assigned to slots
+  );
+
+  TRaceTimelineEntry = record
+    Phase: TRaceTimelinePhase;
+    ElapsedMs: Int64;
+    Site: String;
+    Info: String;
+  end;
+
   TPazoSite = class
   private
     cds: String;
@@ -89,7 +140,7 @@ type
     // will be true when autofollow rule is used, otherwise default false
     firesourcesinstead: boolean;
 
-    speed_from: TList<TSpeedFromRouteInfo>;
+    speed_from: TSpeedFromRouteList;
 
     property dirlistgaveup: boolean read GetDirlistGaveUp write SetDirListGaveUp; //< gets or sets a value indicating whether dirlisting have been given up for this site
     property Destinations: TList<TDestinationRank> read FDestinations; //< destination sites and ranks
@@ -173,6 +224,10 @@ type
     FUniqueFileListOfRelease_cs: TSlCriticalSection2; //< Critical section for Add calls to @link(FUniqueFileListOfRelease)
     FUniqueFileListOfRelease: TDictionary<String, Int64>; //< Dictionary with files (including subdirs) and corresponding filesize (biggest value seen on any site) for this release, Key="dir + '/' + filename" and Value=filesize
     FPazoSFV: TPazoSFV;
+    fTimeline: array of TRaceTimelineEntry;
+    fTimelineCS: TSlCriticalSection2;
+    fTimelineStart: Int64;
+    fTimelinePhaseSet: array[TRaceTimelinePhase] of boolean;
 
     { Creates/Updates the filesize for given subdir and filename combination
       @param(aDir Location of the file inside releasedir)
@@ -246,6 +301,19 @@ type
       @param(aFilename Name of the file)
       @returns(filesize in bytes, -1 if not found or unknown file) }
     function PFileSize(const aDir, aFilename: String): Int64;
+
+    { Records a timestamped event for race-startup latency analysis }
+    procedure AddTimelineEntry(const aPhase: TRaceTimelinePhase; const aSite, aInfo: String);
+    { Returns the timeline as a formatted string for logging }
+    function TimelineAsString: String;
+    { Returns True if the given phase was already recorded }
+    function HasTimelinePhase(const aPhase: TRaceTimelinePhase): boolean;
+    { One-shot timeline markers (thread-safe, idempotent). Returns True if the marker was newly set. }
+    function MarkFirstDirlistResult(const aSite, aInfo: String): boolean;
+    function MarkMkdirCreated(const aSite, aInfo: String): boolean;
+    function MarkRaceTasksCreated(const aSite, aInfo: String): boolean;
+    function MarkQueueAssignStarted(const aSite, aInfo: String): boolean;
+    function MarkRaceStarted(const aSite, aInfo: String): boolean;
 
     property ExcludeFromIncfiller: Boolean read FExcludeFromIncfiller write FExcludeFromIncfiller;
     property PazoSFV: TPazoSFV read FPazoSFV;
@@ -462,6 +530,8 @@ begin
 
   pazo.lastTouch := Now();
 
+  pazo.MarkFirstDirlistResult(Name, dir);
+
   // enumerate possible destinations
   for fDestination in destinations do
   begin
@@ -560,6 +630,7 @@ begin
             // Finally add mkdir task
           if pm <> nil then
           begin
+            pazo.MarkMkdirCreated(dst.Name, dir);
             try
               AddTask(pm, True);
             except
@@ -644,6 +715,7 @@ begin
             end;
 
             // finally we can add the task
+            pazo.MarkRaceTasksCreated(Name + '->' + dst.Name, dir + '/' + de.filename);
             try
               AddTask(pr);
               Result := True;
@@ -831,6 +903,10 @@ begin
   lastTouch := Now();
   FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_' + rls.Name + '_' + IntToStr(pazo_id));
   FUniqueFileListOfRelease := TDictionary<String, Int64>.Create;
+  fTimelineCS := TSlCriticalSection2.Create('Timeline_' + rls.Name + '_' + IntToStr(pazo_id));
+  SetLength(fTimeline, 0);
+  fTimelineStart := GetTickCount64;
+  FillChar(fTimelinePhaseSet, SizeOf(fTimelinePhaseSet), 0);
 
   self.stated := False;
   self.cleared := False;
@@ -853,10 +929,147 @@ begin
   mkdirtasks.Free;
   FUniqueFileListOfRelease.Free;
   FUniqueFileListOfRelease_cs.Free;
+  fTimelineCS.Free;
+  SetLength(fTimeline, 0);
   FreeAndNil(rls);
   if FPazoSFV <> nil then FPazoSFV.Free;
 
   inherited;
+end;
+
+procedure TPazo.AddTimelineEntry(const aPhase: TRaceTimelinePhase; const aSite, aInfo: String);
+var
+  i: Integer;
+begin
+  fTimelineCS.Enter('AddTimelineEntry');
+  try
+    if fTimelinePhaseSet[aPhase] then
+      Exit;
+    fTimelinePhaseSet[aPhase] := True;
+    i := Length(fTimeline);
+    SetLength(fTimeline, i + 1);
+    fTimeline[i].Phase := aPhase;
+    fTimeline[i].ElapsedMs := Int64(GetTickCount64) - fTimelineStart;
+    fTimeline[i].Site := aSite;
+    fTimeline[i].Info := aInfo;
+  finally
+    fTimelineCS.Leave;
+  end;
+end;
+
+function TPazo.MarkFirstDirlistResult(const aSite, aInfo: String): boolean;
+begin
+  Result := not fTimelinePhaseSet[rtpFirstDirlistResult];
+  if Result then
+    AddTimelineEntry(rtpFirstDirlistResult, aSite, aInfo);
+end;
+
+function TPazo.MarkMkdirCreated(const aSite, aInfo: String): boolean;
+begin
+  Result := not fTimelinePhaseSet[rtpMkdirCreated];
+  if Result then
+    AddTimelineEntry(rtpMkdirCreated, aSite, aInfo);
+end;
+
+function TPazo.MarkRaceTasksCreated(const aSite, aInfo: String): boolean;
+begin
+  Result := not fTimelinePhaseSet[rtpRaceTasksCreated];
+  if Result then
+    AddTimelineEntry(rtpRaceTasksCreated, aSite, aInfo);
+end;
+
+function TPazo.MarkQueueAssignStarted(const aSite, aInfo: String): boolean;
+begin
+  Result := not fTimelinePhaseSet[rtpQueueAssignStarted];
+  if Result then
+    AddTimelineEntry(rtpQueueAssignStarted, aSite, aInfo);
+end;
+
+function TPazo.MarkRaceStarted(const aSite, aInfo: String): boolean;
+begin
+  Result := not fTimelinePhaseSet[rtpRaceStarted];
+  if Result then
+    AddTimelineEntry(rtpRaceStarted, aSite, aInfo);
+end;
+
+function TPazo.HasTimelinePhase(const aPhase: TRaceTimelinePhase): boolean;
+begin
+  fTimelineCS.Enter('HasTimelinePhase');
+  try
+    Result := fTimelinePhaseSet[aPhase];
+  finally
+    fTimelineCS.Leave;
+  end;
+end;
+
+function TPazo.TimelineAsString: String;
+var
+  i: Integer;
+  fPhaseNames: array[TRaceTimelinePhase] of String;
+begin
+  fTimelineCS.Enter('TimelineAsString');
+  try
+    fPhaseNames[rtpReleaseDetected] := 'RELEASE';
+    fPhaseNames[rtpKbAdd] := 'KB_ADD';
+    fPhaseNames[rtpPazoCreated] := 'PAZO';
+    fPhaseNames[rtpAddSitesStarted] := 'SITES_START';
+    fPhaseNames[rtpSitesStatusFiltered] := 'SITES_STATUS';
+    fPhaseNames[rtpSitesSectionFiltered] := 'SITES_SECTION';
+    fPhaseNames[rtpSitesPretimeFiltered] := 'SITES_PRETIME';
+    fPhaseNames[rtpSitesCreateStarted] := 'SITES_CREATE_START';
+    fPhaseNames[rtpSitesCreateDone] := 'SITES_CREATE_DONE';
+    fPhaseNames[rtpSitesAdded] := 'SITES';
+    fPhaseNames[rtpKbListAdded] := 'KB_LIST';
+    fPhaseNames[rtpIrcAnnounced] := 'IRC_ANNOUNCE';
+    fPhaseNames[rtpGlobalSkipChecked] := 'GLOBAL_SKIP';
+    fPhaseNames[rtpGlobalSkipCheckStart] := 'SKIP_CHECK_START';
+    fPhaseNames[rtpGlobalSkipCheckDone] := 'SKIP_CHECK_DONE';
+    fPhaseNames[rtpPazoFindStart] := 'PAZO_FIND_START';
+    fPhaseNames[rtpPazoFindDone] := 'PAZO_FIND_DONE';
+    fPhaseNames[rtpSourceSiteFound] := 'SRC_FOUND';
+    fPhaseNames[rtpSourceSiteResolved] := 'SRC_RESOLVED';
+    fPhaseNames[rtpSourceStatusUpdated] := 'SRC_STATUS';
+    fPhaseNames[rtpReleaseUpdateReady] := 'RLS_UPDATE_READY';
+    fPhaseNames[rtpReleaseUpdated] := 'RLS_UPDATE';
+    fPhaseNames[rtpSourceRulesDone] := 'SRC_RULES';
+    fPhaseNames[rtpSiteRulesDone] := 'SITE_RULES';
+    fPhaseNames[rtpFireRulesStarted] := 'FIRE_START';
+    fPhaseNames[rtpFireRulesSiteStart] := 'FIRE_SITE_START';
+    fPhaseNames[rtpFireRulesSiteDone] := 'FIRE_SITE_DONE';
+    fPhaseNames[rtpFireRulesRouteStart] := 'FIRE_ROUTE_START';
+    fPhaseNames[rtpFireRulesRouteDone] := 'FIRE_ROUTE_DONE';
+    fPhaseNames[rtpFireRulesDone] := 'FIRE_DONE';
+    fPhaseNames[rtpRoutesTextStarted] := 'ROUTES_TEXT_START';
+    fPhaseNames[rtpRoutesTextDone] := 'ROUTES_TEXT_DONE';
+    fPhaseNames[rtpIrcRouteInfosSent] := 'IRC_ROUTE_SEND';
+    fPhaseNames[rtpRoutesCreated] := 'ROUTES';
+    fPhaseNames[rtpInitialDirlistsCreated] := 'INIT_DIR';
+    fPhaseNames[rtpFirstDirlistResult] := 'DIR_RESULT';
+    fPhaseNames[rtpMkdirCreated] := 'MKDIR';
+    fPhaseNames[rtpRaceTasksCreated] := 'RACE_TASKS';
+    fPhaseNames[rtpQueueAssignStarted] := 'QASSIGN_START';
+    fPhaseNames[rtpRaceStarted] := 'RACE_START';
+
+    if Length(fTimeline) = 0 then
+    begin
+      Result := '';
+      Exit;
+    end;
+
+    Result := Format('[RACETIMELINE] pazo_id=%d rls=%s', [pazo_id, rls.rlsname]);
+    for i := 0 to High(fTimeline) do
+    begin
+      Result := Result + Format(' | %s=%dms',
+        [fPhaseNames[fTimeline[i].Phase],
+         fTimeline[i].ElapsedMs]);
+      if fTimeline[i].Site <> '' then
+        Result := Result + ':' + fTimeline[i].Site;
+      if fTimeline[i].Info <> '' then
+        Result := Result + ':' + fTimeline[i].Info;
+    end;
+  finally
+    fTimelineCS.Leave;
+  end;
 end;
 
 function TPazo.FindSite(const sitename: String): TPazoSite;
@@ -1176,9 +1389,24 @@ var
   i: integer;
   sectiondir: String;
   ps: TPazoSite;
+  fCandidateIndexes: array of integer;
+  fCandidateCount: integer;
+  fTotalSites: integer;
+  fOpStart: Int64;
+  fSectionDirMs, fCreateMs, fDelaySetupMs, fIsAffilMs, fAddSlotsMs: Int64;
 begin
   Result := False;
-  for i := sitesunit.sites.Count - 1 downto 0 do
+  fSectionDirMs := 0;
+  fCreateMs := 0;
+  fDelaySetupMs := 0;
+  fIsAffilMs := 0;
+  fAddSlotsMs := 0;
+  fTotalSites := sitesunit.sites.Count;
+  AddTimelineEntry(rtpAddSitesStarted, '', Format('sites=%d', [fTotalSites]));
+
+  // Phase 1: filter by status/permdown/spreadjob
+  fCandidateCount := 0;
+  for i := fTotalSites - 1 downto 0 do
   begin
     try
       s := TSite(sitesunit.sites[i]);
@@ -1192,6 +1420,26 @@ begin
           Continue;
       end;
 
+      SetLength(fCandidateIndexes, fCandidateCount + 1);
+      fCandidateIndexes[fCandidateCount] := i;
+      Inc(fCandidateCount);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TPazo.AddSites phase 1: %s', [e.Message]));
+        Continue;
+      end;
+    end;
+  end;
+  AddTimelineEntry(rtpSitesStatusFiltered, '', Format('candidates=%d', [fCandidateCount]));
+
+  // Phase 2: filter by sectiondir/datum/findsite
+  fCandidateCount := 0;
+  for i := High(fCandidateIndexes) downto 0 do
+  begin
+    try
+      s := TSite(sitesunit.sites[fCandidateIndexes[i]]);
+
       sectiondir := s.sectiondir[rls.section];
       if (sectiondir = '') then
         Continue;
@@ -1200,6 +1448,26 @@ begin
 
       if FindSite(s.Name) <> nil then
         Continue;
+
+      fCandidateIndexes[fCandidateCount] := fCandidateIndexes[i];
+      Inc(fCandidateCount);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TPazo.AddSites phase 2: %s', [e.Message]));
+        Continue;
+      end;
+    end;
+  end;
+  SetLength(fCandidateIndexes, fCandidateCount);
+  AddTimelineEntry(rtpSitesSectionFiltered, '', Format('candidates=%d', [fCandidateCount]));
+
+  // Phase 3: filter by pretime
+  fCandidateCount := 0;
+  for i := High(fCandidateIndexes) downto 0 do
+  begin
+    try
+      s := TSite(sitesunit.sites[fCandidateIndexes[i]]);
 
       if not aIsSpreadJob then
       begin
@@ -1213,30 +1481,68 @@ begin
         end;
       end;
 
+      fCandidateIndexes[fCandidateCount] := fCandidateIndexes[i];
+      Inc(fCandidateCount);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TPazo.AddSites phase 3: %s', [e.Message]));
+        Continue;
+      end;
+    end;
+  end;
+  SetLength(fCandidateIndexes, fCandidateCount);
+  AddTimelineEntry(rtpSitesPretimeFiltered, '', Format('candidates=%d', [fCandidateCount]));
+
+  // Phase 4: create TPazoSite objects
+  AddTimelineEntry(rtpSitesCreateStarted, '', Format('candidates=%d', [Length(fCandidateIndexes)]));
+  for i := High(fCandidateIndexes) downto 0 do
+  begin
+    try
+      s := TSite(sitesunit.sites[fCandidateIndexes[i]]);
+
+      fOpStart := Int64(GetTickCount64);
+      sectiondir := s.sectiondir[rls.section];
+      sectiondir := DatumIdentifierReplace(sectiondir);
+      fSectionDirMs := fSectionDirMs + Int64(GetTickCount64) - fOpStart;
+
+      fOpStart := Int64(GetTickCount64);
       ps := TPazoSite.Create(self, s.Name, sectiondir, s);
+      fCreateMs := fCreateMs + Int64(GetTickCount64) - fOpStart;
+
       ps.status := rssNotAllowed;
+
       if not aIsSpreadJob then
       begin
+        fOpStart := Int64(GetTickCount64);
         ps.DelaySetup;
+        fDelaySetupMs := fDelaySetupMs + Int64(GetTickCount64) - fOpStart;
       end;
 
+      fOpStart := Int64(GetTickCount64);
       if s.IsAffil(rls.groupname) then
       begin
         ps.status := rssShouldPre;
       end;
+      fIsAffilMs := fIsAffilMs + Int64(GetTickCount64) - fOpStart;
 
+      fOpStart := Int64(GetTickCount64);
       PazoSitesList.Add(ps);
       CheckSiteSlots(s);
+      fAddSlotsMs := fAddSlotsMs + Int64(GetTickCount64) - fOpStart;
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] TPazo.AddSites: %s', [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] TPazo.AddSites phase 4: %s', [e.Message]));
         Continue;
       end;
     end;
 
     Result := True;
   end;
+  AddTimelineEntry(rtpSitesCreateDone, '', Format('candidates=%d', [Length(fCandidateIndexes)]));
+  AddTimelineEntry(rtpSitesAdded, '', Format('sites=%d sectiondir=%dms create=%dms delaysetup=%dms isaffil=%dms addslots=%dms',
+    [PazoSitesList.Count, fSectionDirMs, fCreateMs, fDelaySetupMs, fIsAffilMs, fAddSlotsMs]));
 end;
 
 function TPazo.PFileSize(const aDir, aFilename: String): Int64;
@@ -1382,7 +1688,7 @@ begin
   s_dirlisttasks.Free;
   s_racetasks.Free;
   s_mkdirtasks.Free;
-  speed_from.Free;
+  // speed_from is a shared reference owned by TSite, do not free here
   inherited;
 end;
 

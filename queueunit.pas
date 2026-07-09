@@ -469,6 +469,8 @@ var
   ss1, ss2, fSiteSlotLoop: TSiteSlot;
 begin
   try
+    t.mainpazo.MarkQueueAssignStarted(t.site1 + '->' + t.site2, t.dir + '/' + t.filename);
+
     s1 := TSite(t.ssite1);
     s2 := TSite(t.ssite2);
     if s1.freeslots = 0 then
@@ -585,6 +587,10 @@ begin
       end;
 
       Debug(dpSpam, section, 'FOUND SLOTS FOR ' + t.FullName + ': ' + ss1.Name + ' ' + ss2.Name);
+
+      if t.mainpazo.MarkRaceStarted(t.site1 + '->' + t.site2, t.dir + '/' + t.filename) then
+        Debug(dpSpam, section, t.mainpazo.TimelineAsString);
+
       t.dst      := TWaitTask.Create(t.netname, t.channel, t.site2);
       t.assigned := Now;
       t.dst.assigned := Now;
