@@ -34,6 +34,12 @@ slftp:	FORCE
 	$(CC) $(CFLAGS) $(CINCLUDES) slftp.lpr
 	$(MAKE) revpatchrevert
 
+slftp_racetimeline:	FORCE
+	$(MAKE) clean
+	$(MAKE) revpatch
+	$(CC) $(CFLAGS) -dRACE_TIMELINE $(CINCLUDES) slftp.lpr
+	$(MAKE) revpatchrevert
+
 slftp_32:	FORCE
 	$(MAKE) clean
 	$(MAKE) revpatch

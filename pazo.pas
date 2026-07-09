@@ -224,10 +224,12 @@ type
     FUniqueFileListOfRelease_cs: TSlCriticalSection2; //< Critical section for Add calls to @link(FUniqueFileListOfRelease)
     FUniqueFileListOfRelease: TDictionary<String, Int64>; //< Dictionary with files (including subdirs) and corresponding filesize (biggest value seen on any site) for this release, Key="dir + '/' + filename" and Value=filesize
     FPazoSFV: TPazoSFV;
+    {$IFDEF RACE_TIMELINE}
     fTimeline: array of TRaceTimelineEntry;
     fTimelineCS: TSlCriticalSection2;
     fTimelineStart: Int64;
     fTimelinePhaseSet: array[TRaceTimelinePhase] of boolean;
+    {$ENDIF}
 
     { Creates/Updates the filesize for given subdir and filename combination
       @param(aDir Location of the file inside releasedir)
@@ -303,17 +305,17 @@ type
     function PFileSize(const aDir, aFilename: String): Int64;
 
     { Records a timestamped event for race-startup latency analysis }
-    procedure AddTimelineEntry(const aPhase: TRaceTimelinePhase; const aSite, aInfo: String);
+    procedure AddTimelineEntry(const aPhase: TRaceTimelinePhase; const aSite, aInfo: String); {$IFNDEF RACE_TIMELINE}inline;{$ENDIF}
     { Returns the timeline as a formatted string for logging }
-    function TimelineAsString: String;
+    function TimelineAsString: String; {$IFNDEF RACE_TIMELINE}inline;{$ENDIF}
     { Returns True if the given phase was already recorded }
-    function HasTimelinePhase(const aPhase: TRaceTimelinePhase): boolean;
+    function HasTimelinePhase(const aPhase: TRaceTimelinePhase): boolean; {$IFNDEF RACE_TIMELINE}inline;{$ENDIF}
     { One-shot timeline markers (thread-safe, idempotent). Returns True if the marker was newly set. }
-    function MarkFirstDirlistResult(const aSite, aInfo: String): boolean;
-    function MarkMkdirCreated(const aSite, aInfo: String): boolean;
-    function MarkRaceTasksCreated(const aSite, aInfo: String): boolean;
-    function MarkQueueAssignStarted(const aSite, aInfo: String): boolean;
-    function MarkRaceStarted(const aSite, aInfo: String): boolean;
+    function MarkFirstDirlistResult(const aSite, aInfo: String): boolean; {$IFNDEF RACE_TIMELINE}inline;{$ENDIF}
+    function MarkMkdirCreated(const aSite, aInfo: String): boolean; {$IFNDEF RACE_TIMELINE}inline;{$ENDIF}
+    function MarkRaceTasksCreated(const aSite, aInfo: String): boolean; {$IFNDEF RACE_TIMELINE}inline;{$ENDIF}
+    function MarkQueueAssignStarted(const aSite, aInfo: String): boolean; {$IFNDEF RACE_TIMELINE}inline;{$ENDIF}
+    function MarkRaceStarted(const aSite, aInfo: String): boolean; {$IFNDEF RACE_TIMELINE}inline;{$ENDIF}
 
     property ExcludeFromIncfiller: Boolean read FExcludeFromIncfiller write FExcludeFromIncfiller;
     property PazoSFV: TPazoSFV read FPazoSFV;
@@ -903,10 +905,12 @@ begin
   lastTouch := Now();
   FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_' + rls.Name + '_' + IntToStr(pazo_id));
   FUniqueFileListOfRelease := TDictionary<String, Int64>.Create;
+  {$IFDEF RACE_TIMELINE}
   fTimelineCS := TSlCriticalSection2.Create('Timeline_' + rls.Name + '_' + IntToStr(pazo_id));
   SetLength(fTimeline, 0);
   fTimelineStart := GetTickCount64;
   FillChar(fTimelinePhaseSet, SizeOf(fTimelinePhaseSet), 0);
+  {$ENDIF}
 
   self.stated := False;
   self.cleared := False;
@@ -929,14 +933,17 @@ begin
   mkdirtasks.Free;
   FUniqueFileListOfRelease.Free;
   FUniqueFileListOfRelease_cs.Free;
+  {$IFDEF RACE_TIMELINE}
   fTimelineCS.Free;
   SetLength(fTimeline, 0);
+  {$ENDIF}
   FreeAndNil(rls);
   if FPazoSFV <> nil then FPazoSFV.Free;
 
   inherited;
 end;
 
+{$IFDEF RACE_TIMELINE}
 procedure TPazo.AddTimelineEntry(const aPhase: TRaceTimelinePhase; const aSite, aInfo: String);
 var
   i: Integer;
@@ -1071,6 +1078,46 @@ begin
     fTimelineCS.Leave;
   end;
 end;
+{$ELSE}
+procedure TPazo.AddTimelineEntry(const aPhase: TRaceTimelinePhase; const aSite, aInfo: String);
+begin
+end;
+
+function TPazo.MarkFirstDirlistResult(const aSite, aInfo: String): boolean;
+begin
+  Result := False;
+end;
+
+function TPazo.MarkMkdirCreated(const aSite, aInfo: String): boolean;
+begin
+  Result := False;
+end;
+
+function TPazo.MarkRaceTasksCreated(const aSite, aInfo: String): boolean;
+begin
+  Result := False;
+end;
+
+function TPazo.MarkQueueAssignStarted(const aSite, aInfo: String): boolean;
+begin
+  Result := False;
+end;
+
+function TPazo.MarkRaceStarted(const aSite, aInfo: String): boolean;
+begin
+  Result := False;
+end;
+
+function TPazo.HasTimelinePhase(const aPhase: TRaceTimelinePhase): boolean;
+begin
+  Result := False;
+end;
+
+function TPazo.TimelineAsString: String;
+begin
+  Result := '';
+end;
+{$ENDIF}
 
 function TPazo.FindSite(const sitename: String): TPazoSite;
 var
