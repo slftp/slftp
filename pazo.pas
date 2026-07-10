@@ -1735,7 +1735,9 @@ begin
   s_dirlisttasks.Free;
   s_racetasks.Free;
   s_mkdirtasks.Free;
-  // speed_from is a shared reference owned by TSite, do not free here
+  {$IFNDEF USE_SPEEDFROM_CACHE}
+  speed_from.Free;
+  {$ENDIF}
   inherited;
 end;
 

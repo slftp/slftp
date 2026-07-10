@@ -5057,7 +5057,11 @@ begin
     end;
   end;
 
+  {$IFDEF USE_SPEEDFROM_CACHE}
   Result := self.fSpeedFromCache;
+  {$ELSE}
+  Result := self.fSpeedFromCache.CreateCopy;
+  {$ENDIF}
 end;
 
 procedure TSite.UpdateSpeedFromCache;

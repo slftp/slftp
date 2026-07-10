@@ -27,6 +27,7 @@ type
   public
     Routes: TArray<TSpeedFromRouteInfo>;
     constructor Create(const aRoutes: TArray<TSpeedFromRouteInfo>);
+    function CreateCopy: TSpeedFromRouteList;
   end;
 
   { If you need to store a TSpeedFromRouteInfo record as an object (e.g. in a TStringList). }
@@ -104,6 +105,16 @@ end;
 constructor TSpeedFromRouteList.Create(const aRoutes: TArray<TSpeedFromRouteInfo>);
 begin
   Routes := aRoutes;
+end;
+
+function TSpeedFromRouteList.CreateCopy: TSpeedFromRouteList;
+var
+  fRoutes: TArray<TSpeedFromRouteInfo>;
+begin
+  SetLength(fRoutes, Length(Routes));
+  if Length(Routes) > 0 then
+    Move(Routes[0], fRoutes[0], Length(Routes) * SizeOf(TSpeedFromRouteInfo));
+  Result := TSpeedFromRouteList.Create(fRoutes);
 end;
 
 { TSpeedFromRouteInfoObjectWrapper }
