@@ -5042,6 +5042,8 @@ begin
     try
       if self.fSpeedFromCache = nil then
         self.UpdateSpeedFromCache;
+      if self.fSpeedFromCache = nil then
+        self.fSpeedFromCache := TSpeedFromRouteList.Create(nil);
     finally
       self.fSpeedFromCS.Leave;
     end;
