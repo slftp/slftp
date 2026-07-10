@@ -3880,11 +3880,14 @@ begin
 end;
 
 function TSite.GetDelayLeech(const aSection: String): integer;
+{$IFDEF USE_DELAY_CACHE}
 var
   fMinValue, fMaxValue: Integer;
+{$ENDIF}
 begin
   Result := 0;
 
+  {$IFDEF USE_DELAY_CACHE}
   self.fDelayCacheCS.Enter('GetDelayLeech');
   try
     if self.fDelayLeechCache = nil then
@@ -3917,6 +3920,7 @@ begin
   finally
     self.fDelayCacheCS.Leave;
   end;
+  {$ENDIF}
 end;
 
 function TSite.GetDelayUploadMin(const aSection: String): integer;
@@ -3948,11 +3952,14 @@ begin
 end;
 
 function TSite.GetDelayUpload(const aSection: String): integer;
+{$IFDEF USE_DELAY_CACHE}
 var
   fMinValue, fMaxValue: Integer;
+{$ENDIF}
 begin
   Result := 0;
 
+  {$IFDEF USE_DELAY_CACHE}
   self.fDelayCacheCS.Enter('GetDelayUpload');
   try
     if self.fDelayUploadCache = nil then
@@ -3985,6 +3992,7 @@ begin
   finally
     self.fDelayCacheCS.Leave;
   end;
+  {$ENDIF}
 end;
 
 function TSite.IsPretimeOk(const section: String; rlz_pretime: Int64): boolean;
