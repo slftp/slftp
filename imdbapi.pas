@@ -8,7 +8,7 @@ uses
 type
   TImdbApi = class
   private
-    const BASE_URL = 'https://api.imdbapi.dev';
+    const BASE_URL = 'https://api.tiffara.com';
   public
     { Fetches the main title details (Plot, Rating, Votes, Genres, etc.) }
     class function GetTitle(const aImdbId: String; out aJson: Variant): Boolean;
