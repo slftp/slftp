@@ -472,9 +472,11 @@ begin
       end;
 
       p := PazoAdd(r);
+      {$IFDEF RACE_TIMELINE}
       p.AddTimelineEntry(rtpReleaseDetected, sitename, Format('event=%s', [KBEventTypeToString(event)]));
       p.AddTimelineEntry(rtpKbAdd, sitename, Format('event=%s', [KBEventTypeToString(event)]));
       p.AddTimelineEntry(rtpPazoCreated, sitename, Format('event=%s', [KBEventTypeToString(event)]));
+      {$ENDIF}
 
       // need to search all sites where there is such a section ...
       p.AddSites;
@@ -485,7 +487,9 @@ begin
       finally
         kb_list.EndUpdate;
       end;
+      {$IFDEF RACE_TIMELINE}
       p.AddTimelineEntry(rtpKbListAdded, '', Format('sites=%d', [p.PazoSitesList.Count]));
+      {$ENDIF}
 
       // announce event on admin chan
       if (event = kbeADDPRE) then
@@ -531,7 +535,9 @@ begin
             irc_Addstats(Format('<c3>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<b>%s</b>) (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, p.sl.sectionname, dbaddpre_GetPreduration(r.pretime), r.PretimeSource]));
         end;
       end;
+      {$IFDEF RACE_TIMELINE}
       p.AddTimelineEntry(rtpIrcAnnounced, '', Format('event=%s', [KBEventTypeToString(event)]));
+      {$ENDIF}
     end
     else
     begin
@@ -591,10 +597,14 @@ begin
   if p.PazoSitesList.Count = 0 then
     exit;
 
+  {$IFDEF RACE_TIMELINE}
   p.AddTimelineEntry(rtpGlobalSkipCheckStart, '', '');
+  {$ENDIF}
   fGlobalSkipped := (event <> kbeSPREAD) and CheckIfGlobalSkippedGroup(rls);
+  {$IFDEF RACE_TIMELINE}
   p.AddTimelineEntry(rtpGlobalSkipCheckDone, '', Format('skipped=%s', [BoolToStr(fGlobalSkipped, True)]));
   p.AddTimelineEntry(rtpGlobalSkipChecked, '', Format('skipped=%s', [BoolToStr(fGlobalSkipped, True)]));
+  {$ENDIF}
   if fGlobalSkipped then
   begin
     irc_addadmin(format('<b><c4>%s</c> @ %s </b>is a global skipped group!', [grp, rls]));
@@ -604,9 +614,13 @@ begin
 
   if (event <> kbeADDPRE) then
   begin
+    {$IFDEF RACE_TIMELINE}
     p.AddTimelineEntry(rtpPazoFindStart, '', Format('site=%s', [sitename]));
+    {$ENDIF}
     psource := p.FindSite(sitename);
+    {$IFDEF RACE_TIMELINE}
     p.AddTimelineEntry(rtpPazoFindDone, '', Format('site=%s', [sitename]));
+    {$ENDIF}
     if psource = nil then
     begin
       s := FindSiteByName(netname, sitename);
@@ -665,12 +679,16 @@ begin
 
       exit;
     end;
+    {$IFDEF RACE_TIMELINE}
     p.AddTimelineEntry(rtpSourceSiteFound, '', Format('site=%s', [psource.Name]));
+    {$ENDIF}
 
     s := FindSiteByName(netname, psource.Name);
     if ((s <> nil) and (not (s.WorkingStatus in [sstUnknown, sstUp]))) then
       exit;
+    {$IFDEF RACE_TIMELINE}
     p.AddTimelineEntry(rtpSourceSiteResolved, '', Format('site=%s', [psource.Name]));
+    {$ENDIF}
 
     psource.ircevent := True;
 
@@ -719,15 +737,21 @@ begin
         end;
       end;
     end;
+    {$IFDEF RACE_TIMELINE}
     p.AddTimelineEntry(rtpSourceStatusUpdated, '', Format('event=%s:site=%s', [KBEventTypeToString(event), psource.Name]));
+    {$ENDIF}
   end;
 
+  {$IFDEF RACE_TIMELINE}
   p.AddTimelineEntry(rtpReleaseUpdateReady, '', '');
+  {$ENDIF}
   if not p.rls.aktualizalva then
   begin
     p.rls.Aktualizal(p);
   end;
+  {$IFDEF RACE_TIMELINE}
   p.AddTimelineEntry(rtpReleaseUpdated, '', Format('aktualizalva=%s', [BoolToStr(p.rls.aktualizalva, True)]));
+  {$ENDIF}
 
   // implement firerules, routes, stb. set rs.srcsite:= rss.sitename;
   if (not (event in [kbeNUKE, kbeADDPRE])) then
@@ -739,7 +763,6 @@ begin
     finally
       kb_lock.Leave;
     end;
-    p.AddTimelineEntry(rtpSourceRulesDone, '', Format('result=%d', [Ord(rule_result)]));
 
     // announce SKIP and DONT MATCH only if the site is not a PRE site
     if (psource <> nil) and (psource.status <> rssRealPre) then
@@ -756,6 +779,9 @@ begin
       end;
     end;
   end;
+  {$IFDEF RACE_TIMELINE}
+  p.AddTimelineEntry(rtpSourceRulesDone, '', Format('result=%d', [Ord(rule_result)]));
+  {$ENDIF}
 
   try
     // check rules for site only if needed
@@ -781,10 +807,14 @@ begin
         kb_lock.Leave;
       end;
     end;
+    {$IFDEF RACE_TIMELINE}
     p.AddTimelineEntry(rtpSiteRulesDone, '', Format('sites=%d', [p.PazoSitesList.Count]));
+    {$ENDIF}
 
     // now add all dst
+    {$IFDEF RACE_TIMELINE}
     p.AddTimelineEntry(rtpFireRulesStarted, '', Format('sites=%d', [p.PazoSitesList.Count]));
+    {$ENDIF}
     for i := p.PazoSitesList.Count - 1 downto 0 do
     begin
       try
@@ -801,7 +831,9 @@ begin
         kb_lock.Leave;
       end;
     end;
+    {$IFDEF RACE_TIMELINE}
     p.AddTimelineEntry(rtpFireRulesDone, '', '');
+    {$ENDIF}
   except
     on e: Exception do
     begin
@@ -810,10 +842,14 @@ begin
     end;
   end;
 
+  {$IFDEF RACE_TIMELINE}
   p.AddTimelineEntry(rtpRoutesTextStarted, '', '');
+  {$ENDIF}
   ss := p.RoutesText;
+  {$IFDEF RACE_TIMELINE}
   p.AddTimelineEntry(rtpRoutesTextDone, '', Format('len=%d', [Length(ss)]));
   p.AddTimelineEntry(rtpRoutesCreated, '', Format('routes=%s', [ss]));
+  {$ENDIF}
 
   if dontFire then
     exit;
@@ -821,7 +857,9 @@ begin
   // status changed
   if ss <> '' then
   begin
+    {$IFDEF RACE_TIMELINE}
     p.AddTimelineEntry(rtpIrcRouteInfosSent, '', Format('len=%d', [Length(ss)]));
+    {$ENDIF}
     irc_SendROUTEINFOS(ss);
   end;
 
@@ -884,7 +922,9 @@ begin
         end;
       end;
     end;
+    {$IFDEF RACE_TIMELINE}
     p.AddTimelineEntry(rtpInitialDirlistsCreated, '', '');
+    {$ENDIF}
   except
     on E: Exception do
     begin

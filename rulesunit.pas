@@ -1645,7 +1645,9 @@ begin
   if ps.error then
     exit;
 
+  {$IFDEF RACE_TIMELINE}
   p.AddTimelineEntry(rtpFireRulesSiteStart, ps.Name, Format('routes=%d', [Length(ps.speed_from.Routes)]));
+  {$ENDIF}
 
   ps_s := FindSiteByName('', ps.Name);
   if ps_s = nil then
@@ -1718,7 +1720,9 @@ begin
       end;
     end;
   end;
+  {$IFDEF RACE_TIMELINE}
   p.AddTimelineEntry(rtpFireRulesSiteDone, ps.Name, '');
+  {$ENDIF}
   Debug(dpSpam, dsection, '<- ' + Format('%s: %s %s', [ps.Name, p.rls.section, p.rls.rlsname]));
 end;
 

@@ -2620,9 +2620,9 @@ begin
     end;
   end;
 
-  if (lastResponseCode <> 230) then
+  if (lastResponseCode >= 100) and (lastResponseCode < 1000) and (lastResponseCode <> 230) then
   begin
-    console_addline(Name, aktread);
+    console_addline(Name, Format('[%d] %s', [lastResponseCode, aktread]));
   end;
 
   if ((lastResponseCode >= 1000) or (lastResponseCode < 100)) then // auto read more
@@ -3880,14 +3880,11 @@ begin
 end;
 
 function TSite.GetDelayLeech(const aSection: String): integer;
-{$IFDEF USE_DELAY_CACHE}
 var
   fMinValue, fMaxValue: Integer;
-{$ENDIF}
 begin
   Result := 0;
 
-  {$IFDEF USE_DELAY_CACHE}
   self.fDelayCacheCS.Enter('GetDelayLeech');
   try
     if self.fDelayLeechCache = nil then
@@ -3920,7 +3917,6 @@ begin
   finally
     self.fDelayCacheCS.Leave;
   end;
-  {$ENDIF}
 end;
 
 function TSite.GetDelayUploadMin(const aSection: String): integer;
@@ -3952,14 +3948,11 @@ begin
 end;
 
 function TSite.GetDelayUpload(const aSection: String): integer;
-{$IFDEF USE_DELAY_CACHE}
 var
   fMinValue, fMaxValue: Integer;
-{$ENDIF}
 begin
   Result := 0;
 
-  {$IFDEF USE_DELAY_CACHE}
   self.fDelayCacheCS.Enter('GetDelayUpload');
   try
     if self.fDelayUploadCache = nil then
@@ -3992,7 +3985,6 @@ begin
   finally
     self.fDelayCacheCS.Leave;
   end;
-  {$ENDIF}
 end;
 
 function TSite.IsPretimeOk(const section: String; rlz_pretime: Int64): boolean;
@@ -5057,11 +5049,7 @@ begin
     end;
   end;
 
-  {$IFDEF USE_SPEEDFROM_CACHE}
   Result := self.fSpeedFromCache;
-  {$ELSE}
-  Result := self.fSpeedFromCache.CreateCopy;
-  {$ENDIF}
 end;
 
 procedure TSite.UpdateSpeedFromCache;

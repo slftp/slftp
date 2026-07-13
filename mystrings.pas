@@ -463,19 +463,29 @@ function ParseResponseCode(s: String): integer;
 var
   p, l: integer;
 begin
-  Result := 0;
-  s      := RTrimCRLF(s);
-  p      := RPos(#13, s);
-  l      := length(s);
-  if (p <= l - 3) then
-  begin
-    Inc(p);
-    if CharInSet(s[p], [#13, #10]) then
+  try
+    Result := 0;
+    s      := RTrimCRLF(s);
+    p      := RPos(#13, s);
+    l      := length(s);
+    if (p <= l - 3) then
+    begin
       Inc(p);
+      if CharInSet(s[p], [#13, #10]) then
+        Inc(p);
 
-    Result := StrToIntDef(Copy(s, p, 3), 0);
-    if ((l > 3) and (s[p + 3] <> ' ')) then
-      Inc(Result, 1000);// and (p + 3 <= l)
+      if not TryStrToInt(Copy(s, p, 3), Result) then
+        if not TryStrToInt(LeftStr(s, 3), Result) then
+          Result := 0;
+      if (p + 3 > l) or (s[p + 3] <> ' ') then
+        Inc(Result, 1000);
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] MyStrings.ParseResponseCode: %s ', [e.Message]));
+      Result := 0;
+    end;
   end;
 end;
 
@@ -533,7 +543,12 @@ begin
   * EPSV
   * 229 Entering Extended Passive Mode (|mode|ip.ip.ip.ip|port|)
   }
-  fBracketsContent := aFTPdResponse.Split(['(', ')'])[1];
+  fHelper := aFTPdResponse.Split(['(', ')']);
+  if Length(fHelper) < 2 then
+  begin
+    Exit;
+  end;
+  fBracketsContent := fHelper[1];
   if fBracketsContent.IsEmpty then
   begin
     Exit;
@@ -544,6 +559,10 @@ begin
   fDelimiter := fBracketsContent[1];
 
   fHelper := aFTPdResponse.Split([fDelimiter]);
+  if Length(fHelper) < 4 then
+  begin
+    Exit;
+  end;
 
   // protocol family as defined by IANA (1 for IPv4, 2 for IPv6)
   aIPv4Transfermode := Boolean(fHelper[1].ToInteger = 1);
@@ -1139,6 +1158,11 @@ begin
     if SemicolonPos > 0 then
     begin
       EntityCode := Copy(Result, MatchPos + 1, SemicolonPos - MatchPos - 1);
+      if EntityCode = '' then
+      begin
+        MatchPos := Pos('&', Result, SemicolonPos + 1);
+        Continue;
+      end;
       if EntityCode[1] = '#' then
       begin
         EntityName := Copy(EntityCode, 2, Length(EntityCode));

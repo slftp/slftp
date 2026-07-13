@@ -27,6 +27,13 @@ type
     procedure TestParseEPSVStringIPv41;
     procedure TestParseEPSVStringIPv42;
     procedure TestParseEPSVStringIPv43;
+    procedure TestParseEPSVStringNoBrackets;
+    procedure TestParseEPSVStringMissingPort;
+    procedure TestParseResponseCodeSimple;
+    procedure TestParseResponseCodeMultiline;
+    procedure TestParseResponseCodeNoTerminator;
+    procedure TestParseResponseCodeEmpty;
+    procedure TestParseResponseCodeNonNumeric;
     procedure TestParseSTATLine1;
     procedure TestParseSTATLine2;
     procedure TestParseSTATLine3;
@@ -54,6 +61,7 @@ type
     procedure TestParseSFV1;
     procedure TestParseSFV2;
     procedure TestHTMLDecode;
+    procedure TestHTMLDecodeEmptyEntity;
   end;
 
 implementation
@@ -775,6 +783,60 @@ procedure TTestMyStrings.TestHTMLDecode;
 begin
   CheckEquals('&', HTMLDecode('&amp;'));
   CheckEquals('L''Asile', HTMLDecode('L&#x27;Asile'));
+end;
+
+procedure TTestMyStrings.TestHTMLDecodeEmptyEntity;
+begin
+  CheckEquals('&;', HTMLDecode('&;'));
+  CheckEquals('a&;b', HTMLDecode('a&;b'));
+end;
+
+procedure TTestMyStrings.TestParseResponseCodeSimple;
+begin
+  CheckEquals(230, ParseResponseCode('230 Welcome'));
+  CheckEquals(213, ParseResponseCode('213 End of Status'));
+end;
+
+procedure TTestMyStrings.TestParseResponseCodeMultiline;
+begin
+  CheckEquals(1213, ParseResponseCode('213- status of -l /incoming/test/:'));
+end;
+
+procedure TTestMyStrings.TestParseResponseCodeNoTerminator;
+begin
+  // exact 3-digit code without trailing space/CRLF must be treated as incomplete
+  CheckEquals(1230, ParseResponseCode('230'));
+  CheckEquals(1230, ParseResponseCode(#13#10'230'));
+end;
+
+procedure TTestMyStrings.TestParseResponseCodeEmpty;
+begin
+  CheckEquals(0, ParseResponseCode(''));
+end;
+
+procedure TTestMyStrings.TestParseResponseCodeNonNumeric;
+begin
+  // non-numeric lines are not valid FTP codes but are treated as incomplete response lines
+  CheckEquals(1000, ParseResponseCode('-rw-r--r-- 1 user group 123 file'));
+  CheckEquals(1000, ParseResponseCode('total 12345'));
+end;
+
+procedure TTestMyStrings.TestParseEPSVStringNoBrackets;
+var
+  fHost: String;
+  fPort: Integer;
+  fIPv4: Boolean;
+begin
+  CheckFalse(ParseEPSVString('229 Entering Extended Passive Mode', fHost, fPort, fIPv4));
+end;
+
+procedure TTestMyStrings.TestParseEPSVStringMissingPort;
+var
+  fHost: String;
+  fPort: Integer;
+  fIPv4: Boolean;
+begin
+  CheckFalse(ParseEPSVString('229 Entering Extended Passive Mode (|1|192.168.1.1)', fHost, fPort, fIPv4));
 end;
 
 initialization

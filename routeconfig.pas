@@ -110,10 +110,11 @@ end;
 function TSpeedFromRouteList.CreateCopy: TSpeedFromRouteList;
 var
   fRoutes: TArray<TSpeedFromRouteInfo>;
+  i: Integer;
 begin
   SetLength(fRoutes, Length(Routes));
-  if Length(Routes) > 0 then
-    Move(Routes[0], fRoutes[0], Length(Routes) * SizeOf(TSpeedFromRouteInfo));
+  for i := 0 to High(Routes) do
+    fRoutes[i] := Routes[i];
   Result := TSpeedFromRouteList.Create(fRoutes);
 end;
 

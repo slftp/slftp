@@ -224,12 +224,10 @@ type
     FUniqueFileListOfRelease_cs: TSlCriticalSection2; //< Critical section for Add calls to @link(FUniqueFileListOfRelease)
     FUniqueFileListOfRelease: TDictionary<String, Int64>; //< Dictionary with files (including subdirs) and corresponding filesize (biggest value seen on any site) for this release, Key="dir + '/' + filename" and Value=filesize
     FPazoSFV: TPazoSFV;
-    {$IFDEF RACE_TIMELINE}
     fTimeline: array of TRaceTimelineEntry;
     fTimelineCS: TSlCriticalSection2;
     fTimelineStart: Int64;
     fTimelinePhaseSet: array[TRaceTimelinePhase] of boolean;
-    {$ENDIF}
 
     { Creates/Updates the filesize for given subdir and filename combination
       @param(aDir Location of the file inside releasedir)
@@ -305,17 +303,17 @@ type
     function PFileSize(const aDir, aFilename: String): Int64;
 
     { Records a timestamped event for race-startup latency analysis }
-    procedure AddTimelineEntry(const aPhase: TRaceTimelinePhase; const aSite, aInfo: String); {$IFNDEF RACE_TIMELINE}inline;{$ENDIF}
+    procedure AddTimelineEntry(const aPhase: TRaceTimelinePhase; const aSite, aInfo: String);
     { Returns the timeline as a formatted string for logging }
-    function TimelineAsString: String; {$IFNDEF RACE_TIMELINE}inline;{$ENDIF}
+    function TimelineAsString: String;
     { Returns True if the given phase was already recorded }
-    function HasTimelinePhase(const aPhase: TRaceTimelinePhase): boolean; {$IFNDEF RACE_TIMELINE}inline;{$ENDIF}
+    function HasTimelinePhase(const aPhase: TRaceTimelinePhase): boolean;
     { One-shot timeline markers (thread-safe, idempotent). Returns True if the marker was newly set. }
-    function MarkFirstDirlistResult(const aSite, aInfo: String): boolean; {$IFNDEF RACE_TIMELINE}inline;{$ENDIF}
-    function MarkMkdirCreated(const aSite, aInfo: String): boolean; {$IFNDEF RACE_TIMELINE}inline;{$ENDIF}
-    function MarkRaceTasksCreated(const aSite, aInfo: String): boolean; {$IFNDEF RACE_TIMELINE}inline;{$ENDIF}
-    function MarkQueueAssignStarted(const aSite, aInfo: String): boolean; {$IFNDEF RACE_TIMELINE}inline;{$ENDIF}
-    function MarkRaceStarted(const aSite, aInfo: String): boolean; {$IFNDEF RACE_TIMELINE}inline;{$ENDIF}
+    function MarkFirstDirlistResult(const aSite, aInfo: String): boolean;
+    function MarkMkdirCreated(const aSite, aInfo: String): boolean;
+    function MarkRaceTasksCreated(const aSite, aInfo: String): boolean;
+    function MarkQueueAssignStarted(const aSite, aInfo: String): boolean;
+    function MarkRaceStarted(const aSite, aInfo: String): boolean;
 
     property ExcludeFromIncfiller: Boolean read FExcludeFromIncfiller write FExcludeFromIncfiller;
     property PazoSFV: TPazoSFV read FPazoSFV;
@@ -532,7 +530,9 @@ begin
 
   pazo.lastTouch := Now();
 
+  {$IFDEF RACE_TIMELINE}
   pazo.MarkFirstDirlistResult(Name, dir);
+  {$ENDIF}
 
   // enumerate possible destinations
   for fDestination in destinations do
@@ -632,7 +632,9 @@ begin
             // Finally add mkdir task
           if pm <> nil then
           begin
+            {$IFDEF RACE_TIMELINE}
             pazo.MarkMkdirCreated(dst.Name, dir);
+            {$ENDIF}
             try
               AddTask(pm, True);
             except
@@ -717,7 +719,9 @@ begin
             end;
 
             // finally we can add the task
+            {$IFDEF RACE_TIMELINE}
             pazo.MarkRaceTasksCreated(Name + '->' + dst.Name, dir + '/' + de.filename);
+            {$ENDIF}
             try
               AddTask(pr);
               Result := True;
@@ -1433,23 +1437,34 @@ end;
 function TPazo.AddSites(const aIsSpreadJob: boolean): boolean;
 var
   s: TSite;
-  i: integer;
+  i, j: integer;
   sectiondir: String;
   ps: TPazoSite;
   fCandidateIndexes: array of integer;
+  fCandidateDirs: array of String;
   fCandidateCount: integer;
   fTotalSites: integer;
+  {$IFDEF RACE_TIMELINE}
   fOpStart: Int64;
   fSectionDirMs, fCreateMs, fDelaySetupMs, fIsAffilMs, fAddSlotsMs: Int64;
+  {$ENDIF}
 begin
   Result := False;
+  {$IFDEF RACE_TIMELINE}
   fSectionDirMs := 0;
   fCreateMs := 0;
   fDelaySetupMs := 0;
   fIsAffilMs := 0;
   fAddSlotsMs := 0;
+  {$ENDIF}
   fTotalSites := sitesunit.sites.Count;
+  {$IFDEF RACE_TIMELINE}
   AddTimelineEntry(rtpAddSitesStarted, '', Format('sites=%d', [fTotalSites]));
+  {$ENDIF}
+
+  // Allocate candidate arrays once for all phases to avoid repeated SetLength calls.
+  SetLength(fCandidateIndexes, fTotalSites);
+  SetLength(fCandidateDirs, fTotalSites);
 
   // Phase 1: filter by status/permdown/spreadjob
   fCandidateCount := 0;
@@ -1461,13 +1476,9 @@ begin
         Continue;
       if s.PermDown then
         Continue;
-      if aIsSpreadJob then
-      begin
-        if s.SkipPre then
-          Continue;
-      end;
+      if aIsSpreadJob and s.SkipPre then
+        Continue;
 
-      SetLength(fCandidateIndexes, fCandidateCount + 1);
       fCandidateIndexes[fCandidateCount] := i;
       Inc(fCandidateCount);
     except
@@ -1478,17 +1489,19 @@ begin
       end;
     end;
   end;
+  {$IFDEF RACE_TIMELINE}
   AddTimelineEntry(rtpSitesStatusFiltered, '', Format('candidates=%d', [fCandidateCount]));
+  {$ENDIF}
 
-  // Phase 2: filter by sectiondir/datum/findsite
-  fCandidateCount := 0;
-  for i := High(fCandidateIndexes) downto 0 do
+  // Phase 2: filter by sectiondir/datum/findsite and cache sectiondir
+  j := 0;
+  for i := 0 to fCandidateCount - 1 do
   begin
     try
       s := TSite(sitesunit.sites[fCandidateIndexes[i]]);
 
       sectiondir := s.sectiondir[rls.section];
-      if (sectiondir = '') then
+      if sectiondir = '' then
         Continue;
 
       sectiondir := DatumIdentifierReplace(sectiondir);
@@ -1496,8 +1509,9 @@ begin
       if FindSite(s.Name) <> nil then
         Continue;
 
-      fCandidateIndexes[fCandidateCount] := fCandidateIndexes[i];
-      Inc(fCandidateCount);
+      fCandidateIndexes[j] := fCandidateIndexes[i];
+      fCandidateDirs[j] := sectiondir;
+      Inc(j);
     except
       on e: Exception do
       begin
@@ -1506,12 +1520,14 @@ begin
       end;
     end;
   end;
-  SetLength(fCandidateIndexes, fCandidateCount);
+  fCandidateCount := j;
+  {$IFDEF RACE_TIMELINE}
   AddTimelineEntry(rtpSitesSectionFiltered, '', Format('candidates=%d', [fCandidateCount]));
+  {$ENDIF}
 
   // Phase 3: filter by pretime
-  fCandidateCount := 0;
-  for i := High(fCandidateIndexes) downto 0 do
+  j := 0;
+  for i := 0 to fCandidateCount - 1 do
   begin
     try
       s := TSite(sitesunit.sites[fCandidateIndexes[i]]);
@@ -1520,16 +1536,17 @@ begin
       begin
         if glPazoPreTimeLookupMode <> plmNone then
         begin
-          if not (rls.pretime <> 0) then
+          if rls.pretime = 0 then
             Continue;
 
-          if not (s.IsPretimeOk(rls.section, rls.pretime)) then
+          if not s.IsPretimeOk(rls.section, rls.pretime) then
             Continue;
         end;
       end;
 
-      fCandidateIndexes[fCandidateCount] := fCandidateIndexes[i];
-      Inc(fCandidateCount);
+      fCandidateIndexes[j] := fCandidateIndexes[i];
+      fCandidateDirs[j] := fCandidateDirs[i];
+      Inc(j);
     except
       on e: Exception do
       begin
@@ -1538,45 +1555,59 @@ begin
       end;
     end;
   end;
-  SetLength(fCandidateIndexes, fCandidateCount);
+  fCandidateCount := j;
+  {$IFDEF RACE_TIMELINE}
   AddTimelineEntry(rtpSitesPretimeFiltered, '', Format('candidates=%d', [fCandidateCount]));
+  {$ENDIF}
 
-  // Phase 4: create TPazoSite objects
-  AddTimelineEntry(rtpSitesCreateStarted, '', Format('candidates=%d', [Length(fCandidateIndexes)]));
-  for i := High(fCandidateIndexes) downto 0 do
+  // Phase 4: create TPazoSite objects using cached sectiondir
+  {$IFDEF RACE_TIMELINE}
+  AddTimelineEntry(rtpSitesCreateStarted, '', Format('candidates=%d', [fCandidateCount]));
+  {$ENDIF}
+  for i := fCandidateCount - 1 downto 0 do
   begin
     try
       s := TSite(sitesunit.sites[fCandidateIndexes[i]]);
+      sectiondir := fCandidateDirs[i];
 
+      {$IFDEF RACE_TIMELINE}
       fOpStart := Int64(GetTickCount64);
-      sectiondir := s.sectiondir[rls.section];
-      sectiondir := DatumIdentifierReplace(sectiondir);
-      fSectionDirMs := fSectionDirMs + Int64(GetTickCount64) - fOpStart;
-
-      fOpStart := Int64(GetTickCount64);
+      {$ENDIF}
       ps := TPazoSite.Create(self, s.Name, sectiondir, s);
+      {$IFDEF RACE_TIMELINE}
       fCreateMs := fCreateMs + Int64(GetTickCount64) - fOpStart;
+      {$ENDIF}
 
       ps.status := rssNotAllowed;
 
       if not aIsSpreadJob then
       begin
+        {$IFDEF RACE_TIMELINE}
         fOpStart := Int64(GetTickCount64);
+        {$ENDIF}
         ps.DelaySetup;
+        {$IFDEF RACE_TIMELINE}
         fDelaySetupMs := fDelaySetupMs + Int64(GetTickCount64) - fOpStart;
+        {$ENDIF}
       end;
 
+      {$IFDEF RACE_TIMELINE}
       fOpStart := Int64(GetTickCount64);
+      {$ENDIF}
       if s.IsAffil(rls.groupname) then
       begin
         ps.status := rssShouldPre;
       end;
+      {$IFDEF RACE_TIMELINE}
       fIsAffilMs := fIsAffilMs + Int64(GetTickCount64) - fOpStart;
 
       fOpStart := Int64(GetTickCount64);
+      {$ENDIF}
       PazoSitesList.Add(ps);
       CheckSiteSlots(s);
+      {$IFDEF RACE_TIMELINE}
       fAddSlotsMs := fAddSlotsMs + Int64(GetTickCount64) - fOpStart;
+      {$ENDIF}
     except
       on e: Exception do
       begin
@@ -1587,9 +1618,11 @@ begin
 
     Result := True;
   end;
-  AddTimelineEntry(rtpSitesCreateDone, '', Format('candidates=%d', [Length(fCandidateIndexes)]));
-  AddTimelineEntry(rtpSitesAdded, '', Format('sites=%d sectiondir=%dms create=%dms delaysetup=%dms isaffil=%dms addslots=%dms',
-    [PazoSitesList.Count, fSectionDirMs, fCreateMs, fDelaySetupMs, fIsAffilMs, fAddSlotsMs]));
+  {$IFDEF RACE_TIMELINE}
+  AddTimelineEntry(rtpSitesCreateDone, '', Format('candidates=%d', [fCandidateCount]));
+  AddTimelineEntry(rtpSitesAdded, '', Format('sites=%d create=%dms delaysetup=%dms isaffil=%dms addslots=%dms',
+    [PazoSitesList.Count, fCreateMs, fDelaySetupMs, fIsAffilMs, fAddSlotsMs]));
+  {$ENDIF}
 end;
 
 function TPazo.PFileSize(const aDir, aFilename: String): Int64;
@@ -1735,9 +1768,6 @@ begin
   s_dirlisttasks.Free;
   s_racetasks.Free;
   s_mkdirtasks.Free;
-  {$IFNDEF USE_SPEEDFROM_CACHE}
-  speed_from.Free;
-  {$ENDIF}
   inherited;
 end;
 
