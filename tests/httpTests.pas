@@ -32,7 +32,7 @@ var
   Result: Boolean;
   fURL, fHTML, fErrMsg: String;
 begin
-  fURL := 'https://api.imdbapi.dev/titles/tt6966692';
+  fURL := 'https://api.tiffara.com/titles/tt6966692';
   Result := HttpGetUrl(fURL, fHTML, fErrMsg);
 
   CheckEqualsString('', fErrMsg, 'Error message for IMDB is unexpected');
