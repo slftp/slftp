@@ -823,13 +823,31 @@ begin
       except
         Break;
       end;
+
+      if i >= p.PazoSitesList.Count then
+      begin
+        Debug(dpError, rsections, Format('[EXCEPTION] KBAdd FireRules: index %d out of bounds (count=%d rls=%s)', [i, p.PazoSitesList.Count, IfThen(Assigned(p.rls), p.rls.rlsname, 'nil')]));
+        Break;
+      end;
+
       ps := TPazoSite(p.PazoSitesList[i]);
+      if not Assigned(ps) then
+      begin
+        Debug(dpError, rsections, Format('[EXCEPTION] KBAdd FireRules: PazoSitesList[%d] is nil (count=%d rls=%s)', [i, p.PazoSitesList.Count, IfThen(Assigned(p.rls), p.rls.rlsname, 'nil')]));
+        Continue;
+      end;
+
       kb_lock.Enter('kb_AddB_5');
       try
         FireRules(p, ps);
-      finally
-        kb_lock.Leave;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, rsections, Format('[EXCEPTION] KBAdd FireRules : %s (idx=%d site=%s rls=%s)',
+            [e.Message, i, ps.Name, IfThen(Assigned(p.rls), p.rls.rlsname, 'nil')]));
+        end;
       end;
+      kb_lock.Leave;
     end;
     {$IFDEF RACE_TIMELINE}
     p.AddTimelineEntry(rtpFireRulesDone, '', '');
@@ -837,8 +855,8 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, rsections, Format('[EXCEPTION] KBAdd FireRules : %s',
-        [e.Message]));
+      Debug(dpError, rsections, Format('[EXCEPTION] KBAdd FireRules outer : %s (rls=%s)',
+        [e.Message, IfThen(Assigned(p.rls), p.rls.rlsname, 'nil')]));
     end;
   end;
 

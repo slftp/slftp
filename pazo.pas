@@ -1753,6 +1753,8 @@ begin
   s_mkdirtasks := TIdThreadSafeInt32.Create;
 
   speed_from := fSite.Speed_From;
+  if speed_from <> nil then
+    speed_from.Retain;
 
   Debug(dpSpam, section, 'TPazoSite.Create: %s', [Name]);
 end;
@@ -1764,6 +1766,11 @@ begin
   FActiveTransfersCS.Free;
   destinations.Free;
   destinations_cs.Free;
+  if speed_from <> nil then
+  begin
+    speed_from.Release;
+    speed_from := nil;
+  end;
   dirlist.Free;
   s_dirlisttasks.Free;
   s_racetasks.Free;

@@ -22,11 +22,21 @@ type
     constructor CreateFromConfigString(const aStrValue: string);
   end;
 
-  { Immutable shared list of speed-from routes. }
+  { Immutable shared list of speed-from routes. Reference-counted so that
+    consumers (e.g. TPazoSite) can safely hold a reference while the cache
+    in TSite may be replaced concurrently. }
   TSpeedFromRouteList = class
+  private
+    FRefCount: Integer;
   public
     Routes: TArray<TSpeedFromRouteInfo>;
     constructor Create(const aRoutes: TArray<TSpeedFromRouteInfo>);
+    destructor Destroy; override;
+    { Increments the reference count. }
+    procedure Retain;
+    { Decrements the reference count and frees the object when it reaches zero. }
+    procedure Release;
+    { Creates an independent copy with a reference count of 1. }
     function CreateCopy: TSpeedFromRouteList;
   end;
 
@@ -104,7 +114,27 @@ end;
 
 constructor TSpeedFromRouteList.Create(const aRoutes: TArray<TSpeedFromRouteInfo>);
 begin
+  inherited Create;
+  FRefCount := 1;
   Routes := aRoutes;
+end;
+
+destructor TSpeedFromRouteList.Destroy;
+begin
+  // TArray is managed, no manual cleanup needed
+  inherited;
+end;
+
+procedure TSpeedFromRouteList.Retain;
+begin
+  Inc(FRefCount);
+end;
+
+procedure TSpeedFromRouteList.Release;
+begin
+  Dec(FRefCount);
+  if FRefCount <= 0 then
+    Free;
 end;
 
 function TSpeedFromRouteList.CreateCopy: TSpeedFromRouteList;

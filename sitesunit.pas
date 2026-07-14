@@ -3355,7 +3355,8 @@ begin
   slots.Free;
   fSlotsAssignmentLock.Free;
   fSpeedFromCS.Free;
-  FreeAndNil(fSpeedFromCache);
+  if fSpeedFromCache <> nil then
+    fSpeedFromCache.Release;
   fDelayCacheCS.Free;
   FreeAndNil(fDelayLeechCache);
   FreeAndNil(fDelayUploadCache);
@@ -5098,7 +5099,8 @@ begin
     self.fSpeedFromCS.Leave;
   end;
 
-  FreeAndNil(fOldValue);
+  if fOldValue <> nil then
+    fOldValue.Release;
 end;
 
 procedure TSite.MigrateSpeedFromConfig;

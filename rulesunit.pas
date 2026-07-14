@@ -1636,94 +1636,138 @@ var
   dstps: TPazoSite;
   fSpeedInfo: TSpeedFromRouteInfo;
   ps_s, dstps_s: TSite;
+  fRlsName, fSection: String;
 begin
   Result := False;
 
-  if (not Assigned(ps) or (ps = nil)) then
+  if (not Assigned(p)) then
+  begin
+    Debug(dpError, dsection, '[EXCEPTION] FireRules: p is nil');
     exit;
+  end;
+
+  if (not Assigned(ps) or (ps = nil)) then
+  begin
+    Debug(dpError, dsection, '[EXCEPTION] FireRules: ps is nil');
+    exit;
+  end;
+
+  if (not Assigned(p.rls)) then
+  begin
+    Debug(dpError, dsection, Format('[EXCEPTION] FireRules: p.rls is nil (site=%s)', [ps.Name]));
+    exit;
+  end;
+
+  fRlsName := p.rls.rlsname;
+  fSection := p.rls.section;
 
   if ps.error then
     exit;
 
+  if not Assigned(ps.speed_from) then
+  begin
+    Debug(dpError, dsection, Format('[EXCEPTION] FireRules: speed_from is nil (site=%s rls=%s)', [ps.Name, fRlsName]));
+    exit;
+  end;
+
   {$IFDEF RACE_TIMELINE}
-  p.AddTimelineEntry(rtpFireRulesSiteStart, ps.Name, Format('routes=%d', [Length(ps.speed_from.Routes)]));
+  try
+    p.AddTimelineEntry(rtpFireRulesSiteStart, ps.Name, Format('routes=%d', [Length(ps.speed_from.Routes)]));
+  except
+    on e: Exception do
+      Debug(dpError, dsection, Format('[EXCEPTION] FireRules timeline: %s (site=%s rls=%s)', [e.Message, ps.Name, fRlsName]));
+  end;
   {$ENDIF}
 
-  ps_s := FindSiteByName('', ps.Name);
-  if ps_s = nil then
-    exit;
-  if ps_s.PermDown then
-    exit;
-  if not (ps_s.WorkingStatus in [sstUnknown, sstUp]) then
-    exit;
+  try
+    ps_s := FindSiteByName('', ps.Name);
+    if ps_s = nil then
+      exit;
+    if ps_s.PermDown then
+      exit;
+    if not (ps_s.WorkingStatus in [sstUnknown, sstUp]) then
+      exit;
 
-  p.srcsite := ps.Name;
-  Debug(dpSpam, dsection, '-> ' + Format('%s: %s %s', [ps.Name, p.rls.section, p.rls.rlsname]));
+    p.srcsite := ps.Name;
+    Debug(dpSpam, dsection, '-> ' + Format('%s: %s %s', [ps.Name, fSection, fRlsName]));
 
-  for fSpeedInfo in ps.speed_from.Routes do
-  begin
-    try
-      dstps := p.FindSite(fSpeedInfo.Sitename);
-      if dstps = nil then
-        Continue;
+    for fSpeedInfo in ps.speed_from.Routes do
+    begin
+      try
+        dstps := p.FindSite(fSpeedInfo.Sitename);
+        if dstps = nil then
+          Continue;
 
-      if (dstps.Name <> ps.Name) then
-      begin
-        if (dstps.StatusRealPreOrShouldPre) then
+        if (dstps.Name <> ps.Name) then
         begin
-          if (dstps.reason = '') then
-            dstps.reason := 'Affil';
-          Continue;
-        end;
+          if (dstps.StatusRealPreOrShouldPre) then
+          begin
+            if (dstps.reason = '') then
+              dstps.reason := 'Affil';
+            Continue;
+          end;
 
-        if fSpeedInfo.AffilOnly and not ps.StatusRealPreOrShouldPre then
+          if fSpeedInfo.AffilOnly and not ps.StatusRealPreOrShouldPre then
+          begin
+            if (dstps.reason = '') then
+              dstps.reason := 'Affil only route';
+            Continue;
+          end;
+
+          if fSpeedInfo.NoAffil and ps.StatusRealPreOrShouldPre then
+          begin
+            if (dstps.reason = '') then
+              dstps.reason := 'No-Affil route';
+            Continue;
+          end;
+
+          if dstps.error then
+            Continue;
+
+          dstps_s := FindSiteByName('', dstps.Name);
+          if dstps_s = nil then
+            Continue;
+
+          if (not (dstps_s.WorkingStatus in [sstUnknown, sstUp])) or (dstps_s.PermDown) then
+          begin
+            if (dstps.reason = '') then
+              dstps.reason := 'Down';
+            Continue;
+          end;
+
+          p.dstsite := dstps.Name;
+          // i'm allowed to e ...
+          if ((dstps.status in [rssAllowed]) or (FireRuleSet(p, dstps) = raAllow)) then
+          begin
+            Result := ps.AddDestination(dstps, CalculateRank(dstps_s, fSpeedInfo.Speed, fSection, ps.status in [rssShouldPre, rssRealPre]));
+          end;
+        end;
+      except
+        on e: Exception do
         begin
-          if (dstps.reason = '') then
-            dstps.reason := 'Affil only route';
-          Continue;
+          Debug(dpError, dsection, Format('[EXCEPTION] FireRules loop: %s (site=%s rls=%s dst=%s)', [e.Message, ps.Name, fRlsName, fSpeedInfo.Sitename]));
+          Result := False;
+          Break;
         end;
-
-        if fSpeedInfo.NoAffil and ps.StatusRealPreOrShouldPre then
-        begin
-          if (dstps.reason = '') then
-            dstps.reason := 'No-Affil route';
-          Continue;
-        end;
-
-        if dstps.error then
-          Continue;
-
-        dstps_s := FindSiteByName('', dstps.Name);
-        if dstps_s = nil then
-          Continue;
-
-        if (not (dstps_s.WorkingStatus in [sstUnknown, sstUp])) or (dstps_s.PermDown) then
-        begin
-          if (dstps.reason = '') then
-            dstps.reason := 'Down';
-          Continue;
-        end;
-
-        p.dstsite := dstps.Name;
-        // i'm allowed to e ...
-        if ((dstps.status in [rssAllowed]) or (FireRuleSet(p, dstps) = raAllow)) then
-        begin
-          Result := ps.AddDestination(dstps, CalculateRank(dstps_s, fSpeedInfo.Speed, p.rls.section, ps.status in [rssShouldPre, rssRealPre]));
-        end;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, dsection, Format('[EXCEPTION] FireRules loop: %s', [e.Message]));
-        Result := False;
-        Break;
       end;
     end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, dsection, Format('[EXCEPTION] FireRules outer: %s (site=%s rls=%s)', [e.Message, ps.Name, fRlsName]));
+      Result := False;
+    end;
   end;
+
   {$IFDEF RACE_TIMELINE}
-  p.AddTimelineEntry(rtpFireRulesSiteDone, ps.Name, '');
+  try
+    p.AddTimelineEntry(rtpFireRulesSiteDone, ps.Name, '');
+  except
+    on e: Exception do
+      Debug(dpError, dsection, Format('[EXCEPTION] FireRules timeline done: %s (site=%s rls=%s)', [e.Message, ps.Name, fRlsName]));
+  end;
   {$ENDIF}
-  Debug(dpSpam, dsection, '<- ' + Format('%s: %s %s', [ps.Name, p.rls.section, p.rls.rlsname]));
+  Debug(dpSpam, dsection, '<- ' + Format('%s: %s %s', [ps.Name, fSection, fRlsName]));
 end;
 
 procedure RulesSave;
