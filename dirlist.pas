@@ -34,6 +34,7 @@ type
     FDirType: TDirType; //< Indicates what kind of Directory the current dir is
     FIsOnSite: Boolean; //< @true if this entry is available on the site
     FWasOnSite: Boolean; //< Helper flag to remember if a file has been on the site before ParseDirlist reset the IsOnSite flag
+    FKnownFromDupe: Boolean; //< @true if this entry is known to exist on the site from an X-DUPE response (persists across dirlist resets)
     FIsBeingUploaded: Boolean;  //< @true if this entry is a file currently being uploaded TODO: flag is only valid on glftpd, for all other ftpds it'll always be false
     FSkipListAlreadyProcessed: Boolean;  //< @true if the skiplist process has already been applied to this dirlistentry, @false otherwise.
     { Contains the index of the file type in the skiplist. For files and directories. For example when you have this in
@@ -77,6 +78,8 @@ type
     property Directory: Boolean read FDirectory;
     property DirType: TDirType read FDirType;
     property IsOnSite: Boolean read FIsOnSite write FIsOnSite;
+    property WasOnSite: Boolean read FWasOnSite;
+    property KnownFromDupe: Boolean read FKnownFromDupe write FKnownFromDupe;
     property IsBeingUploaded: Boolean read FIsBeingUploaded write FIsBeingUploaded;
     property IsNFO: Boolean read FIsNFO;
     property IsSFV: Boolean read FIsSFV;
@@ -106,6 +109,9 @@ type
     FCompleteDirTagLastChecked: String; //< contains the last complete tag that was checked  (cache)
     FCompleteDirTagLastResult: TTagCompleteType; // contains the result of the last complete tag that was checked (cache)
 
+    FParseDirlistTimestamp: Boolean; //< helper flag used by the callback in ParseDirlist to know whether timestamps should be parsed
+    FParseDirlistAdded: Boolean; //< helper flag used by the callback in ParseDirlist to signal that a new entry was added
+
     FStartedTime: TDateTime; //< time when the first @link(TDirlistEntry) was created
     FCompletedTime: TDateTime; //< time when the TDirlit was recognized as complete
     FFullPath: String; //< path of section and releasename (e.g. /MP3-today/Armin_van_Buuren_-_A_State_of_Trance_921__Incl_Ruben_de_Ronde_Guestmix-SAT-07-04-2019-TALiON/)
@@ -127,6 +133,8 @@ type
     { Calculates the FMultiCD field based on the contained dirlist entries. }
     procedure CalculateMultiCD;
     class function Timestamp(ts: String): TDateTime;
+    { Callback used by @link(ParseDirlist) to process one entry delivered by @link(dirlist.helpers.ParseStatResponseEx). }
+    procedure ProcessParsedDirlistEntry(const aDirMask, aUsername, aGroupname: String; const aFilesize: Int64; const aDatum, aFilename: String);
   public
     dirlist_lock: TSlCriticalSection2;
     dirlistadded: Boolean;
@@ -139,6 +147,7 @@ type
     entries: TObjectDictionary<string, TDirListEntry>; //< contains the @link(TDirlistEntry) objects for the dirlist
     skipped: TStringList;
     dependency_mkdir: String;
+    mkdir_not_ready_retry_count: Integer; //< @true number of consecutive mkdir-not-ready retries; used for backoff throttling
 
     procedure Clear;
     constructor Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const aPazoSFV: TPazoSFV; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
@@ -434,6 +443,7 @@ begin
   error := False;
 
   need_mkdir := True;
+  mkdir_not_ready_retry_count := 0;
   FCachedCompleteResult := False;
   FHasNFO := False;
   FHasSFV := False;
@@ -603,27 +613,24 @@ end;
 
 procedure TDirList.ParseDirlist(const s: String; const aParseTimestamp: Boolean = False);
 var
-  akttimestamp: TDateTime;
   de: TDirListEntry;
-  added: Boolean;
-  fTagCompleteType: TTagCompleteType;
-  fParsedDirlistEntries: TObjectList<TParsedDirListEntry>;
-  fParsedDirlistEntry: TParsedDirListEntry;
 begin
-  added := False;
+  FParseDirlistAdded := False;
 
   // No need to parse the dir again if it's complete
   if FCachedCompleteResult then exit;
 
   debugunit.Debug(dpSpam, section, Format('--> ParseDirlist %s (%s, %d entries)', [FFullPath, site_name, entries.Count]));
 
-  fParsedDirlistEntries := ParseStatResponse(s);
   dirlist_lock.Enter('TDirList.ParseDirlist');
   try
     for de in entries.Values do
     begin
       de.FWasOnSite := de.IsOnSite;
       de.IsOnSite := False;
+      // FKnownFromDupe is intentionally NOT reset here: once an X-DUPE told us
+      // the file exists on this site, we keep remembering it across dirlists
+      // until the entry itself is removed.
     end;
 
 {
@@ -635,171 +642,8 @@ begin
   ...
   drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
 }
-    for fParsedDirlistEntry in fParsedDirlistEntries do
-    begin
-      if fParsedDirlistEntry.Filesize < 0 then
-        Continue;
-
-      if not FIsFromIrc then
-      begin
-        // Dont add complete tags to dirlist entries
-
-        //if it's a dir and has already been checked to be valid, it can't be a complete tag
-        if (((fParsedDirlistEntry.DirMask[1] = 'd') and not FIsValidDirCache.ContainsKey(fParsedDirlistEntry.Filename))
-
-        //if it's a file and has a size > 0, it can't be a complete tag
-        or ((fParsedDirlistEntry.Filesize < 1) and (fParsedDirlistEntry.DirMask[1] <> 'd')
-
-          // skip .missing files which are created by the zipscript for files that have not yet been sent
-          and not fParsedDirlistEntry.Filename.EndsWith('-missing')
-
-          //if it's a file and has already been checked to be valid, it can't be a complete tag
-          and not FIsValidFileCache.ContainsKey(fParsedDirlistEntry.Filename)))
-        then
-        begin
-          if FCompleteDirTag = fParsedDirlistEntry.Filename then //if this has already been identified as complete tag, no need for any further action
-            continue;
-
-          fTagCompleteType := TagComplete(fParsedDirlistEntry.Filename);
-          if (fTagCompleteType <> tctUNMATCHED) then
-          begin
-            FCompleteDirTag := fParsedDirlistEntry.Filename;
-            Continue;
-          end;
-        end;
-      end;
-
-      if (fParsedDirlistEntry.DirMask[1] = 'd') then
-      begin
-        // directory: fDirMask[1] = 'd'
-        if not IsValidDirnameCached(fParsedDirlistEntry.Filename) then Continue;
-      end
-      else
-      begin
-        // no directory: fDirMask[1] <> 'd'
-        if not IsValidFilenameCached(fParsedDirlistEntry.Filename) then Continue;
-      end;
-
-      // Do not filter if we call the dirlist from irc
-      if not FIsFromIrc then
-      begin
-
-        // file is flagged as skipped
-        if (skipped.IndexOf(fParsedDirlistEntry.Filename) <> -1) then
-        begin
-          Continue;
-        end;
-
-        // entry is a file and is not downlodable
-        if ((fParsedDirlistEntry.DirMask[1] <> 'd') and ((fParsedDirlistEntry.DirMask[5] <> 'r') and (fParsedDirlistEntry.DirMask[8] <> 'r'))) then
-        begin
-          Continue;
-        end;
-      end;
-
-      if aParseTimestamp then
-        akttimestamp := Timestamp(fParsedDirlistEntry.Date)
-      else
-        akttimestamp := MinDateTime;
-
-      de := Find(fParsedDirlistEntry.Filename);
-      if de = nil then
-      begin
-        de := TDirListEntry.Create(fParsedDirlistEntry.Filename, self, (fParsedDirlistEntry.DirMask[1] = 'd'));
-
-        if ((de.IsSFV) and (HasSFV)) then
-        begin
-          de.Free;
-          Continue;
-        end;
-        if ((de.IsNFO) and (HasNFO)) then
-        begin
-          de.Free;
-          Continue;
-        end;
-
-        de.FUsername := fParsedDirlistEntry.Username;
-        de.FGroupname := fParsedDirlistEntry.Groupname;
-        de.timestamp := akttimestamp;
-        de.justadded := True;
-
-        if not de.directory then
-          de.filesize := fParsedDirlistEntry.Filesize;
-
-        // Do not filter if we call the dirlist from irc
-        if not FIsFromIrc then
-        begin
-          if ((not de.Directory) and (de.Extension = '') and (not FIsSpeedTest)) then
-          begin
-            de.Free;
-            Continue;
-          end;
-
-          // Dont add skip files to dirlist
-          if ((not de.Directory) and (skiplist <> nil)) then
-          begin
-            de.RegenerateSkiplist;
-            if (de.skiplisted) then
-            begin
-              de.Free;
-              Continue;
-            end;
-          end;
-        end;
-
-        if ((not de.Directory) and (de.IsSFV) and (de.filesize > 0)) then
-        begin
-          sfv_status := dlSFVFound;
-        end;
-
-        if (de.Directory) then
-        begin
-          de.subdirlist := TDirlist.Create(site_name, de, skiplist, FPazoSFV, FIsSpeedTest, FIsFromIrc);
-          if de.subdirlist <> nil then
-            de.subdirlist.FullPath := MyIncludeTrailingSlash(FFullPath) + de.filename;
-        end;
-
-        entries.Add(de.filename, de);
-
-        // the entry is valid and added, if it's a NFO or SFV file, set the field, then no more NFO or SFV files will be added
-        if de.IsNFO and (de.filesize > 0) then
-          FHasNFO := True;
-        if de.IsSFV and (de.filesize > 0) then
-          FHasSFV := True;
-
-        // if this newly created entry is a dir with a cdno, recalculate MultiCD info
-        if de.cdno > 0 then
-          CalculateMultiCD;
-
-        LastChanged := Now();
-        added := True;
-      end
-      else if (de.filesize <> fParsedDirlistEntry.Filesize) then
-      begin
-        if ((de.filesize <> fParsedDirlistEntry.Filesize) or (de.FUsername <> fParsedDirlistEntry.Username)) then
-        begin
-          LastChanged := Now();
-        end;
-
-        de.filesize := fParsedDirlistEntry.Filesize;
-        de.timestamp := akttimestamp;
-        de.FUsername := fParsedDirlistEntry.Username;
-        de.FGroupname := fParsedDirlistEntry.Groupname;
-        de.FSizeChanged := True;
-        de.justadded := Not de.FWasOnSite;
-
-        // the file had size of 0 when first seen, then IsNFO / IsSFV was not set. Set it now when the file size is greater than 0.
-        if de.IsNFO and not FHasNFO and (de.filesize > 0) then
-          FHasNFO := True;
-        if de.IsSFV and not FHasSFV and (de.filesize > 0) then
-          FHasSFV := True;
-      end;
-
-      // entry is a file and is being uploaded (glftpd only?)
-      de.FIsBeingUploaded := (fParsedDirlistEntry.DirMask[1] <> 'd') and ((fParsedDirlistEntry.DirMask[7] = 'x') and (fParsedDirlistEntry.DirMask[10] = 'x'));
-
-      de.IsOnSite := True;
-    end;
+    FParseDirlistTimestamp := aParseTimestamp;
+    ParseStatResponseEx(s, ProcessParsedDirlistEntry);
 
     // entries found means the dir exists
     if ((need_mkdir)) then
@@ -809,6 +653,7 @@ begin
         if de.IsOnSite then
         begin
           need_mkdir := False;
+          mkdir_not_ready_retry_count := 0;
           break;
         end;
       end;
@@ -816,13 +661,12 @@ begin
 
   finally
     dirlist_lock.Leave;
-    fParsedDirlistEntries.Free;
   end;
 
   FLastUpdated := Now();
 
   // set defaults values if direcotry was just added
-  if added then
+  if FParseDirlistAdded then
   begin
     FCachedCompleteResult := False;
 
@@ -840,6 +684,176 @@ begin
   end;
 
   debugunit.Debug(dpSpam, section, Format('<-- ParseDirlist %s (%s, %d entries)', [FFullPath, site_name, entries.Count]));
+end;
+
+procedure TDirList.ProcessParsedDirlistEntry(const aDirMask, aUsername, aGroupname: String; const aFilesize: Int64; const aDatum, aFilename: String);
+var
+  akttimestamp: TDateTime;
+  de: TDirListEntry;
+  fTagCompleteType: TTagCompleteType;
+begin
+  if aFilesize < 0 then
+    Exit;
+
+  if not FIsFromIrc then
+  begin
+    // Dont add complete tags to dirlist entries
+
+    //if it's a dir and has already been checked to be valid, it can't be a complete tag
+    if (((aDirMask[1] = 'd') and not FIsValidDirCache.ContainsKey(aFilename))
+
+    //if it's a file and has a size > 0, it can't be a complete tag
+    or ((aFilesize < 1) and (aDirMask[1] <> 'd')
+
+      // skip .missing files which are created by the zipscript for files that have not yet been sent
+      and not aFilename.EndsWith('-missing')
+
+      //if it's a file and has already been checked to be valid, it can't be a complete tag
+      and not FIsValidFileCache.ContainsKey(aFilename)))
+    then
+    begin
+      if FCompleteDirTag = aFilename then //if this has already been identified as complete tag, no need for any further action
+        exit;
+
+      fTagCompleteType := TagComplete(aFilename);
+      if (fTagCompleteType <> tctUNMATCHED) then
+      begin
+        FCompleteDirTag := aFilename;
+        Exit;
+      end;
+    end;
+  end;
+
+  if (aDirMask[1] = 'd') then
+  begin
+    // directory: fDirMask[1] = 'd'
+    if not IsValidDirnameCached(aFilename) then Exit;
+  end
+  else
+  begin
+    // no directory: fDirMask[1] <> 'd'
+    if not IsValidFilenameCached(aFilename) then Exit;
+  end;
+
+  // Do not filter if we call the dirlist from irc
+  if not FIsFromIrc then
+  begin
+
+    // file is flagged as skipped
+    if (skipped.IndexOf(aFilename) <> -1) then
+    begin
+      Exit;
+    end;
+
+    // entry is a file and is not downlodable
+    if ((aDirMask[1] <> 'd') and ((aDirMask[5] <> 'r') and (aDirMask[8] <> 'r'))) then
+    begin
+      Exit;
+    end;
+  end;
+
+  if FParseDirlistTimestamp then
+    akttimestamp := Timestamp(aDatum)
+  else
+    akttimestamp := MinDateTime;
+
+  de := Find(aFilename);
+  if de = nil then
+  begin
+    de := TDirListEntry.Create(aFilename, self, (aDirMask[1] = 'd'));
+
+    if ((de.IsSFV) and (HasSFV)) then
+    begin
+      de.Free;
+      Exit;
+    end;
+    if ((de.IsNFO) and (HasNFO)) then
+    begin
+      de.Free;
+      Exit;
+    end;
+
+    de.FUsername := aUsername;
+    de.FGroupname := aGroupname;
+    de.timestamp := akttimestamp;
+    de.justadded := True;
+
+    if not de.directory then
+      de.filesize := aFilesize;
+
+    // Do not filter if we call the dirlist from irc
+    if not FIsFromIrc then
+    begin
+      if ((not de.Directory) and (de.Extension = '') and (not FIsSpeedTest)) then
+      begin
+        de.Free;
+        Exit;
+      end;
+
+      // Dont add skip files to dirlist
+      if ((not de.Directory) and (skiplist <> nil)) then
+      begin
+        de.RegenerateSkiplist;
+        if (de.skiplisted) then
+        begin
+          de.Free;
+          Exit;
+        end;
+      end;
+    end;
+
+    if ((not de.Directory) and (de.IsSFV) and (de.filesize > 0)) then
+    begin
+      sfv_status := dlSFVFound;
+    end;
+
+    if (de.Directory) then
+    begin
+      de.subdirlist := TDirlist.Create(site_name, de, skiplist, FPazoSFV, FIsSpeedTest, FIsFromIrc);
+      if de.subdirlist <> nil then
+        de.subdirlist.FullPath := MyIncludeTrailingSlash(FFullPath) + de.filename;
+    end;
+
+    entries.Add(de.filename, de);
+
+    // the entry is valid and added, if it's a NFO or SFV file, set the field, then no more NFO or SFV files will be added
+    if de.IsNFO and (de.filesize > 0) then
+      FHasNFO := True;
+    if de.IsSFV and (de.filesize > 0) then
+      FHasSFV := True;
+
+    // if this newly created entry is a dir with a cdno, recalculate MultiCD info
+    if de.cdno > 0 then
+      CalculateMultiCD;
+
+    LastChanged := Now();
+    FParseDirlistAdded := True;
+  end
+  else if (de.filesize <> aFilesize) then
+  begin
+    if ((de.filesize <> aFilesize) or (de.FUsername <> aUsername)) then
+    begin
+      LastChanged := Now();
+    end;
+
+    de.filesize := aFilesize;
+    de.timestamp := akttimestamp;
+    de.FUsername := aUsername;
+    de.FGroupname := aGroupname;
+    de.FSizeChanged := True;
+    de.justadded := Not de.FWasOnSite;
+
+    // the file had size of 0 when first seen, then IsNFO / IsSFV was not set. Set it now when the file size is greater than 0.
+    if de.IsNFO and not FHasNFO and (de.filesize > 0) then
+      FHasNFO := True;
+    if de.IsSFV and not FHasSFV and (de.filesize > 0) then
+      FHasSFV := True;
+  end;
+
+  // entry is a file and is being uploaded (glftpd only?)
+  de.FIsBeingUploaded := (aDirMask[1] <> 'd') and ((aDirMask[7] = 'x') and (aDirMask[10] = 'x'));
+
+  de.IsOnSite := True;
 end;
 
 procedure TDirList.RegenerateSkiplist;
@@ -1459,6 +1473,7 @@ begin
   self.skiplisted := False;
   self.FSkipListAlreadyProcessed := False;
   self.IsOnSite := False;
+  self.FWasOnSite := False;
   self.FIsBeingUploaded := False;
   self.error := False;
   subdirlist := nil;

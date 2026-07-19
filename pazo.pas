@@ -528,7 +528,11 @@ begin
         (*
           if ((dde <> nil) and (dde.done)) then Continue;
         *)
-        if ((dde <> nil) and (dde.IsOnSite)) then Continue;
+        if ((dde <> nil) and (dde.IsOnSite or dde.KnownFromDupe)) then
+        begin
+          Debug(dpMessage, section, Format('[Tuzelj] Skip %s from %s to %s because IsOnSite=%s KnownFromDupe=%s', [de.filename, Name, dst.Name, BoolToStr(dde.IsOnSite, True), BoolToStr(dde.KnownFromDupe, True)]));
+          Continue;
+        end;
         if ((dde <> nil) and (dde.error)) then Continue;
 
         pm := nil;
@@ -604,6 +608,7 @@ begin
               Continue;
 
             // Create the race task
+            Debug(dpMessage, section, Format('[Tuzelj] Race %s from %s to %s (dde_present=%s, IsOnSite=%s, KnownFromDupe=%s)', [de.filename, Name, dst.Name, BoolToStr(dde <> nil, True), BoolToStr((dde <> nil) and dde.IsOnSite, True), BoolToStr((dde <> nil) and dde.KnownFromDupe, True)]));
             Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding RACE task on %s %s', [fd, Name, dst.Name, dst.Name, de.filename]);
             pr := TPazoRaceTask.Create(netname, channel, Name, dst.Name, pazo, dstdl, dir, de.filename, de.filesize, dstrank);
 
@@ -1410,6 +1415,7 @@ begin
     try
       d.need_mkdir := False;
       d.dependency_mkdir := '';
+      d.mkdir_not_ready_retry_count := 0;
     finally
       d.dirlist_lock.Leave;
     end;
@@ -1690,8 +1696,14 @@ begin
           if (not de.IsOnSite) then
           begin
             de.IsOnSite := True;
+            de.KnownFromDupe := True;
+            Debug(dpMessage, section, Format('[ParseDupe] Set KnownFromDupe for %s on %s dir=%s (aIsComplete=%s)', [fFilename, Name, aDir, BoolToStr(aIsComplete, True)]));
             if not de.skiplisted then
               fFilesToRace.Add(de);
+          end
+          else
+          begin
+            Debug(dpMessage, section, Format('[ParseDupe] Already IsOnSite for %s on %s dir=%s, KnownFromDupe=%s', [fFilename, Name, aDir, BoolToStr(de.KnownFromDupe, True)]));
           end;
         end;
       finally

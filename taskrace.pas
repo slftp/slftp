@@ -20,6 +20,13 @@ type
     function IsReadyToBeExecuted: boolean; override;
   end;
 
+  TPazoMkdirTask = class(TPazoTask)
+    dir: String;
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const aDependingOnDirlist: TDirList; const dir: String);
+    function Execute(slot: Pointer): boolean; override;
+    function Name: String; override;
+  end;
+
   TPazoDirlistTask = class(TPazoTask)
     dir: String;
     is_pre: boolean;
@@ -28,13 +35,7 @@ type
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
     function GetDirlistReaddValue(aSite: TPazoSite; aDirlist: TDirList): integer;
-  end;
-
-  TPazoMkdirTask = class(TPazoTask)
-    dir: String;
-    constructor Create(const netname, channel, site: String; pazo: TPazo; const aDependingOnDirlist: TDirList; const dir: String);
-    function Execute(slot: Pointer): boolean; override;
-    function Name: String; override;
+    function TryCreateMkdirFromFailedDirlist(aDirlist: TDirList): TPazoMkdirTask;
   end;
 
   TWaitTask = class(TTask)
@@ -347,7 +348,17 @@ begin
             begin
               //we're too early, mkdir is not done yet ... the site is slow?
               //continue to create a new dirlist task below
+              if d <> nil then
+                Inc(d.mkdir_not_ready_retry_count);
+
               Debug(dpMessage, c_section, 'DIRLIST: mkdir not ready: ' + tname);
+
+              // Option A: try to create MKDIR directly from the failed dirlist
+              // (only for allowed destination sites and only for the main dir)
+              if (d <> nil) and (dir = '') and (ps1.status in [rssAllowed]) then
+              begin
+                TryCreateMkdirFromFailedDirlist(d);
+              end;
             end
             else
             begin
@@ -699,6 +710,13 @@ var
 begin
   baseValue := GetNewdirDirlistReaddValue();
 
+  // Option B: exponential backoff for mkdir-not-ready retries to avoid 10ms retry storms
+  if (aDirlist <> nil) and (aDirlist.mkdir_not_ready_retry_count > 0) then
+  begin
+    Result := Min(baseValue * aDirlist.mkdir_not_ready_retry_count, 5000);
+    exit;
+  end;
+
   if (aSite <> nil) and (aDirlist <> nil) then
   begin
     secondsSinceLastChange := SecondsBetween(Now, aDirlist.LastChanged);
@@ -731,6 +749,56 @@ begin
   end;
 
   Result := baseValue;
+end;
+
+function TPazoDirlistTask.TryCreateMkdirFromFailedDirlist(aDirlist: TDirList): TPazoMkdirTask;
+var
+  pm: TPazoMkdirTask;
+  parentDirlist: TDirList;
+begin
+  Result := nil;
+
+  if (aDirlist = nil) then
+    Exit;
+
+  // Only create MKDIR for the main release directory (not subdirs like Sample/Subs)
+  // Subdir handling is kept as-is to avoid parent/child ordering issues
+  if (dir <> '') then
+    Exit;
+
+  // Site must be allowed as a destination
+  if not (ps1.status in [rssAllowed]) then
+    Exit;
+
+  aDirlist.dirlist_lock.Enter('TPazoDirlistTask.TryCreateMkdirFromFailedDirlist');
+  try
+    // Double-check after acquiring the lock to avoid duplicate MKDIRs
+    if (not aDirlist.need_mkdir) or (aDirlist.error) or (aDirlist.dependency_mkdir <> '') then
+      Exit;
+
+    parentDirlist := nil;
+    if (aDirlist.parent <> nil) and (aDirlist.parent.dirlist <> nil) then
+      parentDirlist := aDirlist.parent.dirlist;
+
+    pm := TPazoMkdirTask.Create(netname, channel, ps1.Name, mainpazo, parentDirlist, dir);
+    aDirlist.dependency_mkdir := pm.UidText;
+
+    Debug(dpMessage, c_section, 'DIRLIST: creating MKDIR from failed dirlist: ' + self.Name);
+
+    try
+      AddTask(pm, True);
+      Result := pm;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, c_section, Format('[EXCEPTION] TryCreateMkdirFromFailedDirlist AddTask: %s', [e.Message]));
+        aDirlist.dependency_mkdir := '';
+        FreeAndNil(pm);
+      end;
+    end;
+  finally
+    aDirlist.dirlist_lock.Leave;
+  end;
 end;
 
 { TPazoMkdirTask }
@@ -831,7 +899,10 @@ begin
   //change working directory
   failure := False;
   try
-    failure := not s.Cwd(ps1.maindir, bIsMidnight);
+    // force CWD verification: without force the slot only updates its local
+    // working directory variable when legacydirlist is disabled, so a missing
+    // maindir would only be detected later by a failing MKD command.
+    failure := not s.Cwd(ps1.maindir, True);
   except
     on e: Exception do
     begin
@@ -1738,6 +1809,7 @@ begin
         begin
           if (ResponseContainsDupeKeyword(lastResponse)) then
           begin
+            Debug(dpMessage, c_section, Format('[XDUPE] ParseDupe on %s for %s/%s (complete=%s)', [ps2.Name, dir, filename, BoolToStr(ResponseContainsDupeKeywordComplete(lastResponse), True)]));
             ps2.ParseDupe(netname, channel, dir, filename, False, ResponseContainsDupeKeywordComplete(lastResponse));
             ps2.ProcessXDupeResponse(netname, channel, dir, lastResponse);
             Debug(dpMessage, c_section, '<-- DUPE ' + lastResponse + ' ' + tname);
@@ -1760,6 +1832,7 @@ begin
         begin
           if (ResponseContainsDupeKeyword(lastResponse)) then
           begin
+            Debug(dpMessage, c_section, Format('[XDUPE] ParseDupe on %s for %s/%s (complete=%s)', [ps2.Name, dir, filename, BoolToStr(ResponseContainsDupeKeywordComplete(lastResponse), True)]));
             ps2.ParseDupe(netname, channel, dir, filename, False, ResponseContainsDupeKeywordComplete(lastResponse));
             ps2.ProcessXDupeResponse(netname, channel, dir, lastResponse);
             Debug(dpMessage, c_section, '<-- DUPE ' + lastResponse + ' ' + tname);
@@ -2310,6 +2383,7 @@ begin
           begin
             if (ResponseContainsDupeKeyword(lastResponse)) then
             begin
+              Debug(dpMessage, c_section, Format('[XDUPE] ParseDupe on %s for %s/%s (complete=%s)', [ps2.Name, dir, filename, BoolToStr(ResponseContainsDupeKeywordComplete(lastResponse), True)]));
               ps2.ParseDupe(netname, channel, dir, filename, False, ResponseContainsDupeKeywordComplete(lastResponse));
               ps2.ProcessXDupeResponse(netname, channel, dir, lastResponse);
               Debug(dpMessage, c_section, '<-- DUPE ' + lastResponse + ' ' + tname);
@@ -2398,6 +2472,7 @@ begin
 
           if (ResponseContainsDupeKeyword(lastResponse)) then
           begin
+            Debug(dpMessage, c_section, Format('[XDUPE] ParseDupe on %s for %s/%s (complete=%s)', [ps2.Name, dir, filename, BoolToStr(ResponseContainsDupeKeywordComplete(lastResponse), True)]));
             ps2.ParseDupe(netname, channel, dir, filename, False, ResponseContainsDupeKeywordComplete(lastResponse));
             ps2.ProcessXDupeResponse(netname, channel, dir, lastResponse);
             Debug(dpMessage, c_section, '<-- DUPE ' + lastResponse + ' ' + tname);
@@ -3226,6 +3301,7 @@ begin
         begin
           if (ResponseContainsDupeKeyword(lastResponse)) then
           begin
+            Debug(dpMessage, c_section, Format('[XDUPE] ParseDupe on %s for %s/%s (complete=%s)', [ps2.Name, dir, filename, BoolToStr(ResponseContainsDupeKeywordComplete(lastResponse), True)]));
             ps2.ParseDupe(netname, channel, dir, filename, False, ResponseContainsDupeKeywordComplete(lastResponse));
             ps2.ProcessXDupeResponse(netname, channel, dir, lastResponse);
             ready := True;
@@ -3239,6 +3315,7 @@ begin
         begin
           if (ResponseContainsDupeKeyword(lastResponse)) then
           begin
+            Debug(dpMessage, c_section, Format('[XDUPE] ParseDupe on %s for %s/%s (complete=%s)', [ps2.Name, dir, filename, BoolToStr(ResponseContainsDupeKeywordComplete(lastResponse), True)]));
             ps2.ParseDupe(netname, channel, dir, filename, False, ResponseContainsDupeKeywordComplete(lastResponse));
             ps2.ProcessXDupeResponse(netname, channel, dir, lastResponse);
             ready := True;

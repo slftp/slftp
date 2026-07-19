@@ -24,6 +24,15 @@ type
       property Filesize: int64 read fFilesize;
   end;
 
+  { Callback used by @link(ParseStatResponseEx) to deliver one parsed dirlist entry.
+    @param(aDirMask extracted dirmask)
+    @param(aUsername extracted username)
+    @param(aGroupname extracted group of user)
+    @param(aFilesize extracted filesize, -1 if parsed text is not a number)
+    @param(aDatum extracted date and time with removed extra whitespaces)
+    @param(aFilename extracted dirname or filename) }
+  TParseDirlistCallback = procedure(const aDirMask, aUsername, aGroupname: String; const aFilesize: Int64; const aDatum, aFilename: String) of object;
+
 { Check if given file is screwed up by FTPRush
   @param(aFilename Filename)
   @param(aFileExtension File extension of given filename)
@@ -76,6 +85,12 @@ function GetNewdirMaxCreatedValue(): integer;
 function GetNewdirDirlistReaddValue(): integer;
 
 function ParseStatResponse(s: String): TObjectList<TParsedDirlistEntry>;
+
+{ Parses the whole FTP STAT response and calls @link(aCallback) for every valid entry.
+  This avoids building a temporary list of parsed entries.
+  @param(s The dirlist response from the site.)
+  @param(aCallback Callback that receives the parsed fields of one entry.) }
+procedure ParseStatResponseEx(const s: String; const aCallback: TParseDirlistCallback);
 
 { Just a helper function to initialize @link(glSkiplistFilesRegex) and @link(glSkiplistDirsRegex) }
 procedure DirlistHelperInit;
@@ -265,6 +280,67 @@ begin
   end;
 
   Result := fParsedDirlistEntries;
+end;
+
+procedure ParseStatResponseEx(const s: String; const aCallback: TParseDirlistCallback);
+var
+  fLineToParse: RawUtf8;
+  fDirMask, fUsername, fGroupname, fDatum, fFilename: String;
+  fFilesize: Int64;
+  P: PUtf8Char;
+  fUtf8Input: RawUtf8;
+
+  // Local function to get next line handling CR, LF, and CRLF without string allocations
+  function GetNextLine(var P: PUtf8Char): RawUtf8;
+  var
+    Start: PUtf8Char;
+  begin
+    if (P = nil) or (P^ = #0) then
+    begin
+      Result := '';
+      P := nil;
+      Exit;
+    end;
+
+    Start := P;
+    // Find next CR or LF
+    while (P^ <> #0) and (P^ <> #13) and (P^ <> #10) do
+      Inc(P);
+
+    SetString(Result, Start, P - Start);
+
+    // Skip all CR and LF characters (handles CR, LF, CRLF, LFCR)
+    while (P^ = #13) or (P^ = #10) do
+      Inc(P);
+
+    if P^ = #0 then
+      P := nil;
+  end;
+
+begin
+  if not Assigned(aCallback) then
+    Exit;
+
+  fUtf8Input := UTF8String(s);
+  P := Pointer(fUtf8Input);
+  while P <> nil do
+  begin
+    fLineToParse := Trim(GetNextLine(P));
+    // tmp contains a single line:
+    // drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
+
+    if fLineToParse = '' then continue;
+    if (Length(fLineToParse) > 11) then
+    begin
+      // Only process lines that start with 'd' (directory) or '-' (file)
+      // Position 11 check is flexible: can be space (glFTPD: "drwxrwxrwx   2") or digit (DrFTPD: "-rw-rw-rw- 1")
+      // This filters out FTP status messages like "213- status of -l:", "total 12345"
+      if (fLineToParse[1] <> 'd') and (fLineToParse[1] <> '-') then
+        continue;
+      ParseStatResponseLine(string(fLineToParse), fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
+      aCallback(fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
+    end;
+  end;
 end;
 
 procedure DirlistHelperInit;

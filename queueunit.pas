@@ -1555,7 +1555,8 @@ var
   fList: TObjectList;
 begin
   try
-    main_lock.Enter('RemovePazoRace');
+    if not main_lock.Enter('RemovePazoRace', 0, False) then
+      exit;
     try
       for fListIndex := 0 to 1 do
       begin
@@ -1570,6 +1571,7 @@ begin
               (ttp.slot1 = nil) and (ttp.pazo_id = pazo_id) and (ttp.site2 = dstsite) and
               (ttp.dir = dir) and (ttp.filename = filename)) then
             begin
+              Debug(dpMessage, section, Format('[RemovePazoRace] Marking pazo_id=%d %s->%s file=%s as ready (dir=%s)', [pazo_id, ttp.site1, dstsite, filename, dir]));
               ttp.ready := True;
             end;
           end;

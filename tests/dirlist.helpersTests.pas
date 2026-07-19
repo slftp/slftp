@@ -11,6 +11,9 @@ uses
 
 type
   TTestDirlistHelpers = class(TTestCase)
+  private
+    fBenchmarkCallbackCount: Integer;
+    procedure BenchmarkCallback(const aDirMask, aUsername, aGroupname: String; const aFilesize: Int64; const aDatum, aFilename: String);
   published
     procedure TestIsFtpRushScrewedUpFile1;
     procedure TestIsFtpRushScrewedUpFile2;
@@ -23,18 +26,21 @@ type
     procedure TestParseStatResponseLineGlftpd2;
     procedure TestParseStatResponseLineDrftpd1;
     procedure TestParseStatResponseLineDrftpd2;
+    procedure TestParseStatResponseLineComplexDirname;
     procedure TestReleaseContainsNFOOnly;
     procedure TestIsValidFilename1;
     procedure TestIsValidFilename2;
     procedure TestIsValidFilename3;
     procedure TestIsValidDirname1;
     procedure TestIsValidDirname2;
+    procedure TestParseStatResponseMultiLine;
+    procedure BenchmarkParseStatResponse;
   end;
 
 implementation
 
 uses
-  SysUtils,
+  SysUtils, DateUtils, Generics.Collections,
   dirlist.helpers;
 
 { TTestDirlistHelpers }
@@ -177,6 +183,24 @@ begin
   CheckEquals('Disaster.Report.4.Summer.Memories-CODEX', fFilename);
 end;
 
+procedure TTestDirlistHelpers.TestParseStatResponseLineComplexDirname;
+var
+  fTmp: String;
+  fDirMask, fUsername, fGroupname, fDatum, fFilename: String;
+  fFilesize: Int64;
+begin
+  // Test parsing with complex directory name containing special characters and multiple spaces
+  fTmp := 'drwxrwxrwx   2 user1    group1         10 Jan  5 12:20 [::::::::::::::] -   0% Complete - [GRP]';
+  ParseStatResponseLine(fTmp, fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
+
+  CheckEquals('drwxrwxrwx', fDirMask);
+  CheckEquals('user1', fUsername);
+  CheckEquals('group1', fGroupname);
+  CheckEquals(10, fFilesize);
+  CheckEquals('Jan 5 12:20', fDatum);
+  CheckEquals('[::::::::::::::] -   0% Complete - [GRP]', fFilename);
+end;
+
 procedure TTestDirlistHelpers.TestReleaseContainsNFOOnly;
 begin
   CheckTrue(ReleaseOnlyConsistsOfNFO('Test.Rls.DiRFiX.asd-GRP'), 'Only NFO');
@@ -297,6 +321,111 @@ begin
 
   fFilename := 'Proof';
   CheckTrue(IsValidDirname(fFilename), 'This is a valid dirname.');
+end;
+
+procedure TTestDirlistHelpers.TestParseStatResponseMultiLine;
+var
+  fRawResponse: String;
+  fEntries: TObjectList<TParsedDirlistEntry>;
+begin
+  fRawResponse := 
+    'drwxrwxrwx   2 aq11     iND              3 Apr 19 23:14 Sample'#10 +
+    '-rw-r--r--   1 abc      Friends  100000000 Apr 13 20:14 file1.rar'#10 +
+    '-rw-rw-rw- 1   nobody  nogroup      12724352 Feb  6 12:07 file2.mp3'#10 +
+    'drwxrwxrwx 3   nobody  nogroup   27212887049 Apr  7 19:36 Release-GRP';
+    
+  fEntries := ParseStatResponse(fRawResponse);
+  try
+    CheckEquals(4, fEntries.Count, 'Should have parsed 4 entries');
+    
+    // Check first entry (glFTPd style)
+    CheckEquals('drwxrwxrwx', fEntries[0].DirMask);
+    CheckEquals('aq11', fEntries[0].Username);
+    CheckEquals('Sample', fEntries[0].Filename);
+    
+    // Check second entry
+    CheckEquals('100000000', IntToStr(fEntries[1].Filesize));
+    CheckEquals('file1.rar', fEntries[1].Filename);
+    
+    // Check third entry (DrFTPD style)
+    CheckEquals('nobody', fEntries[2].Username);
+    CheckEquals('nogroup', fEntries[2].Groupname);
+    CheckEquals('Feb 6 12:07', fEntries[2].Date);
+    CheckEquals('file2.mp3', fEntries[2].Filename);
+    
+    // Check last entry
+    CheckEquals('Release-GRP', fEntries[3].Filename);
+  finally
+    fEntries.Free;
+  end;
+end;
+
+procedure TTestDirlistHelpers.BenchmarkCallback(const aDirMask, aUsername, aGroupname: String; const aFilesize: Int64; const aDatum, aFilename: String);
+begin
+  Inc(fBenchmarkCallbackCount);
+end;
+
+procedure TTestDirlistHelpers.BenchmarkParseStatResponse;
+const
+  fIterations = 10000;
+var
+  fRawResponse: String;
+  fEntries: TObjectList<TParsedDirlistEntry>;
+  fStart, fStop: Int64;
+  fListTimeMs, fCallbackTimeMs: Double;
+  fI: Integer;
+  fMax: Double;
+
+begin
+  fRawResponse :=
+    '213- status of -l /incoming/test/:'#10 +
+    'total 126947'#10 +
+    '-rw-r--r--   1 testuser testgrp     82883 Apr 18 23:49 00-asdf.jpg'#10 +
+    '-rw-r--r--   1 testuser testgrp  15055165 Apr 18 23:49 02-asdf.mp3'#10 +
+    'drwxrwxrwx   2 testuser testgrp        10 Apr 18 23:49 Sample'#10 +
+    'drwxrwxrwx   2 testuser testgrp        10 Apr 18 23:49 Subs'#10 +
+    '-rw-r--r--   1 testuser testgrp 100000000 Apr 18 23:49 file1.rar'#10 +
+    '-rw-r--r--   1 testuser testgrp 100000000 Apr 18 23:49 file2.rar'#10 +
+    '-rw-r--r--   1 testuser testgrp 100000000 Apr 18 23:49 file3.rar'#10 +
+    '-rw-r--r--   1 testuser testgrp 100000000 Apr 18 23:49 file4.rar'#10 +
+    'drwxrwxrwx   2 testuser testgrp        10 Apr 18 23:49 [xxx] - ( 11M 1F - COMPLETE - ASDF 1337 ) - [xxx]'#10 +
+    '213 End of Status';
+
+  // Benchmark list-based parser (ParseStatResponse)
+  fStart := GetTickCount64;
+  for fI := 1 to fIterations do
+  begin
+    fEntries := ParseStatResponse(fRawResponse);
+    try
+      // touch every entry to emulate real usage
+      if fEntries.Count <> 9 then
+        raise Exception.Create('Unexpected entry count');
+    finally
+      fEntries.Free;
+    end;
+  end;
+  fStop := GetTickCount64;
+  fListTimeMs := (fStop - fStart);
+
+  // Benchmark callback-based parser (ParseStatResponseEx)
+  fStart := GetTickCount64;
+  for fI := 1 to fIterations do
+  begin
+    fBenchmarkCallbackCount := 0;
+    ParseStatResponseEx(fRawResponse, BenchmarkCallback);
+    if fBenchmarkCallbackCount <> 9 then
+      raise Exception.Create('Unexpected callback count');
+  end;
+  fStop := GetTickCount64;
+  fCallbackTimeMs := (fStop - fStart);
+
+  if fCallbackTimeMs < 0.001 then
+    fMax := 0.001
+  else
+    fMax := fCallbackTimeMs;
+
+  WriteLn(Format('BenchmarkParseStatResponse: iterations=%d, list=%.2f ms, callback=%.2f ms, speedup=%.2fx',
+    [fIterations, fListTimeMs, fCallbackTimeMs, fListTimeMs / fMax]));
 end;
 
 initialization
