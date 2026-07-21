@@ -34,7 +34,7 @@ type
     FDirType: TDirType; //< Indicates what kind of Directory the current dir is
     FIsOnSite: Boolean; //< @true if this entry is available on the site
     FWasOnSite: Boolean; //< Helper flag to remember if a file has been on the site before ParseDirlist reset the IsOnSite flag
-    FKnownFromDupe: Boolean; //< @true if this entry is known to exist on the site from an X-DUPE response (persists across dirlist resets)
+    FKnownFromDupe: Boolean; //< @true if this entry is known to exist on the site from an X-DUPE response (valid until the next dirlist, which is ground truth)
     FIsBeingUploaded: Boolean;  //< @true if this entry is a file currently being uploaded TODO: flag is only valid on glftpd, for all other ftpds it'll always be false
     FSkipListAlreadyProcessed: Boolean;  //< @true if the skiplist process has already been applied to this dirlistentry, @false otherwise.
     { Contains the index of the file type in the skiplist. For files and directories. For example when you have this in
@@ -109,9 +109,6 @@ type
     FCompleteDirTagLastChecked: String; //< contains the last complete tag that was checked  (cache)
     FCompleteDirTagLastResult: TTagCompleteType; // contains the result of the last complete tag that was checked (cache)
 
-    FParseDirlistTimestamp: Boolean; //< helper flag used by the callback in ParseDirlist to know whether timestamps should be parsed
-    FParseDirlistAdded: Boolean; //< helper flag used by the callback in ParseDirlist to signal that a new entry was added
-
     FStartedTime: TDateTime; //< time when the first @link(TDirlistEntry) was created
     FCompletedTime: TDateTime; //< time when the TDirlit was recognized as complete
     FFullPath: String; //< path of section and releasename (e.g. /MP3-today/Armin_van_Buuren_-_A_State_of_Trance_921__Incl_Ruben_de_Ronde_Guestmix-SAT-07-04-2019-TALiON/)
@@ -133,8 +130,9 @@ type
     { Calculates the FMultiCD field based on the contained dirlist entries. }
     procedure CalculateMultiCD;
     class function Timestamp(ts: String): TDateTime;
-    { Callback used by @link(ParseDirlist) to process one entry delivered by @link(dirlist.helpers.ParseStatResponseEx). }
-    procedure ProcessParsedDirlistEntry(const aDirMask, aUsername, aGroupname: String; const aFilesize: Int64; const aDatum, aFilename: String);
+    { Callback used by @link(ParseDirlist) to process one entry delivered by @link(dirlist.helpers.ParseStatResponseEx).
+      @param(aContext points to the per-call state record of the invoking @link(ParseDirlist) call) }
+    procedure ProcessParsedDirlistEntry(const aDirMask, aUsername, aGroupname: String; const aFilesize: Int64; const aDatum, aFilename: String; const aContext: Pointer);
   public
     dirlist_lock: TSlCriticalSection2;
     dirlistadded: Boolean;
@@ -241,6 +239,17 @@ uses
 
 const
   section = 'dirlist';
+
+type
+  { Per-call state handed from @link(TDirList.ParseDirlist) to its
+    @link(TDirList.ProcessParsedDirlistEntry) callback via the context pointer.
+    Kept as a stack-local record so concurrent ParseDirlist calls on the same
+    TDirList instance cannot overwrite each other's flags. }
+  PParseDirlistCallbackState = ^TParseDirlistCallbackState;
+  TParseDirlistCallbackState = record
+    ParseTimestamp: Boolean; //< whether timestamps should be parsed
+    Added: Boolean; //< set by the callback when a new entry was added
+  end;
 
 var
   image_files_priority: Integer; //< value for priority in dirlist sorter for image files from slftp.ini
@@ -614,8 +623,10 @@ end;
 procedure TDirList.ParseDirlist(const s: String; const aParseTimestamp: Boolean = False);
 var
   de: TDirListEntry;
+  fCallbackState: TParseDirlistCallbackState;
 begin
-  FParseDirlistAdded := False;
+  fCallbackState.ParseTimestamp := aParseTimestamp;
+  fCallbackState.Added := False;
 
   // No need to parse the dir again if it's complete
   if FCachedCompleteResult then exit;
@@ -628,9 +639,11 @@ begin
     begin
       de.FWasOnSite := de.IsOnSite;
       de.IsOnSite := False;
-      // FKnownFromDupe is intentionally NOT reset here: once an X-DUPE told us
-      // the file exists on this site, we keep remembering it across dirlists
-      // until the entry itself is removed.
+      // FKnownFromDupe is reset together with IsOnSite: a fresh dirlist is the
+      // ground truth for what is really on the site. X-DUPE also lists
+      // incomplete uploads of other racers; if such a transfer aborts and the
+      // file disappears, we must be allowed to race it again.
+      de.FKnownFromDupe := False;
     end;
 
 {
@@ -642,8 +655,7 @@ begin
   ...
   drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
 }
-    FParseDirlistTimestamp := aParseTimestamp;
-    ParseStatResponseEx(s, ProcessParsedDirlistEntry);
+    ParseStatResponseEx(s, ProcessParsedDirlistEntry, @fCallbackState);
 
     // entries found means the dir exists
     if ((need_mkdir)) then
@@ -666,7 +678,7 @@ begin
   FLastUpdated := Now();
 
   // set defaults values if direcotry was just added
-  if FParseDirlistAdded then
+  if fCallbackState.Added then
   begin
     FCachedCompleteResult := False;
 
@@ -686,12 +698,15 @@ begin
   debugunit.Debug(dpSpam, section, Format('<-- ParseDirlist %s (%s, %d entries)', [FFullPath, site_name, entries.Count]));
 end;
 
-procedure TDirList.ProcessParsedDirlistEntry(const aDirMask, aUsername, aGroupname: String; const aFilesize: Int64; const aDatum, aFilename: String);
+procedure TDirList.ProcessParsedDirlistEntry(const aDirMask, aUsername, aGroupname: String; const aFilesize: Int64; const aDatum, aFilename: String; const aContext: Pointer);
 var
   akttimestamp: TDateTime;
   de: TDirListEntry;
   fTagCompleteType: TTagCompleteType;
+  fState: PParseDirlistCallbackState;
 begin
+  fState := PParseDirlistCallbackState(aContext);
+
   if aFilesize < 0 then
     Exit;
 
@@ -752,7 +767,7 @@ begin
     end;
   end;
 
-  if FParseDirlistTimestamp then
+  if fState.ParseTimestamp then
     akttimestamp := Timestamp(aDatum)
   else
     akttimestamp := MinDateTime;
@@ -827,7 +842,7 @@ begin
       CalculateMultiCD;
 
     LastChanged := Now();
-    FParseDirlistAdded := True;
+    fState.Added := True;
   end
   else if (de.filesize <> aFilesize) then
   begin

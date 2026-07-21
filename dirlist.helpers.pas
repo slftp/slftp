@@ -30,8 +30,9 @@ type
     @param(aGroupname extracted group of user)
     @param(aFilesize extracted filesize, -1 if parsed text is not a number)
     @param(aDatum extracted date and time with removed extra whitespaces)
-    @param(aFilename extracted dirname or filename) }
-  TParseDirlistCallback = procedure(const aDirMask, aUsername, aGroupname: String; const aFilesize: Int64; const aDatum, aFilename: String) of object;
+    @param(aFilename extracted dirname or filename)
+    @param(aContext caller supplied context pointer passed through from @link(ParseStatResponseEx)) }
+  TParseDirlistCallback = procedure(const aDirMask, aUsername, aGroupname: String; const aFilesize: Int64; const aDatum, aFilename: String; const aContext: Pointer) of object;
 
 { Check if given file is screwed up by FTPRush
   @param(aFilename Filename)
@@ -89,8 +90,10 @@ function ParseStatResponse(s: String): TObjectList<TParsedDirlistEntry>;
 { Parses the whole FTP STAT response and calls @link(aCallback) for every valid entry.
   This avoids building a temporary list of parsed entries.
   @param(s The dirlist response from the site.)
-  @param(aCallback Callback that receives the parsed fields of one entry.) }
-procedure ParseStatResponseEx(const s: String; const aCallback: TParseDirlistCallback);
+  @param(aCallback Callback that receives the parsed fields of one entry.)
+  @param(aContext Opaque pointer that is passed through to every callback invocation,
+    so callers can hand over per-call state without using shared instance fields.) }
+procedure ParseStatResponseEx(const s: String; const aCallback: TParseDirlistCallback; const aContext: Pointer);
 
 { Just a helper function to initialize @link(glSkiplistFilesRegex) and @link(glSkiplistDirsRegex) }
 procedure DirlistHelperInit;
@@ -101,7 +104,7 @@ procedure CleanupDirlistThreadVars;
 implementation
 
 uses
-  SysUtils, IdGlobal, RegExpr, globals, StrUtils, debugunit, configunit, mystrings;
+  SysUtils, IdGlobal, RegExpr, globals, StrUtils, debugunit, configunit, mystrings, mormot.core.base;
 
 const
   section = 'dirlist.helpers';
@@ -282,9 +285,10 @@ begin
   Result := fParsedDirlistEntries;
 end;
 
-procedure ParseStatResponseEx(const s: String; const aCallback: TParseDirlistCallback);
+procedure ParseStatResponseEx(const s: String; const aCallback: TParseDirlistCallback; const aContext: Pointer);
 var
   fLineToParse: RawUtf8;
+  fLineString: String;
   fDirMask, fUsername, fGroupname, fDatum, fFilename: String;
   fFilesize: Int64;
   P: PUtf8Char;
@@ -337,8 +341,9 @@ begin
       // This filters out FTP status messages like "213- status of -l:", "total 12345"
       if (fLineToParse[1] <> 'd') and (fLineToParse[1] <> '-') then
         continue;
-      ParseStatResponseLine(string(fLineToParse), fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
-      aCallback(fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
+      fLineString := string(fLineToParse);
+      ParseStatResponseLine(fLineString, fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
+      aCallback(fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename, aContext);
     end;
   end;
 end;

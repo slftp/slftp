@@ -349,7 +349,16 @@ begin
               //we're too early, mkdir is not done yet ... the site is slow?
               //continue to create a new dirlist task below
               if d <> nil then
-                Inc(d.mkdir_not_ready_retry_count);
+              begin
+                // increment under dirlist_lock because the counter is also
+                // reset under the same lock (TDirList.ParseDirlist, TPazoSite.MkdirReady)
+                d.dirlist_lock.Enter('TPazoDirlistTask');
+                try
+                  Inc(d.mkdir_not_ready_retry_count);
+                finally
+                  d.dirlist_lock.Leave;
+                end;
+              end;
 
               Debug(dpMessage, c_section, 'DIRLIST: mkdir not ready: ' + tname);
 
@@ -710,7 +719,8 @@ var
 begin
   baseValue := GetNewdirDirlistReaddValue();
 
-  // Option B: exponential backoff for mkdir-not-ready retries to avoid 10ms retry storms
+  // Option B: linear backoff (base * retry_count, capped) for mkdir-not-ready
+  // retries to avoid 10ms retry storms
   if (aDirlist <> nil) and (aDirlist.mkdir_not_ready_retry_count > 0) then
   begin
     Result := Min(baseValue * aDirlist.mkdir_not_ready_retry_count, 5000);
@@ -782,22 +792,30 @@ begin
 
     pm := TPazoMkdirTask.Create(netname, channel, ps1.Name, mainpazo, parentDirlist, dir);
     aDirlist.dependency_mkdir := pm.UidText;
-
-    Debug(dpMessage, c_section, 'DIRLIST: creating MKDIR from failed dirlist: ' + self.Name);
-
-    try
-      AddTask(pm, True);
-      Result := pm;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, c_section, Format('[EXCEPTION] TryCreateMkdirFromFailedDirlist AddTask: %s', [e.Message]));
-        aDirlist.dependency_mkdir := '';
-        FreeAndNil(pm);
-      end;
-    end;
   finally
     aDirlist.dirlist_lock.Leave;
+  end;
+
+  // AddTask is called outside of dirlist_lock, following the established
+  // pattern in TPazoSite.Tuzelj (pazo.pas) to avoid holding the lock over it
+  Debug(dpMessage, c_section, 'DIRLIST: creating MKDIR from failed dirlist: ' + self.Name);
+
+  try
+    AddTask(pm, True);
+    Result := pm;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, c_section, Format('[EXCEPTION] TryCreateMkdirFromFailedDirlist AddTask: %s', [e.Message]));
+      aDirlist.dirlist_lock.Enter('TPazoDirlistTask.TryCreateMkdirFromFailedDirlist');
+      try
+        if aDirlist.dependency_mkdir = pm.UidText then
+          aDirlist.dependency_mkdir := '';
+      finally
+        aDirlist.dirlist_lock.Leave;
+      end;
+      FreeAndNil(pm);
+    end;
   end;
 end;
 
@@ -899,10 +917,7 @@ begin
   //change working directory
   failure := False;
   try
-    // force CWD verification: without force the slot only updates its local
-    // working directory variable when legacydirlist is disabled, so a missing
-    // maindir would only be detected later by a failing MKD command.
-    failure := not s.Cwd(ps1.maindir, True);
+    failure := not s.Cwd(ps1.maindir, bIsMidnight);
   except
     on e: Exception do
     begin

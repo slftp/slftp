@@ -1555,8 +1555,7 @@ var
   fList: TObjectList;
 begin
   try
-    if not main_lock.Enter('RemovePazoRace', 0, False) then
-      exit;
+    main_lock.Enter('RemovePazoRace');
     try
       for fListIndex := 0 to 1 do
       begin

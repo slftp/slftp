@@ -13,7 +13,7 @@ type
   TTestDirlistHelpers = class(TTestCase)
   private
     fBenchmarkCallbackCount: Integer;
-    procedure BenchmarkCallback(const aDirMask, aUsername, aGroupname: String; const aFilesize: Int64; const aDatum, aFilename: String);
+    procedure BenchmarkCallback(const aDirMask, aUsername, aGroupname: String; const aFilesize: Int64; const aDatum, aFilename: String; const aContext: Pointer);
   published
     procedure TestIsFtpRushScrewedUpFile1;
     procedure TestIsFtpRushScrewedUpFile2;
@@ -360,7 +360,7 @@ begin
   end;
 end;
 
-procedure TTestDirlistHelpers.BenchmarkCallback(const aDirMask, aUsername, aGroupname: String; const aFilesize: Int64; const aDatum, aFilename: String);
+procedure TTestDirlistHelpers.BenchmarkCallback(const aDirMask, aUsername, aGroupname: String; const aFilesize: Int64; const aDatum, aFilename: String; const aContext: Pointer);
 begin
   Inc(fBenchmarkCallbackCount);
 end;
@@ -398,8 +398,11 @@ begin
     fEntries := ParseStatResponse(fRawResponse);
     try
       // touch every entry to emulate real usage
-      if fEntries.Count <> 9 then
-        raise Exception.Create('Unexpected entry count');
+      // Note: the list-based parser only skips non-entry lines when char 11 is
+      // a space, so the '213-' header, the 'total' line and the complete-tag
+      // line end up as pseudo entries (downstream code had to filter them).
+      if fEntries.Count <> 11 then
+        raise Exception.CreateFmt('Unexpected entry count: %d', [fEntries.Count]);
     finally
       fEntries.Free;
     end;
@@ -412,9 +415,12 @@ begin
   for fI := 1 to fIterations do
   begin
     fBenchmarkCallbackCount := 0;
-    ParseStatResponseEx(fRawResponse, BenchmarkCallback);
+    ParseStatResponseEx(fRawResponse, BenchmarkCallback, nil);
+    // the callback parser strictly filters for lines starting with 'd' or '-',
+    // so the '213-' header and 'total' lines are skipped, while the 8 real
+    // file/dir entries plus the complete-tag dir line are delivered
     if fBenchmarkCallbackCount <> 9 then
-      raise Exception.Create('Unexpected callback count');
+      raise Exception.CreateFmt('Unexpected callback count: %d', [fBenchmarkCallbackCount]);
   end;
   fStop := GetTickCount64;
   fCallbackTimeMs := (fStop - fStart);
@@ -426,6 +432,8 @@ begin
 
   WriteLn(Format('BenchmarkParseStatResponse: iterations=%d, list=%.2f ms, callback=%.2f ms, speedup=%.2fx',
     [fIterations, fListTimeMs, fCallbackTimeMs, fListTimeMs / fMax]));
+
+  Check(fCallbackTimeMs >= 0, 'benchmark executed');
 end;
 
 initialization
