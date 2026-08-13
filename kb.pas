@@ -19,7 +19,7 @@ type
     destructor Destroy; override;
   end;
 
-function renameCheck(const pattern, i, len: integer; const rls: String): boolean;
+function renameCheck(const pattern: integer; const aName: String; const len: integer; const rls: String): boolean;
 function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String;
   dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
 function FindReleaseInKbList(const rls: String): String;
@@ -90,6 +90,7 @@ var
   kb_trimmed_rls: THashedStringList;
   kb_groupcheck_rls: THashedStringList;
   kb_latest: THashedStringList; //< holds release and section as rls=section
+  kb_latest_by_length: TObjectDictionary<Integer, TStringList>; //< release names of kb_latest bucketed by name length for the renamed_release_checker
   kb_skip: THashedStringList;
 
   // Config vars
@@ -129,7 +130,36 @@ begin
   end;
 end;
 
-function renameCheck(const pattern, i, len: integer; const rls: String): boolean;
+{ Adds a release name to the length buckets mirroring kb_latest (used by the renamed_release_checker)
+  @param(aRlsName release name to add) }
+procedure _KbLatestBucketAdd(const aRlsName: String);
+var
+  fBucket: TStringList;
+begin
+  if (not kb_latest_by_length.TryGetValue(Length(aRlsName), fBucket)) then
+  begin
+    fBucket := TStringList.Create;
+    kb_latest_by_length.Add(Length(aRlsName), fBucket);
+  end;
+  fBucket.Add(aRlsName);
+end;
+
+{ Removes a release name from the length buckets mirroring kb_latest
+  @param(aRlsName release name to remove) }
+procedure _KbLatestBucketRemove(const aRlsName: String);
+var
+  fBucket: TStringList;
+  fIndex: Integer;
+begin
+  if (kb_latest_by_length.TryGetValue(Length(aRlsName), fBucket)) then
+  begin
+    fIndex := fBucket.IndexOf(aRlsName);
+    if (fIndex <> -1) then
+      fBucket.Delete(fIndex);
+  end;
+end;
+
+function renameCheck(const pattern: integer; const aName: String; const len: integer; const rls: String): boolean;
 var
   ss: String;
 begin
@@ -137,7 +167,7 @@ begin
 
   // increase rename_patterns in kb_init by 1 everytime a new pattern emerges
 
-  ss := kb_latest.Names[i];
+  ss := aName;
   if pattern = 0 then
   begin
     // Original: Point_Blank-X_History-2012-C4
@@ -192,6 +222,8 @@ var
   dlt: TPazoDirlistTask;
   l: TLoginTask;
   fPretimeLookupTask: TPazoPretimeLookupTask;
+  fBucket: TStringList;
+  fName: String;
 
   { Removes the oldest knowledge base entries }
   procedure KbListsCleanUp;
@@ -236,6 +268,7 @@ var
       begin
         while i > 150 do
         begin
+          _KbLatestBucketRemove(kb_latest.Names[i]);
           kb_latest.Delete(i);
           i := kb_latest.Count - 1;
         end;
@@ -358,28 +391,32 @@ begin
       if (renamed_release_checker) then
       begin
         try
-          len := Length(rls); // no need to check the release length in every loop
-          for i := 0 to kb_latest.Count - 1 do
+          len := Length(rls);
+          // only names of equal length can be renames of one another, so only the
+          // matching length bucket is checked instead of scanning all of kb_latest
+          // (the full scan with Names[] string temporaries showed up hot in CPU profiling)
+          if (kb_latest_by_length.TryGetValue(len, fBucket)) then
           begin
-            // makes no sense to run this "expensive" operation if both strings aren't equal length
-            // since the current pattern shows only strings of equal length being renames of one another
-            if Length(kb_latest.Names[i]) <> len then
-              Continue;
-            if AnsiCompareText(kb_latest.Names[i], rls) <> 0 then
+            for i := 0 to fBucket.Count - 1 do
             begin
-              // loop through the amount of different patterns, reduces code duplication
-              for j := 0 to rename_patterns - 1 do
+              fName := fBucket[i];
+              if AnsiCompareText(fName, rls) <> 0 then
               begin
-                if renameCheck(j, i, len, rls) then
+                // loop through the amount of different patterns, reduces code duplication
+                for j := 0 to rename_patterns - 1 do
                 begin
-                  if spamcfg.readbool(rsections, 'renamed_release', True) then
-                    irc_addadmin(format('<b><c4>%s</c> @ %s </b>is a rename of %s!', [rls, sitename, kb_latest.Names[i]]));
+                  if renameCheck(j, fName, len, rls) then
+                  begin
+                    if spamcfg.readbool(rsections, 'renamed_release', True) then
+                      irc_addadmin(format('<b><c4>%s</c> @ %s </b>is a rename of %s!', [rls, sitename, fName]));
 
-                  // release is brand-new but a rename of an already existing release
-                  kb_latest.Insert(0, rls + '=' + section);
-                  // gonna insert this anyway, because there are sometimes renames of renames
-                  kb_skip.Insert(0, rls);
-                  exit;
+                    // release is brand-new but a rename of an already existing release
+                    kb_latest.Insert(0, rls + '=' + section);
+                    _KbLatestBucketAdd(rls);
+                    // gonna insert this anyway, because there are sometimes renames of renames
+                    kb_skip.Insert(0, rls);
+                    exit;
+                  end;
                 end;
               end;
             end;
@@ -394,6 +431,7 @@ begin
 
       // release is fine and brand-new, add it to kb_latest
       kb_latest.Insert(0, rls + '=' + section);
+      _KbLatestBucketAdd(rls);
     end;
 
     // Start cleanup lists
@@ -1335,6 +1373,7 @@ begin
 
   kb_groupcheck_rls := THashedStringList.Create;
   kb_latest := THashedStringList.Create;
+  kb_latest_by_length := TObjectDictionary<Integer, TStringList>.Create([doOwnsValues]);
   kb_skip := THashedStringList.Create;
 
   trimmed_shit_checker := config.ReadBool(rsections, 'trimmed_shit_checker', True);
@@ -1363,6 +1402,7 @@ begin
   Debug(dpSpam, rsections, 'Uninit1');
   kb_sections.Free;
   kb_latest.Free;
+  kb_latest_by_length.Free;
   kb_skip.Free;
   kb_groupcheck_rls.Free;
 
@@ -1636,6 +1676,7 @@ begin
               j := kb_latest.IndexOf(p.rls.rlsname);
               if j <> -1 then
               begin
+                _KbLatestBucketRemove(p.rls.rlsname);
                 kb_latest.Delete(j);
               end;
               fDeletedPazos.Add(p);
