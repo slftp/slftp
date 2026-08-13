@@ -33,6 +33,7 @@ type
   fSiteName: String;
   fSite: TObject;
   fBusyDestinations: TDictionary<TObject, integer>;
+  fSortDirty: boolean; //< @true when the queue needs to be re-sorted on the next Execute iteration
 
   queue_last_run: TDateTime;
   queueclean_last_run: TDateTime;
@@ -127,104 +128,71 @@ begin
   end;
 end;
 
+{ Returns the sort class rank of a queue task for @link(QueueSorter),
+  replacing the former cascade of 'is' checks per comparison.
+  Lower values sort first: wait < mkdir < race < other pazo tasks < rest.
+  @param(aTask task to classify)
+  @returns(class rank) }
+function QueueClassOrder(const aTask: TTask): Integer; inline;
+begin
+  if (aTask.ClassType = TWaitTask) then
+    Result := 0
+  else if (aTask is TPazoMkdirTask) then
+    Result := 1
+  else if (aTask is TPazoRaceTask) then
+    Result := 2
+  else if (aTask is TPazoTask) then
+    Result := 3
+  else
+    Result := 4;
+end;
+
 function QueueSorter(Item1, Item2: Pointer): integer;
 var
   i1, i2: TTask;
-  tp1, tp2: TPazoTask;
+  o1, o2: Integer;
   tpm1, tpm2: TPazoMkdirTask;
   tpr1, tpr2: TPazoRaceTask;
 begin
   // compare: -1 Item1 is before Item2
   // compare:  1 Item1 is after Item2
   // ref: https://www.freepascal.org/docs-html/rtl/classes/tstringlist.customsort.html
-  try
-    i1 := TTask(item1);
-    i2 := TTask(item2);
+  // NOTE: no try/except in here on purpose - an exception frame per comparison
+  // is way too expensive, the tasks.Sort() calls are wrapped instead.
+  i1 := TTask(item1);
+  i2 := TTask(item2);
 
-    if (i1 = nil) or (i2 = nil) then
-    begin
-      Result := 0;
-      exit;
-    end;
+  if (i1 = nil) or (i2 = nil) then
+  begin
+    Result := 0;
+    exit;
+  end;
 
-    // Give priority to wait
-    if ((i1.ClassType = TWaitTask) and (i2.ClassType = TWaitTask)) then
-    begin
-      Result := 0;
-      exit;
-    end;
-    if ((i1.ClassType = TWaitTask) and (not (i2.ClassType = TWaitTask))) then
-    begin
-      Result := -1;
-      exit;
-    end;
-    if ((not (i1.ClassType = TWaitTask)) and (i2.ClassType = TWaitTask)) then
-    begin
-      Result := 1;
-      exit;
-    end;
+  o1 := QueueClassOrder(i1);
+  o2 := QueueClassOrder(i2);
 
-    // Give priority to PazoTasks
-    if ((not (i1 is TPazoTask)) and (not (i2 is TPazoTask))) then
-    begin
-      Result := 0;
-      exit;
-    end;
-    if ((i1 is TPazoTask) and (not (i2 is TPazoTask))) then
-    begin
-      Result := -1;
-      exit;
-    end;
-    if ((not (i1 is TPazoTask)) and (i2 is TPazoTask)) then
-    begin
-      Result := 1;
-      exit;
-    end;
+  if (o1 <> o2) then
+  begin
+    Result := CompareValue(o1, o2);
+    exit;
+  end;
 
-    tp1 := TPazoTask(Item1);
-    tp2 := TPazoTask(Item2);
-
-    // Give priority to mkdir
-    if ((tp1 is TPazoMkdirTask) and (tp2 is TPazoMkdirTask)) then
+  // same class group, detailed comparison only needed for mkdir and race tasks
+  case o1 of
+    1:
     begin
       tpm1 := TPazoMkdirTask(Item1);
       tpm2 := TPazoMkdirTask(Item2);
 
-      if ((tpm1.dir <> '') and (tpm2.dir <> '')) then
-      begin
-        Result := 0;
-        exit;
-      end;
-      if ((tpm1.dir = '') and (tpm2.dir = '')) then
-      begin
-        Result := 0;
-        exit;
-      end;
       // give priority to mkdir tasks that affect maindirs (not a subdir mkdir)
       if ((tpm1.dir = '') and (tpm2.dir <> '')) then
-      begin
-        Result := -1;
-        exit;
-      end;
-      if ((tpm1.dir <> '') and (tpm2.dir = '')) then
-      begin
-        Result := 1;
-        exit;
-      end;
+        Result := -1
+      else if ((tpm1.dir <> '') and (tpm2.dir = '')) then
+        Result := 1
+      else
+        Result := 0;
     end;
-    if ((tp1 is TPazoMkdirTask) and (not (tp2 is TPazoMkdirTask))) then
-    begin
-      Result := -1;
-      exit;
-    end;
-    if ((not (tp1 is TPazoMkdirTask)) and (tp2 is TPazoMkdirTask)) then
-    begin
-      Result := 1;
-      exit;
-    end;
-
-    // Give priority to RaceTask
-    if ((tp1 is TPazoRaceTask) and (tp2 is TPazoRaceTask)) then
+    2:
     begin
       tpr1 := TPazoRaceTask(Item1);
       tpr2 := TPazoRaceTask(Item2);
@@ -361,43 +329,28 @@ begin
 
       if (Result = 0) then
         Result := CompareValue(tpr2.filesize, tpr1.filesize);
-
-      exit;
     end;
-
-    if ((tp1 is TPazoRaceTask) and (not (tp2 is TPazoRaceTask))) then
-    begin
-      Result := -1;
-      exit;
-    end;
-    if ((not (tp1 is TPazoRaceTask)) and (tp2 is TPazoRaceTask)) then
-    begin
-      Result := 1;
-      exit;
-    end;
-
-    // All others (Dirlists and so on)
-    Result := compareDate(tp1.mainpazo.lastTouch, tp2.mainpazo.lastTouch);
-  except
-  on e: Exception do
-    begin
-      Debug(dpError, section, '[EXCEPTION] QueueSorter : %s', [e.Message]);
-      Result := 0;
-    end;
+    3:
+      // All other pazo tasks (Dirlists and so on)
+      Result := compareDate(TPazoTask(Item1).mainpazo.lastTouch, TPazoTask(Item2).mainpazo.lastTouch);
+  else
+    // wait tasks and all non-pazo tasks keep their relative order
+    Result := 0;
   end;
 end;
 
 procedure TQueueThread.QueueSort;
 begin
+  // only mark the queue as dirty instead of sorting right away - the actual
+  // sort happens once per queue iteration in Execute, collapsing repeated
+  // sorts (e.g. after every dirlist of a race) into a single one
   try
-    Debug(dpSpam, section, 'Sorting queue 1');
     main_lock.Enter('Queue_Sort');
     try
-      tasks.Sort(@QueueSorter);
+      fSortDirty := True;
     finally
       main_lock.Leave;
     end;
-    Debug(dpSpam, section, 'Sorting queue 2');
   except
     on e: Exception do
     begin
@@ -431,6 +384,7 @@ begin
     waiting_tasks := TObjectList.Create(True);
     queueevent := TEvent.Create(nil, False, False, 'SLFTP_queue_event_' + aSiteName);
     queue_last_run := Now;
+    fSortDirty := False;
     queueclean_last_run := Now;
     queue_last_stat_update := Now;
     FreeOnTerminate := True;
@@ -1011,8 +965,7 @@ begin
           if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
           for fTask in fList do
           begin
-            try
-              if (fTask is TPazoRaceTask) then
+            if (fTask is TPazoRaceTask) then
               begin
                 i_tpr := TPazoRaceTask(fTask);
                 if ((i_tpr.ready = False) and (i_tpr.readyerror = False) and
@@ -1024,13 +977,6 @@ begin
                   exit;
                 end;
               end;
-            except
-              on E: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoRaceTask (loop) : %s', [e.Message]));
-                continue;
-              end;
-            end;
           end;
         end;
       finally
@@ -1058,8 +1004,7 @@ begin
           if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
           for fTask in fList do
           begin
-            try
-              if (fTask is TPazoDirlistTask) then
+            if (fTask is TPazoDirlistTask) then
               begin
                 i_tpd := TPazoDirlistTask(fTask);
                 if ((i_tpd.ready = False) and (i_tpd.readyerror = False) and
@@ -1070,13 +1015,6 @@ begin
                   exit;
                 end;
               end;
-            except
-              on E: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoDirlistTask (loop) : %s', [e.Message]));
-                continue;
-              end;
-            end;
           end;
         end;
       finally
@@ -1104,8 +1042,7 @@ begin
           if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
           for fTask in fList do
           begin
-            try
-              if (fTask is TPazoMkdirTask) then
+            if (fTask is TPazoMkdirTask) then
               begin
                 i_tpm := TPazoMkdirTask(fTask);
                 if ((i_tpm.ready = False) and (i_tpm.readyerror = False) and
@@ -1116,13 +1053,6 @@ begin
                   exit;
                 end;
               end;
-            except
-              on E: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoMkdirTask (loop) : %s', [e.Message]));
-                continue;
-              end;
-            end;
           end;
         end;
       finally
@@ -1662,53 +1592,68 @@ begin
           end;
         end;
 
-        if bTasksMoved then
-          tasks.Sort(@QueueSorter);
+        if (bTasksMoved or fSortDirty) then
+        begin
+          fSortDirty := False;
+          try
+            tasks.Sort(@QueueSorter);
+          except
+            on e: Exception do
+              Debug(dpError, section, '[EXCEPTION] TQueueThread.Execute (Sort) : %s', [e.Message]);
+          end;
+        end;
 
         for fListIndex := 0 to 1 do
         begin
           if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for i := fList.Count - 1 downto 0 do
+          // nested loop: the exception frame is set up once per queue iteration
+          // instead of once per task - per-task try/except showed up hot in CPU
+          // profiling (fpc_pushexceptaddr/fpc_popaddrstack via threadvar access).
+          // Semantics stay the same: a failing task is logged and skipped.
+          i := fList.Count - 1;
+          while i >= 0 do
           begin
-            if i < 0 then
-              Break;
-
-            fTask := TTask(fList.items[i]);
-
-          if fTask = nil then
-            Continue;
-
-          try
-            if (((fTask.ready) or (fTask.readyerror)) and (fTask.slot1 = nil)) then
-            begin
-              ss := fTask.uidtext;
-              if fTask.IsNotifyTask then
-                TaskReady(fTask);
-
-              if (fTask.ClassType = TPazoRaceTask) then
+            try
+              while i >= 0 do
               begin
-                with TPazoRaceTask(fTask) do
-                if (dst <> nil) then
+                fTask := TTask(fList.items[i]);
+
+                if fTask <> nil then
                 begin
-                  dst.event.SetEvent;
+                  if (((fTask.ready) or (fTask.readyerror)) and (fTask.slot1 = nil)) then
+                  begin
+                    ss := fTask.uidtext;
+                    if fTask.IsNotifyTask then
+                      TaskReady(fTask);
+
+                    if (fTask.ClassType = TPazoRaceTask) then
+                    begin
+                      with TPazoRaceTask(fTask) do
+                      if (dst <> nil) then
+                      begin
+                        dst.event.SetEvent;
+                      end;
+                    end;
+                    ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
+                    try
+                      fList.Remove(fTask);
+                    finally
+                      ts.ReleaseSlotsAssignmentLock;
+                    end;
+                    Console_QueueDel(ss);
+                  end;
                 end;
+
+                Dec(i);
               end;
-              ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
-              try
-                fList.Remove(fTask);
-              finally
-                ts.ReleaseSlotsAssignmentLock;
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady): %s', [e.Message]));
+                Dec(i); // skip the faulty task and resume with the next one
               end;
-              Console_QueueDel(ss);
-            end;
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady): %s', [e.Message]));
-              Continue;
             end;
           end;
-        end;
         end;
 
         ts.AcquireSlotsAssignmentLock('Queue iterate');
