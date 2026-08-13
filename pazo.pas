@@ -1243,7 +1243,7 @@ function TPazo.PFileSize(const aDir, aFilename: String): Int64;
 var
   fKey: String;
 begin
-  fKey := aDir + '/' + LowerCase(aFilename);
+  fKey := aDir + '/' + ASCIILowerCase(aFilename);
 
   if not FUniqueFileListOfRelease.TryGetValue(fKey, Result) then
     Result := -1;

@@ -1464,7 +1464,7 @@ begin
   subdirlist := nil;
   self.FSizeChanged := True;
 
-  FFilenameLowerCase := LowerCase(filename);
+  FFilenameLowerCase := ASCIILowerCase(filename);
   FExtension := ExtractFileExt(FFilenameLowerCase);
   cdno := 0;
   FSkipListAllowedFileIndex := -1;
@@ -1492,13 +1492,15 @@ var
   s: String;
   i: Integer;
 begin
-  s := ReplaceText(FFilenameLowerCase, ' ', '');
-  s := ReplaceText(s, '_', '');
-  s := ReplaceText(s, '-', '');
+  // FFilenameLowerCase is already lowercase, so case-insensitive replace and
+  // UpperCase folding is pure waste here (showed up hot in CPU profiling)
+  s := StringReplace(FFilenameLowerCase, ' ', '', [rfReplaceAll]);
+  s := StringReplace(s, '_', '', [rfReplaceAll]);
+  s := StringReplace(s, '-', '', [rfReplaceAll]);
 
   for i := 1 to 4 do
   begin
-    if (1 = Pos(UpperCase(multicddirprefix[i]), UpperCase(s))) then
+    if (1 = Pos(multicddirprefix[i], s)) then
     begin
       cdno := StrToIntDef(Copy(s, Length(multicddirprefix[i]) + 1, 1000), 0);
       exit;
