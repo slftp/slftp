@@ -398,6 +398,11 @@ type
     fConsoleTasks: Contnrs.TObjectList;
     fLocalConsoleToUpdate: TStringList;
     fConsoleToUpdate: TStringList;
+    // scratch containers for HandleAddConsoleTask, created once and only
+    // cleared per run: allocating a fresh TDictionary per ProcessMessages
+    // cycle showed up hot in CPU profiling (TEqualityComparer.Default RTTI walk)
+    fAddedTasks: TList<TslConsoleTask>;
+    fOverloadMessageWindows: TDictionary<string, integer>;
     procedure slOnResize;
     procedure slOnCtrlC;
     procedure ShowMessage(const s: String);
@@ -599,6 +604,9 @@ begin
   fConsoleToUpdate.Duplicates := dupIgnore;
   fConsoleToUpdate.Sorted := True;
 
+  fAddedTasks := TList<TslConsoleTask>.Create;
+  fOverloadMessageWindows := TDictionary<string, integer>.Create;
+
 
   timers.Add(TslClockTimer.Create(l_clock));
   glAddConsoleTaskCS := TSlCriticalSection2.Create('TslApplication.glAddConsoleTaskCS');
@@ -797,6 +805,8 @@ begin
   fLocalConsoleTasks.Free;
   fConsoleToUpdate.Free;
   fLocalConsoleToUpdate.Free;
+  fAddedTasks.Free;
+  fOverloadMessageWindows.Free;
   glAddConsoleTaskCollections.Free;
   glAddConsoleTaskCS.Free;
 
@@ -928,18 +938,21 @@ end;
 
 function GetAddConsoleTaskCollection: TConsoleAddTaskCollection;
 begin
-  // create the threadvar collection if it does not yet exist for this thread
-  if glThreadAddConsoleTaskCollection = nil then
+  // single threadvar read per call - every threadvar access goes through
+  // pthread TLS on Linux and showed up hot in CPU profiling
+  Result := glThreadAddConsoleTaskCollection;
+  if Result = nil then
   begin
-    glThreadAddConsoleTaskCollection := TConsoleAddTaskCollection.Create;
+    // create the threadvar collection if it does not yet exist for this thread
+    Result := TConsoleAddTaskCollection.Create;
+    glThreadAddConsoleTaskCollection := Result;
     glAddConsoleTaskCS.Enter('AddConsoleTask');
     try
-      glAddConsoleTaskCollections.Add(glThreadAddConsoleTaskCollection);
+      glAddConsoleTaskCollections.Add(Result);
     finally
       glAddConsoleTaskCS.Leave;
     end;
   end;
-  Result := glThreadAddConsoleTaskCollection;
 end;
 
 function CheckConsoleCriticalOverload(const aWindowName: string): boolean;
@@ -962,18 +975,17 @@ end;
 procedure TslApplication.HandleAddConsoleTask;
 var
   i, j: integer;
-  fAddedTasks: TList<TslConsoleTask>;
   fCollection: TConsoleAddTaskCollection;
   fTask: TslConsoleTask;
   fOverloadInfo: string;
   fOverloadReplacementTasks: TDictionary<string, TslConsoleTask>;
-  fOverloadMessageWindows: TDictionary<string, integer>;
   fOverloadMessageWindowsKVP: TPair<string, integer>;
 begin
   try
     // get tasks from all threads that have added a task since the last run
-    fAddedTasks := TList<TslConsoleTask>.Create;
-    fOverloadMessageWindows := TDictionary<string, integer>.Create;
+    // (fAddedTasks/fOverloadMessageWindows are reused fields, created once in Create)
+    fAddedTasks.Clear;
+    fOverloadMessageWindows.Clear;
     glAddConsoleTaskCS.Enter('HandleAddConsoleTask');
     try
       for fCollection in glAddConsoleTaskCollections do
@@ -1071,8 +1083,8 @@ begin
       end;
     finally
       slvision_lock.Leave();
-      fAddedTasks.Free;
-      fOverloadMessageWindows.Free;
+      fAddedTasks.Clear;
+      fOverloadMessageWindows.Clear;
     end;
   except
     on e: Exception do
