@@ -54,12 +54,14 @@ type
     procedure TestParseSFV1;
     procedure TestParseSFV2;
     procedure TestHTMLDecode;
+    procedure TestGetCaseInsensitveStringComparer;
+    procedure TestASCIILowerCase;
   end;
 
 implementation
 
 uses
-  SysUtils, Classes, DateUtils, Generics.Collections, mystrings;
+  SysUtils, Classes, DateUtils, Generics.Collections, Generics.Defaults, mystrings;
 
 { TTestMyStrings }
 
@@ -775,6 +777,48 @@ procedure TTestMyStrings.TestHTMLDecode;
 begin
   CheckEquals('&', HTMLDecode('&amp;'));
   CheckEquals('L''Asile', HTMLDecode('L&#x27;Asile'));
+end;
+
+{ makes sure the custom case-insensitive comparer used by several dictionaries
+  (IrcChanSettingsList, TPazo.FActiveTransfers, dirlist entries) stays
+  consistent: equal-ignore-case strings must hash the same, because
+  TDictionary lookups rely on it }
+procedure TTestMyStrings.TestGetCaseInsensitveStringComparer;
+var
+  fComparer: IEqualityComparer<String>;
+begin
+  fComparer := GetCaseInsensitveStringComparer;
+
+  CheckTrue(fComparer.Equals('Test.Release-ASDF', 'Test.Release-ASDF'), 'identical strings should be equal');
+  CheckTrue(fComparer.Equals('Test.Release-ASDF', 'test.release-asdf'), 'case-insensitive strings should be equal');
+  CheckTrue(fComparer.Equals('TEST.RELEASE-ASDF', 'test.release-asdf'), 'upper/lower strings should be equal');
+  CheckFalse(fComparer.Equals('Test.Release-ASDF', 'Test.Release-BSDF'), 'different strings should not be equal');
+  CheckFalse(fComparer.Equals('Test.Release-ASDF', 'Test.Release-ASDF2'), 'prefix strings should not be equal');
+
+  CheckEquals(fComparer.GetHashCode('Test.Release-ASDF'), fComparer.GetHashCode('Test.Release-ASDF'), 'hash of identical strings should match');
+  CheckEquals(fComparer.GetHashCode('Test.Release-ASDF'), fComparer.GetHashCode('test.release-asdf'), 'hash of case-insensitive strings should match');
+  CheckEquals(fComparer.GetHashCode('TEST.RELEASE-ASDF'), fComparer.GetHashCode('test.release-asdf'), 'hash of upper/lower strings should match');
+end;
+
+{ ASCIILowerCase must fold [A-Z] and leave everything else (digits, umlauts,
+  already lowercase) untouched; used in the hot dirlist path instead of
+  SysUtils LowerCase }
+procedure TTestMyStrings.TestASCIILowerCase;
+var
+  fInput: String;
+begin
+  CheckEquals('test.release-asdf', ASCIILowerCase('Test.Release-ASDF'), 'mixed case should be folded');
+  CheckEquals('already.lower', ASCIILowerCase('already.lower'), 'lowercase should stay unchanged');
+  CheckEquals('123-_.()', ASCIILowerCase('123-_.()'), 'non-letters should stay unchanged');
+  CheckEquals('', ASCIILowerCase(''), 'empty string should stay empty');
+
+  // non-ASCII bytes must pass through untouched (no codepage folding)
+  CheckEquals(String(#$C4#$D6#$DC), ASCIILowerCase(String(#$C4#$D6#$DC)), 'non-ASCII should stay unchanged');
+
+  // input must not be modified in place (refcounted string sharing)
+  fInput := 'Some.Release-GRP';
+  ASCIILowerCase(fInput);
+  CheckEquals('Some.Release-GRP', fInput, 'input string must not be modified');
 end;
 
 initialization

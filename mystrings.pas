@@ -89,6 +89,15 @@ function DoBase64DecodeToBytes(const aInput: String): TBytes; inline;
   @param(S String which should be cleaned)
   @returns(String which only contains characters as [a-z] or [A-Z]) }
 function onlyEnglishAlpha(const S: String): String;
+
+{ ASCII-only lowercase conversion, folds only [A-Z] and leaves every other
+  byte untouched. Much cheaper than SysUtils LowerCase which goes through
+  codepage/charset tables (showed up hot as InternalChangeCase in CPU
+  profiling). Safe for release names/filenames which are ASCII in practice.
+  @param(aText input string)
+  @returns(input with [A-Z] folded to [a-z]) }
+function ASCIILowerCase(const aText: String): String;
+
 function DateTimeAsString(const aThen: TDateTime; padded: boolean = False): String;
 
 { Normal RTL function RightStr('Hello, world!', 5): 'orld!''
@@ -237,17 +246,55 @@ end;
 {* Only needed because TIStringComparer.Ordinal causes access violation in FPC
    https://lists.freepascal.org/fpc-pascal/2016-August/048648.html *}
 {$IFDEF FPC}
+  { Allocation-free case-insensitive comparison with simple ASCII folding.
+    LowerCase() would create a temporary string per lookup which showed up
+    hot in CPU profiling (SYSUTILS InternalChangeCase). }
   function EqualityComparisonCaseInsensitive(constref ALeft, ARight: String): Boolean;
+  var
+    i: Integer;
+    c1, c2: AnsiChar;
   begin
-    Result := LowerCase(ALeft) = LowerCase(ARight);
+    if (Length(ALeft) <> Length(ARight)) then
+      exit(False);
+
+    for i := 1 to Length(ALeft) do
+    begin
+      c1 := ALeft[i];
+      c2 := ARight[i];
+      if (c1 in ['A'..'Z']) then
+        Inc(c1, 32);
+      if (c2 in ['A'..'Z']) then
+        Inc(c2, 32);
+      if (c1 <> c2) then
+        exit(False);
+    end;
+
+    Result := True;
   end;
 
+  { FNV-1a hash over the case-folded bytes, allocation-free. Only needs to be
+    consistent with @link(EqualityComparisonCaseInsensitive) - hashes are
+    runtime-only and never persisted. }
   function ExtendedHasher(constref AValue: String): UInt32;
   var
-    temp: String;
+    i: Integer;
+    c: AnsiChar;
   begin
-    temp := LowerCase(AValue);
-    Result := TDefaultHashFactory.GetHashCode(Pointer(temp), Length(temp) * SizeOf(Char), 0);
+    { the FNV-1a multiply wraps around UInt32 by design; with range/overflow
+      checks enabled (debug builds via -dDEBUG and fpc.cfg -Crtoi) that
+      intended wraparound raises ERangeError, so disable checks just here }
+    {$PUSH}
+    {$R-}
+    {$Q-}
+    Result := 2166136261;
+    for i := 1 to Length(AValue) do
+    begin
+      c := AValue[i];
+      if (c in ['A'..'Z']) then
+        Inc(c, 32);
+      Result := (Result xor Byte(c)) * 16777619;
+    end;
+    {$POP}
   end;
 {$ENDIF}
 
@@ -497,6 +544,10 @@ end;
 function ParsePASVString(s: String; out host: String; out port: integer): boolean;
 begin
   Result := False;
+  // always initialize out params: on early exit callers would otherwise see
+  // stale/uninitialized values (unmanaged out params are not zeroed)
+  host := '';
+  port := 0;
 
   {
   * PASV
@@ -679,6 +730,29 @@ begin
     begin
       Result := Result + S[i];
     end;
+  end;
+end;
+
+function ASCIILowerCase(const aText: String): String;
+var
+  i: integer;
+  fSrc, fDst: PChar;
+begin
+  // always build a fresh string (like SysUtils LowerCase does): folding in
+  // place would modify the caller's string whenever its refcount is 1
+  SetLength(Result, Length(aText));
+  if Length(aText) = 0 then
+    exit;
+
+  fSrc := PChar(aText);
+  fDst := PChar(Result);
+  for i := 1 to Length(aText) do
+  begin
+    fDst^ := fSrc^;
+    if (fDst^ in ['A'..'Z']) then
+      fDst^ := AnsiChar(Ord(fDst^) + 32);
+    Inc(fSrc);
+    Inc(fDst);
   end;
 end;
 
