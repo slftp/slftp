@@ -373,6 +373,58 @@ body[data-theme="minimal"]::before {
   transform: translateY(-2px);
 }
 
+/* vision-card variant that keeps the glass/glow look but never lifts on hover —
+   for large panels that wrap an editor/scroll area (lifting while typing is jarring) */
+.vision-card.no-lift:hover {
+  transform: none;
+  box-shadow: var(--shadow), var(--shadow-glow);
+}
+
+/* Themed Mantine tooltip: use the theme's card surface instead of Mantine's
+   default light-in-dark tooltip. */
+.tip-themed {
+  --tooltip-bg: #1f2127;
+  --tooltip-color: #e6e6ea;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+/* Action-button glow for page toolbars, ON HOVER only, never on a disabled
+   button. Use .glow-btn-danger on red/destructive buttons. */
+.glow-btn:not([data-disabled]):not(:disabled):hover {
+  box-shadow: 0 0 12px color-mix(in srgb, var(--mantine-color-blue-5) 45%, transparent);
+}
+.glow-btn-danger:not([data-disabled]):not(:disabled):hover {
+  box-shadow: 0 0 12px color-mix(in srgb, var(--mantine-color-red-5) 45%, transparent);
+}
+
+/* Pill tabs — reusable across pages (Rules editor tabs, Tools subtabs, …). */
+.pill-tab-list {
+  gap: 8px;
+}
+.pill-tab {
+  font-weight: 600;
+  color: var(--mantine-color-dimmed);
+  border-radius: 10px;
+  border: 1px solid transparent;
+  transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease,
+    border-color 0.18s ease, transform 0.18s ease;
+}
+.pill-tab:hover:not([data-active]) {
+  color: var(--mantine-color-bright);
+  background: color-mix(in srgb, var(--mantine-primary-color-filled) 14%, transparent);
+  border-color: color-mix(in srgb, var(--mantine-primary-color-filled) 40%, transparent);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--mantine-primary-color-filled) 28%, transparent);
+}
+.pill-tab[data-active] {
+  color: #fff;
+  background: linear-gradient(135deg,
+    var(--mantine-color-blue-6) 0%, var(--mantine-color-cyan-5) 100%);
+  border-color: transparent;
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--mantine-primary-color-filled) 55%, transparent);
+}
+
 /* Blue Card Variant */
 .vision-card-blue {
   background: var(--gradient-blue);
