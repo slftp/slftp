@@ -85,6 +85,14 @@ export interface SystemStatus {
   QueueOtherCount: number;
 }
 
+export const fetchSystemStatus = async (): Promise<SystemStatus> => {
+  const res = await apiClient.post('/ApiSystemService/GetStatus');
+  if (res.data && res.data.result && Array.isArray(res.data.result)) {
+    return res.data.result[0] as SystemStatus;
+  }
+  return res.data as SystemStatus;
+};
+
 export interface Bnc {
   host: string;
   port: number;

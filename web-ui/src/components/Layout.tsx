@@ -19,6 +19,7 @@ import {
   IconHelpCircle, 
   IconTransfer,
   IconActivity,
+  IconBrandGitlab,
 } from '@tabler/icons-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { clearApiToken } from '../api/client';
@@ -92,6 +93,7 @@ export function Layout() {
     { icon: IconAlertTriangle, label: 'Issues', to: '/issues', color: '#e74c3c' },
     { icon: IconFlask, label: 'Tools', to: '/tools', color: '#1abc9c' },
     { icon: IconHelpCircle, label: 'Help', to: '/help', color: '#9b59b6' },
+    { icon: IconBrandGitlab, label: 'GitLab', to: '/gitlab', color: '#fc6d26' },
     ...(cbftpEnabled ? [{ icon: IconTransfer, label: 'cbftp', to: '/cbftp', color: '#00d4ff' }] : []),
   ];
 

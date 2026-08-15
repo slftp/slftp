@@ -21,6 +21,7 @@ const Races = lazy(() => import('./pages/Races').then((m) => ({ default: m.Races
 const Databases = lazy(() => import('./pages/Databases').then((m) => ({ default: m.Databases })));
 const Help = lazy(() => import('./pages/Help').then((m) => ({ default: m.Help })));
 const Cbftp = lazy(() => import('./pages/cbftp/Cbftp').then((m) => ({ default: m.Cbftp })));
+const GitLab = lazy(() => import('./pages/GitLab').then((m) => ({ default: m.GitLab })));
 
 const Login = lazy(() => import('./pages/Login'));
 
@@ -70,6 +71,7 @@ function App() {
             <Route path="sections" element={<Sections />} />
             <Route path="irc" element={<IRC />} />
             <Route path="stats" element={<Stats />} />
+            <Route path="gitlab" element={<GitLab />} />
           </Route>
           <Route path="/index.html" element={<Navigate to="/" replace />} />
         </Routes>
