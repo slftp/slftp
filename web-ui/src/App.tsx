@@ -16,10 +16,8 @@ const Logs = lazy(() => import('./pages/Logs').then((m) => ({ default: m.Logs })
 const Issues = lazy(() => import('./pages/Issues').then((m) => ({ default: m.Issues })));
 const Tools = lazy(() => import('./pages/Tools').then((m) => ({ default: m.Tools })));
 const FileBrowser = lazy(() => import('./pages/FileBrowser').then((m) => ({ default: m.FileBrowser })));
-const Pre = lazy(() => import('./pages/Pre').then((m) => ({ default: m.Pre })));
 const Races = lazy(() => import('./pages/Races').then((m) => ({ default: m.Races })));
 const Databases = lazy(() => import('./pages/Databases').then((m) => ({ default: m.Databases })));
-const Help = lazy(() => import('./pages/Help').then((m) => ({ default: m.Help })));
 const Cbftp = lazy(() => import('./pages/cbftp/Cbftp').then((m) => ({ default: m.Cbftp })));
 const GitLab = lazy(() => import('./pages/GitLab').then((m) => ({ default: m.GitLab })));
 
@@ -57,7 +55,6 @@ function App() {
             <Route path="sites/:siteName" element={<SiteSettings />} />
             <Route path="browser" element={<FileBrowser />} />
             <Route path="cbftp" element={<Cbftp />} />
-            <Route path="pre" element={<Pre />} />
             <Route path="logs" element={<Logs />} />
             <Route path="races" element={<Races />} />
             <Route path="races/:releaseName" element={<Races />} />
@@ -67,7 +64,6 @@ function App() {
             <Route path="routes" element={<RoutesPage />} />
             <Route path="rules" element={<Rules />} />
             <Route path="tools" element={<Tools />} />
-            <Route path="help" element={<Help />} />
             <Route path="sections" element={<Sections />} />
             <Route path="irc" element={<IRC />} />
             <Route path="stats" element={<Stats />} />

@@ -80,18 +80,6 @@ export function Help() {
 
   return (
     <Stack>
-      <Group justify="space-between">
-        <Title order={2}>Help</Title>
-        <Button
-          leftSection={<IconRefresh size="1rem" />}
-          onClick={() => refetch()}
-          loading={isFetching}
-          variant="light"
-        >
-          Refresh
-        </Button>
-      </Group>
-
       <Tabs value={activeTab} onChange={(v) => setActiveTab(v as Category)}>
         <Tabs.List>
           <Tabs.Tab value="help" leftSection={<IconTerminal size="1rem" />}>
@@ -110,7 +98,18 @@ export function Help() {
           onChange={(e) => setSearch(e.currentTarget.value)}
           style={{ width: 320 }}
         />
-        <Text size="xs" c="dimmed">{docs?.length || 0} files</Text>
+        <Group gap="sm">
+          <Text size="xs" c="dimmed">{docs?.length || 0} files</Text>
+          <Button
+            leftSection={<IconRefresh size="1rem" />}
+            onClick={() => refetch()}
+            loading={isFetching}
+            variant="light"
+            size="xs"
+          >
+            Refresh
+          </Button>
+        </Group>
       </Group>
 
       {error && (

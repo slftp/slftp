@@ -248,16 +248,15 @@ export function Pre() {
 
   return (
     <Stack>
-      <Group justify="space-between" align="center">
-        <Group gap="xs" align="center">
-          <Title order={2}>PRE</Title>
-          <Badge color="yellow" variant="light">Untested</Badge>
-        </Group>
-        <Badge variant="light">IRC Command</Badge>
-      </Group>
-
       <Card withBorder radius="md" p="md">
         <Stack gap="xs">
+          <Group justify="space-between" align="center">
+            <Title order={3}>PRE</Title>
+            <Group gap="xs">
+              <Badge color="yellow" variant="light">Untested</Badge>
+              <Badge variant="light">IRC Command</Badge>
+            </Group>
+          </Group>
           <Text size="sm" c="dimmed">
             Usage: <Text component="span" ff="monospace">pre [section] rlsname</Text>
           </Text>
