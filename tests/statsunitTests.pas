@@ -8,13 +8,13 @@ uses
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility,
   {$ENDIF}
-  SysUtils, statsunit, mormot.orm.core;
+  SysUtils, statsunit, mormot.orm.core, mormot.core.base;
 
 type
   TTestStatsUnit = class(TTestCase)
   private
-    fStatsThread: TWriteStatsToDBThread;
-    procedure WaitForQueue;
+    procedure WaitForStatsCount(const aMinCount: integer);
+    procedure DeleteTestDb;
     function CountStatsRecords: integer;
     function CountSiteRecords: integer;
     function CountFileInfoRecords: integer;
@@ -27,6 +27,7 @@ type
     procedure TestProcessRace;
     procedure TestProcessRaceDuplicate;
     procedure TestProcessRaceSmallFileIgnored;
+    procedure TestStatsRecordReferencesRealIDs;
     procedure TestRemoveStats;
     procedure TestRemoveStatsOrphanedFileInfo;
     procedure TestBackup;
@@ -35,7 +36,7 @@ type
 implementation
 
 uses
-  configunit, dbhandler, mormot.core.base, slcriticalsection2;
+  globals;
 
 const
   CTEST_DB_NAME = 'test_stats.db';
@@ -44,85 +45,76 @@ const
 
 function TTestStatsUnit.CountStatsRecords: integer;
 begin
-  Result := glStatsDb.TableRowCount(TSQLStatsRecord);
+  Result := GlStatsDb.TableRowCount(TSQLStatsRecord);
 end;
 
 function TTestStatsUnit.CountSiteRecords: integer;
 begin
-  Result := glStatsDb.TableRowCount(TSQLSitesRecord);
+  Result := GlStatsDb.TableRowCount(TSQLSitesRecord);
 end;
 
 function TTestStatsUnit.CountFileInfoRecords: integer;
 begin
-  Result := glStatsDb.TableRowCount(TSQLFileInfoRecord);
+  Result := GlStatsDb.TableRowCount(TSQLFileInfoRecord);
 end;
 
 function TTestStatsUnit.CountSectionRecords: integer;
 begin
-  Result := glStatsDb.TableRowCount(TSQLSectionRecord);
+  Result := GlStatsDb.TableRowCount(TSQLSectionRecord);
+end;
+
+procedure TTestStatsUnit.DeleteTestDb;
+var
+  fDbPath: String;
+begin
+  // CreateORMSQLite3DB (dbhandler) always puts the db file into the
+  // databases folder next to the binary, not into the current directory
+  fDbPath := ExtractFilePath(ParamStr(0)) + DATABASEFOLDERNAME + PathDelim + CTEST_DB_NAME;
+  DeleteFile(fDbPath);
+  // WAL mode files
+  DeleteFile(fDbPath + '-wal');
+  DeleteFile(fDbPath + '-shm');
 end;
 
 procedure TTestStatsUnit.SetUp;
 begin
   inherited SetUp;
-  if not IsStatsDatabaseActive then
-  begin
-    glDeleteAfterDays := 0;
-    glStatsModel := TSQLModel.Create([TSQLStatsRecord, TSQLSitesRecord, TSQLSectionRecord, TSQLFileInfoRecord]);
-    glStatsDb := CreateORMSQLite3DB(glStatsModel, CTEST_DB_NAME, '');
-
-    glStatRaceQueue := TQueue<TStatRaceRecord>.Create;
-    glStatRaceLock := TSlCriticalSection2.Create('glStatRaceLock');
-    fStatsThread := TWriteStatsToDBThread.Create;
-  end;
+  DeleteTestDb; // remove leftovers of a previously killed run
+  // dbhandler creates the folder relative to the CWD, but opens the db next
+  // to the binary - make sure the real target folder exists
+  ForceDirectories(ExtractFilePath(ParamStr(0)) + DATABASEFOLDERNAME);
+  GlDeleteAfterDays := 0;
+  statsInit(CTEST_DB_NAME);
 end;
 
 procedure TTestStatsUnit.TearDown;
 begin
-  if Assigned(fStatsThread) then
-  begin
-    glWriteStatsThreadShouldStop := True;
-    while glTWriteStatsThreadRunning do
-      Sleep(100);
-    fStatsThread.WaitFor;
-    fStatsThread.Free;
-    fStatsThread := nil;
-  end;
-
-  if Assigned(glStatsDb) then
-    FreeAndNil(glStatsDb);
-  if Assigned(glStatsModel) then
-    FreeAndNil(glStatsModel);
-  if Assigned(glStatRaceLock) then
-    FreeAndNil(glStatRaceLock);
-  if Assigned(glStatRaceQueue) then
-    FreeAndNil(glStatRaceQueue);
-
-  glWriteStatsThreadShouldStop := False;
-
-  if FileExists(CTEST_DB_NAME) then
-    DeleteFile(CTEST_DB_NAME);
+  // statsUninit stops the writer thread (it frees itself via FreeOnTerminate)
+  statsUninit;
+  DeleteTestDb;
 
   inherited TearDown;
 end;
 
-procedure TTestStatsUnit.WaitForQueue;
+procedure TTestStatsUnit.WaitForStatsCount(const aMinCount: integer);
 var
   i: integer;
 begin
-  for i := 1 to 30 do
+  // poll the DB instead of the queue: the writer thread swaps the queue,
+  // so an empty queue does not mean the records are written yet
+  for i := 1 to 60 do
   begin
-    if glStatRaceQueue.Count = 0 then
+    if CountStatsRecords >= aMinCount then
       Break;
-    Sleep(100);
+    Sleep(50);
   end;
 end;
 
 procedure TTestStatsUnit.TestInitAndActive;
 begin
   CheckTrue(IsStatsDatabaseActive, 'Stats database should be active after init');
-  CheckNotNull(glStatsDb, 'glStatsDb should not be nil');
-  CheckNotNull(glStatsModel, 'glStatsModel should not be nil');
+  CheckNotNull(GlStatsDb, 'GlStatsDb should not be nil');
+  CheckNotNull(GlStatsModel, 'GlStatsModel should not be nil');
 end;
 
 procedure TTestStatsUnit.TestProcessRace;
@@ -136,7 +128,7 @@ begin
   fFileInfoBefore := CountFileInfoRecords;
 
   statsProcessRace('SRC_SITE', 'DST_SITE', 'SECTION', 'RELEASE.NAME', 'file.rar', 500000);
-  WaitForQueue;
+  WaitForStatsCount(fCountBefore + 1);
 
   fCountAfter := CountStatsRecords;
   CheckTrue(fCountAfter > fCountBefore, 'Stats record count should have increased');
@@ -146,30 +138,51 @@ begin
 end;
 
 procedure TTestStatsUnit.TestProcessRaceDuplicate;
-var
-  fCountBefore, fCountAfter: integer;
 begin
   statsProcessRace('DUP_SRC', 'DUP_DST', 'DUP_SEC', 'DUP.RLS', 'file.rar', 500000);
-  WaitForQueue;
-  fCountBefore := CountStatsRecords;
+  WaitForStatsCount(1);
 
   // Same race again should be ignored
   statsProcessRace('DUP_SRC', 'DUP_DST', 'DUP_SEC', 'DUP.RLS', 'file.rar', 500000);
-  WaitForQueue;
-  fCountAfter := CountStatsRecords;
+  // the duplicate will not create a new record, so we cannot poll for it;
+  // wait long enough for the writer thread (1s interval) to have processed it
+  Sleep(1500);
 
-  CheckEquals(fCountBefore, fCountAfter, 'Duplicate race should not create another stats record');
+  CheckEquals(1, CountStatsRecords, 'Duplicate race should not create another stats record');
 end;
 
 procedure TTestStatsUnit.TestProcessRaceSmallFileIgnored;
-var
-  fCountBefore, fCountAfter: integer;
 begin
-  fCountBefore := CountStatsRecords;
   statsProcessRace('SRC_SITE', 'DST_SITE', 'SECTION', 'RELEASE.NAME', 'small.txt', 1);
-  WaitForQueue;
-  fCountAfter := CountStatsRecords;
-  CheckEquals(fCountBefore, fCountAfter, 'Small file should be ignored due to min_filesize');
+  // small files are filtered out synchronously in statsProcessRace (min_filesize)
+  CheckEquals(0, CountStatsRecords, 'Small file should be ignored due to min_filesize');
+end;
+
+procedure TTestStatsUnit.TestStatsRecordReferencesRealIDs;
+var
+  fSiteRec: TSQLSitesRecord;
+  fSiteID: TID;
+  fStatsRec: TSQLStatsRecord;
+begin
+  statsProcessRace('FK_SRC', 'FK_DST', 'FK_SEC', 'FK.RLS', 'fk.rar', 500000);
+  WaitForStatsCount(1);
+
+  fSiteRec := TSQLSitesRecord.CreateAndFillPrepare(GlStatsDb.Client, 'Name = ?', ['FK_SRC'], 'ID');
+  try
+    CheckTrue(fSiteRec.FillOne, 'Source site record should exist');
+    fSiteID := fSiteRec.ID;
+  finally
+    fSiteRec.Free;
+  end;
+
+  // oftID fields must store pointer(ID); storing the object pointer instead
+  // would write a heap address as foreign key and this query would not match
+  fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(GlStatsDb.Client, 'SrcSiteRec = ?', [fSiteID]);
+  try
+    CheckTrue(fStatsRec.FillOne, 'Stats record should reference the real site ID, not a pointer');
+  finally
+    fStatsRec.Free;
+  end;
 end;
 
 procedure TTestStatsUnit.TestRemoveStats;
@@ -177,7 +190,7 @@ var
   fSiteCountBefore, fSiteCountAfter: integer;
 begin
   statsProcessRace('DELETE_ME_SRC', 'DELETE_ME_DST', 'SEC', 'RLS', 'file.rar', 600000);
-  WaitForQueue;
+  WaitForStatsCount(1);
 
   fSiteCountBefore := CountSiteRecords;
   CheckTrue(RemoveStats('DELETE_ME_SRC'), 'RemoveStats should return true');
@@ -192,7 +205,7 @@ var
 begin
   // Single race with unique file info
   statsProcessRace('ORPH_SRC', 'ORPH_DST', 'SEC', 'ORPH.RLS', 'orphan.rar', 600000);
-  WaitForQueue;
+  WaitForStatsCount(1);
 
   fFileInfoCountBefore := CountFileInfoRecords;
   fStatsCountBefore := CountStatsRecords;
@@ -212,19 +225,19 @@ end;
 
 procedure TTestStatsUnit.TestBackup;
 var
-  fBackupPath: String;
+  fBackupDir, fBackupFile: String;
 begin
-  fBackupPath := 'test_stats_backup.db';
-  if FileExists(fBackupPath) then
-    DeleteFile(fBackupPath);
+  fBackupDir := ExtractFilePath(ParamStr(0));
+  fBackupFile := 'test_stats_backup.db';
+  DeleteFile(fBackupDir + fBackupFile);
 
-  doStatsBackup('', fBackupPath);
-  // Backup is async, give it a moment
-  Sleep(500);
-  CheckTrue(FileExists(fBackupPath), 'Backup file should exist after doStatsBackup');
-
-  if FileExists(fBackupPath) then
-    DeleteFile(fBackupPath);
+  try
+    doStatsBackup(fBackupDir, fBackupFile);
+    // doStatsBackup waits via BackupBackgroundWaitUntilFinished
+    CheckTrue(FileExists(fBackupDir + fBackupFile), 'Backup file should exist after doStatsBackup');
+  finally
+    DeleteFile(fBackupDir + fBackupFile);
+  end;
 end;
 
 initialization

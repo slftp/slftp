@@ -1,7 +1,7 @@
 unit statsunit;
 
 interface
- 
+
 uses
   Classes, mormot.orm.core, mormot.core.base, mormot.orm.base, mormot.rest.sqlite3,
   Generics.Collections, slcriticalsection2;
@@ -61,14 +61,15 @@ type
     destructor Destroy; override;
   end;
 
-{ Just a helper function to initialize @link(ORMStatsDB) }
-procedure statsInit;
+{ Just a helper function to initialize @link(GlStatsDb)
+  @param(aDbName database filename to use instead of the config value, mainly for unit tests; empty = use config) }
+procedure statsInit(const aDbName: String = '');
 
-{ Just a helper function to free @link(ORMStatsDB) }
+{ Just a helper function to free @link(GlStatsDb) }
 procedure statsUninit;
 
 { Checks if stats database client/server is active
-  @returns(@true if @link(ORMStatsDB) is not nil, @false otherwise.) }
+  @returns(@true if @link(GlStatsDb) is not nil, @false otherwise.) }
 function IsStatsDatabaseActive: Boolean;
 
 { Queue the raced file and appropriate infos to be added into database
@@ -100,16 +101,16 @@ procedure StatRaces(const aNetname, aChannel, aSitename, aPeriod: String; const 
 procedure doStatsBackup(const aPath, aFileName: String);
 
 var
-  glStatsDb: TSQLRestClientDB; //< Rest Client for all database interactions
-  glStatsModel: TSQLModel; //< SQL ORM model for stats database
-  glStatRaceQueue: TQueue<TStatRaceRecord>; //< StatRace records to be written into the DB
-  glStatRaceLock: TSlCriticalSection2; //< Lock for the race stats queue
-  glDeleteAfterDays: integer;
+  GlStatsDb: TSQLRestClientDB; //< Rest Client for all database interactions
+  GlStatsModel: TSQLModel; //< SQL ORM model for stats database
+  GlStatRaceQueue: TQueue<TStatRaceRecord>; //< StatRace records to be written into the DB
+  GlStatRaceLock: TSlCriticalSection2; //< Lock for the race stats queue
+  GlDeleteAfterDays: integer;
 
 implementation
 
 uses
-  SysUtils, Contnrs, dbhandler, debugunit, configunit, sitesunit, irc, mystrings, DateUtils, mormot.core.unicode, mormot.core.os, mormot.db.raw.sqlite3,
+  SysUtils, dbhandler, debugunit, configunit, sitesunit, irc, mystrings, DateUtils, mormot.core.unicode, mormot.core.os, mormot.db.raw.sqlite3,
   mormot.core.data, mormot.core.json, mormot.core.variants;
 
 const
@@ -125,7 +126,7 @@ begin
   Result := config.ReadInteger(section, 'min_filesize', 100000);
 end;
 
-procedure statsInit;
+procedure statsInit(const aDbName: String = '');
 var
   fDBName: String;
 begin
@@ -133,14 +134,18 @@ begin
     Exit;
 
   glLastStatsCleanTime := MinDateTime;
-  fDBName := Trim(config.ReadString(section, 'database', 'stats.db'));
-  glDeleteAfterDays := config.ReadInteger(Section, 'delete_after_days', 0);
+  glWriteStatsThreadShouldStop := False;
+  if aDbName <> '' then
+    fDBName := aDbName
+  else
+    fDBName := Trim(config.ReadString(section, 'database', 'stats.db'));
+  GlDeleteAfterDays := config.ReadInteger(Section, 'delete_after_days', 0);
 
-  glStatsModel := TSQLModel.Create([TSQLStatsRecord, TSQLSitesRecord, TSQLSectionRecord, TSQLFileInfoRecord]);
+  GlStatsModel := TSQLModel.Create([TSQLStatsRecord, TSQLSitesRecord, TSQLSectionRecord, TSQLFileInfoRecord]);
   try
-    glStatsDb := CreateORMSQLite3DB(glStatsModel, fDBName, '');
-    glStatRaceQueue := TQueue<TStatRaceRecord>.Create;
-    glStatRaceLock := TSlCriticalSection2.Create('glStatRaceLock');
+    GlStatsDb := CreateORMSQLite3DB(GlStatsModel, fDBName, '');
+    GlStatRaceQueue := TQueue<TStatRaceRecord>.Create;
+    GlStatRaceLock := TSlCriticalSection2.Create('GlStatRaceLock');
     TWriteStatsToDBThread.Create;
   except
     on e: Exception do
@@ -154,27 +159,27 @@ end;
 procedure statsUninit;
 begin
   Debug(dpSpam, section, 'Uninit1');
-  if Assigned(glStatsDb) then
+  if Assigned(GlStatsDb) then
   begin
     glWriteStatsThreadShouldStop := True;
 
     while glTWriteStatsThreadRunning do
       Sleep(100);
 
-    FreeAndNil(glStatsDb);
+    FreeAndNil(GlStatsDb);
   end;
-  if Assigned(glStatsModel) then
+  if Assigned(GlStatsModel) then
   begin
-    FreeAndNil(glStatsModel);
+    FreeAndNil(GlStatsModel);
   end;
-  FreeAndNil(glStatRaceLock);
-  FreeAndNil(glStatRaceQueue);
+  FreeAndNil(GlStatRaceLock);
+  FreeAndNil(GlStatRaceQueue);
   Debug(dpSpam, section, 'Uninit2');
 end;
 
 function IsStatsDatabaseActive: Boolean;
 begin
-  if (glStatsDb = nil) then
+  if (GlStatsDb = nil) then
     Result := False
   else
     Result := True;
@@ -188,7 +193,7 @@ var
   fStatsRec: TSQLStatsRecord;
   fSrc, fDst, fSection, fRls, fFile: RawUTF8;
 begin
-  if glStatsDb = nil then exit;
+  if GlStatsDb = nil then exit;
 
   fSrc := StringToUTF8(aStatRaceRecord.FSrcSite);
   fDst := StringToUTF8(aStatRaceRecord.FDstSite);
@@ -197,15 +202,15 @@ begin
   fFile := StringToUTF8(aStatRaceRecord.FFilename);
 
   // we only need the ID
-  fSrcSiteRec := TSQLSitesRecord.CreateAndFillPrepare(glStatsDb.Client, 'Name = ?', [fSrc]);
-  fDstSiteRec := TSQLSitesRecord.CreateAndFillPrepare(glStatsDb.Client, 'Name = ?', [fDst]);
-  fSectionRec := TSQLSectionRecord.CreateAndFillPrepare(glStatsDb.Client, 'Section = ?', [fSection]);
+  fSrcSiteRec := TSQLSitesRecord.CreateAndFillPrepare(GlStatsDb.Client, 'Name = ?', [fSrc]);
+  fDstSiteRec := TSQLSitesRecord.CreateAndFillPrepare(GlStatsDb.Client, 'Name = ?', [fDst]);
+  fSectionRec := TSQLSectionRecord.CreateAndFillPrepare(GlStatsDb.Client, 'Section = ?', [fSection]);
   try
     if not fSrcSiteRec.FillOne then
     begin
       fSrcSiteRec.Name := fSrc;
 
-      if glStatsDb.Add(fSrcSiteRec, True, False) = 0 then
+      if GlStatsDb.Add(fSrcSiteRec, True, False) = 0 then
       begin
         Debug(dpError, section, '[statsProcessRace] Could not add srcsite %s to database!', [aStatRaceRecord.FSrcSite]);
         exit;
@@ -216,7 +221,7 @@ begin
     begin
       fDstSiteRec.Name := fDst;
 
-      if glStatsDb.Add(fDstSiteRec, True, False) = 0 then
+      if GlStatsDb.Add(fDstSiteRec, True, False) = 0 then
       begin
         Debug(dpError, section, '[statsProcessRace] Could not add dstsite %s to database!', [aStatRaceRecord.FDstSite]);
         exit;
@@ -227,7 +232,7 @@ begin
     begin
       fSectionRec.Section := fSection;
 
-      if glStatsDb.Add(fSectionRec, True, False) = 0 then
+      if GlStatsDb.Add(fSectionRec, True, False) = 0 then
       begin
         Debug(dpError, section, '[statsProcessRace] Could not add section %s to database!', [aStatRaceRecord.FSection]);
         exit;
@@ -235,7 +240,7 @@ begin
     end;
 
     // we only need the ID
-    fFileInfoRec := TSQLFileInfoRecord.CreateAndFillPrepare(glStatsDb.Client, 'ReleaseName = ? AND FileName = ?', [fRls, fFile]);
+    fFileInfoRec := TSQLFileInfoRecord.CreateAndFillPrepare(GlStatsDb.Client, 'ReleaseName = ? AND FileName = ?', [fRls, fFile]);
     try
       if not fFileInfoRec.FillOne then
       begin
@@ -244,7 +249,7 @@ begin
         fFileInfoRec.FileSize := aStatRaceRecord.FFilesize;
         fFileInfoRec.TimeStamp := Now;
 
-        if glStatsDb.Add(fFileInfoRec, True, False) = 0 then
+        if GlStatsDb.Add(fFileInfoRec, True, False) = 0 then
         begin
           Debug(dpError, section, '[statsProcessRace] Could not add %s file info for %s (%d) to database!', [aStatRaceRecord.FRls, aStatRaceRecord.FFilename, aStatRaceRecord.FFilesize]);
           exit;
@@ -252,16 +257,17 @@ begin
       end;
 
       // prevent duplicate entries
-      fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(glStatsDb.Client, 'SrcSiteRec = ? AND DstSiteRec = ? AND SectionRec = ? AND FileInfoRec = ?', [fSrcSiteRec.ID, fDstSiteRec.ID, fSectionRec.ID, fFileInfoRec.ID]);
+      fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(GlStatsDb.Client, 'SrcSiteRec = ? AND DstSiteRec = ? AND SectionRec = ? AND FileInfoRec = ?', [fSrcSiteRec.ID, fDstSiteRec.ID, fSectionRec.ID, fFileInfoRec.ID]);
       try
         if not fStatsRec.FillOne then
         begin
-          fStatsRec.SrcSiteRec := fSrcSiteRec;
-          fStatsRec.DstSiteRec := fDstSiteRec;
-          fStatsRec.SectionRec := fSectionRec;
-          fStatsRec.FileInfoRec := fFileInfoRec;
+          // oftID published properties store pointer(ID), not the instance itself
+          fStatsRec.SrcSiteRec := fSrcSiteRec.AsTOrm;
+          fStatsRec.DstSiteRec := fDstSiteRec.AsTOrm;
+          fStatsRec.SectionRec := fSectionRec.AsTOrm;
+          fStatsRec.FileInfoRec := fFileInfoRec.AsTOrm;
 
-          if glStatsDb.Add(fStatsRec, True, False) = 0 then
+          if GlStatsDb.Add(fStatsRec, True, False) = 0 then
           begin
             Debug(dpError, section, '[statsProcessRace] Could not add stats record for %s %s (%d) to database!', [aStatRaceRecord.FRls, aStatRaceRecord.FFilename, aStatRaceRecord.FFilesize]);
             exit;
@@ -306,11 +312,11 @@ begin
   fStatRaceRecord.FFilesize := aFilesize;
 
   try
-    glStatRaceLock.Enter('statsProcessRace');
+    GlStatRaceLock.Enter('statsProcessRace');
     try
-      glStatRaceQueue.Enqueue(fStatRaceRecord);
+      GlStatRaceQueue.Enqueue(fStatRaceRecord);
     finally
-      glStatRaceLock.Leave;
+      GlStatRaceLock.Leave;
     end;
   except
     on e: Exception do
@@ -323,8 +329,10 @@ end;
 function RemoveStats(const aSitename: String): Boolean; overload;
 var
   fStatsRec: TSQLStatsRecord;
+  fSiteRec: TSQLSitesRecord;
   fFileInfoIDs: TList<Integer>;
   fItem, fID: Integer;
+  fSiteID: TID;
   fOnlyUsedForDeletedSites: Boolean;
   fSite: RawUTF8;
 begin
@@ -338,9 +346,19 @@ begin
 
   fSite := StringToUTF8(aSitename);
 
+  { get the site ID before deletion, so we can reset references to it below }
+  fSiteID := 0;
+  fSiteRec := TSQLSitesRecord.CreateAndFillPrepare(GlStatsDb.Client, 'Name = ?', [fSite], 'ID');
+  try
+    if fSiteRec.FillOne then
+      fSiteID := fSiteRec.ID;
+  finally
+    fSiteRec.Free;
+  end;
+
   { delete sitename from site table }
   try
-    if not glStatsDb.Delete(TSQLSitesRecord, 'Name = ?', [fSite]) then
+    if not GlStatsDb.Delete(TSQLSitesRecord, 'Name = ?', [fSite]) then
     begin
       Debug(dpError, section, '[RemoveStats] Could not remove %s!', [aSitename]);
       exit;
@@ -353,11 +371,19 @@ begin
     end;
   end;
 
+  { mORMot does not reset oftID references on delete (coherency is up to the
+    business logic), so reset the foreign keys of the removed site to 0 }
+  if fSiteID <> 0 then
+  begin
+    GlStatsDb.ExecuteFmt('UPDATE % SET SrcSiteRec = 0 WHERE SrcSiteRec = ?', [TSQLStatsRecord.SQLTableName], [fSiteID]);
+    GlStatsDb.ExecuteFmt('UPDATE % SET DstSiteRec = 0 WHERE DstSiteRec = ?', [TSQLStatsRecord.SQLTableName], [fSiteID]);
+  end;
+
   { delete fileinfo table entries only if not referenced more than once }
   fFileInfoIDs := TList<Integer>.Create;
   try
     // get all file IDs where src and dst are already deleted
-    fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(glStatsDb.Client, 'SrcSiteRec = ? AND DstSiteRec = ?', [0, 0]);
+    fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(GlStatsDb.Client, 'SrcSiteRec = ? AND DstSiteRec = ?', [0, 0]);
     try
       while fStatsRec.FillOne do
       begin
@@ -374,7 +400,7 @@ begin
       fOnlyUsedForDeletedSites := True;
 
       // try to get entry which use the same FileInfo Record but at least one site is still there
-      fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(glStatsDb.Client, '(SrcSiteRec <> ? OR DstSiteRec <> ?) AND FileInfoRec = ?', [0, 0, fItem]);
+      fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(GlStatsDb.Client, '(SrcSiteRec <> ? OR DstSiteRec <> ?) AND FileInfoRec = ?', [0, 0, fItem]);
       try
         if fStatsRec.FillOne then
         begin
@@ -387,7 +413,7 @@ begin
       // remove items from db which are used only for deleted sites
       if fOnlyUsedForDeletedSites then
       begin
-        if not glStatsDb.Delete(TSQLFileInfoRecord, fItem) then
+        if not GlStatsDb.Delete(TSQLFileInfoRecord, fItem) then
         begin
           Debug(dpError, Section, '[RemoveStats] Could not delete fileinfo ID %d!', [fItem]);
           Exit;
@@ -398,7 +424,7 @@ begin
     fFileInfoIDs.Free;
   end;
 
-  if not glStatsDb.Delete(TSQLStatsRecord, 'SrcSiteRec = ? AND DstSiteRec = ?', [0, 0]) then
+  if not GlStatsDb.Delete(TSQLStatsRecord, 'SrcSiteRec = ? AND DstSiteRec = ?', [0, 0]) then
   begin
     Debug(dpError, section, '[RemoveStats] Could not delete stats record!');
     exit;
@@ -457,7 +483,7 @@ var
     InitValues(aFileSizeStats);
     fSite := StringToUTF8(aSitename);
 
-    fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(glStatsDb.Client, 
+    fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(GlStatsDb.Client, 
       '(DstSiteRec.Name = ? OR SrcSiteRec.Name = ?) AND FileInfoRec.TimeStamp > date(?, ?)',
       [fSite, fSite, 'now', StringToUTF8(aSQLPeriod)], []);
     try
@@ -497,7 +523,7 @@ var
       stFrom:
         begin
           // input site is source
-          fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(glStatsDb.Client,
+          fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(GlStatsDb.Client,
             'SrcSiteRec.Name = ? AND FileInfoRec.TimeStamp > date(?, ?)',
             [fSite, 'now', StringToUTF8(aSQLPeriod)], []);
           try
@@ -505,7 +531,7 @@ var
             begin
               fGroupKey := fStatsRec.DstSiteRec.Name;
               if not fDoc.Exists(fGroupKey) then
-                fDoc.AddValue(fGroupKey, _Obj(['size', 0, 'count', 0]));
+                fDoc.Add(fGroupKey, _Obj(['size', 0, 'count', 0]));
               
               fDoc.Value(fGroupKey).size := fDoc.Value(fGroupKey).size + fStatsRec.FileInfoRec.FileSize;
               fDoc.Value(fGroupKey).count := fDoc.Value(fGroupKey).count + 1;
@@ -527,7 +553,7 @@ var
       stTo:
         begin
           // input site is destination
-          fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(glStatsDb.Client,
+          fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(GlStatsDb.Client,
             'DstSiteRec.Name = ? AND FileInfoRec.TimeStamp > date(?, ?)',
             [fSite, 'now', StringToUTF8(aSQLPeriod)], []);
           try
@@ -535,7 +561,7 @@ var
             begin
               fGroupKey := fStatsRec.SrcSiteRec.Name;
               if not fDoc.Exists(fGroupKey) then
-                fDoc.AddValue(fGroupKey, _Obj(['size', 0, 'count', 0]));
+                fDoc.Add(fGroupKey, _Obj(['size', 0, 'count', 0]));
               
               fDoc.Value(fGroupKey).size := fDoc.Value(fGroupKey).size + fStatsRec.FileInfoRec.FileSize;
               fDoc.Value(fGroupKey).count := fDoc.Value(fGroupKey).count + 1;
@@ -631,8 +657,8 @@ begin
     exit;
   end;
 
-  if glStatsDb.DB.BackupBackground(aPath + aFileName, -1, 0, nil) then
-    glStatsDb.DB.BackupBackgroundWaitUntilFinished(5);
+  if GlStatsDb.DB.BackupBackground(aPath + aFileName, -1, 0, nil) then
+    GlStatsDb.DB.BackupBackgroundWaitUntilFinished(5);
 end;
 
 constructor TWriteStatsToDBThread.Create;
@@ -665,15 +691,15 @@ begin
       sleep(1000);
 
     try
-      // replace glStatRaceLock with a new queue and process the records of the existing one
-      fStatRaceQueue := glStatRaceQueue;
+      // replace GlStatRaceLock with a new queue and process the records of the existing one
+      fStatRaceQueue := GlStatRaceQueue;
 
       // lock here to be sure the enqueuing threads don't use the old reference while we're iterating
-      glStatRaceLock.Enter('Execute');
+      GlStatRaceLock.Enter('Execute');
       try
-        glStatRaceQueue := TQueue<TStatRaceRecord>.Create;
+        GlStatRaceQueue := TQueue<TStatRaceRecord>.Create;
       finally
-        glStatRaceLock.Leave;
+        GlStatRaceLock.Leave;
       end;
 
       //if the thread should stop and there are no more items to process, break the loop
@@ -684,18 +710,18 @@ begin
         Debug(dpSpam, Section, Format('Write %d stats entries to the DB', [fStatRaceQueue.Count]));
 
       try
-        glStatsDb.DB.TransactionBegin;
+        GlStatsDb.DB.TransactionBegin;
         try
           while fStatRaceQueue.Count > 0 do
           begin
             writeStatsToDB(fStatRaceQueue.Dequeue);
           end;
-          glStatsDb.DB.Commit;
+          GlStatsDb.DB.Commit;
         except
           on e: Exception do
           begin
             Debug(dpError, Section, Format('[EXCEPTION] WriteRaceStats DB: %s', [e.Message]));
-            glStatsDb.DB.Rollback;
+            GlStatsDb.DB.Rollback;
           end;
         end;
       finally
@@ -709,33 +735,33 @@ begin
     end;
 
     try
-      if (glDeleteAfterDays > 0) and not glWriteStatsThreadShouldStop then
+      if (GlDeleteAfterDays > 0) and not glWriteStatsThreadShouldStop then
       begin
 
         // clean the stats DB of old entries once each day
         if (DaysBetween(glLastStatsCleanTime, Today()) > 0) then
         begin
           i := 0;
-          fCleanDate := IncDay(Today(), glDeleteAfterDays * -1);
+          fCleanDate := IncDay(Today(), GlDeleteAfterDays * -1);
 
           // only delete 1000 at a time
-          fRec := TSQLFileInfoRecord.CreateAndFillPrepare(glStatsDb.Client, 'TimeStamp < ?', [DateToIso8601(fCleanDate, False)]);
+          fRec := TSQLFileInfoRecord.CreateAndFillPrepare(GlStatsDb.Client, 'TimeStamp < ?', [DateToIso8601(fCleanDate, False)]);
           try
-            glStatsDb.DB.TransactionBegin;
+            GlStatsDb.DB.TransactionBegin;
             try
               while not glWriteStatsThreadShouldStop and fRec.FillOne do
               begin
-                glStatsDb.Delete(TSQLStatsRecord, 'FileInfoRec = ?', [fRec.ID]);
-                glStatsDb.Delete(TSQLFileInfoRecord, fRec.ID);
+                GlStatsDb.Delete(TSQLStatsRecord, 'FileInfoRec = ?', [fRec.ID]);
+                GlStatsDb.Delete(TSQLFileInfoRecord, fRec.ID);
                 i := i + 1;
                 if i >= 1000 then break;
               end;
-              glStatsDb.DB.Commit;
+              GlStatsDb.DB.Commit;
             except
               on e: Exception do
               begin
                 Debug(dpError, Section, Format('[EXCEPTION] Clean Stats DB (rollback): %s', [e.Message]));
-                glStatsDb.DB.Rollback;
+                GlStatsDb.DB.Rollback;
               end
             end;
           finally
@@ -747,10 +773,10 @@ begin
           begin
             glLastStatsCleanTime := Today();
             Debug(dpSpam, Section, 'Finished cleaning old stats for today, now do "pragma optimize"');
-            glStatsDb.Execute('pragma optimize;');
+            GlStatsDb.Execute('pragma optimize;');
           end
           else
-            Debug(dpSpam, Section, Format('Cleaned %d entries from stats db which are older than %d days', [i, glDeleteAfterDays]));
+            Debug(dpSpam, Section, Format('Cleaned %d entries from stats db which are older than %d days', [i, GlDeleteAfterDays]));
 
         end;
       end;
