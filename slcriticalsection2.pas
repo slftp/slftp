@@ -37,6 +37,11 @@ type
     constructor Create(aName: string; const aAlwaysUseTimeoutLocking: boolean = False);
     destructor Destroy; override;
 
+    { Returns an existing TslCriticalSection2 if there already exists one with the same name. Creates a new TslCriticalSection2 otherwise.
+      Use with caution to not produce deadlocks. Only use if you know what you are doing!
+      @param(aName The unique name for the critical section.) }
+    class function GetOrCreate(const aName: string): TslCriticalSection2;
+
     { Acquire lock.
       @param(aLockOwnerName A unique name for the code which invokes this function. This is for debugging and performance monitoring purposes.)
       @param(aTimeoutMs The timeout for how long should be waited to acquire the lock.)
@@ -79,7 +84,7 @@ type
 
 implementation
   uses
-    SysUtils, IdGlobal, debugunit, Classes, Math;
+    SysUtils, debugunit, Classes, Math, mormot.core.os;
 
   // these types are used for timer log output
   type
@@ -200,6 +205,22 @@ implementation
     end;
   end;
 
+  class function TslCriticalSection2.GetOrCreate(const aName: string): TslCriticalSection2;
+  begin
+    if not glIsInitialized then
+      raise Exception.Create('TslCriticalSection2 system not initialized!');  // glUsedCriticalSections is not here in that case
+
+    glUsedCriticalSectionsLock.Enter;
+    try
+      if not glUsedCriticalSections.TryGetValue(aName, Result) then
+      begin
+        Result := TslCriticalSection2.Create(aName);
+      end;
+    finally
+      glUsedCriticalSectionsLock.Leave;
+    end;
+  end;
+
   procedure TSlCriticalSection2.FreeObjects;
   begin
     if FUseTimeoutLocking then
@@ -255,7 +276,7 @@ implementation
 
       try
         // allow for the same thread to enter multiple times
-        if FLockOwningThreadID = IdGlobal.CurrentThreadId then
+        if FLockOwningThreadID = GetCurrentThreadId then
         begin
           FLockCount := FLockCount + 1;
           Result := True;
@@ -269,7 +290,7 @@ implementation
             wrIOCompletion:
 {$ENDIF}
               begin
-                FLockOwningThreadID := IdGlobal.CurrentThreadId;
+                FLockOwningThreadID := GetCurrentThreadId;
                 Result := True;
                 FLockOwnerNameStack.Push(aLockOwnerName);
               end;
@@ -277,7 +298,7 @@ implementation
               begin
                 if aRaiseExceptionOnFail then
                 begin
-                  raise Exception.Create(Format('Unable to acquire lock ''%s'' (%s) by %s thread within %d ms. Lock is held by thread %s (%d) - %s (%s)', [FName, aLockOwnerName, IntToHex(IdGlobal.CurrentThreadId, 4), aTimeoutMs, IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName, FCurrentCodeSegmentName]));
+                  raise Exception.Create(Format('Unable to acquire lock ''%s'' (%s) by %s thread within %d ms. Lock is held by thread %s (%d) - %s (%s)', [FName, aLockOwnerName, IntToHex(GetCurrentThreadId, 4), aTimeoutMs, IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName, FCurrentCodeSegmentName]));
                 end;
                 Result := False;
               end;
@@ -348,10 +369,10 @@ implementation
     if FUseTimeoutLocking then
     begin
       if FLockOwningThreadID = 0 then
-        raise Exception.Create(Format('Trying to leave lock by thread %s but it has not been entered before', [IntToHex(IdGlobal.CurrentThreadId, 4)]));
+        raise Exception.Create(Format('Trying to leave lock by thread %s but it has not been entered before', [IntToHex(GetCurrentThreadId, 4)]));
 
-      if FLockOwningThreadID <> IdGlobal.CurrentThreadId then
-        raise Exception.Create(Format('Trying to leave lock by thread %s but it is held by thread %s (%d) - %s', [IntToHex(IdGlobal.CurrentThreadId, 4), IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName]));
+      if FLockOwningThreadID <> GetCurrentThreadId then
+        raise Exception.Create(Format('Trying to leave lock by thread %s but it is held by thread %s (%d) - %s', [IntToHex(GetCurrentThreadId, 4), IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName]));
 
       if FLockCount > 0 then
       begin
@@ -387,7 +408,7 @@ implementation
         exit;
       end;
 
-      if FLockOwningThreadID <> IdGlobal.CurrentThreadId then
+      if FLockOwningThreadID <> GetCurrentThreadId then
       begin
         Debug(dpError, glDebugSection, Format('Tried to notify code segment ''%s'', but lock is by another thread %s (%d) - %s.', [IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName]));
         exit;

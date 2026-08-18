@@ -120,10 +120,11 @@ var
   glLastStatsCleanTime: TDateTime;  //< When was the stats DB last cleaned from old entries
   glTWriteStatsThreadRunning: boolean = False; //< True if the thread which writes stats is running
   glWriteStatsThreadShouldStop: boolean = False; //< True if the thread which writes stats should terminate
+  glMinFileSize: Int64;
 
 function _GetMinFilesize: Int64; inline;
 begin
-  Result := config.ReadInteger(section, 'min_filesize', 100000);
+  Result := glMinFileSize;
 end;
 
 procedure statsInit(const aDbName: String = '');
@@ -140,6 +141,7 @@ begin
   else
     fDBName := Trim(config.ReadString(section, 'database', 'stats.db'));
   GlDeleteAfterDays := config.ReadInteger(Section, 'delete_after_days', 0);
+  glMinFileSize := config.ReadInteger(section, 'min_filesize', 100000);
 
   GlStatsModel := TSQLModel.Create([TSQLStatsRecord, TSQLSitesRecord, TSQLSectionRecord, TSQLFileInfoRecord]);
   try
@@ -166,6 +168,8 @@ begin
     while glTWriteStatsThreadRunning do
       Sleep(100);
 
+    // Checkpoint WAL to merge changes back into main database and truncate WAL file
+    GlStatsDb.DB.Execute('PRAGMA wal_checkpoint(TRUNCATE)');
     FreeAndNil(GlStatsDb);
   end;
   if Assigned(GlStatsModel) then
