@@ -489,7 +489,7 @@ var
 
     fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(GlStatsDb.Client, 
       '(DstSiteRec.Name = ? OR SrcSiteRec.Name = ?) AND FileInfoRec.TimeStamp > date(?, ?)',
-      [fSite, fSite, 'now', StringToUTF8(aSQLPeriod)], []);
+      [], [fSite, fSite, 'now', StringToUTF8(aSQLPeriod)]);
     try
       while fStatsRec.FillOne do
       begin
@@ -529,7 +529,7 @@ var
           // input site is source
           fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(GlStatsDb.Client,
             'SrcSiteRec.Name = ? AND FileInfoRec.TimeStamp > date(?, ?)',
-            [fSite, 'now', StringToUTF8(aSQLPeriod)], []);
+            [], [fSite, 'now', StringToUTF8(aSQLPeriod)]);
           try
             while fStatsRec.FillOne do
             begin
@@ -559,7 +559,7 @@ var
           // input site is destination
           fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(GlStatsDb.Client,
             'DstSiteRec.Name = ? AND FileInfoRec.TimeStamp > date(?, ?)',
-            [fSite, 'now', StringToUTF8(aSQLPeriod)], []);
+            [], [fSite, 'now', StringToUTF8(aSQLPeriod)]);
           try
             while fStatsRec.FillOne do
             begin
