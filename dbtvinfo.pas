@@ -107,7 +107,8 @@ implementation
 uses
   DateUtils, SysUtils, Math, configunit, StrUtils, mystrings, console, sitesunit, queueunit, slmasks, http, RegExpr,
   debugunit, tasktvinfolookup, pazo, mrdohutils, uLkJSON, sllanguagebase,
-  Generics.Collections, news, kb, mormot.core.unicode, mormot.core.base, mormot.orm.base;
+  Generics.Collections, news, kb, mormot.core.unicode, mormot.core.base, mormot.orm.base,
+  mormot.db.raw.sqlite3;
 
 const
   section = 'tasktvinfo';
@@ -489,6 +490,34 @@ begin
 
   aTvi.tv_running := Boolean( (SysUtils.LowerCase(aTvi.tv_status) = 'running') or (SysUtils.LowerCase(aTvi.tv_status) = 'in development') );
   aTvi.tv_scripted := Boolean(SysUtils.LowerCase(aTvi.tv_classification) = 'scripted');
+end;
+
+{ Drops the legacy Zeos indexes tvinfo (on infos) and Rips (on series) which the
+  old code created on every start. SQLite shares one namespace for table and
+  index names, so the index 'tvinfo' would otherwise block CREATE TABLE TVInfo
+  in CreateMissingTables. Must run before the ORM database is opened.
+  Any error is only logged, never raised }
+procedure _DropLegacyTvinfoIndexes(const aDbName: String);
+var
+  fDbPath: String;
+  fDb: TSQLDataBase;
+begin
+  fDbPath := GetDatabaseFilePath(aDbName);
+  if not FileExists(fDbPath) then
+    exit;
+
+  try
+    fDb := TSQLDataBase.Create(StringToUTF8(fDbPath));
+    try
+      fDb.Execute('DROP INDEX IF EXISTS tvinfo');
+      fDb.Execute('DROP INDEX IF EXISTS Rips');
+    finally
+      fDb.Free;
+    end;
+  except
+    on e: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] _DropLegacyTvinfoIndexes: %s', [e.Message]));
+  end;
 end;
 
 { Migrates the legacy Zeos tables series/infos into the ORM tables and drops
@@ -1253,6 +1282,10 @@ begin
   fDBName := Trim(aDbName);
   if fDBName = '' then
     fDBName := Trim(config.ReadString(section, 'database', 'tvinfos.db'));
+
+  // legacy Zeos index 'tvinfo' blocks CREATE TABLE TVInfo (shared name namespace),
+  // so it must be dropped before CreateORMSQLite3DB runs CreateMissingTables
+  _DropLegacyTvinfoIndexes(fDBName);
 
   GlTVInfoModel := TSQLModel.Create([TSQLTVInfo, TSQLTVSeries]);
   try

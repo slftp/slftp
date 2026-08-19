@@ -19,6 +19,11 @@ function CreateSQLite3DbConn(const aDatabaseName: String; const aPassword: Strin
   @returns(Initialized TSQLRestClientDB instance, returns exception and nil on failure) }
 function CreateORMSQLite3DB(const aORMSQLModel: TSQLModel; const aDatabaseName: String; const aPassword: String): TSQLRestClientDB;
 
+{ Returns the full path for a database file inside the databases folder
+  @param(aDatabaseName name of the database file on local storage, must include filename extension)
+  @returns(Full path incl. databases folder) }
+function GetDatabaseFilePath(const aDatabaseName: String): String;
+
 var
   MySQLCon: TSQLDBZEOSConnectionProperties = nil; //< global connection to a MySQL/MariaDb server
 
@@ -65,6 +70,11 @@ begin
       exit;
     end;
   end;
+end;
+
+function GetDatabaseFilePath(const aDatabaseName: String): String;
+begin
+  Result := _GetDatabasePath + aDatabaseName;
 end;
 
 function CreateORMSQLite3DB(const aORMSQLModel: TSQLModel; const aDatabaseName: String; const aPassword: String): TSQLRestClientDB;

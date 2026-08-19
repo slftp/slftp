@@ -90,7 +90,8 @@ type
 implementation
 
 uses
-  SysUtils, Classes, tvinfo.types, globals, mormot.core.base, mormot.core.unicode;
+  SysUtils, Classes, tvinfo.types, globals, dbhandler, mormot.core.base,
+  mormot.core.unicode, mormot.db.raw.sqlite3;
 
 const
   CTEST_DB_NAME = 'test_tvinfo.db'; //< database file name used by the ORM persistence tests
@@ -1312,26 +1313,41 @@ var
   fTables: TRawUTF8DynArray;
   fTableName: RawUTF8;
   fHasLegacyTables: boolean;
+  fLegacyDb: TSQLDataBase;
 begin
-  // create the legacy Zeos tables with fixture rows next to the ORM tables
-  GlTVInfoDb.DB.Execute('CREATE TABLE infos(' +
-    'tvdb_id INTEGER, tvrage_id INTEGER, tvmaze_id INTEGER NOT NULL, premiered_year INTEGER NOT NULL, ' +
-    'country TEXT NOT NULL DEFAULT unknown, status TEXT NOT NULL DEFAULT unknown, ' +
-    'classification TEXT NOT NULL DEFAULT unknown, network TEXT NOT NULL DEFAULT unknown, ' +
-    'genre TEXT NOT NULL DEFAULT unknown, ended_year INTEGER, last_updated INTEGER NOT NULL DEFAULT -1, ' +
-    'next_date INTEGER, next_season INTEGER, next_episode INTEGER, rating INTEGER, airdays TEXT, ' +
-    'tv_language TEXT, PRIMARY KEY (tvmaze_id ASC));');
-  GlTVInfoDb.DB.Execute('INSERT INTO infos (tvdb_id, tvrage_id, tvmaze_id, premiered_year, country, status, ' +
-    'classification, network, genre, ended_year, last_updated, next_date, next_season, next_episode, rating, ' +
-    'airdays, tv_language) VALUES (6789, 4321, 12345, 2019, ''USA'', ''Running'', ''Scripted'', ''HBO'', ' +
-    '''Drama,Comedy'', -1, 1700000000, 1893456000, 2, 5, 84, ''Monday,Tuesday'', ''English'');');
-  GlTVInfoDb.DB.Execute('CREATE TABLE series(' +
-    'rip TEXT NOT NULL, showname TEXT NOT NULL, rip_country TEXT, tvmaze_url TEXT, id INTEGER NOT NULL, ' +
-    'PRIMARY KEY (rip));');
-  GlTVInfoDb.DB.Execute('INSERT INTO series (rip, showname, rip_country, tvmaze_url, id) VALUES ' +
-    '(''The Grand Show'', ''The Grand Show'', NULL, ''https://www.tvmaze.com/shows/12345/the-grand-show'', 12345);');
+  // build a realistic legacy database from scratch (without any ORM tables):
+  // the old Zeos code created the unique indexes tvinfo/Rips on every start and
+  // index 'tvinfo' blocks CREATE TABLE TVInfo (shared SQLite name namespace),
+  // so the fixture must include them to mirror a real user database
+  dbTVInfoUninit;
+  DeleteTestDb;
 
-  // restart triggers the one-time migration
+  fLegacyDb := TSQLDataBase.Create(StringToUTF8(GetDatabaseFilePath(CTEST_DB_NAME)));
+  try
+    fLegacyDb.Execute('CREATE TABLE infos(' +
+      'tvdb_id INTEGER, tvrage_id INTEGER, tvmaze_id INTEGER NOT NULL, premiered_year INTEGER NOT NULL, ' +
+      'country TEXT NOT NULL DEFAULT unknown, status TEXT NOT NULL DEFAULT unknown, ' +
+      'classification TEXT NOT NULL DEFAULT unknown, network TEXT NOT NULL DEFAULT unknown, ' +
+      'genre TEXT NOT NULL DEFAULT unknown, ended_year INTEGER, last_updated INTEGER NOT NULL DEFAULT -1, ' +
+      'next_date INTEGER, next_season INTEGER, next_episode INTEGER, rating INTEGER, airdays TEXT, ' +
+      'tv_language TEXT, PRIMARY KEY (tvmaze_id ASC));');
+    fLegacyDb.Execute('INSERT INTO infos (tvdb_id, tvrage_id, tvmaze_id, premiered_year, country, status, ' +
+      'classification, network, genre, ended_year, last_updated, next_date, next_season, next_episode, rating, ' +
+      'airdays, tv_language) VALUES (6789, 4321, 12345, 2019, ''USA'', ''Running'', ''Scripted'', ''HBO'', ' +
+      '''Drama,Comedy'', -1, 1700000000, 1893456000, 2, 5, 84, ''Monday,Tuesday'', ''English'');');
+    fLegacyDb.Execute('CREATE TABLE series(' +
+      'rip TEXT NOT NULL, showname TEXT NOT NULL, rip_country TEXT, tvmaze_url TEXT, id INTEGER NOT NULL, ' +
+      'PRIMARY KEY (rip));');
+    fLegacyDb.Execute('INSERT INTO series (rip, showname, rip_country, tvmaze_url, id) VALUES ' +
+      '(''The Grand Show'', ''The Grand Show'', NULL, ''https://www.tvmaze.com/shows/12345/the-grand-show'', 12345);');
+    // created by the old code on every start, see pre-migration dbTVInfoStart
+    fLegacyDb.Execute('CREATE UNIQUE INDEX IF NOT EXISTS main.tvinfo ON infos (tvmaze_id ASC);');
+    fLegacyDb.Execute('CREATE UNIQUE INDEX IF NOT EXISTS main.Rips ON series (rip ASC);');
+  finally
+    fLegacyDb.Free;
+  end;
+
+  // start triggers the one-time migration (and must drop the blocking indexes first)
   dbTVInfoStart(CTEST_DB_NAME);
 
   CheckEquals(1, getTVInfoCount, 'legacy infos row should have been migrated');
