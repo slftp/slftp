@@ -62,6 +62,21 @@ begin
       end;
     end;
 
+    if aErrMsg = '' then
+    begin
+      if fOutStatus = 404 then
+      begin
+        aErrMsg := Format('HTTP GET failed with 404 Not Found. (%s)', [aUrl]);
+        exit;
+      end;
+
+      if ((fOutStatus >= 400) and (fOutStatus < 600)) then
+      begin
+        aErrMsg := Format('HTTP GET failed with status %d. (%s)', [fOutStatus, aUrl]);
+        exit;
+      end;
+    end;
+
     if (Length(aRecvStr) = 0) and (aErrMsg = '') then
     begin
       Debug(dpError, section, Format('HTTP GET reply for %s is empty (%s / %d).', [aUrl, Utf8ToString(fOutHeaders), fOutStatus]));
