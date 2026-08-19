@@ -8,6 +8,9 @@
 ##############
 # changelog
 # now       + Visit Changelog on : https://gitlab.com/slftp/slftp/-/commits/dev/docs/libinstaller.sh
+# v20260312 # bugfix for OpenSSL version listing (openssl-library.org no longer provides GitHub release URLs)
+#           ^ switched MIRROR_OPENSSL to GitHub releases API for reliable version discovery
+#           ^ restricted OpenSSL versions to 1.1.x and 3.6+
 # v20210409 + slftp now supports openssl 1.1
 #           # changelog from this point on will be covered in Gitlab
 # v20200727 # bugfix for downloading mysql (github template has been changed)
@@ -33,7 +36,7 @@ LOGFILE="/tmp/debug.log"
 #here we will download/compile
 DEVDIR="$(pwd)/_dev"
 
-MIRROR_OPENSSL="https://openssl-library.org/source/"
+MIRROR_OPENSSL="https://api.github.com/repos/openssl/openssl/releases"
 
 MIRROR_SQLITE="https://www.sqlite.org/download.html"
 
@@ -93,7 +96,7 @@ function func_maxnum {
 
 function func_openssl {
 
-  OPENSSL_FILES=$(wget -O- -q "$MIRROR_OPENSSL" 2>/dev/null | grep -o -E "https://github.com/openssl/openssl/releases/download/[^\"]+openssl-[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz" | grep -v "fips" | sort -u -t- -k2 -V || echo "")
+  OPENSSL_FILES=$(wget -O- -q --header="User-Agent: libinstaller.sh" "${MIRROR_OPENSSL}?per_page=100" 2>/dev/null | grep -o '"browser_download_url":"[^"]*openssl-[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*[a-z]*\.tar\.gz"' | grep -v "fips\|pre\|beta\|alpha" | grep -o 'https://[^"]*' | grep -E "openssl-1\.1\.|openssl-3\.([6-9]|[1-9][0-9])\." | sort -u -t- -k2 -V || echo "")
 
   i=0
   echo "Available OpenSSL versions:"

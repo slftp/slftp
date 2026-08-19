@@ -32,6 +32,7 @@ type
   end;
 
 function precatcherauto: boolean;
+procedure setprecatcherauto(const aPrecatcherAutoValue: boolean);
 
 procedure Precatcher_DelSiteChans(const sitename: String);
 function PrecatcherReload: String;
@@ -40,7 +41,7 @@ procedure PrecatcherStart;
 procedure PrecatcherProcessB(net, chan, nick, Data: String);
 procedure PrecatcherProcess(const net, chan, nick, Data: String);
 function precatcher_logfilename: String;
-procedure Precatcher_Init;
+procedure Precatcher_Init(const aSetAuto: boolean);
 procedure Precatcher_Uninit;
 function PrecatcherSectionMapping(const rls, section: String; x_count: integer = 0): String;
 
@@ -56,7 +57,6 @@ var
   precatcher_debug: boolean = False;
   precatcher_ircdebug: boolean = False;
   precatcher_debug_netname, precatcher_debug_channel: String;
-  //  precatcher_auto: Boolean;
   catcherFile: TEncStringlist;
   mappingslist: TObjectList;
   minimum_rlsname: integer = 10;
@@ -82,6 +82,9 @@ var
   debug_f: TextFile;
   precatcher_debug_lock: TSlCriticalSection2;
   precatcher_lock: TSlCriticalSection2;
+  precatcher_auto: Boolean;
+  recursiv_mapping: Boolean;
+  announce_event: Boolean;
 
   glSectionList: TStringList; //< List of all entries of the [sections] category
 
@@ -222,7 +225,7 @@ begin
         MyDebug(Format('PrecatcherSectionMapping testing %s for %s', [rls, x.newsection]));
         if (x.mask.Matches(rls)) then
         begin
-          if ((config.ReadBool(rsections, 'recursiv_mapping', False)) and (x.newsection <> 'TRASH')) then
+          if ((recursiv_mapping) and (x.newsection <> 'TRASH')) then
           begin
             Result := PrecatcherSectionMapping(rls, x.newsection, x_count);
             exit;
@@ -378,7 +381,7 @@ begin
   if not precatcher_debug then
   begin
     try
-      if spamcfg.ReadBool('precatcher', 'announce_event', True) then
+      if announce_event then
       begin
         irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[%s]</c> %s %s @ <b>%s</b>', [event, section, rls, sitename]));
       end;
@@ -893,7 +896,7 @@ begin
   Result := ExtractFilePath(ParamStr(0)) + config.ReadString(rsections, 'debugfile', 'precatcher.log');
 end;
 
-procedure Precatcher_Init;
+procedure Precatcher_Init(const aSetAuto: boolean);
 begin
   cd := THashedStringList.Create;
   cd.CaseSensitive := False;
@@ -925,6 +928,14 @@ begin
   catcherFile := TEncStringList.Create(passphrase);
 
   precatcher_ircdebug := config.ReadBool(rsections, 'precatcher_debug', False);
+
+  if aSetAuto then
+    precatcher_auto := True
+  else
+    precatcher_auto := sitesdat.ReadBool('precatcher', 'auto', False);
+
+  recursiv_mapping := config.ReadBool(rsections, 'recursiv_mapping', False);
+  announce_event := spamcfg.ReadBool('precatcher', 'announce_event', True);
 
   precatcher_debug_lock := TSlCriticalSection2.Create('precatcher_debug_lock');
   Assignfile(debug_f, precatcher_logfilename);
@@ -1097,7 +1108,13 @@ end;
 
 function precatcherauto: boolean;
 begin
-  Result := sitesdat.ReadBool('precatcher', 'auto', False);
+  Result := precatcher_auto;
+end;
+
+procedure setprecatcherauto(const aPrecatcherAutoValue: boolean);
+begin
+  precatcher_auto := aPrecatcherAutoValue;
+  sitesdat.WriteBool('precatcher', 'auto', aPrecatcherAutoValue);
 end;
 
 end.

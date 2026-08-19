@@ -486,7 +486,7 @@ begin
       if (event = kbeADDPRE) then
       begin
         if spamcfg.ReadBool('kb', 'new_rls', True) then
-          irc_Addstats(Format('<c3>[ADDPRE]</c> %s %s', [section, rls]));
+          irc_Addstats(Format('<c3>[ADDPRE]</c> %s %s @ <b>%s</b>', [section, rls, channel]));
       end
       else if (event = kbePRE) then
       begin
@@ -1279,10 +1279,13 @@ begin
   kb_sections.Sorted := True;
   kb_sections.Duplicates := dupIgnore;
 
-  secs := TStringlist.Create;
-  r := TRegexpr.Create;
-  xin := Tinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
+  secs := nil;
+  r := nil;
+  xin := nil;
   try
+    secs := TStringlist.Create;
+    r := TRegexpr.Create;
+    xin := Tinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
     r.ModifierI := True;
     r.ModifierM := True;
     r.Expression := '^(\#|\/\/)';
@@ -1299,9 +1302,9 @@ begin
     end;
 
   finally
-    xin.Free;
-    r.free;
-    secs.free;
+    FreeAndNil(xin);
+    FreeAndNil(r);
+    FreeAndNil(secs);
   end;
   Result := True;
 end;
@@ -1517,7 +1520,7 @@ begin
       for ps in destinations do
       begin
         // Check for every destination if its routable if we care about that
-        rank := TSpeedFromRouteInfo.CreateFromConfigString(sitesdat.ReadString('speed-from-' + sps.Name, ps.Name, '0')).Speed;
+        rank := TSpeedFromRouteInfo.CreateFromConfigString(sitesdat.ReadString('site-' + sps.Name, 'speed-from-' + ps.Name, '0')).Speed;
         if ((glOnlyUseRouteableSitesOnTryToComplete) and (rank = 0)) then
           Continue;
         ssites_info.Add(ps.Name);
@@ -1530,7 +1533,7 @@ begin
       // Add every destination and the real ranks (if available) or a default of 0 for routing source -> destination
       for j := 0 to ssites_info.Count - 1 do
       begin
-        rank := TSpeedFromRouteInfo.CreateFromConfigString(sitesdat.ReadString('speed-from-' + sps.Name, ssites_info[j], '0')).Speed;
+        rank := TSpeedFromRouteInfo.CreateFromConfigString(sitesdat.ReadString('site-' + sps.Name, 'speed-from-' + ssites_info[j], '0')).Speed;
         ps.AddDestination(ssites_info[j], rank);
         dsites_info := site_allocation.Items[ssites_info[j]];
         dsites_info.Add(sps.Name);
