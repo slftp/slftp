@@ -398,7 +398,7 @@ implementation
 
 uses
   debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
-  taskrace, sitesunit, queueunit, pazo, irc, SysUtils, fake, mystrings, TypInfo,
+  taskrace, sitesunit, queueunit, pazo, irc, SysUtils, fake, mystrings,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup,
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, tvinfo.types, irccolorunit,
@@ -1359,22 +1359,6 @@ end;
 function TTVRelease.AsText(const aPazoID: Integer): String;
 var
   fMismatchReason: String;
-
-  function TVGetShowValuesIdentifierToString(aValue: Integer): String;
-  begin
-    case aValue of
-      -110: Result := 'NoEpisodeTag';
-      -100: Result := 'NoExplicitShowTag';
-      -90: Result := 'RegularSerieWithoutSeason';
-      -80: Result := 'DatedShow';
-      -70: Result := 'ConversionError';
-      -60: Result := 'NotMatched';
-      -50: Result := 'InitialValue';
-    else
-      Result := 'Unknown';
-    end;
-  end;
-
 begin
   Result := inherited AsText(aPazoID);
   try
@@ -1383,7 +1367,7 @@ begin
 
     if (season < 0) then
     begin
-      fMismatchReason := TVGetShowValuesIdentifierToString(season);
+      fMismatchReason := TEnum<TTVGetShowValuesIdentifier>.ToString(TTVGetShowValuesIdentifier(season)).Replace('tv', '');
       Result := Result + Format('Season: %d (Reason: %s)', [season, fMismatchReason]) + #13#10;
     end
     else
@@ -1391,7 +1375,7 @@ begin
 
     if (episode < 0) then
     begin
-      fMismatchReason := TVGetShowValuesIdentifierToString(episode);
+      fMismatchReason := TEnum<TTVGetShowValuesIdentifier>.ToString(TTVGetShowValuesIdentifier(episode)).Replace('tv', '');
       Result := Result + Format('Episode: %d (Reason: %s)', [episode, fMismatchReason]) + #13#10;
     end
     else

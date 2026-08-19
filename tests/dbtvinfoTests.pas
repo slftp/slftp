@@ -4,10 +4,11 @@ interface
 
 uses
   {$IFDEF FPC}
-    TestFramework;
+    TestFramework,
   {$ELSE}
-    DUnitX.TestFramework, DUnitX.DUnitCompatibility;
+    DUnitX.TestFramework, DUnitX.DUnitCompatibility,
   {$ENDIF}
+  dbtvinfo;
 
 type
   TTestShowFunctions = class(TTestCase)
@@ -64,10 +65,35 @@ type
     procedure GetShowValues42;
   end;
 
+  { @abstract(Tests for the mORMot2 ORM persistence of dbtvinfo (Save/Get/Update/Delete and legacy table migration)) }
+  TTestTVInfoDb = class(TTestCase)
+  private
+    { deletes the test database incl. WAL/SHM files }
+    procedure DeleteTestDb;
+    { creates a fully filled TTVInfoDB fixture for 'The Grand Show' (tvmaze_id 12345) }
+    function CreateFixture: TTVInfoDB;
+  protected
+    procedure SetUp; override;
+    procedure TearDown; override;
+  published
+    procedure TestSaveAndGetByShowName;
+    procedure TestSaveAndGetByShowID;
+    procedure TestSaveAndGetByReleaseName;
+    procedure TestSaveDuplicateIsIgnored;
+    procedure TestExecuteUpdate;
+    procedure TestSetTheTVDbIDAndTVRageID;
+    procedure TestDeleteTVInfoByID;
+    procedure TestDeleteTVInfoByRipName;
+    procedure TestLegacyTableMigration;
+  end;
+
 implementation
 
 uses
-  SysUtils, dbtvinfo, tvinfo.types;
+  SysUtils, Classes, tvinfo.types, globals, mormot.core.base, mormot.core.unicode;
+
+const
+  CTEST_DB_NAME = 'test_tvinfo.db'; //< database file name used by the ORM persistence tests
 
 { TTestShowFunctions }
 
@@ -1005,10 +1031,340 @@ begin
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
 
+{ TTestTVInfoDb }
+
+procedure TTestTVInfoDb.DeleteTestDb;
+var
+  fDbPath: String;
+begin
+  fDbPath := ExtractFilePath(ParamStr(0)) + DATABASEFOLDERNAME + PathDelim + CTEST_DB_NAME;
+  DeleteFile(fDbPath);
+  DeleteFile(fDbPath + '-wal');
+  DeleteFile(fDbPath + '-shm');
+end;
+
+function TTestTVInfoDb.CreateFixture: TTVInfoDB;
+begin
+  Result := TTVInfoDB.Create('The Grand Show');
+  Result.tv_showname := 'The Grand Show';
+  Result.tvmaze_id := '12345';
+  Result.thetvdb_id := '6789';
+  Result.tvrage_id := '4321';
+  Result.tv_url := 'https://www.tvmaze.com/shows/12345/the-grand-show';
+  Result.tv_premiered_year := 2019;
+  Result.tv_country := 'USA';
+  Result.tv_status := 'Running';
+  Result.tv_classification := 'Scripted';
+  Result.tv_network := 'HBO';
+  Result.tv_genres.CommaText := 'Drama,Comedy';
+  Result.tv_endedyear := -1;
+  Result.tv_next_date := 1893456000;
+  Result.tv_next_season := 2;
+  Result.tv_next_ep := 5;
+  Result.tv_days.CommaText := 'Monday,Tuesday';
+  Result.tv_rating := 84;
+  Result.tv_language := 'English';
+end;
+
+procedure TTestTVInfoDb.SetUp;
+begin
+  inherited SetUp;
+  DeleteTestDb;
+  // workaround for the known _CreateDatabaseFolder CWD bug in dbhandler.pas
+  ForceDirectories(ExtractFilePath(ParamStr(0)) + DATABASEFOLDERNAME);
+  dbTVInfoStart(CTEST_DB_NAME);
+end;
+
+procedure TTestTVInfoDb.TearDown;
+begin
+  dbTVInfoUninit;
+  DeleteTestDb;
+  inherited TearDown;
+end;
+
+procedure TTestTVInfoDb.TestSaveAndGetByShowName;
+var
+  fTvi, fRead: TTVInfoDB;
+begin
+  fTvi := CreateFixture;
+  try
+    fTvi.Save;
+  finally
+    fTvi.Free;
+  end;
+
+  CheckEquals(1, getTVInfoCount, 'one infos row expected after Save');
+  CheckEquals(1, getTVInfoSeriesCount, 'one series row expected after Save');
+
+  fRead := getTVInfoByShowName('The Grand Show');
+  CheckTrue(fRead <> nil, 'getTVInfoByShowName should find the saved show');
+  if fRead = nil then
+    exit;
+  try
+    CheckEquals('The Grand Show', fRead.tv_showname, 'showname mismatch');
+    CheckEquals('12345', fRead.tvmaze_id, 'tvmaze_id mismatch');
+    CheckEquals('6789', fRead.thetvdb_id, 'thetvdb_id mismatch');
+    CheckEquals('4321', fRead.tvrage_id, 'tvrage_id mismatch');
+    CheckEquals('https://www.tvmaze.com/shows/12345/the-grand-show', fRead.tv_url, 'url mismatch');
+    CheckEquals(2019, fRead.tv_premiered_year, 'premiered_year mismatch');
+    CheckEquals('USA', fRead.tv_country, 'country mismatch');
+    CheckEquals('Running', fRead.tv_status, 'status mismatch');
+    CheckEquals('Scripted', fRead.tv_classification, 'classification mismatch');
+    CheckEquals('HBO', fRead.tv_network, 'network mismatch');
+    CheckEquals('Drama,Comedy', fRead.tv_genres.CommaText, 'genres mismatch');
+    CheckEquals(-1, fRead.tv_endedyear, 'endedyear mismatch');
+    CheckEquals(1893456000, fRead.tv_next_date, 'next_date mismatch');
+    CheckEquals(2, fRead.tv_next_season, 'next_season mismatch');
+    CheckEquals(5, fRead.tv_next_ep, 'next_ep mismatch');
+    CheckEquals('Monday,Tuesday', fRead.tv_days.CommaText, 'airdays mismatch');
+    CheckEquals(84, fRead.tv_rating, 'rating mismatch');
+    CheckEquals('English', fRead.tv_language, 'language mismatch');
+    CheckTrue(fRead.last_updated > 0, 'last_updated should be a unix timestamp');
+    CheckTrue(fRead.tv_running, 'tv_running should be computed as true');
+    CheckTrue(fRead.tv_scripted, 'tv_scripted should be computed as true');
+  finally
+    fRead.Free;
+  end;
+
+  // case-insensitive rip matching like the old LIKE query
+  fRead := getTVInfoByShowName('the grand show');
+  CheckTrue(fRead <> nil, 'getTVInfoByShowName should match case-insensitive');
+  if fRead <> nil then
+    fRead.Free;
+end;
+
+procedure TTestTVInfoDb.TestSaveAndGetByShowID;
+var
+  fTvi, fRead: TTVInfoDB;
+begin
+  fTvi := CreateFixture;
+  try
+    fTvi.Save;
+  finally
+    fTvi.Free;
+  end;
+
+  fRead := getTVInfoByShowID('12345');
+  CheckTrue(fRead <> nil, 'getTVInfoByShowID should find the saved show');
+  if fRead = nil then
+    exit;
+  try
+    CheckEquals('The Grand Show', fRead.rls_showname, 'rip mismatch');
+    CheckEquals('12345', fRead.tvmaze_id, 'tvmaze_id mismatch');
+    CheckEquals(2019, fRead.tv_premiered_year, 'premiered_year mismatch');
+    CheckEquals(84, fRead.tv_rating, 'rating mismatch');
+  finally
+    fRead.Free;
+  end;
+
+  CheckTrue(getTVInfoByShowID('99999') = nil, 'unknown id should return nil');
+end;
+
+procedure TTestTVInfoDb.TestSaveAndGetByReleaseName;
+var
+  fTvi, fRead: TTVInfoDB;
+begin
+  fTvi := CreateFixture;
+  try
+    fTvi.Save;
+  finally
+    fTvi.Free;
+  end;
+
+  fRead := getTVInfoByReleaseName('The.Grand.Show.S01E02.GERMAN.720p.HDTV.x264-TEST');
+  CheckTrue(fRead <> nil, 'getTVInfoByReleaseName should find the saved show');
+  if fRead = nil then
+    exit;
+  try
+    CheckEquals('12345', fRead.tvmaze_id, 'tvmaze_id mismatch');
+  finally
+    fRead.Free;
+  end;
+end;
+
+procedure TTestTVInfoDb.TestSaveDuplicateIsIgnored;
+var
+  fTvi: TTVInfoDB;
+begin
+  fTvi := CreateFixture;
+  try
+    fTvi.Save;
+  finally
+    fTvi.Free;
+  end;
+
+  // second Save must be ignored like the old INSERT OR IGNORE
+  fTvi := CreateFixture;
+  try
+    fTvi.Save;
+    CheckEquals(3817, fTvi.last_updated, 'last_updated marker for ignored insert expected');
+  finally
+    fTvi.Free;
+  end;
+
+  CheckEquals(1, getTVInfoCount, 'duplicate Save must not add another infos row');
+  CheckEquals(1, getTVInfoSeriesCount, 'duplicate Save must not add another series row');
+end;
+
+procedure TTestTVInfoDb.TestExecuteUpdate;
+var
+  fTvi, fRead: TTVInfoDB;
+begin
+  fTvi := CreateFixture;
+  try
+    fTvi.Save;
+
+    fTvi.tv_status := 'Ended';
+    fTvi.tv_endedyear := 2023;
+    fTvi.tv_rating := 91;
+    CheckTrue(fTvi.executeUpdate, 'executeUpdate should return true for an existing show');
+  finally
+    fTvi.Free;
+  end;
+
+  CheckEquals(1, getTVInfoCount, 'executeUpdate must not add another infos row');
+
+  fRead := getTVInfoByShowID('12345');
+  CheckTrue(fRead <> nil, 'updated show should be readable');
+  if fRead = nil then
+    exit;
+  try
+    CheckEquals('Ended', fRead.tv_status, 'status should have been updated');
+    CheckEquals(2023, fRead.tv_endedyear, 'endedyear should have been updated');
+    CheckEquals(91, fRead.tv_rating, 'rating should have been updated');
+    CheckFalse(fRead.tv_running, 'tv_running should be computed as false');
+  finally
+    fRead.Free;
+  end;
+
+  // update of a non existing show must fail
+  fTvi := CreateFixture;
+  try
+    fTvi.tvmaze_id := '99999';
+    CheckFalse(fTvi.executeUpdate, 'executeUpdate should return false for an unknown show');
+  finally
+    fTvi.Free;
+  end;
+end;
+
+procedure TTestTVInfoDb.TestSetTheTVDbIDAndTVRageID;
+var
+  fTvi, fRead: TTVInfoDB;
+begin
+  fTvi := CreateFixture;
+  try
+    fTvi.Save;
+    fTvi.setTheTVDbID(111);
+    fTvi.setTVRageID(222);
+  finally
+    fTvi.Free;
+  end;
+
+  fRead := getTVInfoByShowID('12345');
+  CheckTrue(fRead <> nil, 'show should be readable');
+  if fRead = nil then
+    exit;
+  try
+    CheckEquals('111', fRead.thetvdb_id, 'thetvdb_id should have been updated');
+    CheckEquals('222', fRead.tvrage_id, 'tvrage_id should have been updated');
+  finally
+    fRead.Free;
+  end;
+end;
+
+procedure TTestTVInfoDb.TestDeleteTVInfoByID;
+var
+  fTvi: TTVInfoDB;
+begin
+  fTvi := CreateFixture;
+  try
+    fTvi.Save;
+  finally
+    fTvi.Free;
+  end;
+
+  CheckEquals(1, deleteTVInfoByID('12345'), 'delete of existing show should return 1');
+  CheckEquals(0, getTVInfoCount, 'infos row should be deleted');
+  CheckEquals(0, getTVInfoSeriesCount, 'series row should be deleted');
+  CheckEquals(10, deleteTVInfoByID('12345'), 'delete of missing show should return 10');
+end;
+
+procedure TTestTVInfoDb.TestDeleteTVInfoByRipName;
+var
+  fTvi: TTVInfoDB;
+begin
+  CheckEquals(0, deleteTVInfoByRipName('Unknown Show'), 'delete of unknown rip should return 0');
+
+  fTvi := CreateFixture;
+  try
+    fTvi.Save;
+  finally
+    fTvi.Free;
+  end;
+
+  CheckEquals(1, deleteTVInfoByRipName('The Grand Show'), 'delete of existing rip should return 1');
+  CheckTrue(getTVInfoByShowName('The Grand Show') = nil, 'show should be gone after delete');
+end;
+
+procedure TTestTVInfoDb.TestLegacyTableMigration;
+var
+  fTvi: TTVInfoDB;
+  fTables: TRawUTF8DynArray;
+  fTableName: RawUTF8;
+  fHasLegacyTables: boolean;
+begin
+  // create the legacy Zeos tables with fixture rows next to the ORM tables
+  GlTVInfoDb.DB.Execute('CREATE TABLE infos(' +
+    'tvdb_id INTEGER, tvrage_id INTEGER, tvmaze_id INTEGER NOT NULL, premiered_year INTEGER NOT NULL, ' +
+    'country TEXT NOT NULL DEFAULT unknown, status TEXT NOT NULL DEFAULT unknown, ' +
+    'classification TEXT NOT NULL DEFAULT unknown, network TEXT NOT NULL DEFAULT unknown, ' +
+    'genre TEXT NOT NULL DEFAULT unknown, ended_year INTEGER, last_updated INTEGER NOT NULL DEFAULT -1, ' +
+    'next_date INTEGER, next_season INTEGER, next_episode INTEGER, rating INTEGER, airdays TEXT, ' +
+    'tv_language TEXT, PRIMARY KEY (tvmaze_id ASC));');
+  GlTVInfoDb.DB.Execute('INSERT INTO infos (tvdb_id, tvrage_id, tvmaze_id, premiered_year, country, status, ' +
+    'classification, network, genre, ended_year, last_updated, next_date, next_season, next_episode, rating, ' +
+    'airdays, tv_language) VALUES (6789, 4321, 12345, 2019, ''USA'', ''Running'', ''Scripted'', ''HBO'', ' +
+    '''Drama,Comedy'', -1, 1700000000, 1893456000, 2, 5, 84, ''Monday,Tuesday'', ''English'');');
+  GlTVInfoDb.DB.Execute('CREATE TABLE series(' +
+    'rip TEXT NOT NULL, showname TEXT NOT NULL, rip_country TEXT, tvmaze_url TEXT, id INTEGER NOT NULL, ' +
+    'PRIMARY KEY (rip));');
+  GlTVInfoDb.DB.Execute('INSERT INTO series (rip, showname, rip_country, tvmaze_url, id) VALUES ' +
+    '(''The Grand Show'', ''The Grand Show'', NULL, ''https://www.tvmaze.com/shows/12345/the-grand-show'', 12345);');
+
+  // restart triggers the one-time migration
+  dbTVInfoStart(CTEST_DB_NAME);
+
+  CheckEquals(1, getTVInfoCount, 'legacy infos row should have been migrated');
+  CheckEquals(1, getTVInfoSeriesCount, 'legacy series row should have been migrated');
+
+  fTvi := getTVInfoByShowName('The Grand Show');
+  CheckTrue(fTvi <> nil, 'migrated show should be readable');
+  if fTvi = nil then
+    exit;
+  try
+    CheckEquals('12345', fTvi.tvmaze_id, 'tvmaze_id mismatch after migration');
+    CheckEquals(2019, fTvi.tv_premiered_year, 'premiered_year mismatch after migration');
+    CheckEquals('Drama,Comedy', fTvi.tv_genres.CommaText, 'genres mismatch after migration');
+    CheckEquals(1700000000, fTvi.last_updated, 'last_updated must be kept from legacy row');
+    CheckEquals(84, fTvi.tv_rating, 'rating mismatch after migration');
+  finally
+    fTvi.Free;
+  end;
+
+  fHasLegacyTables := False;
+  GlTVInfoDb.DB.GetTableNames(fTables);
+  for fTableName in fTables do
+    if SameText(fTableName, 'infos') or SameText(fTableName, 'series') then
+      fHasLegacyTables := True;
+  CheckFalse(fHasLegacyTables, 'legacy tables should have been dropped after migration');
+end;
+
 initialization
   {$IFDEF FPC}
     RegisterTest('dbtvinfo', TTestShowFunctions.Suite);
+    RegisterTest('dbtvinfo', TTestTVInfoDb.Suite);
   {$ELSE}
     TDUnitX.RegisterTestFixture(TTestShowFunctions);
+    TDUnitX.RegisterTestFixture(TTestTVInfoDb);
   {$ENDIF}
 end.

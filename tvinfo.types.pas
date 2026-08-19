@@ -11,15 +11,15 @@ type
     @value(tvRegularSerieWithoutSeason Season value for shows which only have an episode tag)
     @value(tvNoExplicitShowTag Shows without season/episode/dated tag (mostly tv movies or sports))
     @value(tvNoEpisodeTag Shows without episode tag (mostly full season releases)) }
-  TTVGetShowValuesIdentifier = (tvNoEpisodeTag = -110, tvNoExplicitShowTag = -100, tvRegularSerieWithoutSeason = -90,
-    tvDatedShow = -80, tvConversionError = -70, tvNotMatched = -60, tvInitialValue = -50);
+  TTVGetShowValuesIdentifier = (tvInitialValue = -50, tvNotMatched = -60, tvConversionError = -70,
+    tvDatedShow = -80, tvRegularSerieWithoutSeason = -90, tvNoExplicitShowTag = -100, tvNoEpisodeTag = -110);
 
   { @abstract(Possible 'error' values for season and episode info lookups on the web)
     @value(tvSeEpInitialValue Initial value which is set as default value)
     @value(tvSeEpAirdatePrevAndNextOnSameDay Airdate of previous and next episode are on the same day)
     @value(tvSeEpShowEnded Show ended)
     @value(tvSeEpNoNextOrPrev No information about the next episode and next season) }
-  TTVSeasonEpisodeWebInfo = (tvSeEpNoNextOrPrev = -6, tvSeEpShowEnded = -5, tvSeEpAirdatePrevAndNextOnSameDay = -4, tvSeEpInitialValue = -3);
+  TTVSeasonEpisodeWebInfo = (tvSeEpInitialValue = -3, tvSeEpAirdatePrevAndNextOnSameDay = -4, tvSeEpShowEnded = -5, tvSeEpNoNextOrPrev = -6);
 
 implementation
 
