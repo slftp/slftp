@@ -22,7 +22,7 @@ implementation
 uses
   SysUtils, Classes, math, DateUtils, Contnrs, SyncObjs, irccommandsunit, sitesunit, dirlist, pazo,
   kb, kb.releaseinfo, rulesunit, mystrings, debugunit, queueunit, notify, irc, taskrace, statsunit, nuke,
-  globalskipunit, configunit, mainthread, RegExpr, taskraw, sltcp, mygrouphelpers, Generics.Collections;
+  globalskipunit, configunit, mainthread, RegExpr, taskraw, sltcp, mygrouphelpers, Generics.Collections, StrUtils;
 
 const
   section = 'irccommands.work';
@@ -255,12 +255,15 @@ var
       y.Add(source);
       x := TStringList.Create;
       try
-        sitesdat.ReadSection('speed-from-' + source, x);
+        sitesdat.ReadSectionValues('site-' + source, x);
         for i := 0 to x.Count - 1 do
         begin
-          s := FindSiteByName('', x[i]);
-          if ((s <> nil) and (s.WorkingStatus = sstUp)) then
-            Routeable(x[i], y);
+          if AnsiStartsText('speed-from-', x.Names[i]) then
+          begin
+            s := FindSiteByName('', Copy(x.Names[i], Length('speed-from-') + 1, Length(x.Names[i])));
+            if ((s <> nil) and (s.WorkingStatus = sstUp)) then
+              Routeable(s.Name, y);
+          end;
         end;
       finally
         x.Free;

@@ -337,7 +337,7 @@ procedure RulesRemove(const sitename, section: String);
 procedure RulesSave;
 procedure RulesStart;
 procedure RulesReload;
-function AddRule(const rule: String; var error: String): TPair<TRule, integer>;
+function AddRule(const rule: String; var error: String; const aCheckDuplicates: Boolean = False): TPair<TRule, integer>;
 function FireRuleSet(p: TPazo; ps: TPazoSite): TRuleAction;
 function FireRules(p: TPazo; ps: TPazoSite): boolean;
 procedure RulesInit;
@@ -1842,10 +1842,12 @@ begin
 end;
 
 { Creates a TRule object from the given rule string and adds it to the list. Returns the TRule object and its global rule ID }
-function DoAddRule(const rule: String; var error: String; const aNotAddToRtpl: boolean): TPair<TRule, integer>;
+function DoAddRule(const rule: String; var error: String; const aNotAddToRtpl: boolean; const aCheckDuplicates: Boolean = False): TPair<TRule, integer>;
 var
   r: TRule;
   fRulesPerSite: TDictionary<string, TObjectList<TRule>>;
+  fExistingRules: TObjectList<TRule>;
+  fExistingRule: TRule;
 begin
   error := '';
   Result := TPair<TRule, integer>.Create(nil, -1);
@@ -1855,48 +1857,64 @@ begin
   begin
     error := r.error;
     r.Free;
+    Exit;
+  end;
+
+  // Check for duplicate rule before adding
+  if aCheckDuplicates and aNotAddToRtpl then
+  begin
+    if rules.TryGetValue(r.sitename, fRulesPerSite) then
+    begin
+      if fRulesPerSite.TryGetValue(r.section, fExistingRules) then
+      begin
+        for fExistingRule in fExistingRules do
+        begin
+          if fExistingRule.AsText(False) = r.AsText(False) then
+          begin
+            error := Format('Duplicate rule for %s %s', [r.sitename, r.section]);
+            r.Free;
+            Exit;
+          end;
+        end;
+      end;
+    end;
+  end;
+
+  Result.Key := r;
+  if aNotAddToRtpl then
+  begin
+    if not rules.ContainsKey(r.sitename) then
+      rules.add(r.sitename, TDictionary<string, TObjectList<TRule>>.Create);
+
+    fRulesPerSite := rules[r.sitename];
+    if not fRulesPerSite.ContainsKey(r.section) then
+    begin
+      fRulesPerSite.Add(r.section, TObjectList<TRule>.Create);
+    end;
+
+    fRulesPerSite[r.section].Add(r);
+    Result.Value := GetGlobalIdForRule(r);
   end
   else
   begin
-    if r <> nil then
+    if not rtpl.ContainsKey(r.sitename) then
+      rtpl.add(r.sitename, TDictionary<string, TObjectList<TRule>>.Create);
+
+    fRulesPerSite := rtpl[r.sitename];
+    if not fRulesPerSite.ContainsKey(r.section) then
     begin
-      Result.Key := r;
-      if aNotAddToRtpl then
-      begin
-        if not rules.ContainsKey(r.sitename) then
-          rules.add(r.sitename, TDictionary<string, TObjectList<TRule>>.Create);
+      fRulesPerSite.Add(r.section, TObjectList<TRule>.Create);
+    end;
 
-        fRulesPerSite := rules[r.sitename];
-        if not fRulesPerSite.ContainsKey(r.section) then
-        begin
-          fRulesPerSite.Add(r.section, TObjectList<TRule>.Create);
-        end;
-
-        fRulesPerSite[r.section].Add(r);
-        Result.Value := GetGlobalIdForRule(r);
-      end
-      else
-      begin
-        if not rtpl.ContainsKey(r.sitename) then
-          rtpl.add(r.sitename, TDictionary<string, TObjectList<TRule>>.Create);
-
-        fRulesPerSite := rtpl[r.sitename];
-        if not fRulesPerSite.ContainsKey(r.section) then
-        begin
-          fRulesPerSite.Add(r.section, TObjectList<TRule>.Create);
-        end;
-
-        fRulesPerSite[r.section].Add(r);
-        // I think we don't need the ID for the rtpl case
-        Result.Value := -1;
-      end;
-    end
+    fRulesPerSite[r.section].Add(r);
+    // I think we don't need the ID for the rtpl case
+    Result.Value := -1;
   end;
 end;
 
-function AddRule(const rule: String; var error: String): TPair<TRule, integer>;
+function AddRule(const rule: String; var error: String; const aCheckDuplicates: Boolean = False): TPair<TRule, integer>;
 begin
-  Result := DoAddRule(rule, error, True);
+  Result := DoAddRule(rule, error, True, aCheckDuplicates);
   RulesSave;
 end;
 

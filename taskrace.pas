@@ -27,6 +27,7 @@ type
     constructor Create(const netname, channel, site: String; pazo: TPazo; const dir: String; is_pre: boolean; aIsFromIncompleteFiller: boolean = False);
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
+    function GetDirlistReaddValue(aSite: TPazoSite; aDirlist: TDirList): integer;
   end;
 
   TPazoMkdirTask = class(TPazoTask)
@@ -78,7 +79,8 @@ implementation
 uses
   Classes, Contnrs, StrUtils, kb, sitesunit, configunit, taskdel, DateUtils,
   SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc,
-  midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news, dirlist.helpers;
+  midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news, dirlist.helpers,
+  globals, Math;
 
 const
   c_section = 'taskrace';
@@ -184,7 +186,7 @@ var
   de: TDirListEntry;
   r, r_dst: TPazoDirlistTask;
   fSubDirlistTasks: TList<TPazoDirlistTask>;
-  d: TDirList;
+  d, dst_d: TDirList;
   aktdir, fAbsoluteDir: String;
   itwasadded: boolean;
   numerrors: integer;
@@ -592,7 +594,7 @@ begin
     begin
       // do more dirlist
       r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-      r.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
+      r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue(ps1, d));
 
       try
         AddTask(r);
@@ -630,10 +632,11 @@ begin
           if ps.dirlist.Complete then
             Continue;
 
+          dst_d := ps.dirlist;
           if (dir <> '') then
           begin
-            d := ps.dirlist.FindDirlist(dir);
-            if (d <> nil) and (d.error or d.Complete) then
+            dst_d := ps.dirlist.FindDirlist(dir);
+            if (dst_d <> nil) and (dst_d.error or dst_d.Complete) then
               Continue;
           end;
 
@@ -641,9 +644,9 @@ begin
           begin
             // do more dirlist
             r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-            r.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
+            r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue(ps1, d));
             r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
-            r_dst.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
+            r_dst.startat := IncMilliSecond(Now(), r_dst.GetDirlistReaddValue(ps, dst_d));
 
             try
               AddTask(r);
@@ -689,6 +692,46 @@ begin
   end;
 end;
 
+function TPazoDirlistTask.GetDirlistReaddValue(aSite: TPazoSite; aDirlist: TDirList): integer;
+var
+  baseValue: integer;
+  secondsSinceLastChange: Int64;
+begin
+  baseValue := GetNewdirDirlistReaddValue();
+
+  if (aSite <> nil) and (aDirlist <> nil) then
+  begin
+    secondsSinceLastChange := SecondsBetween(Now, aDirlist.LastChanged);
+
+    // Intelligence Pack: Engine-Logic Polling
+    // If there are NO active transfers to this site for this release,
+    // we can safely slow down the polling, especially if nothing changed recently.
+    if (aSite.ActiveTransferCount = 0) then
+    begin
+      if (secondsSinceLastChange > 2) then
+      begin
+        if dir = '' then
+          Result := Max(baseValue * 5, 1000)  // Main dir: throttle to 1s
+        else
+          Result := Max(baseValue * 10, 2000); // Subdirs: throttle to 2s
+        exit;
+      end;
+    end
+    else
+    begin
+      // Transfers ARE active on the site. But if THIS specific directory hasn't changed in 5 seconds,
+      // it might be a finished subdir (e.g. /Sample). We can throttle it slightly to focus
+      // the CPU on the active subdirs.
+      if (dir <> '') and (secondsSinceLastChange > 5) then
+      begin
+        Result := Max(baseValue * 5, 1000);
+        exit;
+      end;
+    end;
+  end;
+
+  Result := baseValue;
+end;
 
 { TPazoMkdirTask }
 constructor TPazoMkdirTask.Create(const netname, channel, site: String; pazo: TPazo; const aDependingOnDirlist: TDirList; const dir: String);
@@ -1028,7 +1071,7 @@ begin
                 SlftpNewsAdd('FTP', Format('[RULES] Adding rule to DROP group <b>%s</b> on <b>%s</b>', [mainpazo.rls.groupname, site1]));
                 irc_Addadmin(Format('Adding rule to DROP group <b>%s</b> on <b>%s</b>', [mainpazo.rls.groupname, site1]));
                 rule_err := '';
-                AddRule(Format('%s %s if group = %s then DROP',[site1, mainpazo.rls.section, mainpazo.rls.groupname]), rule_err);
+                AddRule(Format('%s %s if group = %s then DROP',[site1, mainpazo.rls.section, mainpazo.rls.groupname]), rule_err, True);
               end;
             end;
             if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
@@ -1319,6 +1362,8 @@ var
     lDstFileSize: Int64;
     lNow: TDateTime;
     lDstUser: String;
+    lPrevDstUser: String;
+    lDstIsOurUser: boolean;
     fDstDirlistEntry: TDirlistEntry;
     fDstDiffMSec: Int64;
   begin
@@ -1327,6 +1372,8 @@ var
     fDstDiffMSec := MaxInt;
     lNow := Now;
     lDstUser := '';
+    lPrevDstUser := fLastDstUploader;
+    lDstIsOurUser := False;
     fDstDirlistEntry := nil;
 
     if fDstDirlist = nil then
@@ -1371,8 +1418,11 @@ var
       fLastDstUploader := lDstUser;
     end;
 
+    lDstIsOurUser := AnsiSameText(lDstUser, sdst.site.UserName) or
+      AnsiSameText(lPrevDstUser, sdst.site.UserName);
+
     // Destination Filesize Regression Detection (Slowkicker)
-    if (fDstDiffMSec < 200) and (lDstFileSize > 0) then
+    if (fDstDiffMSec < 200) and (lDstFileSize > 0) and lDstIsOurUser then
     begin
       if fLastDstFileSize < 0 then
         fLastDstFileSize := lDstFileSize
@@ -3255,7 +3305,7 @@ begin
 
     else if (sdst.lastResponse.Contains('CRC-Check: BAD!') or sdst.lastResponse.Contains('ZiP-Integrity: BAD!')) then
     begin
-      if spamcfg.readbool(c_section, 'crc_error', True) then
+      if GlPostCrcErrorsToIRC then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d', [Name, ps2.badcrcevents, GlTaskRaceBadCrcEvents]);
       end;
@@ -3264,7 +3314,7 @@ begin
 
     else if (sdst.lastResponse.Contains('SFV-file: BAD!')) then
     begin
-      if spamcfg.readbool(c_section, 'crc_error', True) then
+      if GlPostCrcErrorsToIRC then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR BAD SFV]</c> %s: %d/%d', [Name, ps2.badcrcevents, GlTaskRaceBadCrcEvents]);
       end;
@@ -3274,7 +3324,7 @@ begin
 
     else if sdst.lastResponse.Contains('0byte-file: Not allowed') then
     begin
-      if spamcfg.readbool(c_section, 'crc_error', True) then
+      if GlPostCrcErrorsToIRC then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR 0BYTE]</c> %s: %d/%d', [Name, ps2.badcrcevents, GlTaskRaceBadCrcEvents]);
       end;
@@ -3283,7 +3333,7 @@ begin
 
     else if sdst.lastResponse.Contains('CRC-Check: Not in sfv!') then
     begin
-      if spamcfg.readbool(c_section, 'crc_error', True) then
+      if GlPostCrcErrorsToIRC then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR NOT IN SFV]</c> %s', [Name]);
       end;
@@ -3292,7 +3342,7 @@ begin
 
     else if sdst.lastResponse.Contains('NFO-File: DUPE!') then
     begin
-      if spamcfg.readbool(c_section, 'crc_error', True) then
+      if GlPostCrcErrorsToIRC then
       begin
         irc_Adderror(sdst.todotask, '<c4>[NFO DUPE]</c> %s', [Name]);
       end;
@@ -3301,7 +3351,7 @@ begin
 
     else if sdst.lastResponse.Contains('-file: Not allowed') then
     begin
-      if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+      if GlPostFilenameNotAllowedToIRC then
       begin
         irc_Adderror(sdst.todotask, '<c4>[NOT ALLOWED]</c> %s', [Name]);
       end;
@@ -3430,16 +3480,15 @@ begin
   try
     slotInfo := '';
 
-    // Always show site1 -> site2
-    siteInfo := Format(' <b>%s</b>-><b>%s</b>', [site1, site2]);
-
-    // Additionally show slot names if available
+    siteInfo := '';
     if (slot1name <> '') and (slot2name <> '') then
       slotInfo := Format(' <c9>[%s -> %s]</c>', [slot1name, slot2name])
     else if slot1name <> '' then
       slotInfo := Format(' <c9>[%s]</c>', [slot1name])
     else if slot2name <> '' then
       slotInfo := Format(' <c9>[%s]</c>', [slot2name]);
+    if slotInfo = '' then
+      siteInfo := Format(' <b>%s</b>-><b>%s</b>', [site1, site2]);
 
     if mainpazo.rls = nil then
       Result := Format('<c7>[RACE]</c> #%d%s%s : <c10>%s</c> <c7>(%d)</c>',

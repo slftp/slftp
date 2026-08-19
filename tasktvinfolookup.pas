@@ -409,7 +409,9 @@ begin
     tvr.tv_url := String(js.Field['url'].Value);
 
     if js.Field['language'].SelfType <> jsNull then
-    tvr.tv_language:=String(js.Field['language'].Value);
+      tvr.tv_language:=String(js.Field['language'].Value)
+    else
+      tvr.tv_language := 'unknown';
 
     if js.Field['status'].SelfType = jsNull then
       tvr.tv_status := 'unknown'
