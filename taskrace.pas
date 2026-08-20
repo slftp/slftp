@@ -348,26 +348,16 @@ begin
             begin
               //we're too early, mkdir is not done yet ... the site is slow?
               //continue to create a new dirlist task below
+              // note: deliberately no dirlist_lock here - a rare lost update
+              // against the locked resets is harmless for the backoff
               if d <> nil then
-              begin
-                // increment under dirlist_lock because the counter is also
-                // reset under the same lock (TDirList.ParseDirlist, TPazoSite.MkdirReady)
-                d.dirlist_lock.Enter('TPazoDirlistTask');
-                try
-                  Inc(d.mkdir_not_ready_retry_count);
-                finally
-                  d.dirlist_lock.Leave;
-                end;
-              end;
+                Inc(d.mkdir_not_ready_retry_count);
 
               Debug(dpMessage, c_section, 'DIRLIST: mkdir not ready: ' + tname);
 
               // try to create MKDIR directly from the failed dirlist
-              // (only for allowed destination sites and only for the main dir)
-              if (d <> nil) and (dir = '') and (ps1.status in [rssAllowed]) then
-              begin
-                TryCreateMkdirFromFailedDirlist(d);
-              end;
+              // (guards are checked inside TryCreateMkdirFromFailedDirlist)
+              TryCreateMkdirFromFailedDirlist(d);
             end
             else
             begin
