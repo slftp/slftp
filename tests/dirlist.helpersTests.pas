@@ -23,18 +23,21 @@ type
     procedure TestParseStatResponseLineGlftpd2;
     procedure TestParseStatResponseLineDrftpd1;
     procedure TestParseStatResponseLineDrftpd2;
+    procedure TestParseStatResponseLineComplexDirname;
+    procedure TestParseStatResponseLineInvalidFilesize;
     procedure TestReleaseContainsNFOOnly;
     procedure TestIsValidFilename1;
     procedure TestIsValidFilename2;
     procedure TestIsValidFilename3;
     procedure TestIsValidDirname1;
     procedure TestIsValidDirname2;
+    procedure TestParseStatResponseMultiLine;
   end;
 
 implementation
 
 uses
-  SysUtils,
+  SysUtils, Generics.Collections,
   dirlist.helpers;
 
 { TTestDirlistHelpers }
@@ -177,6 +180,42 @@ begin
   CheckEquals('Disaster.Report.4.Summer.Memories-CODEX', fFilename);
 end;
 
+procedure TTestDirlistHelpers.TestParseStatResponseLineComplexDirname;
+var
+  fTmp: String;
+  fDirMask, fUsername, fGroupname, fDatum, fFilename: String;
+  fFilesize: Int64;
+begin
+  // Test parsing with complex directory name containing special characters and multiple spaces
+  fTmp := 'drwxrwxrwx   2 user1    group1         10 Jan  5 12:20 [::::::::::::::] -   0% Complete - [GRP]';
+  ParseStatResponseLine(fTmp, fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
+
+  CheckEquals('drwxrwxrwx', fDirMask);
+  CheckEquals('user1', fUsername);
+  CheckEquals('group1', fGroupname);
+  CheckEquals(10, fFilesize);
+  CheckEquals('Jan 5 12:20', fDatum);
+  CheckEquals('[::::::::::::::] -   0% Complete - [GRP]', fFilename);
+end;
+
+procedure TTestDirlistHelpers.TestParseStatResponseLineInvalidFilesize;
+var
+  fTmp: String;
+  fDirMask, fUsername, fGroupname, fDatum, fFilename: String;
+  fFilesize: Int64;
+begin
+  // malformed line with non-numeric size must yield the documented -1 sentinel,
+  // callers (dirlist.pas) rely on it to skip such lines
+  // also covers trailing whitespace being trimmed from the item
+  fTmp := 'drwxrwxrwx   2 aq11     iND              garbage Apr 19 23:14 Sample  ';
+  ParseStatResponseLine(fTmp, fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
+
+  CheckEquals('drwxrwxrwx', fDirMask);
+  CheckEquals(-1, fFilesize);
+  CheckEquals('Sample', fFilename);
+end;
+
+
 procedure TTestDirlistHelpers.TestReleaseContainsNFOOnly;
 begin
   CheckTrue(ReleaseOnlyConsistsOfNFO('Test.Rls.DiRFiX.asd-GRP'), 'Only NFO');
@@ -297,6 +336,43 @@ begin
 
   fFilename := 'Proof';
   CheckTrue(IsValidDirname(fFilename), 'This is a valid dirname.');
+end;
+
+procedure TTestDirlistHelpers.TestParseStatResponseMultiLine;
+var
+  fRawResponse: String;
+  fEntries: TObjectList<TParsedDirlistEntry>;
+begin
+  fRawResponse := 
+    'drwxrwxrwx   2 aq11     iND              3 Apr 19 23:14 Sample'#10 +
+    '-rw-r--r--   1 abc      Friends  100000000 Apr 13 20:14 file1.rar'#10 +
+    '-rw-rw-rw- 1   nobody  nogroup      12724352 Feb  6 12:07 file2.mp3'#10 +
+    'drwxrwxrwx 3   nobody  nogroup   27212887049 Apr  7 19:36 Release-GRP';
+    
+  fEntries := ParseStatResponse(fRawResponse);
+  try
+    CheckEquals(4, fEntries.Count, 'Should have parsed 4 entries');
+    
+    // Check first entry (glFTPd style)
+    CheckEquals('drwxrwxrwx', fEntries[0].DirMask);
+    CheckEquals('aq11', fEntries[0].Username);
+    CheckEquals('Sample', fEntries[0].Filename);
+    
+    // Check second entry
+    CheckEquals('100000000', IntToStr(fEntries[1].Filesize));
+    CheckEquals('file1.rar', fEntries[1].Filename);
+    
+    // Check third entry (DrFTPD style)
+    CheckEquals('nobody', fEntries[2].Username);
+    CheckEquals('nogroup', fEntries[2].Groupname);
+    CheckEquals('Feb 6 12:07', fEntries[2].Date);
+    CheckEquals('file2.mp3', fEntries[2].Filename);
+    
+    // Check last entry
+    CheckEquals('Release-GRP', fEntries[3].Filename);
+  finally
+    fEntries.Free;
+  end;
 end;
 
 initialization

@@ -43,7 +43,7 @@ function ReleaseOnlyConsistsOfNFO(const aFullPath: String): Boolean;
   @param(aFilesize extracted filesize, -1 if parsed text is not a number)
   @param(aDatum extracted date and time with removed extra whitespaces)
   @param(aItem extracted dirname or filename) }
-procedure ParseStatResponseLine(var aRespLine: String; out aDirMask, aUsername, aGroupname: String; out aFilesize: Int64; out aDatum, aItem: String);
+procedure ParseStatResponseLine(const aRespLine: String; out aDirMask, aUsername, aGroupname: String; out aFilesize: Int64; out aDatum, aItem: String);
 
 { Checks if given input is valid for a file (e.g. doesn't start with dot or is skipped globally)
   @param(aInput File or Dirname)
@@ -86,7 +86,8 @@ procedure CleanupDirlistThreadVars;
 implementation
 
 uses
-  SysUtils, IdGlobal, RegExpr, globals, StrUtils, debugunit, configunit, mystrings;
+  SysUtils, IdGlobal, RegExpr, globals, StrUtils, debugunit, configunit, mystrings,
+  mormot.core.base, mormot.core.text;
 
 const
   section = 'dirlist.helpers';
@@ -145,25 +146,50 @@ begin
   end;
 end;
 
-procedure ParseStatResponseLine(var aRespLine: String; out aDirMask, aUsername, aGroupname: String; out aFilesize: Int64; out aDatum, aItem: String);
+procedure ParseStatResponseLine(const aRespLine: String; out aDirMask, aUsername, aGroupname: String; out aFilesize: Int64; out aDatum, aItem: String);
+var
+  P: PUtf8Char;
+  fUtf8Line: RawUtf8;
+  fDate1, fDate2, fDate3: RawUtf8;
+
+  procedure SkipSpaces;
+  begin
+    while (P <> nil) and (P^ = ' ') do
+      Inc(P);
+  end;
+
 begin
   // drwxrwxrwx   2 aq11     iND              3 Apr 19 23:14 Sample
   // -rw-r--r--   1 abc      Friends  100000000 Apr 19 23:14 baby.animals.s01e05.little.hunters.internal.2160p.uhdtv.h265-cbfm.r00
-  aDirMask := Fetch(aRespLine, ' ', True, False);
-  aRespLine := aRespLine.TrimLeft;
-  Fetch(aRespLine, ' ', True, False); // No. of something
-  aRespLine := aRespLine.TrimLeft;
-  aUsername := Fetch(aRespLine, ' ', True, False);
-  aRespLine := aRespLine.TrimLeft;
-  aGroupname := Fetch(aRespLine, ' ', True, False);
-  aRespLine := aRespLine.TrimLeft;
-  aFilesize := StrToInt64Def(Fetch(aRespLine, ' ', True, False), -1);
-  aDatum := Fetch(aRespLine, ' ', True, False);
-  aRespLine := aRespLine.TrimLeft;
-  aDatum := aDatum + ' ' + Fetch(aRespLine, ' ', True, False);
-  aRespLine := aRespLine.TrimLeft;
-  aDatum := aDatum + ' ' + Fetch(aRespLine, ' ', True, False); // date and time
-  aItem := aRespLine.Trim; // file or dirname
+  fUtf8Line := UTF8String(aRespLine);
+  P := Pointer(fUtf8Line);
+
+  aDirMask := string(GetNextItem(P, ' '));
+  SkipSpaces;
+  GetNextItem(P, ' '); // Skip "No. of links"
+  SkipSpaces;
+  aUsername := string(GetNextItem(P, ' '));
+  SkipSpaces;
+  aGroupname := string(GetNextItem(P, ' '));
+  SkipSpaces;
+  // keep the documented -1 sentinel for non-numeric sizes (GetNextItemInt64
+  // would return 0), callers rely on it to skip malformed lines
+  aFilesize := StrToInt64Def(string(GetNextItem(P, ' ')), -1);
+  SkipSpaces;
+
+  fDate1 := GetNextItem(P, ' ');
+  SkipSpaces;
+  fDate2 := GetNextItem(P, ' ');
+  SkipSpaces;
+  fDate3 := GetNextItem(P, ' ');
+  SkipSpaces;  // Skip spaces after time before filename
+  aDatum := string(fDate1 + ' ' + fDate2 + ' ' + fDate3);
+
+  // The rest of the line is the filename/item (trimmed like the old Fetch/Trim based code)
+  if P <> nil then
+    aItem := Trim(string(P))  // P already points to start of filename after SkipSpaces
+  else
+    aItem := '';
 end;
 
 function GetSkiplistDirsRegexInstance: TRegExpr;
@@ -227,28 +253,63 @@ begin
   Result := True;
 end;
 
-function ParseStatResponse(s: String): TObjectList<TParsedDirListEntry>;
+function ParseStatResponse(s: String): TObjectList<TParsedDirlistEntry>;
 var
-  fLineToParse: string;
-  fParsedDirlistEntries: TObjectList<TParsedDirListEntry>;
+  fLineToParse: RawUtf8;
+  fParsedDirlistEntries: TObjectList<TParsedDirlistEntry>;
   fDirMask, fUsername, fGroupname, fDatum, fFilename: String;
   fFilesize: Int64;
   fParsedDirlistEntry: TParsedDirlistEntry;
-begin
-  fParsedDirlistEntries := TObjectList<TParsedDirListEntry>.Create(True);
-  try
-    while (True) do
+  P: PUtf8Char;
+  fUtf8Input: RawUtf8;
+
+  // Local function to get next line handling CR, LF, and CRLF without string allocations
+  function GetNextLine(var P: PUtf8Char): RawUtf8;
+  var
+    Start: PUtf8Char;
+  begin
+    if (P = nil) or (P^ = #0) then
     begin
-      fLineToParse := Trim(GetFirstLineFromTextViaNewlineIndicators(s));
+      Result := '';
+      P := nil;
+      Exit;
+    end;
+
+    Start := P;
+    // Find next CR or LF
+    while (P^ <> #0) and (P^ <> #13) and (P^ <> #10) do
+      Inc(P);
+
+    SetString(Result, Start, P - Start);
+
+    // Skip all CR and LF characters (handles CR, LF, CRLF, LFCR)
+    while (P^ = #13) or (P^ = #10) do
+      Inc(P);
+
+    if P^ = #0 then
+      P := nil;
+  end;
+
+begin
+  fParsedDirlistEntries := TObjectList<TParsedDirlistEntry>.Create(True);
+  try
+    fUtf8Input := UTF8String(s);
+    P := Pointer(fUtf8Input);
+    while P <> nil do
+    begin
+      fLineToParse := Trim(GetNextLine(P));
       // tmp contains a single line:
       // drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
 
-      if fLineToParse = '' then break;
+      if fLineToParse = '' then continue;
       if (Length(fLineToParse) > 11) then
       begin
-        if ((fLineToParse[1] <> 'd') and (fLineToParse[1] <> '-') and (fLineToParse[11] = ' ')) then
+        // Only process lines that start with 'd' (directory) or '-' (file)
+        // Position 11 check is flexible: can be space (glFTPD: "drwxrwxrwx   2") or digit (DrFTPD: "-rw-rw-rw- 1")
+        // This filters out FTP status messages like "213- status of -l:", "total 12345"
+        if (fLineToParse[1] <> 'd') and (fLineToParse[1] <> '-') then
           continue;
-        ParseStatResponseLine(fLineToParse, fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
+        ParseStatResponseLine(string(fLineToParse), fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
         fParsedDirlistEntry := TParsedDirlistEntry.Create;
         fParsedDirlistEntry.fDirMask := fDirMask;
         fParsedDirlistEntry.fUsername := fUsername;
