@@ -196,6 +196,7 @@ var
   l: TLoginTask;
   fPretimeLookupTask: TPazoPretimeLookupTask;
   fRlsItem: TPair<string, string>;
+  fStaleKeys: TStringList;
 
   { Removes the oldest knowledge base entries }
   procedure KbListsCleanUp;
@@ -248,6 +249,34 @@ var
       on e: Exception do
       begin
         Debug(dpError, rsections, '[EXCEPTION] kb_AddB clean kb_skip : %s', [e.Message]);
+      end;
+    end;
+
+    // bound kb_dict_by_rls like the old kb_latest list: drop entries which have
+    // no living pazo (e.g. rename markers), they are recreated on re-announce
+    try
+      if kb_dict_by_rls.Count > 200 then
+      begin
+        i := 0;
+        fStaleKeys := TStringList.Create;
+        try
+          for fRlsItem in kb_dict_by_rls do
+            if not kb_dict_by_key.ContainsKey(fRlsItem.Value + '-' + fRlsItem.Key) then
+              fStaleKeys.Add(fRlsItem.Key);
+          i := 0;
+          while (i < fStaleKeys.Count) and (kb_dict_by_rls.Count > 150) do
+          begin
+            kb_dict_by_rls.Remove(fStaleKeys[i]);
+            Inc(i);
+          end;
+        finally
+          fStaleKeys.Free;
+        end;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, rsections, '[EXCEPTION] kb_AddB clean kb_dict_by_rls : %s', [e.Message]);
       end;
     end;
   end;
@@ -982,41 +1011,58 @@ procedure AddPazoToKB(const aKey: String; const aPazo: TPazo);
 begin
   kb_lock.Enter('AddPazoToKB');
   try
-    kb_dict_by_key.AddOrSetValue(aKey, aPazo);
-    kb_dict_by_id.AddOrSetValue(aPazo.pazo_id, aPazo);
+    // mimic the old TStringList Duplicates := dupIgnore behavior: do not
+    // overwrite an existing entry (would leak the stored pazo)
+    if not kb_dict_by_key.ContainsKey(aKey) then
+    begin
+      kb_dict_by_key.Add(aKey, aPazo);
+      kb_dict_by_id.AddOrSetValue(aPazo.pazo_id, aPazo);
+    end
+    else
+      Debug(dpSpam, rsections, 'AddPazoToKB: key %s already exists, keeping existing pazo', [aKey]);
   finally
     kb_lock.Leave;
   end;
+end;
+
+{ Sorts pazos newest first, used by ListKBToIRC to restore the old
+  newest-first ordering which got lost with the dictionary (undefined order) }
+function _PazoAddedDescSorter(Item1, Item2: Pointer): integer;
+begin
+  Result := CompareDateTime(TPazo(Item2).added, TPazo(Item1).added);
 end;
 
 procedure ListKBToIRC(const netname, channel, section: string; const hits: integer);
 var
   db: integer;
   p: TPazo;
+  fPazos: TList<TPazo>;
 begin
   kb_lock.Enter('ListKBToIRC');
   try
-    db := 0;
-    for p in kb_dict_by_key.Values do
-    begin
-      if (db > hits) then
-        break;
+    // dictionary order is undefined, so collect and sort newest first
+    // (matches the old newest-first TStringList iteration)
+    fPazos := TList<TPazo>.Create;
+    try
+      for p in kb_dict_by_key.Values do
+        if (p <> nil) and ((section = '') or (p.rls.section = section)) then
+          fPazos.Add(p);
+      fPazos.Sort(@_PazoAddedDescSorter);
 
-      if p <> nil then
+      db := 0;
+      for p in fPazos do
       begin
-        if ((section = '') or (p.rls.section = section)) then
-        begin
-          irc_addtext(Netname, Channel, '#%d %s %s [QueueNumber: %d (Race:%d Dirlist:%d Mkdir:%d)]',
-            [p.pazo_id, p.rls.section, p.rls.rlsname, p.queuenumber.Value, p.racetasks.Value,
-            p.dirlisttasks.Value, p.mkdirtasks.Value]);
+        if (db > hits) then
+          break;
 
-          Inc(db);
-        end;
-      end
-      else
-      begin
-        irc_addtext(Netname, Channel, 'Whops, Pazo is nil! Anything screwed up!');
+        irc_addtext(Netname, Channel, '#%d %s %s [QueueNumber: %d (Race:%d Dirlist:%d Mkdir:%d)]',
+          [p.pazo_id, p.rls.section, p.rls.rlsname, p.queuenumber.Value, p.racetasks.Value,
+          p.dirlisttasks.Value, p.mkdirtasks.Value]);
+
+        Inc(db);
       end;
+    finally
+      fPazos.Free;
     end;
   finally
     kb_lock.Leave;
@@ -1065,9 +1111,19 @@ var
     p.stated := True;
     p.cleared := True;
     p.ExcludeFromIncfiller := True;
-    kb_dict_by_key.AddOrSetValue(section + '-' + rlsname, p);
-    kb_dict_by_id.AddOrSetValue(p.pazo_id, p);
-    kb_dict_by_rls.AddOrSetValue(rlsname, section);
+    // mimic the old TStringList Duplicates := dupIgnore behavior: do not
+    // overwrite an existing entry (would leak the stored pazo)
+    if not kb_dict_by_key.ContainsKey(section + '-' + rlsname) then
+    begin
+      kb_dict_by_key.Add(section + '-' + rlsname, p);
+      kb_dict_by_id.AddOrSetValue(p.pazo_id, p);
+      kb_dict_by_rls.AddOrSetValue(rlsname, section);
+    end
+    else
+    begin
+      Debug(dpSpam, rsections, 'KB_start: key %s-%s already exists, dropping restored pazo', [section, rlsname]);
+      p.Free;
+    end;
   end;
 
 begin
@@ -1252,9 +1308,10 @@ begin
 
   kb_lock := TSLCriticalSection2.Create('kb_lock');
 
-  kb_dict_by_key := TDictionary<string, TPazo>.Create;
+  // case-insensitive to match the old TStringList (CaseSensitive := False) behavior
+  kb_dict_by_key := TDictionary<string, TPazo>.Create(GetCaseInsensitveStringComparer);
   kb_dict_by_id := TDictionary<integer, TPazo>.Create;
-  kb_dict_by_rls := TDictionary<string, string>.Create;
+  kb_dict_by_rls := TDictionary<string, string>.Create(GetCaseInsensitveStringComparer);
 
   kb_trimmed_rls := THashedStringList.Create;
   kb_trimmed_rls.CaseSensitive := False;
@@ -1291,13 +1348,12 @@ end;
 
 procedure kb_Uninit;
 begin
+  // NOTE: currently never called; the kb dictionaries are freed in kb_FreeList
+  // (called from mainthread shutdown), so they must not be freed here as well
   Debug(dpSpam, rsections, 'Uninit1');
   kb_sections.Free;
   kb_skip.Free;
   kb_groupcheck_rls.Free;
-  kb_dict_by_key.Free;
-  kb_dict_by_id.Free;
-  kb_dict_by_rls.Free;
 
   KbReleaseUninit;
 
@@ -1435,8 +1491,18 @@ begin
       rc := FindSectionHandler(p.rls.section);
       rls := rc.Create(p.rls.rlsname, p.rls.section);
       p := PazoAdd(rls);
-      kb_dict_by_key.AddOrSetValue('INC-' + p.rls.rlsname, p);
-      kb_dict_by_id.AddOrSetValue(p.pazo_id, p);
+      // mimic the old TStringList Duplicates := dupIgnore behavior: do not
+      // overwrite an existing entry (would leak the previously stored pazo)
+      if not kb_dict_by_key.ContainsKey('INC-' + p.rls.rlsname) then
+      begin
+        kb_dict_by_key.Add('INC-' + p.rls.rlsname, p);
+        kb_dict_by_id.AddOrSetValue(p.pazo_id, p);
+      end
+      else
+      begin
+        Debug(dpSpam, rsections, 'AddCompleteTransfers: INC- key for %s already exists, dropping new pazo', [p.rls.rlsname]);
+        p.Free;
+      end;
     finally
       kb_lock.Leave;
     end;
