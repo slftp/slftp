@@ -4,7 +4,7 @@ interface
 
 uses
   Classes, kb, kb.releaseinfo, mormot.orm.core, mormot.core.base, mormot.orm.base,
-  mormot.rest.server, mormot.rest.client;
+  mormot.rest.sqlite3;
 
 type
   TPretimeResult = record
@@ -15,15 +15,15 @@ type
 type
   TSQLAddPreRecord = class(TOrm)
   private
-    FReleaseName: RawUTF8; //< releasename
-    FSection: RawUTF8; //< filename
-    FTimeStamp: Int64; //< filesize
-    FSource: RawUTF8; //< creation time of the entry
+    FReleaseName: RawUTF8;
+    FSection: RawUTF8;
+    FTimeStamp: Int64;
+    FSource: RawUTF8;
   published
-    property rlz: RawUTF8 read FReleaseName write FReleaseName stored AS_UNIQUE;
-    property section: RawUTF8 read FSection write FSection;
-    property ts: Int64 read FTimeStamp write FTimeStamp;
-    property source: RawUTF8 read FSource write FSource;
+    property rlz: RawUTF8 read FReleaseName write FReleaseName stored AS_UNIQUE; //< releasename
+    property section: RawUTF8 read FSection write FSection; //< section name
+    property ts: Int64 read FTimeStamp write FTimeStamp; //< pretime as unix timestamp
+    property source: RawUTF8 read FSource write FSource; //< source of the entry (e.g. IRC netname-channel-nickname)
   end;
 
   {
@@ -57,16 +57,18 @@ procedure dbaddpreUnInit;
 function getPretime(const rlz: String): TPretimeResult;
 
 function ReadPretimeOverHTTP(const rls: String): Int64;
-function ReadPretime(const rls: String): Int64;
+{ Reads the pretime of a release from the database selected by the given lookup mode
+  @param(rls releasename)
+  @param(aLookupMode lookup mode which selects the database (plmSQLITE or plmMYSQL))
+  @returns(pretime as unix timestamp, 0 if not found) }
+function ReadPretime(const rls: String; const aLookupMode: TPretimeLookupMode): Int64;
 
+{ Returns the primary pretime lookup mode
+  @returns(Pretime mode from @link(TPretimeLookupMode)) }
 function GetPretimeMode: TPretimeLookupMode;
 { Convert Pretime Lookup Mode to String
   @param(aPretimeLookupMode Pretime mode from @link(TPretimeLookupMode))
   @returns(Pretime mode as String without prefix) }
-function GetPretimeMode_2: TPretimeLookupMode;
-{ Convert Pretime Lookup Mode to String
-  @param(aPretimeLookupMode Pretime mode from @link(TPretimeLookupMode))
-  @returns(Pretime mode as String without prefix from backup solution) }
 function pretimeModeToString(aPretimeLookupMode: TPretimeLookupMode): String;
 { Convert Addpre Mode to String
   @param(aAddPreMode Addpre mode from @link(TAddPreMode))
@@ -84,20 +86,9 @@ implementation
 
 uses
   DateUtils, SysUtils, StrUtils, configunit, mystrings, console, sitesunit, FLRE, IniFiles,
-  irc, debugunit, precatcher, SyncObjs, taskpretime, dbhandler, http,
-  mormot.core.text,
-  mormot.core.unicode,
-  mormot.core.json,
-  mormot.core.variants,
-  mormot.core.os,
-  mormot.orm.sql,
-  mormot.rest.sqlite3,
-  mormot.db.core,
-  mormot.db.sql,
-  mormot.db.sql.sqlite3,
-  mormot.db.raw.sqlite3,
-  mormot.db.raw.sqlite3.static,
-  mormot.db.sql.zeos,
+  irc, debugunit, precatcher, taskpretime, dbhandler, http,
+  mormot.core.text, mormot.core.unicode,
+  mormot.db.core, mormot.db.sql, mormot.db.sql.zeos, mormot.db.raw.sqlite3,
   ZPlainMySqlDriver;
 
 const
@@ -106,9 +97,8 @@ const
   DBCLEANUP_NUM_ENTRIES_TO_KEEP = 300;
 
 var
-  ORMAddPreDBSqLite: TRestClientDb; //< Rest Client for all database interactions
-  ORMAddPreModel: TSQLModel; //< SQL ORM model for stats database
-  ORMAddPreDBMysql: TRestClientDb;
+  ORMAddPreDBSqLite: TRestClientDb; //< ORM REST client for the SQLite/in-memory addpre database
+  ORMAddPreModel: TSQLModel; //< SQL ORM model for the addpre database
 
   addprecmd: TStringList;
   kbadd_addpre: boolean;
@@ -121,7 +111,6 @@ var
   config_taskpretime_url: String;
   config_taskpretime_regexp: RawByteString;
   FDbCleanupCounter: integer;
-  fLastRowId: integer;
 
 procedure setPretimeMode_One(mode: TPretimeLookupMode);
 begin
@@ -141,11 +130,6 @@ end;
 function GetPretimeMode: TPretimeLookupMode;
 begin
   Result := dbaddpre_plm1;
-end;
-
-function GetPretimeMode_2: TPretimeLookupMode;
-begin
-  Result := dbaddpre_plm2;
 end;
 
 function pretimeModeToString(aPretimeLookupMode: TPretimeLookupMode): String;
@@ -227,10 +211,11 @@ begin
   end;
 end;
 
-function ReadPretime(const rls: String): Int64;
+function ReadPretime(const rls: String; const aLookupMode: TPretimeLookupMode): Int64;
 var
   fAddPreRec: TSQLAddPreRecord;
-  fTmpOrmAddPreDb: TRestClientDb;
+  fMySQLQuery: TSqlDBZeosStatement;
+  fTimeField, fTableName, fReleaseField: String;
 begin
   Result := 0;
   if rls = '' then
@@ -239,28 +224,51 @@ begin
     Exit;
   end;
 
-  fTmpOrmAddPreDb := nil;
-  if ((dbaddpre_mode = apmSQLITE) OR (dbaddpre_mode = apmMemory)) then
-    fTmpOrmAddPreDb := ORMAddPreDBSqLite;
-  if (dbaddpre_mode = apmMYSQL) then
-    fTmpOrmAddPreDb := ORMAddPreDBMysql;
+  case aLookupMode of
+    plmSQLITE:
+      begin
+        if not Assigned(ORMAddPreDBSqLite) then
+          Exit;
 
-  if not Assigned(fTmpOrmAddPreDb) then
-    Exit;
+        fAddPreRec := TSQLAddPreRecord.CreateAndFillPrepare(ORMAddPreDBSqLite.Orm, 'rlz = ?', [], [rls]);
+        try
+          try
+            if fAddPreRec.FillOne then
+              Result := fAddPreRec.ts;
+          except
+            on e: Exception do
+              Debug(dpError, section, Format('[EXCEPTION] ReadPretime (sqlite): %s', [e.Message]));
+          end;
+        finally
+          fAddPreRec.Free;
+        end;
+      end;
+    plmMYSQL:
+      begin
+        if not Assigned(MySQLCon) then
+          Exit;
 
-  fAddPreRec := TSQLAddPreRecord.CreateAndFillPrepare(fTmpOrmAddPreDb.Orm, 'rlz = ?',[], [rls]);
-  try
-    while fAddPreRec.FillOne do
-    begin
-      Result := fAddPreRec.ts;
-    end;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] ReadPretime: %s', [e.Message]));
-    end;
+        fTimeField := config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts');
+        fTableName := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
+        fReleaseField := config.ReadString('taskmysqlpretime', 'rlsname_field', 'rls');
+
+        fMySQLQuery := TSqlDBZeosStatement.Create(MySQLCon.ThreadSafeConnection);
+        try
+          fMySQLQuery.Prepare('SELECT `' + fTimeField + '` FROM `' + fTableName + '` WHERE `' + fReleaseField + '` = ?', True);
+          fMySQLQuery.BindTextS(1, rls);
+          try
+            fMySQLQuery.ExecutePrepared;
+            if fMySQLQuery.Step then
+              Result := fMySQLQuery.ColumnInt(fTimeField);
+          except
+            on e: Exception do
+              Debug(dpError, section, Format('[EXCEPTION] ReadPretime (mysql): %s', [e.Message]));
+          end;
+        finally
+          fMySQLQuery.Free;
+        end;
+      end;
   end;
-  fAddPreRec.Free;
 end;
 
 function getPretime(const rlz: String): TPretimeResult;
@@ -273,7 +281,7 @@ begin
   case dbaddpre_plm1 of
     plmNone: Exit;
     plmHTTP: Result.pretime := ReadPretimeOverHTTP(rlz);
-    plmMYSQL, plmSQLITE: Result.pretime := ReadPretime(rlz);
+    plmMYSQL, plmSQLITE: Result.pretime := ReadPretime(rlz, dbaddpre_plm1);
   else
     begin
       Debug(dpMessage, section, 'GetPretime unknown pretime mode : %d',
@@ -291,7 +299,7 @@ begin
   case dbaddpre_plm2 of
     plmNone: Exit;
     plmHTTP: Result.pretime := ReadPretimeOverHTTP(rlz);
-    plmMYSQL, plmSQLITE: Result.pretime := ReadPretime(rlz);
+    plmMYSQL, plmSQLITE: Result.pretime := ReadPretime(rlz, dbaddpre_plm2);
   else
     begin
       Debug(dpMessage, section, 'GetPretime unknown pretime mode_2 : %d',
@@ -393,22 +401,20 @@ end;
 function dbaddpre_InsertRlz(const rls, rls_section, Source: String; const aSkipDbCleanup: boolean = False): boolean;
 var
   fAddPreRec: TSQLAddPreRecord;
-  fTmpOrmAddPreDb: TRestClientDb;
+  fMySQLQuery: TSqlDBZeosStatement;
+  fTableName, fReleaseField, fSectionField, fTimeField, fSourceField: String;
 begin
   Result := False;
 
-  if ((dbaddpre_mode = apmSQLITE) OR (dbaddpre_mode = apmMemory)) then
-    fTmpOrmAddPreDb := ORMAddPreDBSqLite;
-  if (dbaddpre_mode = apmMYSQL) then
-    fTmpOrmAddPreDb := ORMAddPreDBMysql;
-
   case dbaddpre_mode of
-    apmMemory, apmSQLITE, apmMYSQL:
+    apmMemory, apmSQLITE:
       begin
-        if not Assigned(fTmpOrmAddPreDb) then
+        if not Assigned(ORMAddPreDBSqLite) then
           Exit;
 
-        fAddPreRec := TSQLAddPreRecord.CreateAndFillPrepare(fTmpOrmAddPreDb.Orm, 'rlz = ?', [rls], 'ID');
+        // no need to insert an already known release (same as the old INSERT OR IGNORE),
+        // rlz is a unique field so FillOne finds at most one entry
+        fAddPreRec := TSQLAddPreRecord.CreateAndFillPrepare(ORMAddPreDBSqLite.Orm, 'rlz = ?', [rls], 'ID');
         try
           if not fAddPreRec.FillOne then
           begin
@@ -417,14 +423,56 @@ begin
             fAddPreRec.ts := DateTimeToUnix(Now(), False);
             fAddPreRec.source := StringToUTF8(Source);
 
-            if fTmpOrmAddPreDb.Add(fAddPreRec, True, False) = 0 then
+            if ORMAddPreDBSqLite.Add(fAddPreRec, True, False) = 0 then
             begin
-              Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz: values: %s %s %s', [rls, rls_section, Source]));
+              Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (sqlite): values: %s %s %s', [rls, rls_section, Source]));
               Exit;
             end;
+            // only return true if the insert actually happened and has not been ignored
+            Result := True;
           end;
         finally
           fAddPreRec.Free;
+        end;
+      end;
+    apmMYSQL:
+      begin
+        if not Assigned(MySQLCon) then
+          Exit;
+
+        fTableName := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
+        fReleaseField := config.ReadString('taskmysqlpretime', 'rlsname_field', 'rls');
+        fSectionField := config.ReadString('taskmysqlpretime', 'section_field', 'section');
+        fTimeField := config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts');
+        fSourceField := config.ReadString('taskmysqlpretime', 'source_field', '-1');
+
+        fMySQLQuery := TSqlDBZeosStatement.Create(MySQLCon.ThreadSafeConnection);
+        try
+          if fSourceField = '-1' then
+          begin
+            fMySQLQuery.Prepare('INSERT IGNORE INTO `' + fTableName + '` (`' + fReleaseField + '`, `' + fSectionField + '`, `' + fTimeField + '`) VALUES (?, ?, ?);', True);
+          end
+          else
+          begin
+            fMySQLQuery.Prepare('INSERT IGNORE INTO `' + fTableName + '` (`' + fReleaseField + '`, `' + fSectionField + '`, `' + fTimeField + '`, `' + fSourceField + '`) VALUES (?, ?, ?, ?);', True);
+            fMySQLQuery.BindTextS(4, Source);
+          end;
+
+          fMySQLQuery.BindTextS(1, rls);
+          fMySQLQuery.BindTextS(2, rls_section);
+          fMySQLQuery.Bind(3, DateTimeToUnix(Now(), False));
+          try
+            fMySQLQuery.ExecutePrepared;
+            Result := fMySQLQuery.UpdateCount > 0; // only return true if the insert actually happened and has not been ignored
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (mysql): %s - values: %s %s %s', [e.Message, rls, rls_section, Source]));
+              exit;
+            end;
+          end;
+        finally
+          fMySQLQuery.Free;
         end;
       end;
   end;
@@ -432,33 +480,26 @@ begin
   // db cleanup currently only for in-memory DB
   if Result and (dbaddpre_mode = apmMemory) then
   begin
-    FDbCleanupCounter := FDbCleanupCounter + 1;
-
-    try
-      // get the last row id
-      fLastRowId := fTmpOrmAddPreDb.Db.LastInsertRowID;
-      if dbaddpre_GetCount > DBCLEANUP_NUM_ENTRIES_TO_KEEP then
-      begin
-        if not (fTmpOrmAddPreDb.Delete(TSQLAddPreRecord, 'ID < ?', [fLastRowId - DBCLEANUP_NUM_ENTRIES_TO_KEEP])) then
-        begin
-          Debug(dpError, section, '[RemoveStats] Could not remove with timestamp %d!', [DateTimeToUnix(Yesterday)]);
-          exit;
-        end
-        else
-        begin
-          FDbCleanupCounter := 0;
-        end;
-      end;
+    // we can skip the DB cleanup if we do not want to waste the time for it (e.g. sitepre)
+    if (InterlockedIncrement(FDbCleanupCounter) >= DBCLEANUP_INTERVAL) and not aSkipDbCleanup then
+    begin
+      InterlockedExchange(FDbCleanupCounter, 0);
+      try
+        // keep only the latest DBCLEANUP_NUM_ENTRIES_TO_KEEP entries
+        ORMAddPreDBSqLite.DB.Execute(Format('DELETE FROM AddPreRecord WHERE ts < (SELECT MIN(ts) FROM (SELECT ts FROM AddPreRecord ORDER BY ts DESC LIMIT %d));',
+          [DBCLEANUP_NUM_ENTRIES_TO_KEEP]));
       except
         on e: Exception do
-        begin
-          debug(dpError, section, Format('[EXCEPTION] DB Cleanup: %s ', [e.Message]));
-        end;
+          debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (cleanup): %s', [e.Message]));
       end;
+    end;
   end;
 end;
 
 function dbaddpre_GetCount: integer;
+var
+  fMySQLQuery: TSqlDBStatementWithParamsAndColumns; // really not sure why but on FPC this must be a TSqlDBStatementWithParamsAndColumns and not TSqlDBZeosStatement, else we get a compile error about incompatible types
+  fTableName: String;
 begin
   Result := 0;
   if ((dbaddpre_mode = apmSQLITE) or (dbaddpre_mode = apmMemory) or
@@ -469,8 +510,19 @@ begin
   end
   else if (dbaddpre_mode = apmMYSQL) then
   begin
-    if Assigned(ORMAddPreDBMySQL) then
-      Result := ORMAddPreDBMySQL.TableRowCount(TSQLAddPreRecord);
+    if Assigned(MySQLCon) then
+    begin
+      fTableName := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
+      fMySQLQuery := TSqlDBZeosStatement.Create(MySQLCon.ThreadSafeConnection);
+      try
+        fMySQLQuery.Prepare('SELECT count(*) FROM `' + fTableName + '`', True);
+        fMySQLQuery.ExecutePrepared;
+        if fMySQLQuery.Step then
+          Result := fMySQLQuery.ColumnInt(0);
+      finally
+        fMySQLQuery.Free;
+      end;
+    end;
   end;
 end;
 
@@ -533,18 +585,40 @@ begin
   Result := Format('<b>Dupe.db</b>: %d Rips', [dbaddpre_GetCount]);
 end;
 
+{ Migrates the legacy Zeos addpre table into the ORM table on first start.
+  The legacy table is dropped after a successful copy, otherwise kept for a retry on next start. }
+procedure _MigrateLegacyAddpreTable;
+var
+  fTables: TRawUTF8DynArray;
+  fTableName: RawUTF8;
+  fHasAddpre: boolean;
+begin
+  fHasAddpre := False;
+
+  ORMAddPreDBSqLite.DB.GetTableNames(fTables);
+  for fTableName in fTables do
+    if SameText(fTableName, 'addpre') then
+      fHasAddpre := True;
+
+  if not fHasAddpre then
+    exit;
+
+  try
+    // property names of TSQLAddPreRecord map 1:1 onto the legacy columns
+    ORMAddPreDBSqLite.DB.Execute('INSERT OR IGNORE INTO AddPreRecord (rlz, section, ts, source) ' +
+      'SELECT rlz, section, ts, source FROM addpre');
+    ORMAddPreDBSqLite.DB.Execute('DROP TABLE addpre');
+    Debug(dpMessage, section, 'Migrated legacy addpre Zeos table into mORMot2 ORM table');
+  except
+    on e: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] _MigrateLegacyAddpreTable: %s (legacy table kept, retry on next start)', [e.Message]));
+  end;
+end;
+
 procedure dbaddpreStart;
 var
   fDBName: String;
-  fHost, fPort, fUser, fPass, fDBMS, fLibName: String;
-  fJsonMapping: RawUtf8;
-  fConfig: IDocDict;
-  fColumns: IDocDict;
-  fORMMapping: POrmMapping;
-  fTableName: RawUTF8;
-  fprops: TSqlDBConnectionProperties;
-  fConnectionString: RawUTF8;
-  fKey: RawUtf8;
+  fHost, fPort, fUser, fPass, fMysqlDbName, fDBMS, fLibName: String;
 begin
   addprecmd := TStringList.Create;
   addprecmd.CommaText := config.ReadString(section, 'addprecmd', '!addpre');
@@ -557,38 +631,17 @@ begin
 
   config_taskpretime_url := config.readString('taskpretime', 'url', '');
   config_taskpretime_regexp := RawByteString(config.readString('taskpretime', 'regexp', '(\S+) (?<pretime>\d+) (\S+) (\S+) (\S+)$'));
-  fTableName := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
 
-
-  fJsonMapping :=
-    '{' + #13#10 +
-    '  "tableName": "' + fTableName + '",' + #13#10 +
-    '  "columns": {' + #13#10 +
-    '    "rlz": "' + config.ReadString('taskmysqlpretime', 'rlsname_field', 'rlz') + '",' + #13#10 +
-    '    "ts": "' + config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts')+ '",' + #13#10 +
-    '    "section": "' + config.ReadString('taskmysqlpretime', 'section_field', 'section')+ '",' + #13#10 +
-    '    "source": "' + config.ReadString('taskmysqlpretime', 'source_field', 'source')+ '"' + #13#10 +
-    '  }' + #13#10 +
-    '}';
-
-  ORMAddPreModel := TORMModel.Create([TSQLAddPreRecord]);
   FDbCleanupCounter := 0;
 
-  if ( (dbaddpre_mode = apmSQLITE) or (dbaddpre_plm1 = plmSQLITE) or (dbaddpre_plm2 = plmSQLITE) ) then
+  if ( (dbaddpre_mode = apmSQLITE) or (dbaddpre_mode = apmMemory) or (dbaddpre_plm1 = plmSQLITE) or (dbaddpre_plm2 = plmSQLITE) ) then
   begin
+    ORMAddPreModel := TSQLModel.Create([TSQLAddPreRecord]);
+    fDBName := Trim(config.ReadString(section, 'db_file', 'db_addpre.db'));
     try
-      begin
-        fDBName := Trim(config.ReadString(section, 'db_file', 'db_addpre.db'));
-        try
-          ORMAddPreDBSqLite := CreateORMSQLite3DB(ORMAddPreModel, fDBName, '');
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] statsInit: %s', [e.Message]));
-            exit;
-          end;
-        end;
-    end;
+      ORMAddPreDBSqLite := CreateORMSQLite3DB(ORMAddPreModel, fDBName, '', dbaddpre_mode = apmMemory);
+      if Assigned(ORMAddPreDBSqLite) then
+        _MigrateLegacyAddpreTable;
     except
       on e: Exception do
       begin
@@ -597,17 +650,17 @@ begin
       end;
     end;
   end;
-  if dbaddpre_mode = apmMySQL then
+
+  if ( (dbaddpre_mode = apmMYSQL) or (dbaddpre_plm1 = plmMYSQL) or (dbaddpre_plm2 = plmMYSQL) ) then
   begin
-    // initialize global MySQL/MariaD object
+    // initialize global MySQL/MariaDB object
     fHost := config.ReadString('mysql', 'host', '0');
     if fHost <> '0' then
     begin
-
       fPort := IntToStr(config.ReadInteger('mysql', 'port', 3306));
       fUser := config.ReadString('mysql', 'user', 'dbuser');
       fPass := config.ReadString('mysql', 'pass', 'dbpass');
-      fDbName := config.ReadString('mysql', 'dbname', 'slftp-addpre');
+      fMysqlDbName := config.ReadString('mysql', 'dbname', 'slftp-addpre');
       fDBMS := UpperCase(config.ReadString('mysql', 'dbms', ''));
 
       // differentiate between db software, maybe not compatible in future
@@ -625,32 +678,27 @@ begin
         exit;
       end;
 
-      fConnectionString :=
-      FormatUtf8('zdbc:mysql://%:%/%?username=%;password=%',
-      [fHost, fPort, fDbName, fUser, fPass]);
-
-      fProps := TSQLDBZEOSConnectionProperties.Create(
-        fConnectionString, // Host or connection string
-        fDbName,       // Database name
-        fUser, fPass);
-      fProps.ThreadSafeConnection.Connect;
-
-      fConfig := DocDict(fJsonMapping);
-      fTableName := fConfig.S['tableName'];
-
-      // Map the ORM class to external DB with custom table name from config
-      fORMMapping := OrmMapExternal(ORMAddPreModel, TSQLAddPreRecord, fProps, fTableName);
-      fColumns := fConfig.D['columns'];
-
-      // Map individual columns from config
-      for fKey in fColumns.Keys do
-      begin
-        fORMMapping^.MapField(fKey, fColumns.S[fKey]);
-        WriteLn('Mapped: ', fKey, ' -> ', fColumns.S[fKey]);
+      try
+        // create connection
+        MySQLCon := TSQLDBZEOSConnectionProperties.Create(TSQLDBZEOSConnectionProperties.URI(dMySQL, StringToUTF8(fHost + ':' + fPort), StringToUTF8(fLibName)), StringToUTF8(fMysqlDbName), StringToUTF8(fUser), StringToUTF8(fPass));
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('Failed to load MySQL/MariaDB: %s', [e.Message]));
+          exit;
+        end;
       end;
 
-      ORMAddPreDBMysql := CreateORMMysqlConnection(ORMAddPreModel, fDbName, fLibName, fHost, fUser, fPass, fPort);
+      if not Assigned(MySQLCon) then
+      begin
+        Debug(dpError, section, Format('Failed to load MySQL/MariaDB: %s', [fLibName]));
+        exit;
+      end;
+
+      Debug(dpSpam, section, 'MySQL/MariaDB library initialised.');
     end
+    else
+      Debug(dpError, section, 'MySQL/MariaDB selected but no host is set in the [mysql] config section.');
   end;
 
   case Integer(dbaddpre_mode) of
@@ -674,7 +722,7 @@ begin
 
   if (dbaddpre_mode = apmMySQL) then
   begin
-    Result := Assigned(ORMAddPreDBMysql);
+    Result := Assigned(MySQLCon);
     Exit;
   end;
 end;
@@ -688,13 +736,13 @@ begin
   begin
     FreeAndNil(ORMAddPreDBSqLite);
   end;
-  if Assigned(ORMAddPreDBMySQL) then
-  begin
-    FreeAndNil(ORMAddPreDBMySQL);
-  end;
   if Assigned(ORMAddPreModel) then
   begin
     FreeAndNil(ORMAddPreModel);
+  end;
+  if Assigned(MySQLCon) then
+  begin
+    FreeAndNil(MySQLCon);
   end;
   Debug(dpSpam, section, 'Uninit2');
 end;

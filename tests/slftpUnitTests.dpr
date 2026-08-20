@@ -50,6 +50,9 @@ program slftpUnitTests;
 
 uses
   FastMM5,
+  // static sqlite3 engine for the ORM database tests (same as in slftpUnitTests.lpr),
+  // otherwise CreateORMSQLite3DB fails without an external sqlite3 dll
+  mormot.db.raw.sqlite3.static,
   {$IFDEF TESTINSIGHT}
   TestInsight.DUnitX,
   {$ENDIF }
@@ -68,6 +71,7 @@ uses
   ircblowfish.CBCTests,
   tagsTests,
   ircblowfish.plaintextTests,
+  dbaddpreTests,
   dbtvinfoTests,
   sllanguagebaseTests,
   mygrouphelpersTests,

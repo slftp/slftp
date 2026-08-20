@@ -166,8 +166,6 @@ begin
   InitProxys;
   console_addline('Admin', 'Init RdOHConfig', True);
   InitmRdOHConfigFiles;
-  console_addline('Admin', 'Init Addpre DB', True);
-  //dbaddpreInit;
   console_addline('Admin', 'Init NFO DB', True);
   dbaddnfoInit;
   console_addline('Admin', 'Init URL DB', True);

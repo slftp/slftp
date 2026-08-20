@@ -37,6 +37,8 @@ uses
   {$ELSE}
     GUITestRunner,
   {$ENDIF}
+  // static sqlite3 engine for the ORM database tests
+  mormot.db.raw.sqlite3.static,
   Classes, SysUtils,
   mrdohutils,
   slftpUnitTestsSetup,
@@ -48,6 +50,7 @@ uses
   ircblowfish.CBCTests,
   tagsTests,
   ircblowfish.plaintextTests,
+  dbaddpreTests,
   dbtvinfoTests,
   sllanguagebaseTests,
   mygrouphelpersTests,
