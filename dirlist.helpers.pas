@@ -172,7 +172,9 @@ begin
   SkipSpaces;
   aGroupname := string(GetNextItem(P, ' '));
   SkipSpaces;
-  aFilesize := GetNextItemInt64(P, ' ');
+  // keep the documented -1 sentinel for non-numeric sizes (GetNextItemInt64
+  // would return 0), callers rely on it to skip malformed lines
+  aFilesize := StrToInt64Def(string(GetNextItem(P, ' ')), -1);
   SkipSpaces;
 
   fDate1 := GetNextItem(P, ' ');
@@ -183,9 +185,9 @@ begin
   SkipSpaces;  // Skip spaces after time before filename
   aDatum := string(fDate1 + ' ' + fDate2 + ' ' + fDate3);
 
-  // The rest of the line is the filename/item
+  // The rest of the line is the filename/item (trimmed like the old Fetch/Trim based code)
   if P <> nil then
-    aItem := string(P)  // P already points to start of filename after SkipSpaces
+    aItem := Trim(string(P))  // P already points to start of filename after SkipSpaces
   else
     aItem := '';
 end;

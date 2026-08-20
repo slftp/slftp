@@ -24,6 +24,7 @@ type
     procedure TestParseStatResponseLineDrftpd1;
     procedure TestParseStatResponseLineDrftpd2;
     procedure TestParseStatResponseLineComplexDirname;
+    procedure TestParseStatResponseLineInvalidFilesize;
     procedure TestReleaseContainsNFOOnly;
     procedure TestIsValidFilename1;
     procedure TestIsValidFilename2;
@@ -196,6 +197,24 @@ begin
   CheckEquals('Jan 5 12:20', fDatum);
   CheckEquals('[::::::::::::::] -   0% Complete - [GRP]', fFilename);
 end;
+
+procedure TTestDirlistHelpers.TestParseStatResponseLineInvalidFilesize;
+var
+  fTmp: String;
+  fDirMask, fUsername, fGroupname, fDatum, fFilename: String;
+  fFilesize: Int64;
+begin
+  // malformed line with non-numeric size must yield the documented -1 sentinel,
+  // callers (dirlist.pas) rely on it to skip such lines
+  // also covers trailing whitespace being trimmed from the item
+  fTmp := 'drwxrwxrwx   2 aq11     iND              garbage Apr 19 23:14 Sample  ';
+  ParseStatResponseLine(fTmp, fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
+
+  CheckEquals('drwxrwxrwx', fDirMask);
+  CheckEquals(-1, fFilesize);
+  CheckEquals('Sample', fFilename);
+end;
+
 
 procedure TTestDirlistHelpers.TestReleaseContainsNFOOnly;
 begin
