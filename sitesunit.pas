@@ -543,7 +543,13 @@ type
     { Send the current tasks to the queue console window. }
     procedure QueueSendCurrentTasksToConsole;
 
-    function GetSSLSession: PSSL_SESSION;
+    { Returns the saved SSL session with incremented reference count, so it stays
+      valid even if another slot thread replaces it concurrently.
+      The caller owns the returned reference and must release it via SslSessionFree.
+      @returns(owned session reference, nil if none saved or unsupported) }
+    function AcquireSSLSession: PSSL_SESSION;
+    { Replaces the saved SSL session, releasing the previous one.
+      Takes ownership of the given reference. }
     procedure SetSSLSession(session: PSSL_SESSION);
 
     { Lock this site for any operation that will assign / unassign tasks to the slots.
@@ -601,7 +607,6 @@ type
     property SiteSize: String read GetSiteSize write SetSiteSize; //< size of site
     property SiteNotes: String read GetSiteNotes write SetSiteNotes; //< additional notes for the site
     property Ident: String read GetSiteIdent write SetSiteIdent; //< Ident reply for the site
-    property SSLSession: PSSL_SESSION read GetSSLSession write SetSSLSession; //< Saved SSL session for resumed handshakes on reconnect
   published
     property sw: TSiteSw read GetSw write SetSw; //< FTPd software, see @link(TSiteSw)
     property swVersion: String read GetSwVersion write SetSwVersion; //< FTPd software version
@@ -2063,6 +2068,7 @@ var
   currentBnc, tmpBnc, tmpHost: String;
   tmpPort: Integer;
   fDoCheckSiteSoftware: boolean;
+  fSession: PSSL_SESSION;
 
   procedure tryToGetSiteSoftwareAndVersionFromLastResponse();
     var fSiteSoftware: TSiteSw;
@@ -2110,9 +2116,14 @@ begin
   if sslm in [sslImplicitSSL] then
   begin
     SetSSLContext();
-    if not TurnToSSLWithSession(site.io_timeout * 1000, site.SSLSession) then
-      exit;
-    site.SSLSession := ExtractSSLSession;
+    fSession := site.AcquireSSLSession;
+    try
+      if not TurnToSSLWithSession(site.io_timeout * 1000, fSession) then
+        exit;
+    finally
+      SslSessionFree(fSession);
+    end;
+    site.SetSSLSession(ExtractSSLSession);
   end;
 
   fDoCheckSiteSoftware := (site.sw = sswUnknown) or (not site.IsUp);
@@ -2147,9 +2158,14 @@ begin
     if lastResponseCode <> 234 then
       exit;
 
-    if not TurnToSSLWithSession(site.io_timeout * 1000, site.SSLSession) then
-      exit;
-    site.SSLSession := ExtractSSLSession;
+    fSession := site.AcquireSSLSession;
+    try
+      if not TurnToSSLWithSession(site.io_timeout * 1000, fSession) then
+        exit;
+    finally
+      SslSessionFree(fSession);
+    end;
+    site.SetSSLSession(ExtractSSLSession);
 
     //After completing the negotiation of a secure connection with the server, the client must issue the PBSZ command.
     //Pure-FTPd requires this. Other FTPDs work well without it.
@@ -2944,6 +2960,7 @@ var
   idTCP: TslTCPSocket;
   host: String;
   port: Integer;
+  fSession: PSSL_SESSION;
 begin
   Result := -1;
   idTCP := nil;
@@ -3027,25 +3044,30 @@ begin
         exit;
       end;
 
-      if not idTCP.TurnToSSLWithSession(site.io_timeout * 1000, site.SSLSession) then
-      begin
-        irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: SSL negotiation with site %s while getting %s: %s', [site.name, filename, idTCP.error]);
-
-        site.fFailedNfoCounter := site.fFailedNfoCounter + 1;
-        if site.fFailedNfoCounter >= CONST_NFO_FAILED_THRESHOLD then
+      fSession := site.AcquireSSLSession;
+      try
+        if not idTCP.TurnToSSLWithSession(site.io_timeout * 1000, fSession) then
         begin
-          site.UseForNFOdownload := ufnAutoDisabled;
-          irc_addadmin(Format('Disable NFO/SFV download for <b>%s</b> after %d consecutive failures.', [site.Name, site.fFailedNfoCounter]));
-        end;
+          irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: SSL negotiation with site %s while getting %s: %s', [site.name, filename, idTCP.error]);
 
-        DestroySocket(False);
-        Result := -1;
-        exit;
-      end
-      else
-      begin
-        site.fFailedNfoCounter := 0; // reset the failed counter if this has worked
-        site.SSLSession := idTCP.ExtractSSLSession;
+          site.fFailedNfoCounter := site.fFailedNfoCounter + 1;
+          if site.fFailedNfoCounter >= CONST_NFO_FAILED_THRESHOLD then
+          begin
+            site.UseForNFOdownload := ufnAutoDisabled;
+            irc_addadmin(Format('Disable NFO/SFV download for <b>%s</b> after %d consecutive failures.', [site.Name, site.fFailedNfoCounter]));
+          end;
+
+          DestroySocket(False);
+          Result := -1;
+          exit;
+        end
+        else
+        begin
+          site.fFailedNfoCounter := 0; // reset the failed counter if this has worked
+          site.SetSSLSession(idTCP.ExtractSSLSession);
+        end;
+      finally
+        SslSessionFree(fSession);
       end;
 
       if not Read('RETR') then
@@ -3362,7 +3384,7 @@ begin
   fSSLSessionLock.Free;
   if fSSLSession <> nil then
   begin
-    SSL_SESSION_free(fSSLSession);
+    SslSessionFree(fSSLSession);
     fSSLSession := nil;
   end;
   fSpeedFromCS.Free;
@@ -3373,11 +3395,15 @@ begin
   inherited;
 end;
 
-function TSite.GetSSLSession: PSSL_SESSION;
+function TSite.AcquireSSLSession: PSSL_SESSION;
 begin
-  fSSLSessionLock.Enter('GetSSLSession');
+  fSSLSessionLock.Enter('AcquireSSLSession');
   try
     Result := fSSLSession;
+    // hand out an own reference, so a concurrent SetSSLSession on another slot
+    // thread cannot free the session while the caller is using it
+    if (Result <> nil) and (not SslSessionUpRef(Result)) then
+      Result := nil;
   finally
     fSSLSessionLock.Leave;
   end;
@@ -3389,7 +3415,7 @@ begin
   try
     if fSSLSession <> nil then
     begin
-      SSL_SESSION_free(fSSLSession);
+      SslSessionFree(fSSLSession);
       fSSLSession := nil;
     end;
     if session <> nil then

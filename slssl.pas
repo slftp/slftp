@@ -54,6 +54,32 @@ function GetSSLErrorMessageFromErrorCode(const aSSL: PSSL; const aSslErrorCode: 
   @returns(True, in case of success. False otherwise.) }
 function InitOpenSSL(out aError: String): boolean;
 
+{ Tells if the SSL session functions could be resolved from libssl.
+  If @false, session resumption is not available and callers must do a full handshake.
+  @returns(@true if SSL_get1_session/SSL_set_session/SSL_SESSION_free/SSL_SESSION_up_ref are usable) }
+function SslSessionFunctionsAvailable: boolean;
+
+{ Increment the reference count of an SSL session (SSL_SESSION_up_ref).
+  @param(aSession session to reference, may be nil (noop then))
+  @returns(@true on success) }
+function SslSessionUpRef(aSession: PSSL_SESSION): boolean;
+
+{ Release a reference to an SSL session (SSL_SESSION_free), nil-safe. }
+procedure SslSessionFree(aSession: PSSL_SESSION);
+
+{ Get the current session of an SSL connection with its reference count already
+  incremented (SSL_get1_session). The caller owns the returned reference and must
+  release it via @link(SslSessionFree).
+  @param(aSSL SSL connection to get the session from)
+  @returns(owned session reference, nil if unavailable) }
+function SslGetSession(aSSL: PSSL): PSSL_SESSION;
+
+{ Set a session on a new SSL connection to attempt resumption (SSL_set_session).
+  Does NOT take ownership of @param(aSession), the caller keeps its reference.
+  @param(aSSL SSL connection to set the session on)
+  @param(aSession session to resume, may be nil (noop then)) }
+procedure SslSetSession(aSSL: PSSL; aSession: PSSL_SESSION);
+
 implementation
 
 uses
@@ -61,6 +87,87 @@ uses
 
 var
   gSSLContextSettings: PSSL_CTX = nil; // default SSL/TLS context used for all connections
+
+type
+  { Small wrapper around the already loaded libssl which additionally resolves the
+    SSL session functions, so we don't need to patch the vendored mormot.lib.openssl11
+    unit. Loading the library again just returns another handle to it. }
+  TSlSslSessionLib = class(TSynLibrary)
+  public
+    SSL_get1_session: function(ssl: PSSL): PSSL_SESSION; cdecl;
+    SSL_set_session: function(ssl: PSSL; session: PSSL_SESSION): integer; cdecl;
+    SSL_SESSION_free: procedure(session: PSSL_SESSION); cdecl;
+    SSL_SESSION_up_ref: function(session: PSSL_SESSION): integer; cdecl;
+  end;
+
+var
+  glSslSessionLib: TSlSslSessionLib = nil; //< resolved by _ResolveSSLSessionFunctions
+
+{ Resolves the SSL session functions from the already loaded libssl via mORMot's
+  dynamic loader, so we don't need to patch the vendored mormot.lib.openssl11 unit }
+procedure _ResolveSSLSessionFunctions;
+begin
+  if glSslSessionLib <> nil then
+    exit;
+
+  glSslSessionLib := TSlSslSessionLib.Create;
+  {$IFNDEF MSWINDOWS}
+  // same special case as above: the libinstaller installs plain libssl.so next to the binary
+  if FileExists(ExtractFilePath(ParamStr(0)) + 'libssl.so') then
+    glSslSessionLib.TryLoadLibrary([ExtractFilePath(ParamStr(0)) + 'libssl.so'])
+  else
+  {$ENDIF}
+    glSslSessionLib.TryLoadLibrary([LIB_SSL3, LIB_SSL1]);
+
+  if not glSslSessionLib.Exists then
+  begin
+    FreeAndNil(glSslSessionLib);
+    exit;
+  end;
+
+  // note: @@ is required to get the field address (@ would yield the field value)
+  glSslSessionLib.Resolve('', 'SSL_get1_session', @@glSslSessionLib.SSL_get1_session);
+  glSslSessionLib.Resolve('', 'SSL_set_session', @@glSslSessionLib.SSL_set_session);
+  glSslSessionLib.Resolve('', 'SSL_SESSION_free', @@glSslSessionLib.SSL_SESSION_free);
+  glSslSessionLib.Resolve('', 'SSL_SESSION_up_ref', @@glSslSessionLib.SSL_SESSION_up_ref);
+end;
+
+function SslSessionFunctionsAvailable: boolean;
+begin
+  Result := (glSslSessionLib <> nil) and
+    Assigned(glSslSessionLib.SSL_get1_session) and Assigned(glSslSessionLib.SSL_set_session) and
+    Assigned(glSslSessionLib.SSL_SESSION_free) and Assigned(glSslSessionLib.SSL_SESSION_up_ref);
+end;
+
+function SslSessionUpRef(aSession: PSSL_SESSION): boolean;
+begin
+  Result := False;
+  if (aSession = nil) or (not SslSessionFunctionsAvailable) then
+    exit;
+  Result := glSslSessionLib.SSL_SESSION_up_ref(aSession) = 1;
+end;
+
+procedure SslSessionFree(aSession: PSSL_SESSION);
+begin
+  if (aSession = nil) or (not SslSessionFunctionsAvailable) then
+    exit;
+  glSslSessionLib.SSL_SESSION_free(aSession);
+end;
+
+function SslGetSession(aSSL: PSSL): PSSL_SESSION;
+begin
+  Result := nil;
+  if (aSSL = nil) or (not SslSessionFunctionsAvailable) then
+    exit;
+  Result := glSslSessionLib.SSL_get1_session(aSSL);
+end;
+
+procedure SslSetSession(aSSL: PSSL; aSession: PSSL_SESSION);
+begin
+  if (aSSL = nil) or (aSession = nil) or (not SslSessionFunctionsAvailable) then
+    exit;
+  glSslSessionLib.SSL_set_session(aSSL, aSession);
+end;
 
 // returns the earliest error code from the thread's error queue and removes the entry
 // can be called repeatedly until there are no more error codes to return.
@@ -133,7 +240,12 @@ begin
     Result := OpenSslInitialize;
 
     if Result then
-      RegisterOpenSsl
+    begin
+      RegisterOpenSsl;
+      // enable SSL session resumption support if the loaded libssl exports the
+      // functions (symbol availability does not depend on the providers below)
+      _ResolveSSLSessionFunctions;
+    end
     else
     begin
       aError := 'OpenSslInitialize failed! can not load openssl! ' + _GetEarliestOpenSSLErrorCode;
@@ -178,6 +290,11 @@ begin
       exit;
     end;
   end;
+
+  // enable SSL session resumption support if the loaded libssl exports the functions
+  // (symbol availability does not depend on the provider loading above)
+  if OpenSslIsLoaded then
+    _ResolveSSLSessionFunctions;
 end;
 
 function GetOpenSSLShortVersion: String;
@@ -265,4 +382,6 @@ begin
   Result := UTF8ToString(fErrorMessage);
 end;
 
+finalization
+  FreeAndNil(glSslSessionLib);
 end.

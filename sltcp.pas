@@ -89,7 +89,8 @@ type
     function TurnToSSL(sslctx: PSSL_CTX; timeout: Integer = slDefaultTimeout; session: PSSL_SESSION = nil): Boolean; overload;
     function TurnToSSLWithSession(timeout: Integer; session: PSSL_SESSION): Boolean;
     function AcceptSSL(sslctx: PSSL_CTX; timeout: Integer = slDefaultTimeout): Boolean;
-    function ApplySSLSession(session: PSSL_SESSION): Boolean;
+    { Returns the session of the current SSL connection with incremented reference
+      count. The caller owns the reference and must release it via SslSessionFree. }
     function ExtractSSLSession: PSSL_SESSION;
   published
     property BindPort: Integer read fBindPort write fBindPort;
@@ -577,18 +578,11 @@ end;
 
 
 
-function TslTCPSocket.ApplySSLSession(session: PSSL_SESSION): Boolean;
-begin
-  Result := False;
-  if (fSSL <> nil) and (session <> nil) then
-    Result := SSL_set_session(fSSL, session) = 1;
-end;
-
 function TslTCPSocket.ExtractSSLSession: PSSL_SESSION;
 begin
   Result := nil;
   if fSSL <> nil then
-    Result := SSL_get1_session(fSSL);
+    Result := SslGetSession(fSSL);
 end;
 
 function TslTCPSocket.TurnToSSL(timeout: Integer = slDefaultTimeout): Boolean;
@@ -668,8 +662,8 @@ begin
     end;
 
     // Try to resume a previously saved SSL session for faster reconnects
-    if session <> nil then
-      SSL_set_session(fSSL, session);
+    // (does not take ownership, the caller keeps its session reference)
+    SslSetSession(fSSL, session);
 
     while(true)do
     begin
