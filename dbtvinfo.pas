@@ -3,27 +3,10 @@ unit dbtvinfo;
 interface
 
 uses
-  Classes, IniFiles, irc, kb.releaseinfo, Contnrs;
+  Classes, IniFiles, irc, kb.releaseinfo, Contnrs, dbhandler, tvinfo.types,
+  mormot.orm.core, mormot.rest.sqlite3;
 
 type
-  { @abstract(Possible return values for special cases in getShowValues procedure)
-    @value(tvInitialValue Initial value which is set as default value)
-    @value(tvNotMatched For cases where main regex matched but single matches don't contain useful values)
-    @value(tvConversionError Value if StrToIntDef failed to convert input)
-    @value(tvDatedShow Season value for dated shows)
-    @value(tvRegularSerieWithoutSeason Season value for shows which only have an episode tag)
-    @value(tvNoExplicitShowTag Shows without season/episode/dated tag (mostly tv movies or sports))
-    @value(tvNoEpisodeTag Shows without episode tag (mostly full season releases)) }
-  TTVGetShowValuesIdentifier = (tvInitialValue = -50, tvNotMatched = -60, tvConversionError = -70,
-    tvDatedShow = -80, tvRegularSerieWithoutSeason = -90, tvNoExplicitShowTag = -100, tvNoEpisodeTag = -110);
-
-  { @abstract(Possible 'error' values for season and episode info lookups on the web)
-    @value(tvSeEpInitialValue Initial value which is set as default value)
-    @value(tvSeEpAirdatePrevAndNextOnSameDay Airdate of previous and next episode are on the same day)
-    @value(tvSeEpShowEnded Show ended)
-    @value(tvSeEpNoNextOrPrev No information about the next episode and next season) }
-  TTVSeasonEpisodeWebInfo = (tvSeEpInitialValue = -3, tvSeEpAirdatePrevAndNextOnSameDay = -4, tvSeEpShowEnded = -5, tvSeEpNoNextOrPrev = -6);
-
   TTVInfoDB = class
   public
     ripname: String;
@@ -66,13 +49,21 @@ type
     procedure setTVRageID(const aID: integer);
   end;
 
+var
+  GlTVInfoDb: TSQLRestClientDB = nil; //< global mORMot2 ORM database connection for tv info
+  GlTVInfoModel: TSQLModel = nil; //< global mORMot2 ORM model for tv info (must remain for complete runtime)
+
 function getTVInfoCount: integer;
 function getTVInfoSeriesCount: integer;
 
 function TheTVDbStatus: String;
 
 procedure dbTVInfoInit;
-procedure dbTVInfoStart;
+
+{ Initializes the mORMot2 ORM database for tv info (creates missing tables and
+  migrates legacy Zeos tables series/infos on first start)
+  @param(aDbName database file name, if empty the value from config section tasktvinfo/database is used) }
+procedure dbTVInfoStart(const aDbName: String = '');
 procedure dbTVInfoUnInit;
 
 function getTVInfoByShowName(const aRls_Showname: String): TTVInfoDB;
@@ -115,15 +106,76 @@ implementation
 
 uses
   DateUtils, SysUtils, Math, configunit, StrUtils, mystrings, console, sitesunit, queueunit, slmasks, http, RegExpr,
-  debugunit, tasktvinfolookup, pazo, mrdohutils, uLkJSON, dbhandler, SyncObjs, sllanguagebase, mormot.db.sql.sqlite3,
-  Generics.Collections, news, kb, slcriticalsection2, mormot.core.unicode;
+  debugunit, tasktvinfolookup, pazo, mrdohutils, uLkJSON, sllanguagebase,
+  Generics.Collections, news, kb, mormot.core.unicode, mormot.core.base, mormot.orm.base,
+  mormot.db.raw.sqlite3;
 
 const
   section = 'tasktvinfo';
 
+type
+  { NOTE: everything which starts with TVMaze is data from TVMaze }
+
+  { ORM row of the TVInfo table, holds the TVMaze show infos.
+    Property names stay snake_case on purpose (deviating from the PascalCase
+    used in statsunit.pas): they map 1:1 onto the legacy Zeos infos table
+    columns, which keeps the one-time SQL data migration a plain INSERT SELECT }
+  TSQLTVInfo = class(TOrm)
+  private
+    FTvmazeId: Integer; //< TVMaze show id
+    FThetvdbId: Integer; //< TheTVDb show id (-1 if unknown)
+    FTvrageId: Integer; //< TVRage show id (-1 if unknown)
+    FPremieredYear: Integer; //< year the show premiered
+    FCountry: RawUTF8; //< country code of the network (US/GB are normalized to USA/UK)
+    FStatus: RawUTF8; //< show status (Running, Ended, In Development, ...)
+    FClassification: RawUTF8; //< show classification (Scripted, Reality, ...)
+    FNetwork: RawUTF8; //< network or web channel name
+    FGenre: RawUTF8; //< genres as CommaText
+    FEndedYear: Integer; //< year the show ended (-1 if still running/unknown)
+    FLastUpdated: Integer; //< unix timestamp of the last update from TVMaze
+    FNextDate: Integer; //< unix timestamp of the next episode airdate
+    FNextSeason: Integer; //< season number of the next episode
+    FNextEpisode: Integer; //< episode number of the next episode
+    FRating: Integer; //< rating value (max score is 100, min score is 0)
+    FAirdays: RawUTF8; //< airdays as CommaText
+    FTvLanguage: RawUTF8; //< language of the show
+  published
+    property tvmaze_id: Integer read FTvmazeId write FTvmazeId stored AS_UNIQUE;
+    property thetvdb_id: Integer read FThetvdbId write FThetvdbId;
+    property tvrage_id: Integer read FTvrageId write FTvrageId;
+    property premiered_year: Integer read FPremieredYear write FPremieredYear;
+    property country: RawUTF8 read FCountry write FCountry;
+    property status: RawUTF8 read FStatus write FStatus;
+    property classification: RawUTF8 read FClassification write FClassification;
+    property network: RawUTF8 read FNetwork write FNetwork;
+    property genre: RawUTF8 read FGenre write FGenre;
+    property ended_year: Integer read FEndedYear write FEndedYear;
+    property last_updated: Integer read FLastUpdated write FLastUpdated;
+    property next_date: Integer read FNextDate write FNextDate;
+    property next_season: Integer read FNextSeason write FNextSeason;
+    property next_episode: Integer read FNextEpisode write FNextEpisode;
+    property rating: Integer read FRating write FRating;
+    property airdays: RawUTF8 read FAirdays write FAirdays;
+    property tv_language: RawUTF8 read FTvLanguage write FTvLanguage;
+  end;
+
+  { ORM row of the TVSeries table, maps a ripped showname to a TVMaze show.
+    The legacy rip_country column is dropped on purpose: it was never read
+    by any code path (legacy leftover) }
+  TSQLTVSeries = class(TOrm)
+  private
+    FRip: RawUTF8; //< ripped showname as extracted from the releasename
+    FShowname: RawUTF8; //< plain TVMaze showname
+    FTvmazeUrl: RawUTF8; //< TVMaze url of the show
+    FTvmazeId: Integer; //< TVMaze show id, references TSQLTVInfo.tvmaze_id
+  published
+    property rip: RawUTF8 read FRip write FRip stored AS_UNIQUE;
+    property showname: RawUTF8 read FShowname write FShowname;
+    property tvmaze_url: RawUTF8 read FTvmazeUrl write FTvmazeUrl;
+    property tvmaze_id: Integer read FTvmazeId write FTvmazeId;
+  end;
+
 var
-  tvinfoSQLite3DBCon: TSQLDBSQLite3ConnectionProperties = nil; //< SQLite3 database connection for tv info
-  SQLite3Lock: TSlCriticalSection2 = nil; //< Critical Section used for read/write blocking as concurrently does not work flawless
   addtinfodbcmd: String; //< irc command for addtvmaze channel, default: !addtvmaze
   LastAddtvmazeIDs: TList<String>; // ugly way to prevent looping of !addtvmaze announces when info is already stored with different ID
 
@@ -367,127 +419,252 @@ end;
 
 { TTVInfoDB }
 
+{ Fills an ORM tv info row from the TTVInfoDB fields, last_updated is always set to now }
+procedure _FillOrmFromTVInfoDB(const aTvi: TTVInfoDB; const aInfo: TSQLTVInfo);
+begin
+  aInfo.tvmaze_id := StrToIntDef(aTvi.tvmaze_id, -1);
+  aInfo.thetvdb_id := StrToIntDef(aTvi.thetvdb_id, -1);
+  aInfo.tvrage_id := StrToIntDef(aTvi.tvrage_id, -1);
+  aInfo.premiered_year := aTvi.tv_premiered_year;
+  aInfo.country := StringToUTF8(aTvi.tv_country);
+  aInfo.status := StringToUTF8(aTvi.tv_status);
+  aInfo.classification := StringToUTF8(aTvi.tv_classification);
+  aInfo.network := StringToUTF8(aTvi.tv_network);
+  aInfo.genre := StringToUTF8(aTvi.tv_genres.CommaText);
+  aInfo.ended_year := aTvi.tv_endedyear;
+  aInfo.last_updated := DateTimeToUnix(now());
+  aInfo.next_date := aTvi.tv_next_date;
+  aInfo.next_season := aTvi.tv_next_season;
+  aInfo.next_episode := aTvi.tv_next_ep;
+  aInfo.rating := aTvi.tv_rating;
+  aInfo.airdays := StringToUTF8(aTvi.tv_days.CommaText);
+  aInfo.tv_language := StringToUTF8(aTvi.tv_language);
+end;
+
+{ Fills the TTVInfoDB fields from an ORM tv info row and computes tv_running/tv_scripted.
+  A nil aInfo replicates the old LEFT JOIN behavior (no infos row -> default values).
+  @param(aInfo ORM tv info row or nil if there is none)
+  @param(aTvi DTO which gets filled)
+  @param(aNextDefault default for tv_next_date/season/ep without infos row, keeps the historic getTVInfoByShowName(-1)/getTVInfoByShowID(0) difference) }
+procedure _FillTVInfoDBFromOrm(const aInfo: TSQLTVInfo; const aTvi: TTVInfoDB; const aNextDefault: Integer);
+begin
+  if aInfo <> nil then
+  begin
+    aTvi.thetvdb_id := IntToStr(aInfo.thetvdb_id);
+    aTvi.tvrage_id := IntToStr(aInfo.tvrage_id);
+    aTvi.tv_premiered_year := aInfo.premiered_year;
+    aTvi.tv_country := UTF8ToString(aInfo.country);
+    aTvi.tv_status := UTF8ToString(aInfo.status);
+    aTvi.tv_classification := UTF8ToString(aInfo.classification);
+    aTvi.tv_network := UTF8ToString(aInfo.network);
+    aTvi.tv_genres.CommaText := UTF8ToString(aInfo.genre);
+    aTvi.tv_endedyear := aInfo.ended_year;
+    aTvi.last_updated := aInfo.last_updated;
+    aTvi.tv_next_date := aInfo.next_date;
+    aTvi.tv_next_season := aInfo.next_season;
+    aTvi.tv_next_ep := aInfo.next_episode;
+    aTvi.tv_days.CommaText := UTF8ToString(aInfo.airdays);
+    aTvi.tv_rating := aInfo.rating;
+    aTvi.tv_language := UTF8ToString(aInfo.tv_language);
+  end
+  else
+  begin
+    // legacy LEFT JOIN case: series row without matching infos row
+    aTvi.thetvdb_id := '';
+    aTvi.tvrage_id := '';
+    aTvi.tv_premiered_year := -1;
+    aTvi.tv_country := '';
+    aTvi.tv_status := '';
+    aTvi.tv_classification := '';
+    aTvi.tv_network := '';
+    aTvi.tv_genres.Clear;
+    aTvi.tv_endedyear := -1;
+    aTvi.last_updated := -1;
+    aTvi.tv_next_date := aNextDefault;
+    aTvi.tv_next_season := aNextDefault;
+    aTvi.tv_next_ep := aNextDefault;
+    aTvi.tv_days.Clear;
+    aTvi.tv_rating := 0;
+    aTvi.tv_language := '';
+  end;
+
+  aTvi.tv_running := Boolean( (SysUtils.LowerCase(aTvi.tv_status) = 'running') or (SysUtils.LowerCase(aTvi.tv_status) = 'in development') );
+  aTvi.tv_scripted := Boolean(SysUtils.LowerCase(aTvi.tv_classification) = 'scripted');
+end;
+
+{ Drops the legacy Zeos indexes tvinfo (on infos) and Rips (on series) which the
+  old code created on every start. SQLite shares one namespace for table and
+  index names, so the index 'tvinfo' would otherwise block CREATE TABLE TVInfo
+  in CreateMissingTables. Must run before the ORM database is opened.
+  Any error is only logged, never raised }
+procedure _DropLegacyTvinfoIndexes(const aDbName: String);
+var
+  fDbPath: String;
+  fDb: TSQLDataBase;
+begin
+  fDbPath := GetDatabaseFilePath(aDbName);
+  if not FileExists(fDbPath) then
+    exit;
+
+  try
+    fDb := TSQLDataBase.Create(StringToUTF8(fDbPath));
+    try
+      fDb.Execute('DROP INDEX IF EXISTS tvinfo');
+      fDb.Execute('DROP INDEX IF EXISTS Rips');
+    finally
+      fDb.Free;
+    end;
+  except
+    on e: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] _DropLegacyTvinfoIndexes: %s', [e.Message]));
+  end;
+end;
+
+{ Migrates the legacy Zeos tables series/infos into the ORM tables and drops
+  them afterwards. On any error the legacy tables are kept and the error is
+  only logged, so the next start retries the migration }
+procedure _MigrateLegacyTvinfoTables;
+var
+  fTables: TRawUTF8DynArray;
+  fTableName: RawUTF8;
+  fHasInfos, fHasSeries: boolean;
+begin
+  fHasInfos := False;
+  fHasSeries := False;
+
+  GlTVInfoDb.DB.GetTableNames(fTables);
+  for fTableName in fTables do
+  begin
+    if SameText(fTableName, 'infos') then
+      fHasInfos := True;
+    if SameText(fTableName, 'series') then
+      fHasSeries := True;
+  end;
+
+  if not (fHasInfos or fHasSeries) then
+    exit;
+
+  try
+    if fHasInfos then
+    begin
+      // property names of TSQLTVInfo map 1:1 onto the legacy columns, only tvdb_id was renamed to thetvdb_id
+      GlTVInfoDb.DB.Execute('INSERT OR IGNORE INTO TVInfo ' +
+        '(tvmaze_id, thetvdb_id, tvrage_id, premiered_year, country, status, classification, network, genre, ' +
+        'ended_year, last_updated, next_date, next_season, next_episode, rating, airdays, tv_language) ' +
+        'SELECT tvmaze_id, tvdb_id, tvrage_id, premiered_year, country, status, classification, network, genre, ' +
+        'ended_year, last_updated, next_date, next_season, next_episode, rating, airdays, tv_language FROM infos');
+      GlTVInfoDb.DB.Execute('DROP TABLE infos');
+    end;
+
+    if fHasSeries then
+    begin
+      // legacy series.id holds the tvmaze id, rip_country is dropped (never read by any code)
+      GlTVInfoDb.DB.Execute('INSERT OR IGNORE INTO TVSeries (rip, showname, tvmaze_url, tvmaze_id) ' +
+        'SELECT rip, showname, tvmaze_url, id FROM series');
+      GlTVInfoDb.DB.Execute('DROP TABLE series');
+    end;
+
+    Debug(dpMessage, section, 'Migrated legacy tvinfo Zeos tables into mORMot2 ORM tables');
+  except
+    on e: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] _MigrateLegacyTvinfoTables: %s (legacy tables kept, retry on next start)', [e.Message]));
+  end;
+end;
+
 procedure TTVInfoDB.setTheTVDbID(const aID: integer);
 var
-  fQuery: TSqlDBSQLite3Statement;
+  fInfo: TSQLTVInfo;
 begin
-  SQLite3Lock.Enter('setTheTVDbID');
+  if GlTVInfoDb = nil then
+    exit;
+
   try
-    fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
+    fInfo := TSQLTVInfo.CreateAndFillPrepare(GlTVInfoDb.Orm, 'tvmaze_id = ?', [], [StrToIntDef(tvmaze_id, -1)]);
     try
-      fQuery.Prepare('UPDATE infos set tvdb_id = ? WHERE tvmaze_id = ?');
-      fQuery.Bind(1, aID);
-      fQuery.BindTextS(2, tvmaze_id);
-      try
-        fQuery.ExecutePrepared;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] setTheTVDbID: %s, ID: %d, TVMAZE-ID: %s', [e.Message, aID, tvmaze_id]));
-          exit;
-        end;
+      if fInfo.FillOne then
+      begin
+        fInfo.thetvdb_id := aID;
+        GlTVInfoDb.Update(fInfo);
       end;
     finally
-      fQuery.free;
+      fInfo.Free;
     end;
-  finally
-    SQLite3Lock.Leave;
+  except
+    on e: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] setTheTVDbID: %s, ID: %d, TVMAZE-ID: %s', [e.Message, aID, tvmaze_id]));
   end;
 end;
 
 procedure TTVInfoDB.setTVRageID(const aID: integer);
 var
-  fQuery: TSqlDBSQLite3Statement;
+  fInfo: TSQLTVInfo;
 begin
-  SQLite3Lock.Enter('setTVRageID');
+  if GlTVInfoDb = nil then
+    exit;
+
   try
-    fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
+    fInfo := TSQLTVInfo.CreateAndFillPrepare(GlTVInfoDb.Orm, 'tvmaze_id = ?', [], [StrToIntDef(tvmaze_id, -1)]);
     try
-      fQuery.Prepare('UPDATE infos set tvrage_id = ? WHERE tvmaze_id = ?');
-      fQuery.Bind(1, aID);
-      fQuery.BindTextS(2, tvmaze_id);
-      try
-        fQuery.ExecutePrepared;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] setTVRageID: %s, ID: %d, TVMAZE-ID: %s', [e.Message, aID, tvmaze_id]));
-          exit;
-        end;
+      if fInfo.FillOne then
+      begin
+        fInfo.tvrage_id := aID;
+        GlTVInfoDb.Update(fInfo);
       end;
     finally
-      fQuery.free;
+      fInfo.Free;
     end;
-  finally
-    SQLite3Lock.Leave;
+  except
+    on e: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] setTVRageID: %s, ID: %d, TVMAZE-ID: %s', [e.Message, aID, tvmaze_id]));
   end;
 end;
 
 procedure TTVInfoDB.Save;
 var
-  fQuery: TSqlDBSQLite3Statement;
+  fInfo: TSQLTVInfo;
+  fSeries: TSQLTVSeries;
 begin
-  SQLite3Lock.Enter('Save');
+  if GlTVInfoDb = nil then
+    exit;
+
   try
-    fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
+    // INSERT OR IGNORE INTO infos
+    fInfo := TSQLTVInfo.CreateAndFillPrepare(GlTVInfoDb.Orm, 'tvmaze_id = ?', [], [StrToIntDef(tvmaze_id, -1)]);
     try
-      fQuery.Prepare('INSERT OR IGNORE INTO infos ' +
-        '(tvdb_id, premiered_year, country, status, classification, network, genre, ended_year, last_updated, tvrage_id, tvmaze_id, airdays, next_date, next_season, next_episode, tv_language, rating) VALUES ' +
-        '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-
-      fQuery.Bind(1, StrToIntDef(thetvdb_id, -1));
-      fQuery.Bind(2, tv_premiered_year);
-      fQuery.BindTextS(3, tv_country);
-      fQuery.BindTextS(4, tv_status);
-      fQuery.BindTextS(5, tv_classification);
-      fQuery.BindTextS(6, tv_network);
-      fQuery.BindTextS(7, tv_genres.CommaText);
-      fQuery.Bind(8, tv_endedyear);
-      fQuery.Bind(9, DateTimeToUnix(now()));
-      fQuery.Bind(10, StrToIntDef(tvrage_id, -1));
-      fQuery.Bind(11, StrToIntDef(tvmaze_id, -1));
-      fQuery.BindTextS(12, tv_days.CommaText);
-      fQuery.Bind(13, tv_next_date);
-      fQuery.Bind(14, tv_next_season);
-      fQuery.Bind(15, tv_next_ep);
-      fQuery.BindTextS(16, tv_language);
-      fQuery.Bind(17, tv_rating);
-      try
-        fQuery.ExecutePrepared;
-         If fQuery.UpdateCount > 0 then
-          last_updated := DateTimeToUnix(now())
-        else
-          last_updated := 3817;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] TTVInfoDB.Save infos: %s', [e.Message]));
-          exit;
-        end;
-      end;
-
-      // release the SQL statement, results and bound parameters before reopen
-      fQuery.Reset;
-
-      fQuery.Prepare('INSERT OR IGNORE INTO series (rip, showname, id, tvmaze_url) VALUES (?, ?, ?, ?)');
-      fQuery.BindTextS(1, rls_showname);
-      fQuery.BindTextS(2, tv_showname);
-      fQuery.Bind(3, StrToInt(tvmaze_id));
-      fQuery.BindTextS(4, tv_url);
-      try
-         fQuery.ExecutePrepared;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] TTVInfoDB.Save series: %s', [e.Message]));
-          exit;
-        end;
+      if fInfo.FillOne then
+        // row existed already, mimics the ignored insert of the old code
+        last_updated := 3817
+      else
+      begin
+        fInfo.Free;
+        fInfo := TSQLTVInfo.Create;
+        _FillOrmFromTVInfoDB(self, fInfo);
+        GlTVInfoDb.Add(fInfo, True);
+        last_updated := DateTimeToUnix(now());
       end;
     finally
-      fQuery.free;
+      fInfo.Free;
     end;
-  finally
-    SQLite3Lock.Leave;
+
+    // INSERT OR IGNORE INTO series
+    fSeries := TSQLTVSeries.CreateAndFillPrepare(GlTVInfoDb.Orm, 'rip = ?', [], [StringToUTF8(rls_showname)]);
+    try
+      if not fSeries.FillOne then
+      begin
+        fSeries.Free;
+        fSeries := TSQLTVSeries.Create;
+        fSeries.rip := StringToUTF8(rls_showname);
+        fSeries.showname := StringToUTF8(tv_showname);
+        fSeries.tvmaze_url := StringToUTF8(tv_url);
+        fSeries.tvmaze_id := StrToIntDef(tvmaze_id, -1);
+        GlTVInfoDb.Add(fSeries, True);
+      end;
+    finally
+      fSeries.Free;
+    end;
+  except
+    on e: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] TTVInfoDB.Save: %s', [e.Message]));
   end;
 end;
 
@@ -662,52 +839,27 @@ end;
 
 function TTVInfoDB.executeUpdate: Boolean;
 var
-  fQuery: TSqlDBSQLite3Statement;
+  fInfo: TSQLTVInfo;
 begin
   Result := False;
 
-  SQLite3Lock.Enter('executeUpdate');
-  try
-    fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
-    try
-      fQuery.Prepare('UPDATE infos SET ' +
-        'tvdb_id = ?, tvrage_id = ?, status = ?, country = ?, tv_language = ?, network = ?, ' +
-        'classification = ?, genre = ?, airdays = ?, premiered_year = ?, ended_year = ?, next_date = ?, ' +
-        'next_season = ?, next_episode = ?, rating = ?, last_updated = ? WHERE tvmaze_id = ?');
+  if GlTVInfoDb = nil then
+    exit;
 
-      fQuery.Bind(1, StrToIntDef(thetvdb_id, -1));
-      fQuery.Bind(2, StrToIntDef(tvrage_id, -1));
-      fQuery.BindTextS(3, tv_status);
-      fQuery.BindTextS(4, tv_country);
-      fQuery.BindTextS(5, tv_language);
-      fQuery.BindTextS(6, tv_network);
-      fQuery.BindTextS(7, tv_classification);
-      fQuery.BindTextS(8, tv_genres.CommaText);
-      fQuery.BindTextS(9, tv_days.CommaText);
-      fQuery.Bind(10, tv_premiered_year);
-      fQuery.Bind(11, tv_endedyear);
-      fQuery.Bind(12, tv_next_date);
-      fQuery.Bind(13, tv_next_season);
-      fQuery.Bind(14, tv_next_ep);
-      fQuery.Bind(15, tv_rating);
-      fQuery.Bind(16, DateTimeToUnix(now()));
-      fQuery.Bind(17, StrToInt(tvmaze_id));
-      try
-        fQuery.ExecutePrepared;
-        if fQuery.UpdateCount > 0 then
-          Result := True;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] TTVInfoDB.executeUpdate: %s', [e.Message]));
-          exit;
-        end;
+  try
+    fInfo := TSQLTVInfo.CreateAndFillPrepare(GlTVInfoDb.Orm, 'tvmaze_id = ?', [], [StrToIntDef(tvmaze_id, -1)]);
+    try
+      if fInfo.FillOne then
+      begin
+        _FillOrmFromTVInfoDB(self, fInfo);
+        Result := GlTVInfoDb.Update(fInfo);
       end;
     finally
-      fQuery.free;
+      fInfo.Free;
     end;
-  finally
-    SQLite3Lock.Leave;
+  except
+    on e: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] TTVInfoDB.executeUpdate: %s', [e.Message]));
   end;
 end;
 
@@ -779,63 +931,19 @@ end;
 {   misc                                       }
 
 function getTVInfoCount: integer;
-var
-  fQuery: TSqlDBSQLite3Statement;
 begin
-  Result := 0;
-
-  SQLite3Lock.Enter('getTVInfoCount');
-  try
-    fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
-    try
-      fQuery.Prepare('SELECT count(*) FROM infos');
-      try
-        fQuery.ExecutePrepared;
-        if fQuery.Step then
-          Result := fQuery.ColumnInt(0);
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] getTVInfoCount: %s', [e.Message]));
-          exit;
-        end;
-      end;
-    finally
-      fQuery.free;
-    end;
-  finally
-    SQLite3Lock.Leave;
-  end;
+  if GlTVInfoDb = nil then
+    Result := 0
+  else
+    Result := GlTVInfoDb.TableRowCount(TSQLTVInfo);
 end;
 
 function getTVInfoSeriesCount: integer;
-var
-  fQuery: TSqlDBSQLite3Statement;
 begin
-  Result := 0;
-
-  SQLite3Lock.Enter('getTVInfoSeriesCount');
-  try
-    fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
-    try
-      fQuery.Prepare('SELECT count(*) FROM series');
-      try
-        fQuery.ExecutePrepared;
-        if fQuery.Step then
-          Result := fQuery.ColumnInt(0);
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] getTVInfoSeriesCount: %s', [e.Message]));
-          exit;
-        end;
-      end;
-    finally
-      fQuery.free;
-    end;
-  finally
-    SQLite3Lock.Leave;
-  end;
+  if GlTVInfoDb = nil then
+    Result := 0
+  else
+    Result := GlTVInfoDb.TableRowCount(TSQLTVSeries);
 end;
 
 function TheTVDbStatus: String;
@@ -845,142 +953,88 @@ end;
 
 function deleteTVInfoByID(const aID: String): Integer;
 var
-  fQuery: TSqlDBSQLite3Statement;
+  fInfo: TSQLTVInfo;
+  fSeries: TSQLTVSeries;
 begin
   Result := 1;
 
-  SQLite3Lock.Enter('deleteTVInfoByID');
+  if GlTVInfoDb = nil then
+    exit;
+
   try
-    fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
+    fInfo := TSQLTVInfo.CreateAndFillPrepare(GlTVInfoDb.Orm, 'tvmaze_id = ?', [], [StrToIntDef(aID, -1)]);
     try
-      fQuery.Prepare('DELETE FROM infos WHERE tvmaze_id = ?');
-      fQuery.BindTextS(1, aID);
-      try
-        fQuery.ExecutePrepared;
-        if fQuery.UpdateCount = 0 then
-          begin
-            Result := 10;
-            Exit;
-          end;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] deleteTVInfoByID infos: %s', [e.Message]));
-          exit;
-        end;
-      end;
-
-      // release the SQL statement, results and bound parameters before reopen
-      fQuery.Reset;
-
-      fQuery.Prepare('DELETE FROM series WHERE id = ?');
-      fQuery.BindTextS(1, aID);
-      try
-        fQuery.ExecutePrepared;
-        if fQuery.UpdateCount = 0 then
-          begin
-            Result := 11;
-            Exit;
-          end;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] deleteTVInfoByID series: %s', [e.Message]));
-          exit;
-        end;
+      if fInfo.FillOne then
+        GlTVInfoDb.Delete(TSQLTVInfo, fInfo.ID)
+      else
+      begin
+        Result := 10;
+        exit;
       end;
     finally
-      fQuery.free;
+      fInfo.Free;
     end;
-  finally
-    SQLite3Lock.Leave;
+
+    fSeries := TSQLTVSeries.CreateAndFillPrepare(GlTVInfoDb.Orm, 'tvmaze_id = ?', [], [StrToIntDef(aID, -1)]);
+    try
+      if fSeries.FillOne then
+        GlTVInfoDb.Delete(TSQLTVSeries, fSeries.ID)
+      else
+      begin
+        Result := 11;
+        exit;
+      end;
+    finally
+      fSeries.Free;
+    end;
+  except
+    on e: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] deleteTVInfoByID: %s', [e.Message]));
   end;
 end;
 
 function deleteTVInfoByRipName(const aName: String): Integer;
 var
-  fCount: integer;
-  fQuery: TSqlDBSQLite3Statement;
+  fSeries: TSQLTVSeries;
+  fCount: Int64;
 begin
-  fCount := 0;
   Result := 1;
 
-  SQLite3Lock.Enter('deleteTVInfoByRipName');
+  if GlTVInfoDb = nil then
+    exit;
+
   try
-    fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
+    fSeries := TSQLTVSeries.CreateAndFillPrepare(GlTVInfoDb.Orm, 'rip = ?', [], [StringToUTF8(aName)]);
     try
-      fQuery.Prepare('SELECT COUNT(*) FROM series WHERE rip = ?');
-      fQuery.BindTextS(1, aName);
-      try
-        fQuery.ExecutePrepared;
-        if fQuery.Step then
-          Result := fQuery.ColumnInt(0);
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] deleteTVInfoByRipName COUNT(*): %s', [e.Message]));
-          exit;
-        end;
+      if not fSeries.FillOne then
+      begin
+        Result := 0;
+        exit;
       end;
 
-      // release the SQL statement, results and bound parameters before reopen
-      fQuery.Reset;
-
-      case fCount of
-        0:
-          begin
-            result := 0;
-            Exit;
-          end;
-        1:
-          begin
-            fQuery.Prepare('DELETE FROM series WHERE rip = ?');
-            fQuery.BindTextS(1, aName);
-            try
-              fQuery.ExecutePrepared;
-              if fQuery.UpdateCount = 0 then
-                result := 12
-              else
-                result := 1;
-            except
-              on e: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] deleteTVInfoByRipName series: %s', [e.Message]));
-              end;
-            end;
-            Exit;
-          end;
-        else
-          begin
-            fQuery.Prepare('SELECT id FROM series WHERE rip = ?');
-            fQuery.BindTextS(1, aName);
-            try
-              fQuery.ExecutePrepared;
-              if fQuery.Step then
-                result := deleteTVInfoByID(UTF8ToString(fQuery.ColumnUtf8('id')))
-              else
-                result := 13;
-            except
-              on e: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] deleteTVInfoByRipName series: %s', [e.Message]));
-              end;
-            end;
-            Exit;
-          end;
-      end;
+      if not GlTVInfoDb.OneFieldValue(TSQLTVSeries, 'COUNT(*)', 'rip = ?', [], [StringToUTF8(aName)], fCount) then
+        fCount := 0;
+      if fCount > 1 then
+        // multiple aka's for the same rip, delete infos and series via the tvmaze id
+        Result := deleteTVInfoByID(IntToStr(fSeries.tvmaze_id))
+      else if GlTVInfoDb.Delete(TSQLTVSeries, fSeries.ID) then
+        Result := 1
+      else
+        Result := 12;
     finally
-      fQuery.free;
+      fSeries.Free;
     end;
-  finally
-    SQLite3Lock.Leave;
+  except
+    on e: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] deleteTVInfoByRipName: %s', [e.Message]));
   end;
 end;
 
 function getTVInfoByShowName(const aRls_Showname: String): TTVInfoDB;
 var
-  tvi: TTVInfoDB;
-  fQuery: TSqlDBSQLite3Statement;
+  fTvi: TTVInfoDB;
+  fSeries: TSQLTVSeries;
+  fInfo: TSQLTVInfo;
 begin
   Result := nil;
 
@@ -990,62 +1044,47 @@ begin
     exit;
   end;
 
-  SQLite3Lock.Enter('getTVInfoByShowName');
+  if GlTVInfoDb = nil then
+    exit;
+
+  fTvi := nil;
+  // LIKE + lowercase compare keeps the old case-insensitive rip matching behavior (incl. aka's)
+  fSeries := TSQLTVSeries.CreateAndFillPrepare(GlTVInfoDb.Orm, 'rip LIKE ?', [], [StringToUTF8(aRls_Showname)]);
   try
-    fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
     try
-      // able to handle the aka's
-      fQuery.Prepare('SELECT * FROM series LEFT JOIN infos ON infos.tvmaze_id = series.id WHERE rip LIKE ?');
-      fQuery.BindTextS(1, aRls_Showname);
-      try
-        fQuery.ExecutePrepared;
-        if fQuery.Step then
-        begin
-          if (SysUtils.LowerCase(aRls_Showname) <> SysUtils.LowerCase(fQuery.ColumnString('rip'))) then
-          begin
-            Debug(dpError, section, 'getTVInfoByShowName LowerCase(%s) <> LowerCase(%s)', [aRls_Showname, fQuery.ColumnString('rip')]);
-            exit;
-          end;
+      if not fSeries.FillOne then
+        exit;
 
-          tvi := TTVInfoDB.Create(aRls_Showname);
-
-          tvi.tv_showname := fQuery.ColumnString('showname');
-          tvi.tv_url := fQuery.ColumnString('tvmaze_url');
-          tvi.tvmaze_id := fQuery.ColumnString('id');
-          tvi.thetvdb_id := fQuery.ColumnString('tvdb_id');
-          tvi.tvrage_id := fQuery.ColumnString('tvrage_id');
-          tvi.tv_premiered_year := StrToIntDef(fQuery.ColumnString('premiered_year'), -1);
-          tvi.tv_country := fQuery.ColumnString('country');
-          tvi.tv_status := fQuery.ColumnString('status');
-          tvi.tv_classification := fQuery.ColumnString('classification');
-          tvi.tv_network := fQuery.ColumnString('network');
-          tvi.tv_genres.CommaText := fQuery.ColumnString('genre');
-          tvi.tv_endedyear := StrToIntDef(fQuery.ColumnString('ended_year'), -1);
-          tvi.last_updated := StrToIntDef(fQuery.ColumnString('last_updated'), -1);
-          tvi.tv_next_date := StrToIntDef(fQuery.ColumnString('next_date'), -1);
-          tvi.tv_next_season := StrToIntDef(fQuery.ColumnString('next_season'), -1);
-          tvi.tv_next_ep := StrToIntDef(fQuery.ColumnString('next_episode'), -1);
-          tvi.tv_days.CommaText := fQuery.ColumnString('airdays');
-          tvi.tv_rating := StrToIntDef(fQuery.ColumnString('rating'), 0);
-          tvi.tv_language:= fQuery.ColumnString('tv_language');
-
-          tvi.tv_running := Boolean( (SysUtils.LowerCase(tvi.tv_status) = 'running') or (SysUtils.LowerCase(tvi.tv_status) = 'in development') );
-          tvi.tv_scripted := Boolean(SysUtils.LowerCase(tvi.tv_classification) = 'scripted');
-
-          Result := tvi;
-        end;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] getTVInfoByShowName: %s', [e.Message]));
-          exit;
-        end;
+      if (SysUtils.LowerCase(aRls_Showname) <> SysUtils.LowerCase(UTF8ToString(fSeries.rip))) then
+      begin
+        Debug(dpError, section, 'getTVInfoByShowName LowerCase(%s) <> LowerCase(%s)', [aRls_Showname, UTF8ToString(fSeries.rip)]);
+        exit;
       end;
-    finally
-      fQuery.free;
+
+      fTvi := TTVInfoDB.Create(aRls_Showname);
+      fTvi.tv_showname := UTF8ToString(fSeries.showname);
+      fTvi.tv_url := UTF8ToString(fSeries.tvmaze_url);
+      fTvi.tvmaze_id := IntToStr(fSeries.tvmaze_id);
+
+      fInfo := TSQLTVInfo.CreateAndFillPrepare(GlTVInfoDb.Orm, 'tvmaze_id = ?', [], [fSeries.tvmaze_id]);
+      try
+        if not fInfo.FillOne then
+          FreeAndNil(fInfo);
+        _FillTVInfoDBFromOrm(fInfo, fTvi, -1);
+      finally
+        fInfo.Free;
+      end;
+
+      Result := fTvi;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] getTVInfoByShowName: %s', [e.Message]));
+        FreeAndNil(fTvi);
+      end;
     end;
   finally
-    SQLite3Lock.Leave;
+    fSeries.Free;
   end;
 end;
 
@@ -1067,8 +1106,9 @@ end;
 
 function getTVInfoByShowID(const aTVMazeID: String): TTVInfoDB;
 var
-  tvi: TTVInfoDB;
-  fQuery: TSqlDBSQLite3Statement;
+  fTvi: TTVInfoDB;
+  fSeries: TSQLTVSeries;
+  fInfo: TSQLTVInfo;
 begin
   Result := nil;
 
@@ -1078,55 +1118,42 @@ begin
     exit;
   end;
 
-  SQLite3Lock.Enter('getTVInfoByShowID');
+  if GlTVInfoDb = nil then
+    exit;
+
+  fTvi := nil;
+  // legacy series.id holds the tvmaze id
+  fSeries := TSQLTVSeries.CreateAndFillPrepare(GlTVInfoDb.Orm, 'tvmaze_id = ?', [], [StrToIntDef(aTVMazeID, -1)]);
   try
-    fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
     try
-      fQuery.Prepare('SELECT * FROM series LEFT JOIN infos ON infos.tvmaze_id = series.id WHERE id = ?');
-      fQuery.BindTextS(1, aTVMazeID);
+      if not fSeries.FillOne then
+        exit;
+
+      fTvi := TTVInfoDB.Create(UTF8ToString(fSeries.rip));
+      fTvi.tv_showname := UTF8ToString(fSeries.showname);
+      fTvi.tv_url := UTF8ToString(fSeries.tvmaze_url);
+      fTvi.tvmaze_id := IntToStr(fSeries.tvmaze_id);
+
+      fInfo := TSQLTVInfo.CreateAndFillPrepare(GlTVInfoDb.Orm, 'tvmaze_id = ?', [], [fSeries.tvmaze_id]);
       try
-        fQuery.ExecutePrepared;
-        if fQuery.Step then
-        begin
-          tvi := TTVInfoDB.Create(fQuery.ColumnString('rip'));
-
-          tvi.tv_showname := fQuery.ColumnString('showname');
-          tvi.tv_url := fQuery.ColumnString('tvmaze_url');
-          tvi.tvmaze_id := fQuery.ColumnString('id');
-          tvi.thetvdb_id := fQuery.ColumnString('tvdb_id');
-          tvi.tvrage_id := fQuery.ColumnString('tvrage_id');
-          tvi.tv_premiered_year := StrToIntDef(fQuery.ColumnString('premiered_year'), -1);
-          tvi.tv_country := fQuery.ColumnString('country');
-          tvi.tv_status := fQuery.ColumnString('status');
-          tvi.tv_classification := fQuery.ColumnString('classification');
-          tvi.tv_network := fQuery.ColumnString('network');
-          tvi.tv_genres.CommaText := fQuery.ColumnString('genre');
-          tvi.tv_endedyear := StrToIntDef(fQuery.ColumnString('ended_year'), -1);
-          tvi.last_updated := StrToIntDef(fQuery.ColumnString('last_updated'), -1);
-          tvi.tv_next_date := StrToIntDef(fQuery.ColumnString('next_date'), 0); // why 0, -1 in getTVInfoByShowName?
-          tvi.tv_next_season := StrToIntDef(fQuery.ColumnString('next_season'), 0); // why 0, -1 in getTVInfoByShowName?
-          tvi.tv_next_ep := StrToIntDef(fQuery.ColumnString('next_episode'), 0); // why 0, -1 in getTVInfoByShowName?
-          tvi.tv_days.CommaText := fQuery.ColumnString('airdays');
-          tvi.tv_rating := StrToIntDef(fQuery.ColumnString('rating'), 0);
-          tvi.tv_language:= fQuery.ColumnString('tv_language');
-
-          tvi.tv_running := Boolean( (SysUtils.LowerCase(tvi.tv_status) = 'running') or (SysUtils.LowerCase(tvi.tv_status) = 'in development') );
-          tvi.tv_scripted := Boolean(SysUtils.LowerCase(tvi.tv_classification) = 'scripted');
-
-          Result := tvi;
-        end;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] getTVInfoByShowID: %s', [e.Message]));
-          exit;
-        end;
+        if not fInfo.FillOne then
+          FreeAndNil(fInfo);
+        // 0 as next default, keeps the historic difference to getTVInfoByShowName (-1)
+        _FillTVInfoDBFromOrm(fInfo, fTvi, 0);
+      finally
+        fInfo.Free;
       end;
-    finally
-      fQuery.free;
+
+      Result := fTvi;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] getTVInfoByShowID: %s', [e.Message]));
+        FreeAndNil(fTvi);
+      end;
     end;
   finally
-    SQLite3Lock.Leave;
+    fSeries.Free;
   end;
 end;
 
@@ -1245,119 +1272,36 @@ begin
   end;
 end;
 
-procedure dbTVInfoStart;
-const
-  CurrentDbVersion: integer = 4;
+procedure dbTVInfoStart(const aDbName: String = '');
 var
   fDBName: String;
-  fUserVersion: integer;
-  fQuery: TSqlDBSQLite3Statement;
 begin
-  fUserVersion := -1;
-  SQLite3Lock := TSlCriticalSection2.Create('tvdb');
+  if GlTVInfoDb <> nil then
+    dbTVInfoUninit;
 
-  fDBName := Trim(config.ReadString(section, 'database', 'tvinfos.db'));
-  tvinfoSQLite3DBCon := CreateSQLite3DbConn(fDBName, '');
+  fDBName := Trim(aDbName);
+  if fDBName = '' then
+    fDBName := Trim(config.ReadString(section, 'database', 'tvinfos.db'));
 
-  {* db version code *}
-  fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
+  // legacy Zeos index 'tvinfo' blocks CREATE TABLE TVInfo (shared name namespace),
+  // so it must be dropped before CreateORMSQLite3DB runs CreateMissingTables
+  _DropLegacyTvinfoIndexes(fDBName);
+
+  GlTVInfoModel := TSQLModel.Create([TSQLTVInfo, TSQLTVSeries]);
   try
-    // retrieve current db version
-    fQuery.Prepare('PRAGMA user_version');
-    try
-      fQuery.ExecutePrepared;
-      if fQuery.Step then
-        fUserVersion := StrToIntDef(UTF8ToString(fQuery.ColumnUtf8(0)), -1);
-
-      // release the SQL statement, results and bound parameters before reopen
-      fQuery.Reset;
-
-      // decide whether we have to update the db version
-      case fUserVersion of
-       -1:
-          begin
-            Debug(dpError, section, Format('Cannot load PRAGMA user_version from %s', [fDBName]));
-            exit;
-          end;
-        0:
-          begin
-            fQuery.Prepare(StringToUTF8(Format('PRAGMA user_version = %d', [CurrentDbVersion])));
-            fQuery.ExecutePrepared;
-          end;
-        2:
-          begin
-            fQuery.Prepare('ALTER TABLE infos ADD COLUMN tv_language TEXT');
-            fQuery.ExecutePrepared;
-
-            // release the SQL statement, results and bound parameters before reopen
-            fQuery.Reset;
-
-            fQuery.Prepare('PRAGMA user_version = 3');
-            fQuery.ExecutePrepared;
-          end;
-        3:
-          begin
-            fQuery.Prepare('ALTER TABLE infos ADD COLUMN rating INTEGER');
-            fQuery.ExecutePrepared;
-
-            // release the SQL statement, results and bound parameters before reopen
-            fQuery.Reset;
-
-            fQuery.Prepare('PRAGMA user_version = 4');
-            fQuery.ExecutePrepared;
-          end;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] dbTVInfoStart: %s', [e.Message]));
-        exit;
-      end;
+    GlTVInfoDb := CreateORMSQLite3DB(GlTVInfoModel, fDBName, '');
+    if GlTVInfoDb = nil then
+      Debug(dpError, section, Format('dbTVInfoStart: could not initialize ORM database %s', [fDBName]))
+    else
+      _MigrateLegacyTvinfoTables;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] dbTVInfoStart ORM init failed: %s', [e.Message]));
+      FreeAndNil(GlTVInfoDb);
+      FreeAndNil(GlTVInfoModel);
     end;
-  finally
-    fQuery.free;
   end;
-
-  {* Create tables and indexes if they don't exist (new file) *}
-  // series table
-  tvinfoSQLite3DBCon.MainSQLite3DB.Execute(
-    'CREATE TABLE IF NOT EXISTS series(' +
-      'rip TEXT NOT NULL,' +
-      'showname TEXT NOT NULL,' +
-      'rip_country TEXT,' +
-      'tvmaze_url TEXT,' +
-      'id INTEGER NOT NULL,' +
-      'PRIMARY KEY (rip)' +
-    ');'
-  );
-
-  // infos table
-  tvinfoSQLite3DBCon.MainSQLite3DB.Execute(
-    'CREATE TABLE IF NOT EXISTS infos(' +
-      'tvdb_id INTEGER,' +
-      'tvrage_id INTEGER,' +
-      'tvmaze_id INTEGER NOT NULL,' +
-      'premiered_year INTEGER NOT NULL,' +
-      'country TEXT NOT NULL DEFAULT unknown,' +
-      'status  TEXT NOT NULL DEFAULT unknown,' +
-      'classification TEXT NOT NULL DEFAULT unknown,' +
-      'network TEXT NOT NULL DEFAULT unknown,' +
-      'genre TEXT NOT NULL DEFAULT unknown,' +
-      'ended_year INTEGER,' +
-      'last_updated INTEGER NOT NULL DEFAULT -1,' +
-      'next_date INTEGER,' +
-      'next_season INTEGER,' +
-      'next_episode INTEGER,' +
-      'rating INTEGER,' +
-      'airdays TEXT,' +
-      'tv_language TEXT,' +
-      'PRIMARY KEY (tvmaze_id ASC)' +
-    ');'
-  );
-
-  // indexes
-  tvinfoSQLite3DBCon.MainSQLite3DB.Execute('CREATE UNIQUE INDEX IF NOT EXISTS main.tvinfo ON infos (tvmaze_id ASC);');
-  tvinfoSQLite3DBCon.MainSQLite3DB.Execute('CREATE UNIQUE INDEX IF NOT EXISTS main.Rips ON series (rip ASC);');
 
   LastAddtvmazeIDs := TList<String>.Create;
 
@@ -1371,21 +1315,19 @@ end;
 
 procedure dbTVInfoUninit;
 begin
-  if Assigned(SQLite3Lock) then
-  begin
-    FreeAndNil(SQLite3Lock);
-  end;
-
-  if Assigned(tvinfoSQLite3DBCon) then
-  begin
-    // Checkpoint WAL to merge changes back into main database and truncate WAL file
-    tvinfoSQLite3DBCon.MainSQLite3DB.Execute('PRAGMA wal_checkpoint(TRUNCATE)');
-    FreeAndNil(tvinfoSQLite3DBCon);
-  end;
-
   if Assigned(LastAddtvmazeIDs) then
   begin
     FreeAndNil(LastAddtvmazeIDs);
+  end;
+
+  if Assigned(GlTVInfoDb) then
+  begin
+    FreeAndNil(GlTVInfoDb);
+  end;
+
+  if Assigned(GlTVInfoModel) then
+  begin
+    FreeAndNil(GlTVInfoModel);
   end;
 end;
 
@@ -1402,10 +1344,7 @@ end;
 
 function TVInfoDbAlive: boolean;
 begin
-  if tvinfoSQLite3DBCon = nil then
-    Result := false
-  else
-    Result := true;
+  Result := GlTVInfoDb <> nil;
 end;
 
 end.

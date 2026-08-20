@@ -46,7 +46,7 @@ implementation
 
 uses
   SysUtils, irc, StrUtils, debugunit, dateutils, configunit, kb, kb.releaseinfo,
-  sitesunit, mystrings, dbtvinfo, sllanguagebase, mormot.core.variants,
+  sitesunit, mystrings, dbtvinfo, tvinfo.types, sllanguagebase, mormot.core.variants,
   imdbapi, http, RegExpr;
 
 const

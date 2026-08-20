@@ -401,7 +401,7 @@ uses
   taskrace, sitesunit, queueunit, pazo, irc, SysUtils, fake, mystrings,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup,
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers,
-  sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
+  sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, tvinfo.types, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, SyncObjs,
   globalskipunit, irccommandsunit, kb {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
