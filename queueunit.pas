@@ -25,7 +25,6 @@ type
     destructor Destroy; override;
     procedure Execute; override;
     procedure TryToAssignSlots(t: TTask);
-    function HasAssignableRaceTask: Boolean;
 
   private
   tasks:      TObjectList;
@@ -34,7 +33,6 @@ type
   fSiteName: String;
   fSite: TObject;
   fBusyDestinations: TDictionary<TObject, integer>;
-    fQueueDirty: Boolean;
 
   queue_last_run: TDateTime;
   queueclean_last_run: TDateTime;
@@ -432,7 +430,6 @@ begin
     tasks := TObjectList.Create(True);
     waiting_tasks := TObjectList.Create(True);
     queueevent := TEvent.Create(nil, False, False, 'SLFTP_queue_event_' + aSiteName);
-    fQueueDirty := True;
     queue_last_run := Now;
     queueclean_last_run := Now;
     queue_last_stat_update := Now;
@@ -705,22 +702,6 @@ begin
   on e: Exception do
     begin
       Debug(dpError, section, '[EXCEPTION] TQueueThread.TryToAssignLoginSlot : %s', [e.Message]);
-      exit;
-    end;
-  end;
-end;
-
-function TQueueThread.HasAssignableRaceTask: Boolean;
-var
-  t: TTask;
-begin
-  Result := False;
-  for t in tasks do
-  begin
-    if (t is TPazoRaceTask) and (t.slot1 = nil) and (not t.ready) and (not t.readyerror) and
-       ((t.startat = 0) or (t.startat <= queue_last_run)) then
-    begin
-      Result := True;
       exit;
     end;
   end;
@@ -1258,10 +1239,7 @@ begin
       if (t.startat > Now) then
         waiting_tasks.Add(t)
       else
-      begin
         tasks.Add(t);
-        fQueueDirty := True;
-      end;
 
 
       try
@@ -1271,11 +1249,6 @@ begin
           try
             if ((not t.ready) and t.IsReadyToBeExecuted) then
             begin
-              if fQueueDirty then
-              begin
-                tasks.Sort(@QueueSorter);
-                fQueueDirty := False;
-              end;
               self.TryToAssignSlots(t);
             end;
           finally
@@ -1679,7 +1652,7 @@ begin
         end;
 
         if bTasksMoved then
-          fQueueDirty := True;
+          tasks.Sort(@QueueSorter);
 
         for fListIndex := 0 to 1 do
         begin
@@ -1729,12 +1702,6 @@ begin
 
         ts.AcquireSlotsAssignmentLock('Queue iterate');
         try
-          if fQueueDirty and (ts.freeslots > 0) and HasAssignableRaceTask then
-          begin
-            tasks.Sort(@QueueSorter);
-            fQueueDirty := False;
-          end;
-
           for fTask in tasks do
           begin
             try
