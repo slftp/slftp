@@ -32,7 +32,7 @@ uses
   {$ELSE}
     cmem,
   {$ENDIF}
-  // static sqlite3 engine for the ORM database tests (same as on statsdb_mormot2_migration)
+  // static sqlite3 engine for the ORM database tests
   mormot.db.raw.sqlite3.static,
   {$IFDEF TextRunner}
     TextTestRunner,
@@ -69,7 +69,8 @@ uses
   precatcherTests,
   slcriticalsection2Tests,
   variantCacheTests,
-  sltimerTests;
+  sltimerTests,
+  statsunitTests;
 
 var
   filecheck: String;
