@@ -456,12 +456,15 @@ begin
   tempBuffer[0] := #5;     // socks version
   tempBuffer[1] := #1;     // number of possible authentication methods
 
-  if not WriteBuffer(tempBuffer, 3) then exit;
-  if not Read(s, timeout) then exit;
+  // from here on the socket is connected: every failure exit must Disconnect
+  // first, otherwise the fd is leaked on each failed attempt
+  if not WriteBuffer(tempBuffer, 3) then begin Disconnect; exit; end;
+  if not Read(s, timeout) then begin Disconnect; exit; end;
 
   if ((AnsiChar(s[2]) <> tempBuffer[2]) or (s[2] = #255)) then
   begin
     error:= 'Authentication method is not supported by the socks5 server';
+    Disconnect;
     exit;
   end;
 
@@ -482,12 +485,13 @@ begin
     end;
     pos := pos + Length(socks5.Password);
 
-    if not WriteBuffer(tempBuffer, pos) then exit;
-    if not Read(s, timeout) then exit;
+    if not WriteBuffer(tempBuffer, pos) then begin Disconnect; exit; end;
+    if not Read(s, timeout) then begin Disconnect; exit; end;
 
     if s[2] <> #0 then
     begin
       error:= 'Invalid username/password for the socks5 server';
+      Disconnect;
       exit;
     end;
   end;
@@ -517,8 +521,8 @@ begin
   Move(tempPort, tempBuffer[pos], SizeOf(tempPort));
   pos := pos + 2;
 
-  if not WriteBuffer(tempBuffer, pos) then exit;
-  if not Read(s, timeout) then exit;
+  if not WriteBuffer(tempBuffer, pos) then begin Disconnect; exit; end;
+  if not Read(s, timeout) then begin Disconnect; exit; end;
 
 
   case s[2] of
@@ -535,7 +539,11 @@ begin
        error:= 'socks5 error: unknown';
   end;
 
-  if error <> '' then exit;
+  if error <> '' then
+  begin
+    Disconnect;
+    exit;
+  end;
 
   socksextra:= RawByteString(Copy(s, 11, Length(s)-11));
 
@@ -571,6 +579,10 @@ begin
     on e: Exception do
     begin
       Debug(dpError, 'sltcp', Format('[EXCEPTION] TslTCPSocket.Connect: %s', [e.Message]));
+      // an exception can leave an already created socket behind (e.g. when
+      // slResolve raises EIdResolveError inside slConnect), close it here so
+      // the fd is not leaked on every failed connect attempt
+      Disconnect;
       Result:= False;
     end;
   end;

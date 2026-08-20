@@ -43,6 +43,36 @@ var
 threadvar
   glCompleteRegexInstance, glIncompleteRegexInstance: TFLRE; //< complete and incomplete regex object
 
+{ Case-insensitive search for '% complete' without string allocations
+  (UpperCase() temporaries per checked file showed up hot in CPU profiling).
+  @param(aFilename filename to search in)
+  @returns(1-based position of '% complete' in aFilename, 0 if not found) }
+function _PosPercentComplete(const aFilename: String): Integer;
+const
+  fNeedle = '% COMPLETE';
+var
+  i, j: Integer;
+begin
+  Result := 0;
+  if Length(aFilename) < Length(fNeedle) then
+    exit;
+
+  for i := 1 to Length(aFilename) - Length(fNeedle) + 1 do
+  begin
+    Result := i;
+    for j := 1 to Length(fNeedle) do
+    begin
+      if (UpCase(aFilename[i + j - 1]) <> fNeedle[j]) then
+      begin
+        Result := 0;
+        break;
+      end;
+    end;
+    if Result <> 0 then
+      exit;
+  end;
+end;
+
 { Fast search for '% complete' in given @link(aFilename) and determines the percentage if found
   @param(aFilename complete dir/file)
   @returns(tctUNMATCHED if '% complete' not found, tctCOMPLETE if it's done (100%), otherwise tctINCOMPLETE.) }
@@ -53,7 +83,7 @@ var
 begin
   Result := tctUNMATCHED;
 
-  i := Pos(UpperCase('% complete'), UpperCase(aFilename));
+  i := _PosPercentComplete(aFilename);
   if i > 4 then
   begin
     fFoundNumber := False;
@@ -87,20 +117,26 @@ end;
 
 function GetCompleteRegexInstance: TFLRE;
 begin
-  if glCompleteRegexInstance = nil then
-  begin
-    glCompleteRegexInstance := TFLRE.Create(glCompleteRegex, [rfIGNORECASE]);
-  end;
+  // single threadvar read per call - every threadvar access goes through
+  // pthread TLS on Linux and showed up hot in CPU profiling
   Result := glCompleteRegexInstance;
+  if Result = nil then
+  begin
+    Result := TFLRE.Create(glCompleteRegex, [rfIGNORECASE]);
+    glCompleteRegexInstance := Result;
+  end;
 end;
 
 function GetIncompleteRegexInstance: TFLRE;
 begin
-  if glIncompleteRegexInstance = nil then
-  begin
-    glIncompleteRegexInstance := TFLRE.Create(glIncompleteRegex, [rfIGNORECASE]);
-  end;
+  // single threadvar read per call - every threadvar access goes through
+  // pthread TLS on Linux and showed up hot in CPU profiling
   Result := glIncompleteRegexInstance;
+  if Result = nil then
+  begin
+    Result := TFLRE.Create(glIncompleteRegex, [rfIGNORECASE]);
+    glIncompleteRegexInstance := Result;
+  end;
 end;
 
 function TagComplete(const aFilename: String): TTagCompleteType;
@@ -110,23 +146,18 @@ begin
   if Result <> tctUNMATCHED then
     exit;
 
-  // is the file/dir a complete tag
+  // single try/except for both regex checks - an exception frame per checked
+  // file showed up hot in CPU profiling
   try
+    // is the file/dir a complete tag
     if GetCompleteRegexInstance.Find(RawByteString(aFilename)) <> 0 then
     begin
       Debug(dpSpam, section, 'TagComplete By FLRE %s', [aFilename]);
       Result := tctCOMPLETE;
       exit;
     end;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] TagComplete(crc): Exception : %s', [e.Message]));
-    end;
-  end;
 
-  // is the file/dir an incomplete tag
-  try
+    // is the file/dir an incomplete tag
     if GetIncompleteRegexInstance.Find(RawByteString(aFilename)) <> 0 then
     begin
       Debug(dpSpam, section, 'TagIncomplete By FLRE %s', [aFilename]);
@@ -136,7 +167,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TagComplete(cri): Exception : %s', [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TagComplete: Exception : %s', [e.Message]));
     end;
   end;
 end;

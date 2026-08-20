@@ -298,16 +298,19 @@ implementation
               begin
                 if aRaiseExceptionOnFail then
                 begin
-                  raise Exception.Create(Format('Unable to acquire lock ''%s'' (%s) by %s thread within %d ms. Lock is held by thread %s (%d) - %s (%s)', [FName, aLockOwnerName, IntToHex(GetCurrentThreadId, 4), aTimeoutMs, IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName, FCurrentCodeSegmentName]));
+                  // plain concatenation instead of Format(): this raise path
+                  // showed up under MM lock contention in CPU profiling, so
+                  // keep the allocations here as cheap as possible
+                  raise Exception.Create('Unable to acquire lock ''' + FName + ''' (' + aLockOwnerName + ') by ' + IntToHex(GetCurrentThreadId, 4) + ' thread within ' + IntToStr(aTimeoutMs) + ' ms. Lock is held by thread ' + IntToHex(FLockOwningThreadID, 4) + ' (' + IntToStr(FLockCount) + ') - ' + CurrentLockOwnerName + ' (' + FCurrentCodeSegmentName + ')');
                 end;
                 Result := False;
               end;
             wrAbandoned:
-              raise Exception.Create(Format('Mutex abandoned when trying to lock: %s', [aLockOwnerName]));
+              raise Exception.Create('Mutex abandoned when trying to lock: ' + aLockOwnerName);
             wrError:
-              raise Exception.Create(Format('Error when trying to lock: %s', [aLockOwnerName]));
+              raise Exception.Create('Error when trying to lock: ' + aLockOwnerName);
           else
-            raise Exception.Create(Format('Unknown wait result when trying to lock: %s', [aLockOwnerName]));
+            raise Exception.Create('Unknown wait result when trying to lock: ' + aLockOwnerName);
           end;
         end;
 

@@ -93,6 +93,8 @@ var
 
   kb_trimmed_rls: THashedStringList;
   kb_groupcheck_rls: THashedStringList;
+  { Release names of kb_dict_by_rls bucketed by name length for the renamed_release_checker }
+  kb_latest_by_length: TObjectDictionary<Integer, TStringList>;
   kb_skip: THashedStringList;
 
   // Config vars
@@ -129,6 +131,35 @@ begin
       Result := GlSectionHandlers[i];
       exit;
     end;
+  end;
+end;
+
+{ Adds a release name to the length buckets mirroring kb_dict_by_rls (used by the renamed_release_checker)
+  @param(aRlsName release name to add) }
+procedure _KbLatestBucketAdd(const aRlsName: String);
+var
+  fBucket: TStringList;
+begin
+  if (not kb_latest_by_length.TryGetValue(Length(aRlsName), fBucket)) then
+  begin
+    fBucket := TStringList.Create;
+    kb_latest_by_length.Add(Length(aRlsName), fBucket);
+  end;
+  fBucket.Add(aRlsName);
+end;
+
+{ Removes a release name from the length buckets mirroring kb_dict_by_rls
+  @param(aRlsName release name to remove) }
+procedure _KbLatestBucketRemove(const aRlsName: String);
+var
+  fBucket: TStringList;
+  fIndex: Integer;
+begin
+  if (kb_latest_by_length.TryGetValue(Length(aRlsName), fBucket)) then
+  begin
+    fIndex := fBucket.IndexOf(aRlsName);
+    if (fIndex <> -1) then
+      fBucket.Delete(fIndex);
   end;
 end;
 
@@ -197,6 +228,8 @@ var
   fPretimeLookupTask: TPazoPretimeLookupTask;
   fRlsItem: TPair<string, string>;
   fStaleKeys: TStringList;
+  fBucket: TStringList;
+  fName: String;
 
   { Removes the oldest knowledge base entries }
   procedure KbListsCleanUp;
@@ -267,6 +300,7 @@ var
           while (i < fStaleKeys.Count) and (kb_dict_by_rls.Count > 150) do
           begin
             kb_dict_by_rls.Remove(fStaleKeys[i]);
+            _KbLatestBucketRemove(fStaleKeys[i]);
             Inc(i);
           end;
         finally
@@ -372,28 +406,32 @@ begin
       if (renamed_release_checker) then
       begin
         try
-          len := Length(rls); // no need to check the release length in every loop
-          for fRlsItem in kb_dict_by_rls do
+          len := Length(rls);
+          // only names of equal length can be renames of one another, so only the
+          // matching length bucket is checked instead of scanning all of kb_dict_by_rls
+          // (the full scan with string temporaries showed up hot in CPU profiling)
+          if (kb_latest_by_length.TryGetValue(len, fBucket)) then
           begin
-            // makes no sense to run this "expensive" operation if both strings aren't equal length
-            // since the current pattern shows only strings of equal length being renames of one another
-            if Length(fRlsItem.Key) <> len then
-              Continue;
-            if AnsiCompareText(fRlsItem.Key, rls) <> 0 then
+            for i := 0 to fBucket.Count - 1 do
             begin
-              // loop through the amount of different patterns, reduces code duplication
-              for j := 0 to rename_patterns - 1 do
+              fName := fBucket[i];
+              if AnsiCompareText(fName, rls) <> 0 then
               begin
-                if renameCheck(j, len, rls, fRlsItem.Key) then
+                // loop through the amount of different patterns, reduces code duplication
+                for j := 0 to rename_patterns - 1 do
                 begin
-                  if spamcfg.readbool(rsections, 'renamed_release', True) then
-                    irc_addadmin(format('<b><c4>%s</c> @ %s </b>is a rename of %s!', [rls, sitename, fRlsItem.Key]));
+                  if renameCheck(j, len, rls, fName) then
+                  begin
+                    if spamcfg.readbool(rsections, 'renamed_release', True) then
+                      irc_addadmin(format('<b><c4>%s</c> @ %s </b>is a rename of %s!', [rls, sitename, fName]));
 
-                  // release is brand-new but a rename of an already existing release
-                  kb_dict_by_rls.AddOrSetValue(rls, section);
-                  // gonna insert this anyway, because there are sometimes renames of renames
-                  kb_skip.Insert(0, rls);
-                  exit;
+                    // release is brand-new but a rename of an already existing release
+                    kb_dict_by_rls.AddOrSetValue(rls, section);
+                    _KbLatestBucketAdd(rls);
+                    // gonna insert this anyway, because there are sometimes renames of renames
+                    kb_skip.Insert(0, rls);
+                    exit;
+                  end;
                 end;
               end;
             end;
@@ -408,6 +446,7 @@ begin
 
       // release is fine and brand-new, add it to kb_dict_by_rls
       kb_dict_by_rls.AddOrSetValue(rls, section);
+      _KbLatestBucketAdd(rls);
     end;
 
     // Start cleanup lists
@@ -1118,6 +1157,7 @@ var
       kb_dict_by_key.Add(section + '-' + rlsname, p);
       kb_dict_by_id.AddOrSetValue(p.pazo_id, p);
       kb_dict_by_rls.AddOrSetValue(rlsname, section);
+      _KbLatestBucketAdd(rlsname);
     end
     else
     begin
@@ -1252,6 +1292,7 @@ begin
   kb_dict_by_key.Free;
   kb_dict_by_id.Free;
   kb_dict_by_rls.Free;
+  kb_latest_by_length.Free;
   kb_trimmed_rls.Free;
 end;
 
@@ -1323,6 +1364,7 @@ begin
   rename_patterns := 4;
 
   kb_groupcheck_rls := THashedStringList.Create;
+  kb_latest_by_length := TObjectDictionary<Integer, TStringList>.Create([doOwnsValues]);
   kb_skip := THashedStringList.Create;
 
   trimmed_shit_checker := config.ReadBool(rsections, 'trimmed_shit_checker', True);
@@ -1646,7 +1688,10 @@ begin
               kb_dict_by_key.Remove(fDeleteKeys[i]);
               kb_dict_by_id.Remove(p.pazo_id);
               if (p.rls <> nil) then
+              begin
                 kb_dict_by_rls.Remove(p.rls.rlsname);
+                _KbLatestBucketRemove(p.rls.rlsname);
+              end;
             end;
           end;
           fDeleteKeys.Clear;

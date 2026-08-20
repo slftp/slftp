@@ -1226,6 +1226,7 @@ label
 var
   ssrc, sdst, fPassiveSlot, fActiveSlot: TSiteSlot;
   RequireSSL, fUseReverseFXP, fNeedsImmediateRETR: boolean;
+  fParsedPASV: boolean;
   host: String;
   port: integer;
   FileSendByMe: boolean;
@@ -1242,6 +1243,8 @@ var
   fDiffSec: integer;
   fDiffMSec: Int64;
   fElapsedMs: Int64;
+  fLastUploaderSwitchCheck: TDateTime; //< last run of the throttled uploader switch/regression checks
+  fLoopNow: TDateTime; //< one Now() snapshot per transfer loop turn instead of one per check (JulianToGregorian showed up in CPU profiling)
   fDirlistEntry: TDirlistEntry;
   percentInfo: String;
   srcPercent, dstPercent: Integer;
@@ -2001,7 +2004,9 @@ begin
   end;
 
   try
-    ParsePASVString(fPassiveSlot.lastResponse, host, port);
+    // parse the local snapshot taken after Read('PASV') above -
+    // fPassiveSlot.lastResponse may already hold a newer response
+    fParsedPASV := ParsePASVString(lastResponse, host, port);
   except
     on e: Exception do
     begin
@@ -2009,6 +2014,12 @@ begin
       readyerror := True;
       exit;
     end;
+  end;
+
+  if not fParsedPASV then
+  begin
+    Debug(dpError, c_section, '[ERROR FXP] could not parse PASV response on %s: %s %s', [fPassiveSlot.Name, LeftStr(lastResponse, 90), tname]);
+    goto TryAgain;
   end;
 
 
@@ -2704,6 +2715,7 @@ begin
 
   rss := False;
   rsd := False;
+  fLastUploaderSwitchCheck := 0; // 0 = run the checks on the first loop turn
   while (True) do
   begin
     if not rsd then
@@ -2728,11 +2740,14 @@ begin
       exit;
     end;
 
+    // one clock read per loop turn, reused by all checks below
+    fLoopNow := Now;
+
     // Detect when source reports transfer complete (226)
     if rss and (not FSourceCompleted) and (ssrc.lastResponseCode = 226) then
     begin
       fSourceCompleted := True;
-      fSourceCompleteTimestamp := Now;
+      fSourceCompleteTimestamp := fLoopNow;
       Debug(dpSpam, c_section, '[FXP TIMEOUT] Source completed (226) at %s, waiting max 60s for target | Task: %s',
         [FormatDateTime('mm-dd hh:nn:ss.zzz', fSourceCompleteTimestamp), tname]);
     end;
@@ -2741,7 +2756,7 @@ begin
     if rsd and (not FTargetCompleted) and (sdst.lastResponseCode = 226) then
     begin
       fTargetCompleted := True;
-      fTargetCompleteTimestamp := Now;
+      fTargetCompleteTimestamp := fLoopNow;
       Debug(dpSpam, c_section, '[FXP TIMEOUT] Target completed (226) at %s, waiting max 60s for source | Task: %s',
         [FormatDateTime('mm-dd hh:nn:ss.zzz', fTargetCompleteTimestamp), tname]);
     end;
@@ -2749,7 +2764,7 @@ begin
     // Source is done, target still waiting
     if fSourceCompleted and (not fTargetCompleted) then
     begin
-      fElapsedMs := MilliSecondsBetween(Now, fSourceCompleteTimestamp);
+      fElapsedMs := MilliSecondsBetween(fLoopNow, fSourceCompleteTimestamp);
 
       if (GetDebugVerbosity = dpSpam) and (fElapsedMs mod 1000 < 150) then
       begin
@@ -2772,7 +2787,7 @@ begin
     // Target is done, source still waiting
     if fTargetCompleted and (not fSourceCompleted) then
     begin
-      fElapsedMs := MilliSecondsBetween(Now, fTargetCompleteTimestamp);
+      fElapsedMs := MilliSecondsBetween(fLoopNow, fTargetCompleteTimestamp);
 
       if (GetDebugVerbosity = dpSpam) and (fElapsedMs mod 1000 < 150) then
       begin
@@ -2795,15 +2810,23 @@ begin
     if ((rsd) and (rss)) then
       Break;
 
-    if CheckSourceUploaderSwitch then
-      exit;
+    // throttled: each check costs a dirlist lookup under dirlist_lock and this
+    // loop turns every ~100ms socket timeout, while a 1s reaction time on an
+    // uploader switch/regression is irrelevant in practice
+    if MilliSecondsBetween(fLoopNow, fLastUploaderSwitchCheck) >= 1000 then
+    begin
+      fLastUploaderSwitchCheck := fLoopNow;
 
-    if CheckDestinationUploaderSwitch then
-      exit;
+      if CheckSourceUploaderSwitch then
+        exit;
+
+      if CheckDestinationUploaderSwitch then
+        exit;
+    end;
 
     if sdst.site.KillConnectionOnStalledTransferSeconds > 0 then
     begin
-      fDiffSec := SecondsBetween(Now, started);
+      fDiffSec := SecondsBetween(fLoopNow, started);
       if fDiffSec > sdst.site.KillConnectionOnStalledTransferSeconds then
       begin
         if fDstDirlist = nil then
