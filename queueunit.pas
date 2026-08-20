@@ -718,7 +718,7 @@ begin
   for t in tasks do
   begin
     if (t is TPazoRaceTask) and (t.slot1 = nil) and (not t.ready) and (not t.readyerror) and
-       ((t.startat = 0) or (t.startat <= queue_last_run)) then
+       ((t.startat = 0) or (t.startat <= Now)) then
     begin
       Result := True;
       exit;
