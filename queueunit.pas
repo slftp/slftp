@@ -1667,45 +1667,49 @@ begin
         if bTasksMoved then
           fQueueDirty := True;
 
-        // Acquire lock once for the entire RemoveReady pass instead of per-task
-        ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
-        try
-          for fListIndex := 0 to 1 do
+        for fListIndex := 0 to 1 do
+        begin
+          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+          // nested loop: the exception frame is set up once per queue iteration
+          // instead of once per task - per-task try/except showed up hot in CPU
+          // profiling (fpc_pushexceptaddr/fpc_popaddrstack via threadvar access).
+          // Semantics stay the same: a failing task is logged and skipped.
+          i := fList.Count - 1;
+          while i >= 0 do
           begin
-            if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-            // nested loop: the exception frame is set up once per queue iteration
-            // instead of once per task - per-task try/except showed up hot in CPU
-            // profiling (fpc_pushexceptaddr/fpc_popaddrstack via threadvar access).
-            // Semantics stay the same: a failing task is logged and skipped.
-            i := fList.Count - 1;
-            while i >= 0 do
-            begin
-              try
-                while i >= 0 do
+            try
+              while i >= 0 do
+              begin
+                fTask := TTask(fList.items[i]);
+
+                if fTask <> nil then
                 begin
-                  fTask := TTask(fList.items[i]);
-
-                  if fTask <> nil then
+                  if (((fTask.ready) or (fTask.readyerror)) and (fTask.slot1 = nil)) then
                   begin
-                    if (((fTask.ready) or (fTask.readyerror)) and (fTask.slot1 = nil)) then
-                    begin
-                      ss := fTask.uidtext;
-                      if fTask.IsNotifyTask then
-                        TaskReady(fTask);
+                    ss := fTask.uidtext;
+                    if fTask.IsNotifyTask then
+                      TaskReady(fTask);
 
-                      if (fTask.ClassType = TPazoRaceTask) then
+                    if (fTask.ClassType = TPazoRaceTask) then
+                    begin
+                      with TPazoRaceTask(fTask) do
+                      if (dst <> nil) then
                       begin
-                        with TPazoRaceTask(fTask) do
-                        if (dst <> nil) then
-                        begin
-                          try
-                            dst.event.SetEvent;
-                          except
-                            on e: Exception do
-                              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady SetEvent): %s [%s]', [e.Message, ss]));
-                          end;
+                        try
+                          dst.event.SetEvent;
+                        except
+                          on e: Exception do
+                            Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady SetEvent): %s [%s]', [e.Message, ss]));
                         end;
                       end;
+                    end;
+                    // Hold the slots-assignment lock only for the actual removal.
+                    // TaskReady/SetEvent/Console_QueueDel (and the notify/IRC work
+                    // behind them) must not run under this lock: during a race every
+                    // slot thread and every AddTask waits on it, so holding it for
+                    // the whole pass stalls slot assignment and transfer startup.
+                    ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
+                    try
                       try
                         fList.Remove(fTask);
                       except
@@ -1722,23 +1726,23 @@ begin
                           end;
                         end;
                       end;
-                      Console_QueueDel(ss);
+                    finally
+                      ts.ReleaseSlotsAssignmentLock;
                     end;
+                    Console_QueueDel(ss);
                   end;
+                end;
 
-                  Dec(i);
-                end;
-              except
-                on e: Exception do
-                begin
-                  Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady): %s', [e.Message]));
-                  Dec(i); // skip the faulty task and resume with the next one
-                end;
+                Dec(i);
+              end;
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady): %s', [e.Message]));
+                Dec(i); // skip the faulty task and resume with the next one
               end;
             end;
           end;
-        finally
-          ts.ReleaseSlotsAssignmentLock;
         end;
 
         ts.AcquireSlotsAssignmentLock('Queue iterate');
