@@ -189,6 +189,19 @@ begin
   debug_lock.Free;
 end;
 
+function IsInIOErrorState: Boolean;
+begin
+  Result := False;
+
+  if (glLastIOErrorTime > 0) then
+  begin
+    if (SecondsBetween(Now, glLastIOErrorTime) < C_IO_ERROR_CIRCUIT_SECONDS) then
+      Result := True
+    else
+      glLastIOErrorTime := 0;
+  end;
+end;
+
 procedure Debug(const priority: TDebugPriority; const section, msg: String); overload;
 var
   nowstr, logtext: String;
@@ -203,7 +216,7 @@ begin
     exit;
 
   // circuit breaker: skip logging if we recently hit an I/O error
-  if (glLastIOErrorTime > 0) and (SecondsBetween(Now, glLastIOErrorTime) < C_IO_ERROR_CIRCUIT_SECONDS) then
+  if IsInIOErrorState then
     exit;
 
   DateTimeToString(nowstr, 'mm-dd hh:nn:ss.zzz', Now());
@@ -249,8 +262,9 @@ begin
     on e: Exception do
     begin
       // suppress error reporting while the I/O circuit breaker is open
-      if (glLastIOErrorTime > 0) and (SecondsBetween(Now, glLastIOErrorTime) < C_IO_ERROR_CIRCUIT_SECONDS) then
+      if IsInIOErrorState then
         exit;
+
       irc_Adderror(Format('<c4>[EXCEPTION]</c> Debug: %s', [e.Message]));
       exit;
     end;
