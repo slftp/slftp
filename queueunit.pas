@@ -964,6 +964,7 @@ var
   fTask:    TTask;
   tpr, i_tpr: TPazoRaceTask;
   tpd, i_tpd: TPazoDirlistTask;
+  tpsfv, i_tpsfv: TPazoSiteSfvTask;
   tpm, i_tpm: TPazoMkdirTask;
   tpl, i_tpl: TLoginTask;
   fListIndex: Integer;
@@ -1117,6 +1118,54 @@ begin
       on E: Exception do
       begin
         Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TLoginTask : %s', [e.Message]));
+        Result := False;
+        exit;
+      end;
+    end;
+    exit;
+  end;
+
+  if (t is TPazoSiteSfvTask) then
+  begin
+    try
+      tpsfv := TPazoSiteSfvTask(t);
+      main_lock.Enter('TaskAlreadyInQueue5');
+      try
+        for fListIndex := 0 to 1 do
+        begin
+          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+          for fTask in fList do
+          begin
+            try
+              if (fTask is TPazoSiteSfvTask) then
+              begin
+                i_tpsfv := TPazoSiteSfvTask(fTask);
+                if ((i_tpsfv.ready = False) and (i_tpsfv.readyerror = False) and
+                  (i_tpsfv.slot1 = nil) and (i_tpsfv.pazo_id = tpsfv.pazo_id) and
+                  (i_tpsfv.site1 = tpsfv.site1) and
+                  (i_tpsfv.Dir = tpsfv.Dir) and
+                  (i_tpsfv.SFVFilename = tpsfv.SFVFilename)) then
+                begin
+                  Result := True;
+                  exit;
+                end;
+              end;
+            except
+              on E: Exception do
+              begin
+                Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoSiteSfvTask (loop) : %s', [e.Message]));
+                continue;
+              end;
+            end;
+          end;
+        end;
+      finally
+        main_lock.Leave;
+      end;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoSiteSfvTask : %s', [e.Message]));
         Result := False;
         exit;
       end;
