@@ -1131,12 +1131,15 @@ begin
       tpsfv := TPazoSiteSfvTask(t);
       main_lock.Enter('TaskAlreadyInQueue5');
       try
-        for fListIndex := 0 to 1 do
-        begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for fTask in fList do
+        // one exception frame around both loops instead of one per task -
+        // per-task try/except showed up hot in CPU profiling
+        // (fpc_pushexceptaddr/fpc_popaddrstack via threadvar access)
+        try
+          for fListIndex := 0 to 1 do
           begin
-            try
+            if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+            for fTask in fList do
+            begin
               if (fTask is TPazoSiteSfvTask) then
               begin
                 i_tpsfv := TPazoSiteSfvTask(fTask);
@@ -1150,13 +1153,14 @@ begin
                   exit;
                 end;
               end;
-            except
-              on E: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoSiteSfvTask (loop) : %s', [e.Message]));
-                continue;
-              end;
             end;
+          end;
+        except
+          on E: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoSiteSfvTask (loop) : %s', [e.Message]));
+            Result := False;
+            exit;
           end;
         end;
       finally
