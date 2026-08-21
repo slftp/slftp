@@ -6,16 +6,18 @@ unit kb;
 interface
 
 uses
-  Classes, SyncObjs, slcriticalsection2, kb.releaseinfo, pazo;
+  Classes, SyncObjs, slcriticalsection2, kb.releaseinfo, pazo, slthread;
 
 type
-  TKBThread = class(TThread)
+  TKBThread = class(TSlThread)
   private
     kbevent: TEvent;
     function AddCompleteTransfers(pazo: Pointer): boolean;
   public
     constructor Create;
     procedure Execute; override;
+    { Terminates the thread and wakes it from its kbevent wait. }
+    procedure SignalStop; override;
     destructor Destroy; override;
   end;
 
@@ -1377,12 +1379,20 @@ end;
 
 constructor TKBThread.Create;
 begin
-  inherited Create(False);
+  inherited Create('KB', False);
   {$IFDEF DEBUG}
     NameThreadForDebugging('KB', self.ThreadID);
   {$ENDIF}
   FreeOnTerminate := True;
   kbevent := TEvent.Create(nil, False, False, 'kb');
+end;
+
+procedure TKBThread.SignalStop;
+begin
+  // wake the thread from its kbevent wait so it notices Terminated
+  Terminate;
+  if kbevent <> nil then
+    kbevent.SetEvent;
 end;
 
 destructor TKBThread.Destroy;
@@ -1596,7 +1606,7 @@ begin
   fFinishedRankCalcPazos := TList<TPazo>.Create;
   fDeletedPazos := TList<TPazo>.Create;
   try
-    while (not slshutdown) do
+    while ((not slshutdown) and (not Terminated)) do
     begin
       try
         kb_lock.Enter('Execute');

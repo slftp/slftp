@@ -3,7 +3,7 @@ unit queueunit;
 interface
 
 uses
-  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection2, pazo, taskidle, taskquit, tasklogin, RegExpr, taskautoindex, taskrules, taskautodirlist, taskautonuke, Generics.Collections;
+  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection2, pazo, taskidle, taskquit, tasklogin, RegExpr, taskautoindex, taskrules, taskautodirlist, taskautonuke, Generics.Collections, slthread;
 
 
 type TQueueStat = class
@@ -19,11 +19,13 @@ type TQueueTask = class
 end;
 
 type
-  TQueueThread = class(TThread)
+  TQueueThread = class(TSlThread)
     main_lock: TSlCriticalSection2;
     fQueueStat: TQueueStat;
     destructor Destroy; override;
     procedure Execute; override;
+    { Terminates the thread and wakes it from its queueevent wait. }
+    procedure SignalStop; override;
     procedure TryToAssignSlots(t: TTask);
 
   private
@@ -420,7 +422,7 @@ begin
   fQueueStat := nil;
   fBusyDestinations := nil;
 
-  inherited Create(False);
+  inherited Create('Queue/' + aSiteName, False);
   {$IFDEF DEBUG}
     NameThreadForDebugging('Queue/' + aSiteName, self.ThreadID);
   {$ENDIF}
@@ -460,6 +462,14 @@ begin
   waiting_tasks.Free;
   queueevent.Free;
   inherited;
+end;
+
+procedure TQueueThread.SignalStop;
+begin
+  // wake the thread from its queueevent wait so it notices Terminated
+  Terminate;
+  if queueevent <> nil then
+    queueevent.SetEvent;
 end;
 
 procedure TQueueThread.TryToAssignRaceSlots(t: TPazoRaceTask);

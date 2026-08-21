@@ -3,7 +3,7 @@ unit statsunit;
 interface
 
 uses
-  Classes, mormot.orm.core, mormot.core.base, mormot.orm.base;
+  Classes, slthread, mormot.orm.core, mormot.core.base, mormot.orm.base;
 
 type
   TSQLSitesRecord = class(TOrmNoCase)
@@ -53,10 +53,12 @@ type
    end;
 
   { Consumes the race stats queue and writes the stats into the DB }
-  TWriteStatsToDBThread = class(TThread)
+  TWriteStatsToDBThread = class(TSlThread)
   public
     constructor Create;
     procedure Execute; override;
+    { Asks the thread to finish pending writes and terminate. }
+    procedure SignalStop; override;
     destructor Destroy; override;
   end;
 
@@ -646,12 +648,19 @@ end;
 
 constructor TWriteStatsToDBThread.Create;
 begin
-  inherited Create(False);
+  inherited Create('StatsWriter', False);
   {$IFDEF DEBUG}
     NameThreadForDebugging('StatsWriter', self.ThreadID);
   {$ENDIF}
   FreeOnTerminate := True;
   glTWriteStatsThreadRunning := True;
+end;
+
+procedure TWriteStatsToDBThread.SignalStop;
+begin
+  // the Execute loop drains the remaining queue and exits when this is set
+  Terminate;
+  glWriteStatsThreadShouldStop := True;
 end;
 
 destructor TWriteStatsToDBThread.Destroy;

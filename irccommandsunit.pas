@@ -3,7 +3,7 @@ unit irccommandsunit;
 interface
 
 uses
-  Classes, dirlist, irc, irccommands.rank, irccommands.tv, irccommands.speed, irccommands.work,
+  Classes, dirlist, irc, slthread, irccommands.rank, irccommands.tv, irccommands.speed, irccommands.work,
   irccommands.windows, irccommands.slots, irccommands.news, irccommands.kb, irccommands.indexer,
   irccommands.reload, irccommands.section, irccommands.imdb, irccommands.pretime, irccommands.socks,
   irccommands.rules, irccommands.info, irccommands.precatcher, irccommands.irc, irccommands.misc,
@@ -24,7 +24,7 @@ type
   end;
 
   { Thread which will execute the IRC command }
-  TIRCCommandThread = class(TThread)
+  TIRCCommandThread = class(TSlThread)
   private
     c: TIRCCommandHandler;
     th: TMyIrcThread;
@@ -336,7 +336,7 @@ const
 
 constructor TIRCCommandThread.Create(c: TIRCCommandHandler; const netname, channel, params: String; cmd: String = '');
 begin
-  inherited Create(False);
+  inherited Create('IRCCommand/' + cmd, False);
   {$IFDEF DEBUG}
     NameThreadForDebugging('IRC Command', self.ThreadID);
   {$ENDIF}

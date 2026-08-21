@@ -53,6 +53,7 @@ var
 implementation
 
 uses
+  Classes, slthread,
   identserver, tasksunit, dirlist, ircchansettings, sltcp, slssl, kb, fake, console, sllanguagebase, irc, mycrypto, queueunit,
   sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
   mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
@@ -75,6 +76,7 @@ var
   speedstats_recalc_routes_interval: integer;
   backup_interval: integer;
   new_news_announce_interval: integer;
+  shutdown_threads_timeout: integer; //< seconds to wait for threads to terminate on shutdown (config section 'shutdown', key 'threads_timeout')
 
 function kilepescsekker(socket: TslTCPSocket): boolean;
 begin
@@ -291,6 +293,7 @@ begin
   speedstats_recalc_routes_interval := config.readInteger('speedstats', 'recalc_routes_interval', 3600);
   backup_interval := config.ReadInteger('backup', 'backup_interval', 0); //< time value in seconds for automatic backup
   new_news_announce_interval := config.ReadInteger('news', 'new_news_announce_interval', 3); //< time value in hours for announcing unread news count
+  shutdown_threads_timeout := config.ReadInteger('shutdown', 'threads_timeout', 15); //< time value in seconds to wait for threads to terminate on shutdown
 end;
 
 procedure Main_Iter;
@@ -537,6 +540,9 @@ begin
   // this is just a matter of putting the right shit on the kitty,
   // uninitialization will be in Main_Uninit
   Debug(dpSpam, section, 'Main_Stop begin');
+  // ask all registered threads to terminate; SignalStop also wakes threads
+  // blocked on events or socket reads so they can actually exit
+  TSlThread.SignalAll;
   NukeSave;
   SpeedStatsSave;
   //  EPrecatcherStop;
@@ -551,17 +557,25 @@ begin
 end;
 
 procedure Main_Uninit;
+var
+  fStragglers: TStringList;
 begin
   Debug(dpSpam, section, 'Uninit1');
-  (*
-    // Looks like this was an attempt to ensure a clean exit when everything is shut down
-    while
-      (kb_thread <> nil)
-      or
-      (myIrcThreads.Count <> 0)
-      do Sleep(500);
-    Debug(dpSpam, section, 'Uninit2');
-  *)
+
+  // wait for all registered threads to terminate; threads which did not stop
+  // within the configured timeout are reported and shutdown continues anyway -
+  // the process exit at the end will reap them
+  fStragglers := TSlThread.WaitAll(shutdown_threads_timeout);
+  try
+    if fStragglers.Count > 0 then
+    begin
+      Debug(dpError, section, Format('Threads did not terminate within %d seconds: %s', [shutdown_threads_timeout, fStragglers.CommaText]));
+      console_addline('Admin', Format('Threads did not terminate within %d seconds: %s', [shutdown_threads_timeout, fStragglers.CommaText]), True);
+    end;
+  finally
+    fStragglers.Free;
+  end;
+
   ConsoleUnInit;
   RanksUnInit;
   SpeedStatsUnInit;

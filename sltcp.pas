@@ -9,7 +9,7 @@ uses
       baseunix,
     {$ENDIF}
   {$ENDIF}
-  mslproxys, slstack, debugunit, slssl, mormot.lib.openssl11, mormot.core.os;
+  mslproxys, slstack, debugunit, slssl, slthread, mormot.lib.openssl11, mormot.core.os;
 
 const
   slDefaultTimeout = 10000; // default timeout is 10 seconds
@@ -79,6 +79,10 @@ type
     function ReadLn(var line, alllines: String; timeout: Integer = slDefaultTimeout): Boolean;
 
     function Disconnect: Boolean;
+    { Shuts down the underlying socket fd so a pending recv/select in the
+      owning thread returns immediately. Used during application shutdown;
+      the owning thread still does the full Disconnect/cleanup itself. }
+    procedure ShutdownSocket;
     constructor Create; overload;
     constructor Create(proxyname:String); overload;
     procedure SetupSocket(c: TslSocket);
@@ -94,13 +98,18 @@ type
   end;
 
   TslTCPThread = class;
-  TslCCHThread = class(TThread)
+  { The actual thread inside a @link(TslTCPThread). Registered in the global
+    slthread registry so application shutdown can signal and await it. }
+  TslCCHThread = class(TSlThread)
   private
     fTH: TslTCPThread;
   public
     constructor Create(owner: TslTCPThread; createSuspended: Boolean = True);
     destructor Destroy; override;
     procedure Execute; override;
+    { Sets shouldquit and shuts down the socket fd to unblock a pending
+      recv/select of the owning connection. }
+    procedure SignalStop; override;
   end;
   TslTCPThread = class(TslTCPSocket)
   private
@@ -266,6 +275,14 @@ begin
   slClose(slSocket);
   ClearSocket;
   Result:= True;
+end;
+
+procedure TslTCPSocket.ShutdownSocket;
+begin
+  // only shut down the fd to wake a thread blocked in recv/select;
+  // the owning thread does the full Disconnect (SSL free etc.) itself
+  if slSocket.socket <> slSocketError then
+    slstack.slShutdown(slSocket);
 end;
 
 function TslTCPSocket.ShouldQuit: Boolean;
@@ -1207,8 +1224,8 @@ constructor TslTCPThread.Create(const aThreadName: String; createSuspended: Bool
 begin
   inherited Create;
   OnWaitingforSocket := WFS;
-  connectionThread := TslCCHThread.Create(self, createSuspended);
   FThreadName := aThreadName;
+  connectionThread := TslCCHThread.Create(self, createSuspended);
 
   {$IFDEF DEBUG}
     connectionThread.NameThreadForDebugging(aThreadName, connectionThread.ThreadID);
@@ -1263,9 +1280,21 @@ end;
 
 constructor TslCCHThread.Create(owner: TslTCPThread; createSuspended: Boolean = True);
 begin
-  inherited Create(createSuspended);
+  inherited Create(owner.FThreadName, createSuspended);
   fTh := owner;
   FreeOnTerminate := True;
+end;
+
+procedure TslCCHThread.SignalStop;
+begin
+  // unblock a pending recv/select so the connection thread notices
+  // shouldquit at once instead of waiting for the next socket timeout
+  Terminate;
+  if fTh <> nil then
+  begin
+    fTh.shouldquit := True;
+    fTh.ShutdownSocket;
+  end;
 end;
 
 destructor TslCCHThread.Destroy;

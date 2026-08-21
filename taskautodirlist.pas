@@ -2,7 +2,7 @@ unit taskautodirlist;
 
 interface
 
-uses tasksunit;
+uses tasksunit, slthread;
 
 type
   TAutoDirlistTask = class(TTask)
@@ -33,7 +33,7 @@ var
   FilledReqs: TThreadList<string>;
 
 type
-  TReqFillerThread = class(TThread)
+  TReqFillerThread = class(TSlThread)
   private
     p: TPazo; //< associated pazo element with the sites and releases
     secdir: String; //< directory of the request section on site
@@ -503,7 +503,7 @@ end;
 
 constructor TReqFillerThread.Create(p: Tpazo; const secdir, rlsname: String);
 begin
-  inherited Create(False);
+  inherited Create('ReqFiller/' + rlsname, False);
   {$IFDEF DEBUG}
     NameThreadForDebugging('ReqFiller', self.ThreadID);
   {$ENDIF}
