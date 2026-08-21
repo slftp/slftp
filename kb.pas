@@ -82,6 +82,7 @@ const
 var
   addpreechocmd: String;
   kb_last_saved: TDateTime;
+  kb_last_cleanup: TDateTime; //< last time KbListsCleanUp ran (throttled, see kb_AddB)
   kb_lock: TSLCriticalSection2;
 
   { Main KB storage: section-releasename -> TPazo (O(1) lookup, replaces kb_list) }
@@ -449,8 +450,16 @@ begin
       _KbLatestBucketAdd(rls);
     end;
 
-    // Start cleanup lists
-    KbListsCleanUp; // TODO: maybe run it only every 60mins? not needed to run it every time...
+    // Start cleanup lists - throttled to one run per hour: the kb_dict_by_rls
+    // bound scan walks the whole dictionary with a per-entry string concat and
+    // hash lookup, so running it on every announce burns CPU under kb_lock.
+    // The trimmed lists only need bounding and stale entries are recreated on
+    // re-announce, so a once-an-hour cleanup is plenty.
+    if Now - kb_last_cleanup >= (3600 / SecsPerDay) then
+    begin
+      kb_last_cleanup := Now;
+      KbListsCleanUp;
+    end;
 
   finally
     kb_lock.Leave;
