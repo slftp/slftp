@@ -237,6 +237,7 @@ begin
   if (glCachedDebugPriority = dpNone) or (glCachedDebugPriority < priority) then
     exit;
 
+
   try
     Debug(priority, section, Format(FormatStr, Args));
   except
