@@ -1563,7 +1563,6 @@ var
   s:    TSiteSlot;
   ss:   String;
   ts:   TSite;
-  fBusyDestinationsTmp: TDictionary<TObject, integer>;
   fNextTaskStartAt: TDateTime;
   fWaitTimerTimeout: Cardinal;
   bTasksMoved: Boolean;
@@ -1587,8 +1586,10 @@ begin
 
     ss := '';
     ts := TSite(fSite);
-    fBusyDestinationsTmp := fBusyDestinations;
-    fBusyDestinations := TDictionary<TObject, integer>.Create;
+    if fBusyDestinations <> nil then
+      fBusyDestinations.Clear
+    else
+      fBusyDestinations := TDictionary<TObject, integer>.Create;
     fNextTaskStartAt := MaxDateTime;
     bTasksMoved := False;
     //Debug(dpSpam, section, 'Queue Iteration begin (%s) [%d tasks]', [ts.Name, tasks.Count]);
@@ -1617,57 +1618,78 @@ begin
         if bTasksMoved then
           fQueueDirty := True;
 
-        for fListIndex := 0 to 1 do
-        begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          // nested loop: the exception frame is set up once per queue iteration
-          // instead of once per task - per-task try/except showed up hot in CPU
-          // profiling (fpc_pushexceptaddr/fpc_popaddrstack via threadvar access).
-          // Semantics stay the same: a failing task is logged and skipped.
-          i := fList.Count - 1;
-          while i >= 0 do
+        // Acquire lock once for the entire RemoveReady pass instead of per-task
+        ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
+        try
+          for fListIndex := 0 to 1 do
           begin
-            try
-              while i >= 0 do
-              begin
-                fTask := TTask(fList.items[i]);
-
-                if fTask <> nil then
+            if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+            // nested loop: the exception frame is set up once per queue iteration
+            // instead of once per task - per-task try/except showed up hot in CPU
+            // profiling (fpc_pushexceptaddr/fpc_popaddrstack via threadvar access).
+            // Semantics stay the same: a failing task is logged and skipped.
+            i := fList.Count - 1;
+            while i >= 0 do
+            begin
+              try
+                while i >= 0 do
                 begin
-                  if (((fTask.ready) or (fTask.readyerror)) and (fTask.slot1 = nil)) then
+                  fTask := TTask(fList.items[i]);
+
+                  if fTask <> nil then
                   begin
-                    ss := fTask.uidtext;
-                    if fTask.IsNotifyTask then
-                      TaskReady(fTask);
-
-                    if (fTask.ClassType = TPazoRaceTask) then
+                    if (((fTask.ready) or (fTask.readyerror)) and (fTask.slot1 = nil)) then
                     begin
-                      with TPazoRaceTask(fTask) do
-                      if (dst <> nil) then
-                      begin
-                        dst.event.SetEvent;
-                      end;
-                    end;
-                    ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
-                    try
-                      fList.Remove(fTask);
-                    finally
-                      ts.ReleaseSlotsAssignmentLock;
-                    end;
-                    Console_QueueDel(ss);
-                  end;
-                end;
+                      ss := fTask.uidtext;
+                      if fTask.IsNotifyTask then
+                        TaskReady(fTask);
 
-                Dec(i);
-              end;
-            except
-              on e: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady): %s', [e.Message]));
-                Dec(i); // skip the faulty task and resume with the next one
+                      if (fTask.ClassType = TPazoRaceTask) then
+                      begin
+                        with TPazoRaceTask(fTask) do
+                        if (dst <> nil) then
+                        begin
+                          try
+                            dst.event.SetEvent;
+                          except
+                            on e: Exception do
+                              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady SetEvent): %s [%s]', [e.Message, ss]));
+                          end;
+                        end;
+                      end;
+                      try
+                        fList.Remove(fTask);
+                      except
+                        on e: Exception do
+                        begin
+                          // Destructor raised — item may still be in list in a partially-freed
+                          // state. Remove it without freeing to prevent repeated AV on future passes.
+                          Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady Remove): %s [%s]', [e.Message, ss]));
+                          try
+                            fList.OwnsObjects := False;
+                            fList.Remove(fTask);
+                          finally
+                            fList.OwnsObjects := True;
+                          end;
+                        end;
+                      end;
+                      Console_QueueDel(ss);
+                    end;
+                  end;
+
+                  Dec(i);
+                end;
+              except
+                on e: Exception do
+                begin
+                  Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady): %s', [e.Message]));
+                  Dec(i); // skip the faulty task and resume with the next one
+                end;
               end;
             end;
           end;
+        finally
+          ts.ReleaseSlotsAssignmentLock;
         end;
 
         ts.AcquireSlotsAssignmentLock('Queue iterate');
@@ -1717,7 +1739,6 @@ begin
         end;
       finally
         main_lock.Leave;
-        fBusyDestinationsTmp.Free;
       end;
 
       QueueStat;
