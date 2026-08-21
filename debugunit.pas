@@ -243,7 +243,6 @@ end;
 
 procedure Debug(const priority: TDebugPriority; const section, FormatStr: String; const Args: array of const); overload;
 begin
-  // no circuit breaker check needed here: the called Debug() overload above has it
   try
     Debug(priority, section, Format(FormatStr, Args));
   except
