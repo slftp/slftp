@@ -1199,11 +1199,8 @@ begin
           try
             if ((not t.ready) and t.IsReadyToBeExecuted) then
             begin
-              if fQueueDirty then
-              begin
-                tasks.Sort(@QueueSorter);
-                fQueueDirty := False;
-              end;
+              // no sorting here: TryToAssignSlots only assigns task t, so queue
+              // order is irrelevant. fQueueDirty stays set and Execute sorts once.
               self.TryToAssignSlots(t);
             end;
           finally
