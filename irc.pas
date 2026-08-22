@@ -67,6 +67,10 @@ type
     function ChannelsList: String;
 
     procedure chanjoin(chan, nick: String);
+    { Rotates the bnc_host-N/bnc_port-N entries of this network in sites.dat
+      (first entry moves to the end). The rotation is done in memory and
+      written with a single UpdateFile, so a crash can no longer leave a
+      partially rotated list behind. }
     procedure BncCsere;
 
     function RCBool(name: String; def: Boolean): Boolean;
@@ -1684,45 +1688,61 @@ begin
 end;
 
 procedure TMyIrcThread.BncCsere;
+const
+  C_MAX_BNC_INDEX = 49; //< upper bound for scanning bnc_host-N keys
 var
-  i: Integer;
-  elsobncport, aktbncport: Integer;
-  elsobnchost, aktbnchost: String;
+  i, fCount, fMaxIndex, fSrc: Integer;
+  fHosts: TStringList;
+  fPorts: array of Integer;
 begin
-  i := 0;
-  elsobncport := 0;
-  elsobnchost := '';
-
-  while (true) do
-  begin
-    aktbnchost := sitesdat.ReadString('ircnet-' + netname, 'bnc_host-' + IntToStr(i), '');
-    aktbncport := sitesdat.ReadInteger('ircnet-' + netname, 'bnc_port-' + IntToStr(i), 0);
-    if (aktbnchost = '') then
-      break;
-
-    if (i = 0) then
+  // Read all entries first. Do not stop at the first empty index: a crash
+  // during an older rotation could leave a gap in the numbering and every
+  // entry behind that gap would be invisible. Writing the list back in
+  // compacted form heals such gaps.
+  fHosts := TStringList.Create;
+  try
+    SetLength(fPorts, C_MAX_BNC_INDEX + 1);
+    fMaxIndex := -1;
+    for i := 0 to C_MAX_BNC_INDEX do
     begin
-      elsobnchost := aktbnchost;
-      elsobncport := aktbncport;
-    end
-    else
-    begin
-      sitesdat.WriteString('ircnet-' + netname, 'bnc_host-' + IntToStr(i - 1), aktbnchost);
-      sitesdat.WriteInteger('ircnet-' + netname, 'bnc_port-' + IntToStr(i - 1), aktbncport);
+      if sitesdat.ReadString('ircnet-' + netname, 'bnc_host-' + IntToStr(i), '') <> '' then
+      begin
+        fHosts.Add(sitesdat.ReadString('ircnet-' + netname, 'bnc_host-' + IntToStr(i), ''));
+        fPorts[fHosts.Count - 1] := sitesdat.ReadInteger('ircnet-' + netname, 'bnc_port-' + IntToStr(i), 0);
+        fMaxIndex := i;
+      end;
     end;
 
-    sitesdat.DeleteKey('ircnet-' + netname, 'bnc_host-' + IntToStr(i));
-    sitesdat.DeleteKey('ircnet-' + netname, 'bnc_port-' + IntToStr(i));
+    fCount := fHosts.Count;
+    if fCount = 0 then
+      exit;
 
-    inc(i);
+    // Rewrite in one go with autoupdate disabled and a single UpdateFile at
+    // the end. UpdateFile itself is atomic (temp file + move), so the file on
+    // disk always holds either the complete old or the complete new list -
+    // killing the process mid-rotation can no longer lose entries.
+    sitesdat.autoupdate := False;
+    try
+      for i := 0 to fMaxIndex do
+      begin
+        sitesdat.DeleteKey('ircnet-' + netname, 'bnc_host-' + IntToStr(i));
+        sitesdat.DeleteKey('ircnet-' + netname, 'bnc_port-' + IntToStr(i));
+      end;
+
+      // rotated by one: the first entry moves to the end
+      for i := 0 to fCount - 1 do
+      begin
+        fSrc := (i + 1) mod fCount;
+        sitesdat.WriteString('ircnet-' + netname, 'bnc_host-' + IntToStr(i), fHosts[fSrc]);
+        sitesdat.WriteInteger('ircnet-' + netname, 'bnc_port-' + IntToStr(i), fPorts[fSrc]);
+      end;
+    finally
+      sitesdat.autoupdate := True;
+    end;
+    sitesdat.UpdateFile;
+  finally
+    fHosts.Free;
   end;
-
-  if ((i <> 0) and (elsobnchost <> '') and (elsobncport <> 0)) then
-  begin
-    sitesdat.WriteString('ircnet-' + netname, 'bnc_host-' + IntToStr(i - 1), elsobnchost);
-    sitesdat.WriteInteger('ircnet-' + netname, 'bnc_port-' + IntToStr(i - 1), elsobncport);
-  end;
-
 end;
 
 procedure TMyIrcThread.Execute;
