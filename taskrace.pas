@@ -20,6 +20,13 @@ type
     function IsReadyToBeExecuted: boolean; override;
   end;
 
+  TPazoMkdirTask = class(TPazoTask)
+    dir: String;
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const aDependingOnDirlist: TDirList; const dir: String);
+    function Execute(slot: Pointer): boolean; override;
+    function Name: String; override;
+  end;
+
   TPazoDirlistTask = class(TPazoTask)
     dir: String;
     is_pre: boolean;
@@ -28,13 +35,7 @@ type
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
     function GetDirlistReaddValue(aSite: TPazoSite; aDirlist: TDirList): integer;
-  end;
-
-  TPazoMkdirTask = class(TPazoTask)
-    dir: String;
-    constructor Create(const netname, channel, site: String; pazo: TPazo; const aDependingOnDirlist: TDirList; const dir: String);
-    function Execute(slot: Pointer): boolean; override;
-    function Name: String; override;
+    function TryCreateMkdirFromFailedDirlist(aDirlist: TDirList): TPazoMkdirTask;
   end;
 
   TWaitTask = class(TTask)
@@ -347,10 +348,18 @@ begin
             begin
               //we're too early, mkdir is not done yet ... the site is slow?
               //continue to create a new dirlist task below
+              // note: deliberately no dirlist_lock here - a rare lost update
+              // against the locked resets is harmless for the backoff
+              if d <> nil then
+                Inc(d.mkdir_not_ready_retry_count);
+
               Debug(dpMessage, c_section, 'DIRLIST: mkdir not ready: ' + tname);
-              // Prevent infinite loop for main dir when directory truly doesn't exist
-              if (dir = '') and (d <> nil) then
+
+              // try to create MKDIR directly from the failed dirlist
+              // (guards are checked inside TryCreateMkdirFromFailedDirlist)
+              if (TryCreateMkdirFromFailedDirlist(d) = nil) and (dir = '') and (d <> nil) then
               begin
+                // Prevent infinite loop for main dir when directory truly doesn't exist
                 d.error := True;
                 readyerror := True;
                 exit;
@@ -718,6 +727,14 @@ var
 begin
   baseValue := GetNewdirDirlistReaddValue();
 
+  // linear backoff (base * retry_count, capped) for mkdir-not-ready
+  // retries to avoid 10ms retry storms
+  if (aDirlist <> nil) and (aDirlist.mkdir_not_ready_retry_count > 0) then
+  begin
+    Result := Min(baseValue * aDirlist.mkdir_not_ready_retry_count, 5000);
+    exit;
+  end;
+
   if (aSite <> nil) and (aDirlist <> nil) then
   begin
     secondsSinceLastChange := SecondsBetween(Now, aDirlist.LastChanged);
@@ -750,6 +767,64 @@ begin
   end;
 
   Result := baseValue;
+end;
+
+function TPazoDirlistTask.TryCreateMkdirFromFailedDirlist(aDirlist: TDirList): TPazoMkdirTask;
+var
+  pm: TPazoMkdirTask;
+  parentDirlist: TDirList;
+begin
+  Result := nil;
+
+  if (aDirlist = nil) then
+    Exit;
+
+  // Only create MKDIR for the main release directory (not subdirs like Sample/Subs)
+  // Subdir handling is kept as-is to avoid parent/child ordering issues
+  if (dir <> '') then
+    Exit;
+
+  // Site must be allowed as a destination
+  if not (ps1.status in [rssAllowed]) then
+    Exit;
+
+  aDirlist.dirlist_lock.Enter('TPazoDirlistTask.TryCreateMkdirFromFailedDirlist');
+  try
+    // Double-check after acquiring the lock to avoid duplicate MKDIRs
+    if (not aDirlist.need_mkdir) or (aDirlist.error) or (aDirlist.dependency_mkdir <> '') then
+      Exit;
+
+    parentDirlist := nil;
+    if (aDirlist.parent <> nil) and (aDirlist.parent.dirlist <> nil) then
+      parentDirlist := aDirlist.parent.dirlist;
+
+    pm := TPazoMkdirTask.Create(netname, channel, ps1.Name, mainpazo, parentDirlist, dir);
+    aDirlist.dependency_mkdir := pm.UidText;
+  finally
+    aDirlist.dirlist_lock.Leave;
+  end;
+
+  // AddTask is called outside of dirlist_lock, following the established
+  // pattern in TPazoSite.Tuzelj (pazo.pas) to avoid holding the lock over it
+  Debug(dpMessage, c_section, 'DIRLIST: creating MKDIR from failed dirlist: ' + self.Name);
+
+  try
+    AddTask(pm, True);
+    Result := pm;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, c_section, Format('[EXCEPTION] TryCreateMkdirFromFailedDirlist AddTask: %s', [e.Message]));
+      aDirlist.dirlist_lock.Enter('TPazoDirlistTask.TryCreateMkdirFromFailedDirlist');
+      try
+        if aDirlist.dependency_mkdir = pm.UidText then
+          aDirlist.dependency_mkdir := '';
+      finally
+        aDirlist.dirlist_lock.Leave;
+      end;
+      FreeAndNil(pm);
+    end;
+  end;
 end;
 
 { TPazoMkdirTask }

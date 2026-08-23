@@ -1410,6 +1410,7 @@ begin
     try
       d.need_mkdir := False;
       d.dependency_mkdir := '';
+      d.mkdir_not_ready_retry_count := 0;
     finally
       d.dirlist_lock.Leave;
     end;

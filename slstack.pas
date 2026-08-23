@@ -93,7 +93,46 @@ procedure slDebug(s: String);
 
 implementation
 
-uses slhelper, StrUtils, IdStack;
+uses slhelper, StrUtils, Generics.Collections, slcriticalsection2, mormot.net.dns, mormot.core.base;
+
+const
+  C_DNS_CACHE_TTL_SECONDS = 300; //< how long a successful DNS lookup result is cached
+  C_DNS_CACHE_NEGATIVE_TTL_SECONDS = 60; //< how long a failed DNS lookup is cached
+  C_DNS_CACHE_MAX_ENTRIES = 1000; //< the cache is pruned once it grows beyond this
+
+type
+  TDnsCacheEntry = record
+    Ip: String; //< resolved IPv4 address, empty for failed lookups
+    ExpiresAt: TDateTime; //< after this timestamp the entry is stale
+  end;
+
+var
+  glDnsCache: TDictionary<string, TDnsCacheEntry> = nil;
+  glDnsCacheLock: TSlCriticalSection2 = nil;
+
+{ Removes stale entries from glDnsCache; clears it entirely if it is still
+  too large afterwards. Caller must hold glDnsCacheLock. }
+procedure _PruneDnsCache;
+var
+  fPair: TPair<string, TDnsCacheEntry>;
+  fStaleKeys: TStringList;
+  fKey: String;
+begin
+  fStaleKeys := TStringList.Create;
+  try
+    for fPair in glDnsCache do
+      if Now >= fPair.Value.ExpiresAt then
+        fStaleKeys.Add(fPair.Key);
+
+    for fKey in fStaleKeys do
+      glDnsCache.Remove(fKey);
+
+    if glDnsCache.Count > C_DNS_CACHE_MAX_ENTRIES then
+      glDnsCache.Clear;
+  finally
+    fStaleKeys.Free;
+  end;
+end;
 
 function slStackInit(var error: String): Boolean;
 begin
@@ -256,19 +295,65 @@ begin
 end;
 
 function slGetHostByName(AHostName: String; var error: String): String; overload;
+var
+  fResult: RawUtf8;
+  fKey: String;
+  fEntry: TDnsCacheEntry;
+  fCached: Boolean;
 begin
   Result := '';
+  error := '';
 
-  TIdStack.IncUsage;
+  // mORMot2 DnsLookup executes a raw DNS query on every call - no cache, no
+  // system hosts file. Every slot login/relogin and IRC connect resolves its
+  // host through here, so cache the results to avoid a DNS roundtrip per
+  // connection attempt. Failed lookups are cached with a shorter TTL.
+  fKey := LowerCase(AHostName);
+
+  glDnsCacheLock.Enter('slGetHostByName');
   try
-    Result := GStack.ResolveHost(AHostName);
+    fCached := glDnsCache.TryGetValue(fKey, fEntry) and (Now < fEntry.ExpiresAt);
+    if fCached then
+      Result := fEntry.Ip;
   finally
-    TIdStack.DecUsage;
+    glDnsCacheLock.Leave;
   end;
 
-  if (Result = '') then
+  if fCached then
   begin
-    error := 'Cannot resolve '+ AHostName;
+    if Result = '' then
+      error := 'Cannot resolve ' + AHostName;
+    exit;
+  end;
+
+  try
+    fResult := DnsLookup(RawUtf8(AHostName));
+    Result := string(fResult);
+  except
+    on e: Exception do
+    begin
+      error := 'Cannot resolve ' + AHostName + ': ' + e.Message;
+    end;
+  end;
+
+  if (Result = '') and (error = '') then
+  begin
+    error := 'Cannot resolve ' + AHostName;
+  end;
+
+  glDnsCacheLock.Enter('slGetHostByName');
+  try
+    if glDnsCache.Count > C_DNS_CACHE_MAX_ENTRIES then
+      _PruneDnsCache;
+
+    fEntry.Ip := Result;
+    if Result <> '' then
+      fEntry.ExpiresAt := Now + (C_DNS_CACHE_TTL_SECONDS / SecsPerDay)
+    else
+      fEntry.ExpiresAt := Now + (C_DNS_CACHE_NEGATIVE_TTL_SECONDS / SecsPerDay);
+    glDnsCache.AddOrSetValue(fKey, fEntry);
+  finally
+    glDnsCacheLock.Leave;
   end;
 end;
 
@@ -314,15 +399,10 @@ begin
   Result := False;
 
   fHost := '';
-  fHostName := slGetHostName;
+  fHostName := string(slGetHostName);
 
   try
-    TIdStack.IncUsage;
-    try
-      fHost := GStack.ResolveHost(fHostName);
-    finally
-      TIdStack.DecUsage;
-    end;
+    fHost := string(DnsLookup(RawUtf8(fHostName)));
   except
     on e: Exception do
     begin
@@ -1234,4 +1314,10 @@ initialization
 {$IFNDEF MSWINDOWS}
   InstallSigPipeHandler;
 {$ENDIF}
+  glDnsCacheLock := TSlCriticalSection2.Create('DNS_cache');
+  glDnsCache := TDictionary<string, TDnsCacheEntry>.Create;
+
+finalization
+  FreeAndNil(glDnsCache);
+  FreeAndNil(glDnsCacheLock);
 end.

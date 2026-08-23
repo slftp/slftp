@@ -1579,9 +1579,11 @@ begin
 
       if (todotask <> nil) then
       begin
-        // Capture the task reference now. DestroySocket (called from within Execute)
-        // may set self.todotask := nil, which would cause the cleanup block below to
-        // skip slot1/slot2 cleanup. Using fCurrentTask ensures cleanup always runs.
+        // Capture the task reference now: the queue thread (QueueClean /
+        // RebuildSlot in queueunit.pas) can set self.todotask := nil from the
+        // outside while Execute below is still running, which would make the
+        // cleanup block below skip slot1/slot2 cleanup. Using fCurrentTask
+        // ensures cleanup always runs.
         fCurrentTask := todotask;
         try
           tname := fCurrentTask.Name;
@@ -1633,8 +1635,8 @@ begin
         uploadingto := False;
         downloadingfrom := False;
 
-        // Use fCurrentTask (captured before Execute) instead of self.todotask.
-        // DestroySocket called inside Execute may have already set self.todotask := nil,
+        // Use fCurrentTask (captured before Execute) instead of self.todotask:
+        // QueueClean on the queue thread may have already set self.todotask := nil,
         // which would skip slot1 cleanup and leave the task stuck in the queue.
         if (fCurrentTask <> nil) then
         begin
