@@ -93,7 +93,7 @@ procedure slDebug(s: String);
 
 implementation
 
-uses slhelper, StrUtils, Generics.Collections, slcriticalsection2, mormot.net.dns, mormot.core.base;
+uses slhelper, StrUtils, Generics.Collections, slcriticalsection2, IdStack;
 
 const
   C_DNS_CACHE_TTL_SECONDS = 300; //< how long a successful DNS lookup result is cached
@@ -296,7 +296,6 @@ end;
 
 function slGetHostByName(AHostName: String; var error: String): String; overload;
 var
-  fResult: RawUtf8;
   fKey: String;
   fEntry: TDnsCacheEntry;
   fCached: Boolean;
@@ -304,10 +303,9 @@ begin
   Result := '';
   error := '';
 
-  // mORMot2 DnsLookup executes a raw DNS query on every call - no cache, no
-  // system hosts file. Every slot login/relogin and IRC connect resolves its
-  // host through here, so cache the results to avoid a DNS roundtrip per
-  // connection attempt. Failed lookups are cached with a shorter TTL.
+  // Cache lookups to avoid repeated resolver roundtrips: every slot
+  // login/relogin and IRC connect resolves its host through here.
+  // Failed lookups are cached with a shorter TTL.
   fKey := LowerCase(AHostName);
 
   glDnsCacheLock.Enter('slGetHostByName');
@@ -326,19 +324,16 @@ begin
     exit;
   end;
 
+  TIdStack.IncUsage;
   try
-    fResult := DnsLookup(RawUtf8(AHostName));
-    Result := string(fResult);
-  except
-    on e: Exception do
-    begin
-      error := 'Cannot resolve ' + AHostName + ': ' + e.Message;
-    end;
+    Result := GStack.ResolveHost(AHostName);
+  finally
+    TIdStack.DecUsage;
   end;
 
   if (Result = '') and (error = '') then
   begin
-    error := 'Cannot resolve ' + AHostName;
+    error := 'Cannot resolve '+ AHostName;
   end;
 
   glDnsCacheLock.Enter('slGetHostByName');
@@ -399,10 +394,15 @@ begin
   Result := False;
 
   fHost := '';
-  fHostName := string(slGetHostName);
+  fHostName := slGetHostName;
 
   try
-    fHost := string(DnsLookup(RawUtf8(fHostName)));
+    TIdStack.IncUsage;
+    try
+      fHost := GStack.ResolveHost(fHostName);
+    finally
+      TIdStack.DecUsage;
+    end;
   except
     on e: Exception do
     begin
