@@ -479,7 +479,7 @@ end;
 
 procedure Console_Slot_Add(const name, FormatStr: String; const Args: array of const);
 begin
-  if (no_console_slot OR (app.slots.Visible <> slvVisible)) then exit;
+  if (no_console_slot or (app = nil) or (app.slots.Visible <> slvVisible)) then exit;
   try
     Console_Slot_add(name, Format(FormatStr, Args));
   except
@@ -492,7 +492,7 @@ end;
 
 procedure Console_Slot_Add(const name, s: String);
 begin
-  if (no_console_slot OR (app.slots.Visible <> slvVisible)) then exit;
+  if (no_console_slot or (app = nil) or (app.slots.Visible <> slvVisible)) then exit;
   try
     if app <> nil then
       app.AddConsoleTask(TSlotItemAddTask.Create(name, s));
@@ -506,7 +506,7 @@ end;
 
 procedure Console_Slot_Close(const name: String);
 begin
-  if (no_console_slot OR (app.slots.Visible <> slvVisible)) then exit;
+  if (no_console_slot or (app = nil) or (app.slots.Visible <> slvVisible)) then exit;
   try
     if app <> nil then
       app.AddConsoleTask(TSlotItemDelTask.Create(name));
@@ -520,7 +520,7 @@ end;
 
 procedure Console_QueueAdd(const name, task: String);
 begin
-  if (no_console_queue OR (app.queue.Visible <> slvVisible)) then exit;
+  if (no_console_queue or (app = nil) or (app.queue.Visible <> slvVisible)) then exit;
 
   try
     slvision_lock.Enter('console_windows');

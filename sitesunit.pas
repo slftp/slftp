@@ -98,6 +98,7 @@ type
     FLastNonIdleTaskExecution: TDateTime;
     mdtmre: TRegExpr; //< regex for parsing MDTM ftpd response
     aktdir: String;
+    FAktDirIsRemote: boolean; //< @true if aktdir is confirmed on the remote server, @false otherwise
     prot: TProtection;
     kilepve: boolean;
     FSlotNumber: integer; //< number of slot
@@ -196,6 +197,7 @@ type
     property LastTaskExecution: TDateTime read FLastTaskExecution write FLastTaskExecution; //< time of last execution of any assigned @link(todotask) task
     property LastNonIdleTaskExecution: TDateTime read FLastNonIdleTaskExecution write FLastNonIdleTaskExecution; //< time of last execution of a non @link(taskidle.TIdleTask) task
     property SlotNumber: integer read FSlotNumber;
+    property AktDirIsRemote: boolean read FAktDirIsRemote; //< @true if aktdir is confirmed on the remote server, @false otherwise
   published
     property Status: TSlotStatus read fstatus write SetOnline;
   end;
@@ -1484,6 +1486,7 @@ begin
   kilepve := False;
 
   aktdir := '';
+  FAktDirIsRemote := False;
   prot := prNone;
   status := ssNone;
   lastResponse := '';
@@ -1531,6 +1534,7 @@ begin
     prot := prNone;
     SSCNEnabled := False;
     aktdir := '';
+    FAktDirIsRemote := False;
   except
     on e: Exception do
     begin
@@ -1983,52 +1987,66 @@ begin
   Result := False;
   dir := MyIncludeTrailingSlash(dir);
 
-  if ((dir <> aktdir) or (force)) then
+  if ((site.legacydirlist) or (force)) then
   begin
-    if ((site.legacydirlist) or (force)) then
+    if (not force) and (dir = aktdir) and (FAktDirIsRemote) then
     begin
-      if not Send('CWD %s', [dir]) then
-        exit;
-      if not Read('CWD') then
-        exit;
+      Result := True;
+      exit;
+    end;
 
-      if (lastResponseCode = 250) then
+    if not Send('CWD %s', [dir]) then
+    begin
+      FAktDirIsRemote := False;
+      exit;
+    end;
+    if not Read('CWD') then
+    begin
+      FAktDirIsRemote := False;
+      exit;
+    end;
+
+    if (lastResponseCode = 250) then
+    begin
+      if (0 <> Pos('250- Matched ', lastresponse)) then
       begin
-        if (0 <> Pos('250- Matched ', lastresponse)) then
-        begin
-          Debug(dpError, section, 'TRIMMED RLSNAME DETECTED! ' + Name + ' ' + dir);
+        Debug(dpError, section, 'TRIMMED RLSNAME DETECTED! ' + Name + ' ' + dir);
 
-          if dir[1] <> '/' then
-            aktdir := aktdir + dir
-          else
-            aktdir := dir;
-
-          Result := True;
-          exit;
-        end;
-        (*
-                if (0 <> Pos('Looks like this is a pre', lastresponse)) then
-                  pre:= True;
-        *)
         if dir[1] <> '/' then
           aktdir := aktdir + dir
         else
           aktdir := dir;
-      end
-      else
-      begin
-        //irc_addtext(todotask, '%s: %s', [name, trim(lastResponse)]);
-        Result := False;
+
+        FAktDirIsRemote := True;
+        Result := True;
         exit;
       end;
-    end
-    else
-    begin
+      (*
+              if (0 <> Pos('Looks like this is a pre', lastresponse)) then
+                pre:= True;
+      *)
       if dir[1] <> '/' then
         aktdir := aktdir + dir
       else
         aktdir := dir;
+
+      FAktDirIsRemote := True;
+    end
+    else
+    begin
+      //irc_addtext(todotask, '%s: %s', [name, trim(lastResponse)]);
+      FAktDirIsRemote := False;
+      Result := False;
+      exit;
     end;
+  end
+  else
+  begin
+    if dir[1] <> '/' then
+      aktdir := aktdir + dir
+    else
+      aktdir := dir;
+    FAktDirIsRemote := False;
   end;
   Result := True;
 end;
@@ -2851,6 +2869,7 @@ begin
     dir := Copy(dir, 1, Pos('"', dir) - 1);
 
     aktdir := MyIncludeTrailingSlash(dir);
+    FAktDirIsRemote := True;
     Result := True;
   except
     on e: Exception do
