@@ -54,6 +54,7 @@
     Statsoutput sometimes screwed -> NEGATIVE BYTES (due to parsing of x-dupe response)
 
 --=============================( IMDBAPI MIGRATION )================================-
+    {^} Disable noisy CRC error IRC announcements by default
     {#} Fix BOM screen count lookup fetching re-release page instead of Original Release, resulting in 0 screens for wide movies
     {+} Add enable_boxofficemojo_lookup option in [dbaddimdb] to fetch screen counts from Box Office Mojo (adds ~5-6s to IMDB lookup)
 

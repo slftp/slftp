@@ -200,3 +200,4 @@ Config (ApiConfigService)
 - GetConfigContent: Body {"Filename":"..."}. Returns content of the specified file (used by Web UI for slftp.precatcher; slftp.ini is read-only).
 - SaveConfigContent: Body {"Filename":"...", "Content":"..."}. Saves content to the file.
 - ReloadConfig: Body {"Filename":"..."}. Reloads the configuration file if supported. Supported files: slftp.precatcher, slftp.skip, slftp.skipgroups, slftp.rules, slftp.languagebase, slftp.knowngroups, slftp.imdbcountries, slftp.imdbreplace, slftp.spamconf. Returns true on success.
+- `slftp.spamconf` disables `[taskrace] crc_error` by default because CRC error announcements are noisy. Set it to `1` and restart slFtp to enable those announcements.
