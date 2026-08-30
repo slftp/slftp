@@ -139,12 +139,7 @@ TIMDbBomDataRecord = class(TOrmNoCase)
     UpdatedTime: TDateTime;
     constructor Create(const aIMDbId:String);
     destructor Destroy; override;
-    procedure PostResults(const aRls: String); overload;
-    { Legacy overload which only posts the IMDB infos to the given IRC channel (without saving to database)
-      @param(aNetname network name)
-      @param(aChannel channel name)
-      @param(aRls release name) }
-    procedure PostResults(const aNetname, aChannel: String; const aRls: String); overload;
+    procedure PostResults(const aRls: String);
     procedure SetIMDBRelease(ir: TIMDBRelease);
 end;
 
@@ -1019,36 +1014,6 @@ begin
   end;
 
   Debug(dpSpam, section, '[POSTRESULTS] IRC output completed');
-end;
-
-procedure TDbImdbData.PostResults(const aNetname, aChannel: String; const aRls: String);
-var
-  status: String;
-begin
-  irc_AddText(aNetname, aChannel, Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>for : %s</b></c> .......: https://www.imdb.com/title/%s/', [aRls, imdb_id]));
-  irc_AddText(aNetname, aChannel, Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>Original Title - Year</b></c> ...: %s (%d)', [imdb_origtitle, imdb_year]));
-  irc_AddText(aNetname, aChannel, Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c9>Country - Languages</b></c> ..: %s - %s', [imdb_countries.DelimitedText, imdb_languages.DelimitedText]));
-  irc_AddText(aNetname, aChannel, Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c5>Genres</b></c> .........: %s', [imdb_genres.DelimitedText]));
-
-  // Only show release status (Wide/Limited/STV/Festival/Cine) if BOM data was fetched
-  if (imdb_screens >= 0) or imdb_stvm or imdb_festival or imdb_ldt or imdb_wide then
-  begin
-    if imdb_stvm then status := 'STV'
-    else if imdb_festival then status := 'Festival'
-    else if imdb_ldt then status := 'Limited'
-    else if imdb_wide then status := 'Wide'
-    else status := 'Cine';
-
-    if imdb_screens >= 0 then
-      irc_AddText(aNetname, aChannel, Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c7><b>Rating</b>/<b>Type</b></c> ....: <b>%d</b> of 100 (%d) @ %d Screens (%s) | Type: %s', [imdb_rating, imdb_votes, imdb_screens, status, imdb_type]))
-    else
-      irc_AddText(aNetname, aChannel, Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c7><b>Rating</b>/<b>Type</b></c> ....: <b>%d</b> of 100 (%d) (%s) | Type: %s', [imdb_rating, imdb_votes, status, imdb_type]));
-  end
-  else
-  begin
-    // BOM data not available - don't show release status
-    irc_AddText(aNetname, aChannel, Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c7><b>Rating</b>/<b>Type</b></c> ....: <b>%d</b> of 100 (%d) | Type: %s', [imdb_rating, imdb_votes, imdb_type]));
-  end;
 end;
 
 procedure TDbImdbData.SetIMDBRelease(ir: TIMDBRelease);
