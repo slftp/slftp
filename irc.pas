@@ -2075,7 +2075,7 @@ begin
       Continue;
 
     try
-      aOutput.Add(Format('  irc %-16s status=%-14s lastread=%.0fs ago',
+      aOutput.Add(Format('  irc %-16s status=%-14s lastread=%ds ago',
         [fIrcThread.netname, fIrcThread.status, SecondsBetween(Now, fIrcThread.irc_last_read)]));
     except
       on e: Exception do
