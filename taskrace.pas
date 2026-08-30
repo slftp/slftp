@@ -709,14 +709,6 @@ var
 begin
   baseValue := GetNewdirDirlistReaddValue();
 
-  // linear backoff (base * retry_count, capped) for mkdir-not-ready
-  // retries to avoid 10ms retry storms
-  if (aDirlist <> nil) and (aDirlist.mkdir_not_ready_retry_count > 0) then
-  begin
-    Result := Min(baseValue * aDirlist.mkdir_not_ready_retry_count, 5000);
-    exit;
-  end;
-
   if (aSite <> nil) and (aDirlist <> nil) then
   begin
     secondsSinceLastChange := SecondsBetween(Now, aDirlist.LastChanged);
@@ -768,6 +760,9 @@ begin
 
   // Site must be allowed as a destination
   if not (ps1.status in [rssAllowed]) then
+    Exit;
+
+  if (not aDirlist.need_mkdir) or (aDirlist.error) or (aDirlist.dependency_mkdir <> '') then
     Exit;
 
   aDirlist.dirlist_lock.Enter('TPazoDirlistTask.TryCreateMkdirFromFailedDirlist');
