@@ -51,7 +51,7 @@ const
     'section' {, 'preurl', 'mysql'});
 
   { Declarations of all IRC commands as @link(TIrcCommand) records }
-  ircCommandsArray: array[1..225] of TIrcCommand = (
+  ircCommandsArray: array[1..226] of TIrcCommand = (
     (cmd: 'GENERAL'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$general'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'general'),
@@ -173,6 +173,7 @@ const
     (cmd: 'spamconf'; hnd: IrcSpamConfig; minparams: 0; maxparams: 3; hlpgrp: 'misc'),
     (cmd: 'addknowngroup'; hnd: Ircaddknowngroup; minparams: 1; maxparams: - 1; hlpgrp: 'misc'),
     (cmd: 'loglockstats'; hnd: IrcLogLockStats; minparams: 0; maxparams: 0; hlpgrp: 'misc'),
+    (cmd: 'watchdog'; hnd: IrcWatchdogReport; minparams: 0; maxparams: 0; hlpgrp: 'misc'),
 
     (cmd: 'NEWS'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$news'),
     (cmd: 'news'; hnd: IrcNews; minparams: 0; maxparams: 2; hlpgrp: 'news'),

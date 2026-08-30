@@ -60,7 +60,7 @@ uses
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, tasklogin, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
   StrUtils, news, dbhandler, mormot.db.raw.sqlite3, mormot.db.sql.sqlite3, ZPlainMySqlDriver, mormot.db.sql.zeos, mormot.db.core, irccommands.prebot,
   taskautodirlist, slcriticalsection2, mormot.core.unicode, mormot.core.base, slapi, slapi.services.impl,
-  IdGlobal, ZClasses, FLRE, RegExpr;
+  IdGlobal, ZClasses, FLRE, RegExpr, watchdog;
 
 {$I slftp.inc}
 
@@ -81,6 +81,21 @@ var
 function kilepescsekker(socket: TslTCPSocket): boolean;
 begin
   Result := slshutdown;
+end;
+
+procedure _WatchdogLog(const aMsg: String);
+begin
+  Debug(dpError, 'watchdog', aMsg);
+end;
+
+procedure _WatchdogNotify(const aReason, aReportFile: String);
+begin
+  irc_Adderror(Format('<c4>Watchdog</c>: %s - report written: %s', [aReason, aReportFile]));
+end;
+
+function _WatchdogVersion: String;
+begin
+  Result := GetFullVersionString;
 end;
 
 function Main_Init: String;
@@ -286,6 +301,10 @@ begin
   console_addline('Admin', 'Init REST API', True);
   ApiInit;
 
+  console_addline('Admin', 'Init Watchdog', True);
+  WatchdogInit;
+  WatchdogSetHandlers(@_WatchdogLog, @_WatchdogNotify, @_WatchdogVersion);
+
   queue_fire := config.readInteger('queue', 'queue_fire', 900);
   queueclean_interval := config.ReadInteger('queue', 'queueclean_interval', 1800);
   queue_stat_interval := 500;
@@ -302,6 +321,8 @@ var
   i: integer;
   fSite: TSite;
 begin
+  WatchdogMainThreadBeat;
+
   if slshutdown then
   begin
     slapp.shouldquit := True;
@@ -552,6 +573,8 @@ begin
   QueueStart();
   console_addline('Admin', 'Start REST API', True);
   ApiStart;
+  console_addline('Admin', 'Start Watchdog', True);
+  WatchdogStart;
 end;
 
 procedure Main_Stop;
@@ -623,6 +646,7 @@ begin
   AutodirlistUninit;
   DirlistUnInit;
   ApiUninit;
+  WatchdogUninit;
   SlCriticalSection2Uninit;
 
   // TSQLite3LibraryDynamic

@@ -17,13 +17,14 @@ function IrcKillAll(const netname, channel, params: String): boolean;
 function IrcSpamConfig(const netname, channel, params: String): boolean;
 function Ircaddknowngroup(const netname, channel, params: String): boolean;
 function IrcLogLockStats(const netname, channel, params: String): boolean;
+function IrcWatchdogReport(const netname, channel, params: String): boolean;
 
 implementation
 
 uses
   SysUtils, Classes, Contnrs, Types, irc, kb, sitesunit, mystrings, mrdohutils, RegExpr,
   debugunit, sllanguagebase, taskrace, knowngroups, configunit, queueunit, irccommandsunit,
-  slcriticalsection2;
+  slcriticalsection2, watchdog;
 
 const
   section = 'irccommands.misc';
@@ -513,6 +514,32 @@ begin
     begin
       Debug(dpError, section, '[EXCEPTION] IrcLogLockStats : %s', [E.Message]);
       irc_addtext(netname, channel, 'Error while saving stats to file: <b>%s</b>', [E.Message]);
+      exit;
+    end;
+  end;
+end;
+
+function IrcWatchdogReport(const netname, channel, params: String): boolean;
+var
+  fFilePath: String;
+begin
+  Result := False;
+
+  if not WatchdogEnabled then
+  begin
+    irc_addtext(netname, channel, 'Watchdog is disabled, enable setting [watchdog] enabled');
+    exit;
+  end;
+
+  try
+    fFilePath := WatchdogGenerateReport('manual (watchdog command)');
+    irc_addtext(netname, channel, 'Watchdog report written to: <b>%s</b>', [fFilePath]);
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, '[EXCEPTION] IrcWatchdogReport : %s', [E.Message]);
+      irc_addtext(netname, channel, 'Error while writing watchdog report: <b>%s</b>', [E.Message]);
       exit;
     end;
   end;

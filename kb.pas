@@ -12,6 +12,7 @@ type
   TKBThread = class(TThread)
   private
     kbevent: TEvent;
+    fWatchdog: TObject;
     function AddCompleteTransfers(pazo: Pointer): boolean;
   public
     constructor Create;
@@ -67,6 +68,9 @@ procedure kb_Stop;
 
 function kb_reloadsections: boolean;
 
+{ Appends the kb thread state line for the watchdog report. }
+procedure WatchdogKbInfo(const aOutput: TStrings);
+
 var
   kb_sections: TStringList;
   kb_thread: TKBThread;
@@ -75,7 +79,7 @@ implementation
 
 uses
   debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
-  taskrace, sitesunit, queueunit, irc, SysUtils, fake, mystrings, tasksunit,
+  taskrace, sitesunit, queueunit, irc, SysUtils, fake, mystrings, tasksunit, watchdog,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup, encinifile,
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
@@ -1444,11 +1448,13 @@ begin
     NameThreadForDebugging('KB', self.ThreadID);
   {$ENDIF}
   FreeOnTerminate := True;
+  fWatchdog := WatchdogNewParticipant('kb', 300);
   kbevent := TEvent.Create(nil, False, False, 'kb');
 end;
 
 destructor TKBThread.Destroy;
 begin
+  WatchdogReleaseParticipant(fWatchdog);
   kbevent.Free;
   inherited;
 
@@ -1660,6 +1666,9 @@ begin
   try
     while (not slshutdown) do
     begin
+      if fWatchdog <> nil then
+        TWatchdogParticipant(fWatchdog).Beat;
+
       try
         kb_lock.Enter('Execute');
         p := nil;
@@ -1788,5 +1797,24 @@ begin
     fDeletedPazos.Free;
   end;
 end;
+
+procedure WatchdogKbInfo(const aOutput: TStrings);
+begin
+  if kb_thread = nil then
+  begin
+    aOutput.Add('  kb: thread not running');
+    exit;
+  end;
+
+  try
+    aOutput.Add(Format('  kb  %-16s releases=%d', ['thread', kb_list.Count]));
+  except
+    on e: Exception do
+      aOutput.Add('  kb  <error reading state: ' + e.Message + '>');
+  end;
+end;
+
+initialization
+  WatchdogRegisterInventory('kb', @WatchdogKbInfo);
 
 end.

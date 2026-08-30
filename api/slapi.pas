@@ -32,7 +32,8 @@ uses
   configunit,
   debugunit,
   globals,
-  StrUtils;
+  StrUtils,
+  watchdog;
 
 type
   { REST API Server for slftp }
@@ -95,6 +96,7 @@ var
 
 threadvar
   ApiExceptionLogged: boolean;
+  WatchdogRequestCounted: boolean;
 
 function GetApiServer: TSlftpApiServer;
 begin
@@ -200,6 +202,11 @@ begin
         Debug(dpError, rsection, Format('[API ERROR] %s status=%d', [url, status]));
     end;
   finally
+    if WatchdogRequestCounted then
+    begin
+      WatchdogApiRequestEnd;
+      WatchdogRequestCounted := False;
+    end;
     ApiExceptionLogged := False;
   end;
 end;
@@ -215,6 +222,13 @@ begin
 
   if (Ctxt = nil) or (Ctxt.Call = nil) then
     Exit;
+
+  sUrl := UTF8ToString(Ctxt.Call^.Url);
+  if (Length(sUrl) >= 4) and (UpperCase(Copy(sUrl, 1, 4)) = '/API') then
+  begin
+    WatchdogApiRequestStart(UTF8ToString(Ctxt.Call^.Method) + ' ' + sUrl);
+    WatchdogRequestCounted := True;
+  end;
 
   if Length(Ctxt.Call^.InBody) > CMaxBodySize then
   begin

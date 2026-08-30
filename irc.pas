@@ -46,6 +46,7 @@ type
     FCurrentIrcNick: String;
     flood: integer;
     FConsecutiveFailures: Integer;
+    fWatchdog: TObject;
 
     function GetIrcSSL: Boolean;
 
@@ -182,6 +183,9 @@ procedure ircStop;
 
 function IrcRestart: boolean;
 
+{ Appends per irc network thread state lines for the watchdog report. }
+procedure WatchdogIrcInfo(const aOutput: TStrings);
+
 var
   myIrcThreads: TObjectList = nil;
   mynickname, myanickname, irccmdprefix: String;
@@ -200,7 +204,7 @@ implementation
 uses
   StrUtils, {$IFDEF MSWINDOWS}Windows,{$ENDIF} debugunit, configunit, ircchansettings, irccolorunit, precatcher, console,
   socks5, versioninfo, mystrings, DateUtils, irccommandsunit, sitesunit, taskraw, queueunit, mainthread, dbaddpre,
-  dbtvinfo, dbaddurl, dbaddimdb, dbaddgenre, news, irc.parse;
+  dbtvinfo, dbaddurl, dbaddimdb, dbaddgenre, news, irc.parse, watchdog;
 
 const
   section = 'irc';
@@ -597,6 +601,7 @@ begin
   Debug(dpMessage, section, 'IRC thread for %s started', [aNetname]);
 
   self.netname := aNetname;
+  fWatchdog := WatchdogNewParticipant('irc/' + aNetname, 600);
   status := 'creating...';
 
   FSocketWriteLock := TSlCriticalSection2.Create('IRC_' + aNetname);
@@ -626,6 +631,8 @@ end;
 
 destructor TMyIrcThread.Destroy;
 begin
+  WatchdogReleaseParticipant(fWatchdog);
+
   FSocketWriteLock.Free;
 
   FPendingMessagesQueue.Free;
@@ -1755,6 +1762,12 @@ begin
   while (not shouldquit) do
   begin
     try
+      if fWatchdog <> nil then
+      begin
+        TWatchdogParticipant(fWatchdog).Beat;
+        TWatchdogParticipant(fWatchdog).SetInfo(status);
+      end;
+
       shouldrestart := False;
       shouldjoin := True;
       error := '';
@@ -2035,5 +2048,32 @@ begin
   sitesdat.WriteInteger('ircnet-' + netname, name, val);
 end;
 *)
+
+procedure WatchdogIrcInfo(const aOutput: TStrings);
+var
+  i: integer;
+  fIrcThread: TMyIrcThread;
+begin
+  if myIrcThreads = nil then
+    exit;
+
+  for i := 0 to myIrcThreads.Count - 1 do
+  begin
+    fIrcThread := TMyIrcThread(myIrcThreads[i]);
+    if fIrcThread = nil then
+      Continue;
+
+    try
+      aOutput.Add(Format('  irc %-16s status=%-14s lastread=%.0fs ago',
+        [fIrcThread.netname, fIrcThread.status, SecondsBetween(Now, fIrcThread.irc_last_read)]));
+    except
+      on e: Exception do
+        aOutput.Add('  irc <error reading state: ' + e.Message + '>');
+    end;
+  end;
+end;
+
+initialization
+  WatchdogRegisterInventory('irc', @WatchdogIrcInfo);
 
 end.

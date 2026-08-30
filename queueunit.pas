@@ -26,6 +26,7 @@ type
   TQueueThread = class(TThread)
     main_lock: TSlCriticalSection2;
     fQueueStat: TQueueStat;
+    fWatchdog: TObject;
     destructor Destroy; override;
     procedure Execute; override;
     procedure TryToAssignSlots(t: TTask);
@@ -93,6 +94,8 @@ property QueueCleanLastRun: TDateTime read queueclean_last_run;
 procedure QueueInit;
 procedure QueueUninit;
 procedure QueueStatAll;
+{ Appends per queue thread state lines for the watchdog report. }
+procedure WatchdogQueueInfo(const aOutput: TStrings);
 { @abstract(Returns total task counts broken down by type across all queue threads) }
 procedure GetQueueTotals(out total, race, dirlist, autotasks, other: integer);
 { @abstract(Returns count of pending race tasks targeting the given destination site, across all queues) }
@@ -108,7 +111,7 @@ implementation
 
 uses
   SysUtils, Types, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils,
-  tasktvinfolookup, taskhttpnfo, tasksitenfo, tasksitesfv, sitesunit, dirlist;
+  tasktvinfolookup, taskhttpnfo, tasksitenfo, tasksitesfv, sitesunit, dirlist, watchdog;
 
 const
   section = 'queue';
@@ -555,6 +558,7 @@ begin
   queueevent := nil;
   fQueueStat := nil;
   fBusyDestinations := nil;
+  fWatchdog := nil;
 
   inherited Create(False);
   {$IFDEF DEBUG}
@@ -574,6 +578,7 @@ begin
     StatsList.Add(fQueueStat);
     Queues.Add(self);
     fSiteName := aSiteName;
+    fWatchdog := WatchdogNewParticipant('queue/' + aSiteName, 120);
     fBusyDestinations := TDictionary<TObject, integer>.Create;
   except
     FreeAndNil(fBusyDestinations);
@@ -595,6 +600,7 @@ destructor TQueueThread.Destroy;
 begin
   if Queues <> nil then
     Queues.Extract(self);
+  WatchdogReleaseParticipant(fWatchdog);
   main_lock.Free;
   tasks.Free;
   waiting_tasks.Free;
@@ -1794,6 +1800,9 @@ begin
   begin
     queue_last_run := Now();
 
+    if fWatchdog <> nil then
+      TWatchdogParticipant(fWatchdog).Beat;
+
     if fSite = nil then
       fSite := FindSiteByName('', fSiteName);
 
@@ -2528,6 +2537,33 @@ begin
     Result := Result + fQueueThread.GetPendingRaceTasksToDestination(aDestinationSiteName);
 end;
 
+procedure WatchdogQueueInfo(const aOutput: TStrings);
+var
+  fQueueThread: TQueueThread;
+begin
+  if Queues = nil then
+    exit;
+
+  for fQueueThread in Queues do
+  begin
+    try
+      aOutput.Add(Format('  queue %-16s tasks=%-5d waiting=%-4d race=%-4d dirlist=%-4d auto=%-4d other=%-4d running=%-3d lastiter=%.1fs ago',
+        [fQueueThread.fSiteName,
+         fQueueThread.tasks.Count + fQueueThread.waiting_tasks.Count,
+         fQueueThread.waiting_tasks.Count,
+         fQueueThread.fQueueStat.FRaceTaskCount,
+         fQueueThread.fQueueStat.FDirlistTaskCount,
+         fQueueThread.fQueueStat.FAutoTaskCount,
+         fQueueThread.fQueueStat.FOtherTaskCount,
+         fQueueThread.fQueueStat.FActiveTaskCount,
+         SecondsBetween(Now, fQueueThread.queue_last_run)]));
+    except
+      on e: Exception do
+        aOutput.Add('  queue <error reading state: ' + e.Message + '>');
+    end;
+  end;
+end;
+
 procedure TQueueThread.QueueSendCurrentTasksToConsole;
 var
   fTask: TTask;
@@ -2835,5 +2871,8 @@ end;
       main_lock.Leave;
     end;
   end;
+
+initialization
+  WatchdogRegisterInventory('queue', @WatchdogQueueInfo);
 
 end.
