@@ -161,7 +161,7 @@ begin
     end;
 
     kb_Add(netname, channel, sitename, section, '', kbeCOMPLETE, dir, '', True);
-    p := FindPazoByKey(section + '-' + dir);
+    p := FindPazoByKey(KbKey(section, dir));
     if p = nil then
     begin
       irc_addtext(netname, channel, 'No valid kbID found for %s-%s!', [section, dir]);
@@ -413,7 +413,7 @@ begin
     exit;
   end;
 
-    p := FindPazoByKey(section + '-' + dir);
+    p := FindPazoByKey(KbKey(section, dir));
     if p = nil then // this shouldnt happen
     begin
       irc_addtext(Netname, Channel, '<c4><b>ERROR</c> No pazo_id found for:</b> %s-%s', [section, dir]);

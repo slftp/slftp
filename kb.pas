@@ -33,6 +33,16 @@ function FindReleaseInLatestKBList(const aRls: String): String;
 function FindPazoByRls(const rlsname: String): TPazo;
 function FindPazoById(const id: integer): TPazo;
 function FindPazoByName(const section, rlsname: String): TPazo;
+
+{ Builds a KB list key from section and release name.
+      KB keys are write-only lookup keys: never parse them back into section and release name
+      (e.g. via Pos/Copy on the '-' separator), sections may contain '-' themselves like TV-SD.
+      To get the section of a known release use @link(FindPazoByRls) and read it from the TPazo object instead.
+      @param(aSection The section name)
+      @param(aRls The release name)
+      @returns(The KB key in the format 'section-releasename') }
+function KbKey(const aSection, aRls: String): String;
+
 { Finds a release/pazo in the KB list by the given key. The key must be in the format of the KB list keys which is 'section-releasename'
       @param(aKey The KB key to be searched for)
       @returns(The found TPazo object or nil if the key is not present in the KB list.) }
@@ -302,7 +312,7 @@ begin
     if trimmed_shit_checker then
     begin
       try
-        i := kb_trimmed_rls.IndexOf(section + '-' + rls);
+        i := kb_trimmed_rls.IndexOf(KbKey(section, rls));
         if i <> -1 then
         begin
           irc_addadmin(Format('<b><c4>%s</c> @ %s is trimmed shit!</b>', [rls, sitename]));
@@ -310,8 +320,8 @@ begin
           exit;
         end;
 
-        kb_trimmed_rls.Add(section + '-' + Copy(rls, 1, Length(rls) - 1));
-        kb_trimmed_rls.Add(section + '-' + Copy(rls, 2, Length(rls) - 1));
+        kb_trimmed_rls.Add(KbKey(section, Copy(rls, 1, Length(rls) - 1)));
+        kb_trimmed_rls.Add(KbKey(section, Copy(rls, 2, Length(rls) - 1)));
       except
         on e: Exception do
         begin
@@ -407,7 +417,7 @@ begin
 
   kb_lock.Enter('kb_AddB_2');
   try
-    i := kb_list.IndexOf(section + '-' + rls);
+    i := kb_list.IndexOf(KbKey(section, rls));
     if i = -1 then
     begin
       if (event = kbeNUKE) then
@@ -479,7 +489,7 @@ begin
 
       kb_list.BeginUpdate;
       try
-        kb_list.AddObject(section + '-' + rls, p);
+        kb_list.AddObject(KbKey(section, rls), p);
       finally
         kb_list.EndUpdate;
       end;
@@ -1026,7 +1036,12 @@ end;
 
 function FindPazoByName(const section, rlsname: String): TPazo;
 begin
-  Result := FindPazoByKey(section + '-' + rlsname);
+  Result := FindPazoByKey(KbKey(section, rlsname));
+end;
+
+function KbKey(const aSection, aRls: String): String;
+begin
+  Result := aSection + '-' + aRls;
 end;
 
 procedure AddPazoToKB(const aKey: String; const aPazo: TPazo);
@@ -1097,8 +1112,8 @@ var
     added := UnixToDateTime(StrToInt64(SubString(line, #9, 3)));
     ctime := Strtoint64(SubString(line, #9, 4));
     event := EventStringToTKBEventType(SubString(line, #9, 5));
-    kb_trimmed_rls.Add(section + '-' + Copy(rlsname, 1, Length(rlsname) - 1));
-    kb_trimmed_rls.Add(section + '-' + Copy(rlsname, 2, Length(rlsname) - 1));
+    kb_trimmed_rls.Add(KbKey(section, Copy(rlsname, 1, Length(rlsname) - 1)));
+    kb_trimmed_rls.Add(KbKey(section, Copy(rlsname, 2, Length(rlsname) - 1)));
 
     rc := FindSectionHandler(section);
 
@@ -1116,7 +1131,7 @@ var
     p.stated := True;
     p.cleared := True;
     p.ExcludeFromIncfiller := True;
-    kb_list.AddObject(section + '-' + rlsname, p);
+    kb_list.AddObject(KbKey(section, rlsname), p);
   end;
 
 begin
