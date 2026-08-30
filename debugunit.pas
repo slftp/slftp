@@ -265,6 +265,11 @@ end;
 
 procedure Debug(const priority: TDebugPriority; const section, FormatStr: String; const Args: array of const); overload;
 begin
+  // early exit before Format() to spare the string allocation and the
+  // exception frame below in hot paths when this priority is not logged
+  if (glCachedDebugPriority = dpNone) or (glCachedDebugPriority < priority) then
+    exit;
+
   try
     Debug(priority, section, Format(FormatStr, Args));
   except
