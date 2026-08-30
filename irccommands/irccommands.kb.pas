@@ -27,7 +27,7 @@ begin
   section := UpperCase(SubString(params, ' ', 1));
   rls := SubString(params, ' ', 2);
 
-  p := FindPazoByKey(section + '-' + rls);
+  p := FindPazoByKey(KbKey(section, rls));
   if p <> nil then
   begin
     s := p.AsText;

@@ -22,15 +22,27 @@ type
 function renameCheck(const pattern, len: integer; const rls, candidate: String): boolean;
 function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String;
   dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
-function FindReleaseInKbList(const rls: String): String;
-
 { Finds a release in latest KB list
       @param(aRls The release name to be searched for)
       @returns(The section name if the release has been found, an empty string otherwise) }
 function FindReleaseInLatestKBList(const aRls: String): String;
+
+{ Finds a release/pazo in the KB list by its release name (case-insensitive)
+      @param(rlsname The release name to be searched for)
+      @returns(The found TPazo object or nil if the release is not present in the KB list.) }
 function FindPazoByRls(const rlsname: String): TPazo;
 function FindPazoById(const id: integer): TPazo;
 function FindPazoByName(const section, rlsname: String): TPazo;
+
+{ Builds a KB list key from section and release name.
+      KB keys are write-only lookup keys: never parse them back into section and release name
+      (e.g. via Pos/Copy on the '-' separator), sections may contain '-' themselves like TV-SD.
+      To get the section of a known release use @link(FindPazoByRls) and read it from the TPazo object instead.
+      @param(aSection The section name)
+      @param(aRls The release name)
+      @returns(The KB key in the format 'section-releasename') }
+function KbKey(const aSection, aRls: String): String;
+
 { Finds a release/pazo in the KB list by the given key. The key must be in the format of the KB list keys which is 'section-releasename'
       @param(aKey The KB key to be searched for)
       @returns(The found TPazo object or nil if the key is not present in the KB list.) }
@@ -295,7 +307,7 @@ var
         fStaleKeys := TStringList.Create;
         try
           for fRlsItem in kb_dict_by_rls do
-            if not kb_dict_by_key.ContainsKey(fRlsItem.Value + '-' + fRlsItem.Key) then
+            if not kb_dict_by_key.ContainsKey(KbKey(fRlsItem.Value, fRlsItem.Key)) then
               fStaleKeys.Add(fRlsItem.Key);
           i := 0;
           while (i < fStaleKeys.Count) and (kb_dict_by_rls.Count > 150) do
@@ -349,7 +361,7 @@ begin
     if trimmed_shit_checker then
     begin
       try
-        i := kb_trimmed_rls.IndexOf(section + '-' + rls);
+        i := kb_trimmed_rls.IndexOf(KbKey(section, rls));
         if i <> -1 then
         begin
           irc_addadmin(Format('<b><c4>%s</c> @ %s is trimmed shit!</b>', [rls, sitename]));
@@ -357,8 +369,8 @@ begin
           exit;
         end;
 
-        kb_trimmed_rls.Add(section + '-' + Copy(rls, 1, Length(rls) - 1));
-        kb_trimmed_rls.Add(section + '-' + Copy(rls, 2, Length(rls) - 1));
+        kb_trimmed_rls.Add(KbKey(section, Copy(rls, 1, Length(rls) - 1)));
+        kb_trimmed_rls.Add(KbKey(section, Copy(rls, 2, Length(rls) - 1)));
       except
         on e: Exception do
         begin
@@ -467,7 +479,7 @@ begin
 
   kb_lock.Enter('kb_AddB_2');
   try
-    if not kb_dict_by_key.TryGetValue(section + '-' + rls, p) then
+    if not kb_dict_by_key.TryGetValue(KbKey(section, rls), p) then
     begin
       if (event = kbeNUKE) then
       begin
@@ -536,7 +548,7 @@ begin
       // need to search all sites where there is such a section ...
       p.AddSites;
 
-      kb_dict_by_key.Add(section + '-' + rls, p);
+      kb_dict_by_key.Add(KbKey(section, rls), p);
       kb_dict_by_id.Add(p.pazo_id, p);
 
       // announce event on admin chan
@@ -956,25 +968,6 @@ begin
   end;
 end;
 
-function FindReleaseInKbList(const rls: String): String;
-var
-  section, rlsname: string;
-begin
-  Result := '';
-  // rls typically comes as '-Releasename', strip leading dash for lookup
-  rlsname := rls;
-  if rlsname.StartsWith('-') then
-    rlsname := Copy(rlsname, 2, MaxInt);
-
-  kb_lock.Enter('FindReleaseInKbList ' + rls);
-  try
-    if kb_dict_by_rls.TryGetValue(rlsname, section) then
-      Result := section + '-' + rlsname;
-  finally
-    kb_lock.Leave;
-  end;
-end;
-
 function FindReleaseInLatestKBList(const aRls: String): String;
 begin
   Result := '';
@@ -995,7 +988,7 @@ begin
   try
     try
       if kb_dict_by_rls.TryGetValue(rlsname, section) then
-        kb_dict_by_key.TryGetValue(section + '-' + rlsname, Result);
+        kb_dict_by_key.TryGetValue(KbKey(section, rlsname), Result);
     except
       on e: Exception do
       begin
@@ -1052,7 +1045,12 @@ end;
 
 function FindPazoByName(const section, rlsname: String): TPazo;
 begin
-  Result := FindPazoByKey(section + '-' + rlsname);
+  Result := FindPazoByKey(KbKey(section, rlsname));
+end;
+
+function KbKey(const aSection, aRls: String): String;
+begin
+  Result := aSection + '-' + aRls;
 end;
 
 procedure AddPazoToKB(const aKey: String; const aPazo: TPazo);
@@ -1140,8 +1138,8 @@ var
     added := UnixToDateTime(StrToInt64(SubString(line, #9, 3)));
     ctime := Strtoint64(SubString(line, #9, 4));
     event := EventStringToTKBEventType(SubString(line, #9, 5));
-    kb_trimmed_rls.Add(section + '-' + Copy(rlsname, 1, Length(rlsname) - 1));
-    kb_trimmed_rls.Add(section + '-' + Copy(rlsname, 2, Length(rlsname) - 1));
+    kb_trimmed_rls.Add(KbKey(section, Copy(rlsname, 1, Length(rlsname) - 1)));
+    kb_trimmed_rls.Add(KbKey(section, Copy(rlsname, 2, Length(rlsname) - 1)));
 
     rc := FindSectionHandler(section);
 
@@ -1161,9 +1159,9 @@ var
     p.ExcludeFromIncfiller := True;
     // mimic the old TStringList Duplicates := dupIgnore behavior: do not
     // overwrite an existing entry (would leak the stored pazo)
-    if not kb_dict_by_key.ContainsKey(section + '-' + rlsname) then
+    if not kb_dict_by_key.ContainsKey(KbKey(section, rlsname)) then
     begin
-      kb_dict_by_key.Add(section + '-' + rlsname, p);
+      kb_dict_by_key.Add(KbKey(section, rlsname), p);
       kb_dict_by_id.AddOrSetValue(p.pazo_id, p);
       kb_dict_by_rls.AddOrSetValue(rlsname, section);
       _KbLatestBucketAdd(rlsname);
