@@ -1571,6 +1571,12 @@ begin
   Result := False;
   while ((not shouldrestart) and (not shouldquit)) do
   begin
+    if fWatchdog <> nil then
+    begin
+      TWatchdogParticipant(fWatchdog).Beat;
+      TWatchdogParticipant(fWatchdog).SetInfo(status);
+    end;
+
     if shouldjoin then
       ShouldJoinGame();
 
@@ -1822,6 +1828,11 @@ begin
             status := 'sleeping additional ' + IntToStr(m - i) + ' seconds before retrying (' + IntToStr(FConsecutiveFailures) + ' consecutive failures)'
           else
             status := 'sleeping additional ' + IntToStr(m - i) + ' seconds before retrying';
+          if fWatchdog <> nil then
+          begin
+            TWatchdogParticipant(fWatchdog).Beat;
+            TWatchdogParticipant(fWatchdog).SetInfo(status);
+          end;
           Sleep(1000);
         end;
       end;
