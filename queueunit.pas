@@ -1042,6 +1042,7 @@ begin
     q := TQuitTask.Create('', '', s.site.Name);
     q.slot1 := s;
     q.slot1name := s.Name;
+    q.assigned := Now();
     s.todotask := q;
     AddTask(q);
     s.Fire;
@@ -1070,6 +1071,7 @@ begin
     ti := TIdleTask.Create('', '', s.site.Name);
     ti.slot1 := s;
     ti.slot1name := s.Name;
+    ti.assigned := Now();
     s.todotask := ti;
     AddTask(ti);
     s.Fire;
@@ -1597,10 +1599,19 @@ begin
                 if TSiteSlot(t.slot1).todotask = t then
                 begin
                   fSlotsToRebuild.Add(TSiteSlot(t.slot1));
+                  // Do NOT clear slot1/slot2 here: the slot thread is still executing
+                  // fCurrentTask (= t) inside TSiteSlot.Execute. Clearing slot1 now would
+                  // allow RemoveReady to free the task while the slot thread is still using
+                  // it -> use-after-free -> AV. The slot thread's cleanup sets
+                  // fCurrentTask.slot1 := nil after Execute() returns. RebuildSlot signals
+                  // shouldquit=True so the FTP operation aborts quickly.
+                end
+                else
+                begin
+                  // Slot has already moved on (todotask != t); safe to clear immediately.
+                  t.slot1 := nil;
+                  t.slot2 := nil;
                 end;
-
-                t.slot1 := nil;
-                t.slot2 := nil;
               end;
             end;
           end;
@@ -2141,6 +2152,38 @@ begin
               Break;
             end;
           end;
+
+          // Tasks created by AddIdleTask/AddQuitTask have slot1 set directly
+          // but assigned stays 0. The removal loop requires slot1=nil to remove a
+          // ready task, so without this cleanup the task is stuck in the queue forever
+          // and s.todotask keeps pointing to the dead task, blocking new idle tasks.
+          if t.slot1 <> nil then
+          begin
+            ts.AcquireSlotsAssignmentLock('QueueClean1 unassigned');
+            try
+              if TSiteSlot(t.slot1).todotask = t then
+              begin
+                // Slot still holds a reference to this task — it may be actively
+                // executing it. Clear todotask to unblock slot assignment for new
+                // tasks, but do NOT clear slot1: the slot thread will clear it in
+                // its own post-execute cleanup after Execute() returns. Clearing
+                // slot1 here makes the task eligible for removal (ready+slot1=nil)
+                // while the slot thread still holds fCurrentTask pointing to it,
+                // causing a use-after-free crash in the removal loop.
+                TSiteSlot(t.slot1).todotask := nil;
+              end
+              else
+              begin
+                // Slot has moved on (todotask != this task). Safe to clear slot1
+                // because the slot thread no longer accesses this task via fCurrentTask.
+                t.slot1 := nil;
+                t.slot1name := '';
+              end;
+            finally
+              ts.ReleaseSlotsAssignmentLock;
+            end;
+          end;
+
           Inc(tkill_unassigne);
 
           Console_QueueDel(ss);
@@ -2223,6 +2266,19 @@ begin
             try
               Debug(dpSpam, section, Format('[QUEUECLEAN] Clean race task : %s', [t.Fullname]));
               Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Fullname]));
+
+              // Signal the destination WAITTASK to unblock its slot thread,
+              // same as RemoveReady does when collecting a completed RACE task.
+              if (TPazoRaceTask(t).dst <> nil) then
+              begin
+                try
+                  TPazoRaceTask(t).dst.event.SetEvent;
+                except
+                  on e: Exception do
+                    Debug(dpError, section, Format('[EXCEPTION] QueueClean race: signal dst event : %s', [e.Message]));
+                end;
+              end;
+
               tasks.Remove(t);
             except
               on e: Exception do
@@ -2243,27 +2299,17 @@ begin
 
         if (t.ClassType = TWaitTask) then
         begin
-          with TWaitTask(t) do
-            event.SetEvent;
+          ss := t.UidText;
+          Debug(dpSpam, section, Format('[QUEUECLEAN] Clean wait task : %s', [t.Fullname]));
 
-          try
-            //t := NIL;
-            ss := t.UidText;
-            Debug(dpSpam, section, Format('[QUEUECLEAN] Clean wait task : %s', [t.Fullname]));
-            ts.AcquireSlotsAssignmentLock('QueueClean wait');
-            try
-              Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Fullname]));
-              tasks.Remove(t);
-            finally
-              ts.ReleaseSlotsAssignmentLock;
-            end;
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section,
-                Format('[EXCEPTION] QueueClean: Exception Remove : %s', [e.Message]));
-            end;
-          end;
+          // Wake up the blocking slot thread so it can complete Execute normally.
+          // Do NOT call tasks.Remove here: TWaitTask.Execute blocks in event.WaitFor,
+          // so calling tasks.Remove would free the task object while the slot thread
+          // is still executing it (use-after-free / AV).
+          // The slot thread sets ready := True when Execute returns, clears slot1 in
+          // its cleanup block, and RemoveReady will collect the task on the next pass.
+          TWaitTask(t).event.SetEvent;
+
           Inc(tkill_race);
 
           Console_QueueDel(ss);
