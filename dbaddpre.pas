@@ -629,9 +629,9 @@ begin
 
   FDbCleanupCounter := TIdThreadSafeInt32.Create;
 
-  if ( (dbaddpre_mode = apmSQLITE) or (dbaddpre_plm1 = plmSQLITE) or (dbaddpre_plm2 = plmSQLITE) ) then
+  if ( (dbaddpre_mode = apmSQLITE) or (dbaddpre_mode = apmMemory) or (dbaddpre_plm1 = plmSQLITE) or (dbaddpre_plm2 = plmSQLITE) ) then
   begin
-    db_pre_name := Trim(config.ReadString(section, 'db_file', 'db_addpre.db'));
+    db_pre_name := Trim(config.ReadString(section, 'database', 'db_addpre.db'));
 
     try
       addpreSQLite3DBCon := CreateSQLite3DbConn(db_pre_name, '', dbaddpre_mode = apmMemory);

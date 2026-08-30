@@ -95,7 +95,7 @@ begin
         // adding pretime database (only at startup)
         if not AddPreDbAlive then
         begin
-          fFileName := Trim(config.ReadString(section, 'db_file', 'db_addpre.db'));
+          fFileName := Trim(config.ReadString('dbaddpre', 'database', 'db_addpre.db'));
           if ( FileExists(fDatabasePath + fFileName) and (skipfiles.IndexOf(fFileName) = -1) ) then
             AddFile(fDatabasePath + fFileName);
         end;
