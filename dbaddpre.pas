@@ -67,7 +67,7 @@ implementation
 uses
   DateUtils, SysUtils, StrUtils, configunit, mystrings, console, sitesunit, FLRE, IniFiles, slcriticalsection2,
   irc, debugunit, precatcher, taskpretime, dbhandler, http, mormot.db.sql, mormot.db.sql.sqlite3, mormot.db.sql.zeos,
-  IdThreadSafe;
+  IdThreadSafe, pazo;
 
 const
   section = 'dbaddpre';
@@ -324,8 +324,7 @@ function dbaddpre_ADDPRE(const netname, channel, nickname, aRlsName, aSection, p
 var
   rls: String;
   rls_section: String;
-  kb_entry: String;
-  p: Integer;
+  fPazo: TPazo;
 begin
   Result := False;
 
@@ -359,19 +358,13 @@ begin
       end;
     end;
 
-    if ((event = kbeADDPRE) and (kbadd_addpre)) then // I assume this does the same as the code just above (issue a kb event after the pre time is there)
+    if ((event = kbeADDPRE) and (kbadd_addpre)) then // issue a kb event if the release is already known
     begin
-      kb_entry := FindReleaseInKbList('-' + rls);
-
-      // TODO: might not work correctly if sections are TV-SD, TV-720P-FR, etc
-      // introduced with merge-req #315
-      if kb_entry <> '' then
-      begin
-        p := Pos('-', kb_entry);
-        rls_section := Copy(kb_entry, 1, p - 1);
-        if rls_section <> '' then
-          kb_Add_addpre(rls, rls_section, event);
-      end;
+      // get the section from the pazo object instead of parsing the KB key,
+      // KB keys must not be parsed back as sections may contain '-' themselves (e.g. TV-SD)
+      fPazo := FindPazoByRls(rls);
+      if fPazo <> nil then
+        kb_Add_addpre(rls, fPazo.rls.section, event);
     end;
   end;
 

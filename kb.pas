@@ -22,12 +22,14 @@ type
 function renameCheck(const pattern, i, len: integer; const rls: String): boolean;
 function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String;
   dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
-function FindReleaseInKbList(const rls: String): String;
-
 { Finds a release in latest KB list
       @param(aRls The release name to be searched for)
       @returns(The section name if the release has been found, an empty string otherwise) }
 function FindReleaseInLatestKBList(const aRls: String): String;
+
+{ Finds a release/pazo in the KB list by its release name (case-insensitive)
+      @param(rlsname The release name to be searched for)
+      @returns(The found TPazo object or nil if the release is not present in the KB list.) }
 function FindPazoByRls(const rlsname: String): TPazo;
 function FindPazoById(const id: integer): TPazo;
 function FindPazoByName(const section, rlsname: String): TPazo;
@@ -900,26 +902,6 @@ begin
   end;
 end;
 
-function FindReleaseInKbList(const rls: String): String;
-var
-  i: integer;
-begin
-  Result := '';
-  kb_lock.Enter('FindReleaseInKbList ' + rls);
-  try
-    for i := 0 to kb_list.Count - 1 do
-    begin
-      if AnsiContainsText(kb_list[i], rls) then
-      begin
-        Result := kb_list[i];
-        break;
-      end;
-    end;
-  finally
-    kb_lock.Leave;
-  end;
-end;
-
 function FindReleaseInLatestKBList(const aRls: String): String;
 var
   i: integer;
@@ -959,7 +941,7 @@ begin
         if p.rls = nil then
           Continue;
 
-        if (p.rls.rlsname = rlsname) then
+        if SameText(p.rls.rlsname, rlsname) then
         begin
           Result := p;
         end;
