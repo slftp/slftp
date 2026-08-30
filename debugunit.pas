@@ -183,6 +183,11 @@ begin
   {$ENDIF}
 end;
 
+procedure _SlCriticalSectionError(const aMsg: String);
+begin
+  Debug(dpError, section, aMsg);
+end;
+
 procedure DebugInit;
 begin
   glCachedDebugPriority := TDebugPriority(config.ReadInteger(section, 'verbosity', 0));
@@ -190,6 +195,7 @@ begin
   glFlushLines := config.ReadBool(section, 'flushlines', False);
   _OpenLogFile;
   debug_lock := TSlCriticalSection2.Create('debug_lock');
+  GlErrorLogProc := @_SlCriticalSectionError;
 end;
 
 procedure DebugUninit;

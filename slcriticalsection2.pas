@@ -3,7 +3,7 @@ unit slcriticalsection2;
 interface
 
 uses
-  SyncObjs, Generics.Collections, sltimer, Generics.Defaults;
+  Classes, SyncObjs, Generics.Collections, sltimer, Generics.Defaults;
 
 {
   TslCriticalSection
@@ -21,6 +21,9 @@ type
     FLockCount: integer;
     FLockOwningThreadID: TThreadID;
     FName, FCurrentCodeSegmentName: string;
+    FLastOwnerThreadId: TThreadID;
+    FLastOwnerName: ShortString;
+    FLastEnterTick, FLastLeaveTick: Int64;
     FUseTimeoutLocking: boolean;
     FLockOwnerNameStack: TStack<string>;
     FHoldTimerStack: TStack<TSLTimer>;
@@ -30,6 +33,7 @@ type
     function GetCurrentLockOwnerName: string;
     procedure InitNoTimeoutLocking;
     procedure FreeObjects;
+    procedure _MarkEntered(const aLockOwnerName: string); inline;
   public
     { Constuctor.
       @param(aName A unique name for this critical section. If another instance with the same name already exists, an exception will be raised.)
@@ -75,8 +79,19 @@ type
   { Returns true, if timeout locking is enabled globally, false otherwise. }
   function GetUseTimeoutLocking: boolean;
 
+var
+  { Optional handler for internal lock error messages. Registered by the application (debugunit)
+    to keep this unit free of a hard dependency on the debug unit. If unset, messages are dropped. }
+  GlErrorLogProc: procedure(const aMsg: String) = nil;
+
   { Returns true, if wait times are being recorded, false otherwise. }
   function GetUseTimer: boolean;
+
+  { Appends one line per existing TslCriticalSection2 instance with its current diagnostic state
+    (mode, last owner thread and lock owner name, nest count, current code segment, last enter/leave age).
+    The owner fields are best-effort hints: in non-timeout locking mode they reflect the thread
+    which entered most recently, which is usually the one stuck inside the lock. }
+  procedure WriteCriticalSection2States(const aOutput: TStrings);
 
   { Writes all wait and hold times of locks into a log file at the path of slftp executable and returns that path. }
   function WriteCriticalSection2StatsToFile: String;
@@ -84,7 +99,7 @@ type
 
 implementation
   uses
-    SysUtils, debugunit, Classes, Math, mormot.core.os;
+    SysUtils, Math, mormot.core.os;
 
   // these types are used for timer log output
   type
@@ -102,7 +117,7 @@ implementation
     glDefaultLockingTimeout: integer;
     glUsedCriticalSections: TDictionary<string, TslCriticalSection2>;
     glUsedCriticalSectionsLock: TCriticalSection;
-    glDebugSection: string = 'slcriticalsection2';
+    glAllCriticalSections: TList<TslCriticalSection2>;
     glIsInitialized: boolean = False;
 
   procedure SlCriticalSection2Init(const aLockingTimeout: integer; const aUseTimer: Boolean);
@@ -123,6 +138,7 @@ implementation
     begin
       glUsedCriticalSections := TDictionary<string, TslCriticalSection2>.Create;
       glUsedCriticalSectionsLock := TCriticalSection.Create;
+      glAllCriticalSections := TList<TslCriticalSection2>.Create;
       glIsInitialized := True;
     end
     else if aLockingTimeout = 0 then
@@ -151,6 +167,7 @@ implementation
     glUseTimeoutLocking := False;
     FreeAndNil(glUsedCriticalSections);
     FreeAndNil(glUsedCriticalSectionsLock);
+    FreeAndNil(glAllCriticalSections);
     glIsInitialized := False;
   end;
 
@@ -171,6 +188,18 @@ implementation
     aName := aName.Replace('\', '_'); // backslash not allowed on windows
 
     FName := aName;
+    FLastOwnerThreadId := 0;
+    FLastOwnerName := '';
+    FLastEnterTick := 0;
+    FLastLeaveTick := 0;
+
+    glUsedCriticalSectionsLock.Enter;
+    try
+      glAllCriticalSections.Add(self);
+    finally
+      glUsedCriticalSectionsLock.Leave;
+    end;
+
     if glUseTimeoutLocking Or aAlwaysUseTimeoutLocking then
     begin
       // make sure a TslCriticalSection2 only exists once with the same name, because of the named mutex
@@ -253,7 +282,23 @@ implementation
 
   destructor TslCriticalSection2.Destroy;
   begin
+    if glAllCriticalSections <> nil then
+    begin
+      glUsedCriticalSectionsLock.Enter;
+      try
+        glAllCriticalSections.Remove(self);
+      finally
+        glUsedCriticalSectionsLock.Leave;
+      end;
+    end;
     self.FreeObjects;
+  end;
+
+  procedure TslCriticalSection2._MarkEntered(const aLockOwnerName: string);
+  begin
+    FLastOwnerThreadId := GetCurrentThreadId;
+    FLastOwnerName := ShortString(aLockOwnerName);
+    FLastEnterTick := GetTickCount64;
   end;
 
   function TslCriticalSection2.Enter(const aLockOwnerName: string): boolean;
@@ -281,6 +326,7 @@ implementation
           FLockCount := FLockCount + 1;
           Result := True;
           FLockOwnerNameStack.Push(aLockOwnerName);
+          _MarkEntered(aLockOwnerName);
         end
         else
         begin
@@ -293,6 +339,7 @@ implementation
                 FLockOwningThreadID := GetCurrentThreadId;
                 Result := True;
                 FLockOwnerNameStack.Push(aLockOwnerName);
+                _MarkEntered(aLockOwnerName);
               end;
             wrTimeout:
               begin
@@ -340,6 +387,7 @@ implementation
     begin
       FInternalCriticalSection.Enter;
       Result := True;
+      _MarkEntered(aLockOwnerName);
     end;
   end;
 
@@ -371,6 +419,7 @@ implementation
       if FLockOwningThreadID = 0 then
         raise Exception.Create(Format('Trying to leave lock by thread %s but it has not been entered before', [IntToHex(GetCurrentThreadId, 4)]));
 
+
       if FLockOwningThreadID <> GetCurrentThreadId then
         raise Exception.Create(Format('Trying to leave lock by thread %s but it is held by thread %s (%d) - %s', [IntToHex(GetCurrentThreadId, 4), IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName]));
 
@@ -389,12 +438,14 @@ implementation
 
         // SetEvent must be the last thing we do because after that the next thread will start working
         FEvent.SetEvent;
+        FLastLeaveTick := GetTickCount64;
       end;
 
     end
     else
     begin
       FInternalCriticalSection.Leave;
+      FLastLeaveTick := GetTickCount64;
     end;
   end;
 
@@ -404,13 +455,15 @@ implementation
     begin
       if FLockOwningThreadID = 0 then
       begin
-        Debug(dpError, glDebugSection, Format('Tried to notify code segment ''%s'', but lock is not held by any thread.', [aSegmentName]));
+        if Assigned(GlErrorLogProc) then
+          GlErrorLogProc(Format('Tried to notify code segment ''%s'', but lock is not held by any thread.', [aSegmentName]));
         exit;
       end;
 
       if FLockOwningThreadID <> GetCurrentThreadId then
       begin
-        Debug(dpError, glDebugSection, Format('Tried to notify code segment ''%s'', but lock is by another thread %s (%d) - %s.', [IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName]));
+        if Assigned(GlErrorLogProc) then
+          GlErrorLogProc(Format('Tried to notify code segment ''%s'', but lock is by another thread %s (%d) - %s.', [IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName]));
         exit;
       end;
 
@@ -529,6 +582,49 @@ begin
   finally
     fSortedList.Free;
     fOutput.Free;
+  end;
+end;
+
+procedure WriteCriticalSection2States(const aOutput: TStrings);
+var
+  fCs: TslCriticalSection2;
+  fEnterAge, fLeaveAge: Double;
+  fTick: Int64;
+begin
+  if (glAllCriticalSections = nil) or (glUsedCriticalSectionsLock = nil) then
+    exit;
+
+  glUsedCriticalSectionsLock.Enter;
+  try
+    fTick := GetTickCount64;
+    for fCs in glAllCriticalSections do
+    begin
+      try
+        if fCs.FLastEnterTick > 0 then
+          fEnterAge := (fTick - fCs.FLastEnterTick) / 1000.0
+        else
+          fEnterAge := -1;
+        if fCs.FLastLeaveTick > 0 then
+          fLeaveAge := (fTick - fCs.FLastLeaveTick) / 1000.0
+        else
+          fLeaveAge := -1;
+
+        aOutput.Add(Format('%-40s mode=%-6s lastowner=%s (%s) nest=%d segment=%s lastenter=%.1fs ago lastleave=%.1fs ago',
+          [fCs.FName,
+           BoolToStr(fCs.FUseTimeoutLocking, 'timeout', 'plain'),
+           IntToHex(fCs.FLastOwnerThreadId, 4),
+           string(fCs.FLastOwnerName),
+           fCs.FLockCount,
+           fCs.FCurrentCodeSegmentName,
+           fEnterAge,
+           fLeaveAge]));
+      except
+        on e: Exception do
+          aOutput.Add(Format('%-40s <error reading state: %s>', [fCs.FName, e.Message]));
+      end;
+    end;
+  finally
+    glUsedCriticalSectionsLock.Leave;
   end;
 end;
 
