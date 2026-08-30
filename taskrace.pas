@@ -709,14 +709,6 @@ var
 begin
   baseValue := GetNewdirDirlistReaddValue();
 
-  // linear backoff (base * retry_count, capped) for mkdir-not-ready
-  // retries to avoid 10ms retry storms
-  if (aDirlist <> nil) and (aDirlist.mkdir_not_ready_retry_count > 0) then
-  begin
-    Result := Min(baseValue * aDirlist.mkdir_not_ready_retry_count, 5000);
-    exit;
-  end;
-
   if (aSite <> nil) and (aDirlist <> nil) then
   begin
     secondsSinceLastChange := SecondsBetween(Now, aDirlist.LastChanged);
