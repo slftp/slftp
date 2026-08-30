@@ -770,6 +770,9 @@ begin
   if not (ps1.status in [rssAllowed]) then
     Exit;
 
+  if (not aDirlist.need_mkdir) or (aDirlist.error) or (aDirlist.dependency_mkdir <> '') then
+    Exit;
+
   aDirlist.dirlist_lock.Enter('TPazoDirlistTask.TryCreateMkdirFromFailedDirlist');
   try
     // Double-check after acquiring the lock to avoid duplicate MKDIRs
