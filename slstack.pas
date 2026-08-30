@@ -93,7 +93,7 @@ procedure slDebug(s: String);
 
 implementation
 
-uses slhelper, StrUtils, IdStack;
+uses slhelper, StrUtils, mormot.net.dns, mormot.core.base;
 
 function slStackInit(var error: String): Boolean;
 begin
@@ -256,19 +256,25 @@ begin
 end;
 
 function slGetHostByName(AHostName: String; var error: String): String; overload;
+var
+  fResult: RawUtf8;
 begin
   Result := '';
 
-  TIdStack.IncUsage;
   try
-    Result := GStack.ResolveHost(AHostName);
-  finally
-    TIdStack.DecUsage;
+    fResult := DnsLookup(RawUtf8(AHostName));
+    Result := string(fResult);
+  except
+    on e: Exception do
+    begin
+      error := 'Cannot resolve ' + AHostName + ': ' + e.Message;
+      exit;
+    end;
   end;
 
   if (Result = '') then
   begin
-    error := 'Cannot resolve '+ AHostName;
+    error := 'Cannot resolve ' + AHostName;
   end;
 end;
 
@@ -314,15 +320,10 @@ begin
   Result := False;
 
   fHost := '';
-  fHostName := slGetHostName;
+  fHostName := string(slGetHostName);
 
   try
-    TIdStack.IncUsage;
-    try
-      fHost := GStack.ResolveHost(fHostName);
-    finally
-      TIdStack.DecUsage;
-    end;
+    fHost := string(DnsLookup(RawUtf8(fHostName)));
   except
     on e: Exception do
     begin
