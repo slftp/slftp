@@ -70,7 +70,10 @@ uses
   slcriticalsection2Tests,
   variantCacheTests,
   sltimerTests,
-  statsunitTests;
+  statsunitTests,
+  // needed for the IMDB SQLite database (dbaddimdbInit): register the SynDB
+  // SQLite3 driver (the static SQLite3 engine is already linked above)
+  mormot.db.sql.sqlite3;
 
 var
   filecheck: String;
