@@ -201,3 +201,7 @@ Config (ApiConfigService)
 - SaveConfigContent: Body {"Filename":"...", "Content":"..."}. Saves content to the file.
 - ReloadConfig: Body {"Filename":"..."}. Reloads the configuration file if supported. Supported files: slftp.precatcher, slftp.skip, slftp.skipgroups, slftp.rules, slftp.languagebase, slftp.knowngroups, slftp.imdbcountries, slftp.imdbreplace, slftp.spamconf. Returns true on success.
 - `slftp.spamconf` disables `[taskrace] crc_error` by default because CRC error announcements are noisy. Set it to `1` and restart slFtp to enable those announcements.
+
+IRC Commands
+
+- watchdog: Writes a self-contained diagnostic report (watchdog.<timestamp>.log next to the binary) containing thread heartbeats, critical section states, OS threads and descriptors, the queue/sites/irc/kb inventory and the log tail, and replies with the written file path. Requires `[watchdog] enabled=1`. Automatic reports are announced on the error channels and rate-limited by `report_cooldown`; the manual command always writes and reports an error instead of a path if the file could not be created. (Backfill: introduced with the watchdog feature, documented only since the failure-handling fix.)
