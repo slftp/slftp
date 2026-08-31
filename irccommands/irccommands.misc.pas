@@ -533,6 +533,12 @@ begin
 
   try
     fFilePath := WatchdogGenerateReport('manual (watchdog command)');
+    if fFilePath = '' then
+    begin
+      irc_addtext(netname, channel, 'Error while writing watchdog report (see log for details)');
+      exit;
+    end;
+
     irc_addtext(netname, channel, 'Watchdog report written to: <b>%s</b>', [fFilePath]);
     Result := True;
   except
