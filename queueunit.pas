@@ -2546,20 +2546,25 @@ begin
 
   for fQueueThread in Queues do
   begin
+    fQueueThread.main_lock.Enter('WatchdogQueueInfo');
     try
-      aOutput.Add(Format('  queue %-16s tasks=%-5d waiting=%-4d race=%-4d dirlist=%-4d auto=%-4d other=%-4d running=%-3d lastiter=%.1fs ago',
-        [fQueueThread.fSiteName,
-         fQueueThread.tasks.Count + fQueueThread.waiting_tasks.Count,
-         fQueueThread.waiting_tasks.Count,
-         fQueueThread.fQueueStat.FRaceTaskCount,
-         fQueueThread.fQueueStat.FDirlistTaskCount,
-         fQueueThread.fQueueStat.FAutoTaskCount,
-         fQueueThread.fQueueStat.FOtherTaskCount,
-         fQueueThread.fQueueStat.FActiveTaskCount,
-         SecondsBetween(Now, fQueueThread.queue_last_run)]));
-    except
-      on e: Exception do
-        aOutput.Add('  queue <error reading state: ' + e.Message + '>');
+      try
+        aOutput.Add(Format('  queue %-16s tasks=%-5d waiting=%-4d race=%-4d dirlist=%-4d auto=%-4d other=%-4d running=%-3d lastiter=%.1fs ago',
+          [fQueueThread.fSiteName,
+           fQueueThread.tasks.Count + fQueueThread.waiting_tasks.Count,
+           fQueueThread.waiting_tasks.Count,
+           fQueueThread.fQueueStat.FRaceTaskCount,
+           fQueueThread.fQueueStat.FDirlistTaskCount,
+           fQueueThread.fQueueStat.FAutoTaskCount,
+           fQueueThread.fQueueStat.FOtherTaskCount,
+           fQueueThread.fQueueStat.FActiveTaskCount,
+           SecondsBetween(Now, fQueueThread.queue_last_run)]));
+      except
+        on e: Exception do
+          aOutput.Add('  queue <error reading state: ' + e.Message + '>');
+      end;
+    finally
+      fQueueThread.main_lock.Leave;
     end;
   end;
 end;
