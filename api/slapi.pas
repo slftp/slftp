@@ -28,6 +28,7 @@ uses
   slapi.services.impl,
   slapi.issues,
   slapi.issueshook,
+  slapi.speedtest,
   slapi.cbftp,
   configunit,
   debugunit,
@@ -677,14 +678,21 @@ begin
 
     ApiServer := TSlftpApiServer.Create;
 
-    // Connect core issues hook -> API issues store
-    GlIssueLogProc := @SlapiIssues_LogIssue;
-
     // Load config
     ApiServer.Enabled := config.ReadBool('api', 'enabled', False);
     ApiServer.Port := config.ReadInteger('api', 'port', 8089);
     ApiServer.Host := config.ReadString('api', 'host', '127.0.0.1');
     ApiServer.ApiKey := config.ReadString('api', 'apikey', '');
+
+    // Install the core hooks only when the API is enabled - otherwise the
+    // issues store and the speedtest log hook would run on every announce
+    // and IRC line without anyone being able to read the collected data
+    if ApiServer.Enabled then
+    begin
+      // Connect core issues hook -> API issues store
+      GlIssueLogProc := @SlapiIssues_LogIssue;
+      SpeedTestInstallLogHook;
+    end;
 
   except
     on E: Exception do

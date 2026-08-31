@@ -73,6 +73,12 @@ type
     procedure CleanupOldTests;
   end;
 
+{ Installs the IRC log hook which feeds the output of API speedtests
+  ('API-' prefixed networks) into the speedtest manager.
+  Only needed when the REST API is enabled, as API speedtests are the only
+  source of such networks. }
+procedure SpeedTestInstallLogHook;
+
 implementation
 
 uses
@@ -1150,9 +1156,13 @@ begin
     TSpeedTestManager.FInstance.LogHook(Net, Chan, Msg);
 end;
 
+procedure SpeedTestInstallLogHook;
+begin
+  irc.GlIrcLogHook := SpeedTestLogHookWrapper;
+end;
+
 initialization
   TSpeedTestManager.FInstanceLock := TSLCriticalSection2.Create('SpeedTestInstance');
-  irc.GlIrcLogHook := SpeedTestLogHookWrapper;
   TSpeedTestManager.Instance;
 
 finalization
