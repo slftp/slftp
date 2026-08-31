@@ -749,8 +749,10 @@ begin
   for i := 1 to Length(aText) do
   begin
     fDst^ := fSrc^;
-    if (fDst^ in ['A'..'Z']) then
-      fDst^ := AnsiChar(Ord(fDst^) + 32);
+    // CharInSet + Char (not AnsiChar) so this also compiles under Delphi
+    // where Char is a WideChar
+    if CharInSet(fDst^, ['A'..'Z']) then
+      fDst^ := Char(Ord(fDst^) + 32);
     Inc(fSrc);
     Inc(fDst);
   end;
