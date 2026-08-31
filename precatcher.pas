@@ -123,6 +123,7 @@ const
   glReleaseNamePlaceHolder: String = '${RELEASENAMEPLACEHOLDER}$';
   CPrecatcherMaxHits = 5000;
   CPrecatcherMaxTextLen = 400;
+  CPrecatcherHitsOnDemandMinutes = 10; //< how long hit collection stays active after the last read via the API
 
 var
   catcherFilename, replacefromline: String;
@@ -143,7 +144,7 @@ var
   GlPrecatcherHitSeq: Int64;
   GlPrecatcherLastHitByRuleId: TDictionary<Integer, TPrecatcherHit>;
   GlPrecatcherHitsLockTimeout: Integer;
-  GlPrecatcherHitsEnabled: boolean; //< hit collection is only needed when the REST API is enabled
+  GlPrecatcherHitsActiveUntil: TDateTime; //< hit collection is only active for a window after the last read via the API
   GlPrecatcherHitsHead: Integer; //< index of the oldest entry once the hits list is used as ring buffer
 
 procedure _LogMissingSectionIfNeeded(const aNetname, aSitename, aSection, aReleaseName, aReason, aKbEvent: String);
@@ -171,9 +172,10 @@ var
   t: String;
   lockAcquired: Boolean;
 begin
-  // hits are only consumed by the REST API - skip collecting them (lock +
-  // record copy per matched announce) when the API is disabled
-  if not GlPrecatcherHitsEnabled then
+  // hits are only read via the REST API (Precatcher_GetHits) - collection is
+  // activated on demand for a short window after each read, skip all work
+  // (lock + record copy per matched announce) while nobody is looking
+  if Now > GlPrecatcherHitsActiveUntil then
     Exit;
   if not (aEventType in [kbeNEWDIR, kbePRE, kbeCOMPLETE, kbeNUKE, kbeREQUEST, kbeADDPRE]) then
     Exit;
@@ -237,6 +239,9 @@ begin
   SetLength(aHits, 0);
   if (aLimit <= 0) or (GlPrecatcherHits = nil) or (GlPrecatcherHitsLock = nil) then
     Exit;
+
+  // someone is reading the hits via the API - keep collection active for a while
+  GlPrecatcherHitsActiveUntil := IncMinute(Now, CPrecatcherHitsOnDemandMinutes);
 
   if aSinceUnix > 0 then
     sinceUtc := UnixToDateTime(aSinceUnix, False)
@@ -1228,8 +1233,7 @@ begin
   GlPrecatcherHitsLock := TSlCriticalSection2.Create('precatcher_hits_lock');
   GlPrecatcherHitSeq := 0;
   GlPrecatcherHitsHead := 0;
-  // precatcher hits are only displayed via the REST API
-  GlPrecatcherHitsEnabled := config.ReadBool('api', 'enabled', False);
+  GlPrecatcherHitsActiveUntil := 0;
   GlPrecatcherHitsLockTimeout := config.ReadInteger('debug', 'event_based_locking_timeout', 0);
 end;
 

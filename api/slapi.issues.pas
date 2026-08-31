@@ -33,6 +33,7 @@ type
     FCapacity: integer;
     FDedupLastSeen: TDictionary<string, Int64>;
     FDedupDefaultTtlSeconds: integer;
+    FActiveUntil: TDateTime; //< collection is only active for a window after the last read via the API
     procedure AppendEvent(const aEvent: TIssueEvent);
     function ShouldDropByDedup(const aKey: string; const aNowUnix: Int64; const aTtlSeconds: integer): boolean;
     class function NormalizeType(const aIssueType: string): string; static;
@@ -54,6 +55,9 @@ procedure SlapiIssues_LogIssue(const aIssueType, aSection, aReleaseName, aSiteNa
   const aDedupKey: string; const aDedupTtlSeconds: integer);
 
 implementation
+
+const
+  CIssuesOnDemandMinutes = 10; //< how long issue collection stays active after the last read via the API
 
 var
   glIssuesStore: TIssuesStore = nil;
@@ -82,6 +86,7 @@ begin
   FHead := 0;
   FCount := 0;
   FNextId := 1;
+  FActiveUntil := 0;
   FDedupLastSeen := TDictionary<string, Int64>.Create;
   FDedupDefaultTtlSeconds := aDedupDefaultTtlSeconds;
 end;
@@ -175,6 +180,12 @@ var
   nowUnix: Int64;
   issueTypeUpper: string;
 begin
+  // collection is activated on demand for a short window when the issues are
+  // read via the API - skip all work while nobody is looking (unlocked read
+  // of FActiveUntil is fine here, a missed or extra issue does not matter)
+  if Now > FActiveUntil then
+    Exit;
+
   issueTypeUpper := NormalizeType(aIssueType);
   nowUnix := DateTimeToUnix(Now, False);
 
@@ -240,6 +251,9 @@ begin
 
   FLock.Enter('issues_snapshot');
   try
+    // someone is reading the issues via the API - keep collection active for a while
+    FActiveUntil := IncMinute(Now, CIssuesOnDemandMinutes);
+
     if FCount = 0 then
       Exit;
 
@@ -298,6 +312,9 @@ begin
 
   FLock.Enter('issues_counts');
   try
+    // someone is reading the issues via the API - keep collection active for a while
+    FActiveUntil := IncMinute(Now, CIssuesOnDemandMinutes);
+
     for i := 0 to FCount - 1 do
     begin
       idx := (FHead + i) mod FCapacity;
