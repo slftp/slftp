@@ -138,17 +138,22 @@ begin
   CheckTrue(fReportCount >= 1, 'at least one report file must have been written');
 end;
 
-// the first report must be due on a fresh state and blocked inside the cooldown window
+// the first report must be due on a fresh state and blocked inside the cooldown window;
+// the window is consumed by the attempt itself, so a failed write does not grant an early retry
 procedure TTestWatchdog.TestReportDueCooldown;
 begin
   WatchdogInit;
   try
     CheckTrue(WatchdogReportDue, 'first report must be due on a fresh watchdog state');
 
+    CheckTrue(WatchdogTryBeginReport, 'first report window must be granted');
+    CheckFalse(WatchdogReportDue, 'window must stay closed inside the cooldown even if the write fails');
+    CheckFalse(WatchdogTryBeginReport, 'a second window inside the cooldown must be denied');
+
     CheckTrue(WatchdogGenerateReport('unit test cooldown') <> '', 'report must be written');
-    CheckFalse(WatchdogReportDue, 'report must not be due inside the cooldown window');
+    CheckFalse(WatchdogReportDue, 'manual report must not reopen the window');
   finally
-    WatchdogInit;
+    WatchdogUninit;
   end;
 end;
 

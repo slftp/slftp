@@ -86,6 +86,11 @@ procedure WatchdogApiRequestEnd;
   Always true if no report was written yet. }
 function WatchdogReportDue: boolean;
 
+{ Atomically checks @link(WatchdogReportDue) and opens a new report cooldown window.
+  Returns false while a window is still open. The monitoring thread uses this so a
+  concurrent manual report cannot race the automatic decision. }
+function WatchdogTryBeginReport: boolean;
+
 { Writes a full diagnostic report to watchdog.<timestamp>.log next to the binary.
   Starts the report cooldown clock regardless of the write result.
   @param(aReason reason why the report was written)
@@ -328,6 +333,26 @@ begin
     Result := True
   else
     Result := _TickAgeSeconds(glLastReportTick) >= glReportCooldown;
+end;
+
+function WatchdogTryBeginReport: boolean;
+begin
+  if glLock <> nil then
+  begin
+    glLock.Enter('WatchdogTryBeginReport');
+    try
+      Result := WatchdogReportDue;
+      if Result then
+        glLastReportTick := GetTickCount64;
+    finally
+      glLock.Leave;
+    end;
+  end
+  else
+  begin
+    glLastReportTick := GetTickCount64;
+    Result := True;
+  end;
 end;
 
 procedure _MarkReport;
@@ -745,7 +770,7 @@ begin
 
         if fWorstName <> '' then
         begin
-          if WatchdogReportDue then
+          if WatchdogTryBeginReport then
           begin
             fReason := Format('%s shows no progress for %.0fs', [fWorstName, fWorstAge]);
             fReportFile := WatchdogGenerateReport(fReason);
@@ -784,8 +809,8 @@ begin
   glReportCooldown := Max(0, config.ReadInteger(CConfigSection, 'report_cooldown', 900));
   glKeepReports := config.ReadInteger(CConfigSection, 'keep_reports', 10);
 
-  _EnsureInit;
   glUninited := False;
+  _EnsureInit;
   glStartTick := GetTickCount64;
   glMainThreadBeat := glStartTick;
   glLastReportTick := 0;
