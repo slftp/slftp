@@ -346,13 +346,6 @@ begin
             end;
             if (d = nil) Or (d.need_mkdir and not d.error) then
             begin
-              //we're too early, mkdir is not done yet ... the site is slow?
-              //continue to create a new dirlist task below
-              // note: deliberately no dirlist_lock here - a rare lost update
-              // against the locked resets is harmless for the backoff
-              if d <> nil then
-                Inc(d.mkdir_not_ready_retry_count);
-
               Debug(dpMessage, c_section, 'DIRLIST: mkdir not ready: ' + tname);
 
               // try to create MKDIR directly from the failed dirlist
