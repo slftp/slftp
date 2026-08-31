@@ -143,6 +143,8 @@ var
   GlPrecatcherHitSeq: Int64;
   GlPrecatcherLastHitByRuleId: TDictionary<Integer, TPrecatcherHit>;
   GlPrecatcherHitsLockTimeout: Integer;
+  GlPrecatcherHitsEnabled: boolean; //< hit collection is only needed when the REST API is enabled
+  GlPrecatcherHitsHead: Integer; //< index of the oldest entry once the hits list is used as ring buffer
 
 procedure _LogMissingSectionIfNeeded(const aNetname, aSitename, aSection, aReleaseName, aReason, aKbEvent: String);
 var
@@ -169,6 +171,10 @@ var
   t: String;
   lockAcquired: Boolean;
 begin
+  // hits are only consumed by the REST API - skip collecting them (lock +
+  // record copy per matched announce) when the API is disabled
+  if not GlPrecatcherHitsEnabled then
+    Exit;
   if not (aEventType in [kbeNEWDIR, kbePRE, kbeCOMPLETE, kbeNUKE, kbeREQUEST, kbeADDPRE]) then
     Exit;
   if (GlPrecatcherHits = nil) or (GlPrecatcherHitsLock = nil) then
@@ -202,9 +208,15 @@ begin
     h.RuleLine := aRuleLine;
     h.Text := t;
 
-    GlPrecatcherHits.Add(h);
-    if GlPrecatcherHits.Count > CPrecatcherMaxHits then
-      GlPrecatcherHits.Delete(0);
+    if GlPrecatcherHits.Count < CPrecatcherMaxHits then
+      GlPrecatcherHits.Add(h)
+    else
+    begin
+      // ring buffer: overwrite the oldest entry - a Delete(0) here would
+      // memmove the whole list on every announce once the cap is reached
+      GlPrecatcherHits[GlPrecatcherHitsHead] := h;
+      GlPrecatcherHitsHead := (GlPrecatcherHitsHead + 1) mod CPrecatcherMaxHits;
+    end;
 
     if GlPrecatcherLastHitByRuleId <> nil then
       GlPrecatcherLastHitByRuleId.AddOrSetValue(aRuleId, h);
@@ -217,6 +229,7 @@ procedure Precatcher_GetHits(const aLimit: Integer; const aSinceUnix: Int64;
   const aReleaseName, aSiteName: String; out aHits: TPrecatcherHits);
 var
   i: Integer;
+  fIndex: Integer;
   c: Integer;
   sinceUtc: TDateTime;
   h: TPrecatcherHit;
@@ -244,9 +257,14 @@ begin
     GlPrecatcherHitsLock.Enter('Precatcher_GetHits');
   end;
   try
-    for i := GlPrecatcherHits.Count - 1 downto 0 do
+    // walk the ring buffer from the newest to the oldest entry
+    // (while filling up, head is 0 and this is the plain reverse order)
+    for i := 0 to GlPrecatcherHits.Count - 1 do
     begin
-      h := GlPrecatcherHits[i];
+      fIndex := GlPrecatcherHitsHead - 1 - i;
+      if fIndex < 0 then
+        Inc(fIndex, GlPrecatcherHits.Count);
+      h := GlPrecatcherHits[fIndex];
       if (aSinceUnix > 0) and (h.At < sinceUtc) then
         Break;
       if (aReleaseName <> '') and (not SameText(h.ReleaseName, aReleaseName)) then
@@ -1209,6 +1227,9 @@ begin
   GlPrecatcherLastHitByRuleId := TDictionary<Integer, TPrecatcherHit>.Create;
   GlPrecatcherHitsLock := TSlCriticalSection2.Create('precatcher_hits_lock');
   GlPrecatcherHitSeq := 0;
+  GlPrecatcherHitsHead := 0;
+  // precatcher hits are only displayed via the REST API
+  GlPrecatcherHitsEnabled := config.ReadBool('api', 'enabled', False);
   GlPrecatcherHitsLockTimeout := config.ReadInteger('debug', 'event_based_locking_timeout', 0);
 end;
 
