@@ -607,6 +607,7 @@ var
   s1, s2: TSite;
   i: integer;
   ss1, ss2, fSiteSlotLoop: TSiteSlot;
+  fDestDirlist: TDirList;
 begin
   try
     s1 := TSite(t.ssite1);
@@ -639,8 +640,10 @@ begin
     end;
 
     // Check if the race has already failed on the destination site or dirlist
-    if t.ps2.error or
-      ((t.dir <> '') and (t.ps2.dirlist <> nil) and (t.ps2.dirlist.FindDirList(t.dir) <> nil) and t.ps2.dirlist.FindDirList(t.dir).error) then
+    fDestDirlist := nil;
+    if (t.dir <> '') and (t.ps2.dirlist <> nil) then
+      fDestDirlist := t.ps2.dirlist.FindDirList(t.dir);
+    if t.ps2.error or ((fDestDirlist <> nil) and fDestDirlist.error) then
     begin
       t.readyerror := True;
       Debug(dpSpam, section, Format('TryToAssignRaceSlots: race failed on destination site or dirlist: %s', [t.FullName]));
