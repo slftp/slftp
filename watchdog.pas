@@ -135,6 +135,7 @@ type
 var
   glLock: TSlCriticalSection2;
   glParticipants: TObjectList;
+  glUninited: boolean;
   glEnabled: boolean;
   glCheckInterval: integer;
   glMainThreadStall: integer;
@@ -184,7 +185,8 @@ end;
 
 procedure _EnsureInit;
 begin
-  if glLock <> nil then
+  // after WatchdogUninit the unit must not allocate state again
+  if (glLock <> nil) or glUninited then
     exit;
 
   glLock := TSlCriticalSection2.Create('Watchdog');
@@ -221,11 +223,14 @@ begin
 
   _EnsureInit;
 
-  glLock.Enter('WatchdogNewParticipant');
-  try
-    glParticipants.Add(Result);
-  finally
-    glLock.Leave;
+  if glLock <> nil then
+  begin
+    glLock.Enter('WatchdogNewParticipant');
+    try
+      glParticipants.Add(Result);
+    finally
+      glLock.Leave;
+    end;
   end;
 end;
 
@@ -273,6 +278,9 @@ end;
 procedure WatchdogApiRequestStart(const aUrl: String);
 begin
   _EnsureInit;
+
+  if glLock = nil then
+    exit;
 
   glLock.Enter('WatchdogApiRequestStart');
   try
@@ -680,6 +688,7 @@ var
   fWorstAge: Double;
   fReason: String;
   fReportFile: String;
+  i: integer;
 begin
   while not Terminated do
   begin
@@ -748,7 +757,13 @@ begin
         _Log('[EXCEPTION] TWatchdogThread.Execute : ' + e.Message);
     end;
 
-    Sleep(glCheckInterval * 1000);
+    // sleep in short slices so shutdown is not delayed by a full check interval
+    for i := 1 to glCheckInterval * 4 do
+    begin
+      if Terminated then
+        break;
+      Sleep(250);
+    end;
   end;
 end;
 
@@ -764,6 +779,7 @@ begin
   glKeepReports := config.ReadInteger(CConfigSection, 'keep_reports', 10);
 
   _EnsureInit;
+  glUninited := False;
   glStartTick := GetTickCount64;
   glMainThreadBeat := glStartTick;
   glLastReportTick := 0;
@@ -787,6 +803,8 @@ begin
     glWatchdogThread.WaitFor;
     FreeAndNil(glWatchdogThread);
   end;
+
+  glUninited := True;
 
   FreeAndNil(glParticipants);
   FreeAndNil(glInventoryNames);

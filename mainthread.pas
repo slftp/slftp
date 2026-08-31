@@ -600,6 +600,9 @@ end;
 procedure Main_Uninit;
 begin
   Debug(dpSpam, section, 'Uninit1');
+  // stop the watchdog first so no report/inventory callback can run while the
+  // subsystems below are being freed
+  WatchdogUninit;
   (*
     // Looks like this was an attempt to ensure a clean exit when everything is shut down
     while
@@ -646,7 +649,6 @@ begin
   AutodirlistUninit;
   DirlistUnInit;
   ApiUninit;
-  WatchdogUninit;
   SlCriticalSection2Uninit;
 
   // TSQLite3LibraryDynamic
