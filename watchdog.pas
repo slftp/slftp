@@ -145,6 +145,7 @@ var
   glMainThreadBeat: Int64;
   glApiInFlight: integer;
   glApiBusySinceTick: Int64;
+  glApiLastEndTick: Int64;
   glApiLastUrl: ShortString;
   glLastReportTick: Int64;
   glStartTick: Int64;
@@ -303,7 +304,10 @@ begin
     if glApiInFlight > 0 then
       Dec(glApiInFlight);
     if glApiInFlight = 0 then
+    begin
       glApiLastUrl := '';
+      glApiLastEndTick := GetTickCount64;
+    end;
   finally
     glLock.Leave;
   end;
@@ -399,9 +403,11 @@ begin
       if glApiInFlight > 0 then
         aOutput.Add(Format('  %-30s in-flight %d, continuously busy for %.1fs, last request: %s',
           ['api', glApiInFlight, _TickAgeSeconds(glApiBusySinceTick), string(glApiLastUrl)]))
+      else if glApiLastEndTick = 0 then
+        aOutput.Add(Format('  %-30s idle (no requests yet)', ['api']))
       else
         aOutput.Add(Format('  %-30s idle (last request %.1fs ago)',
-          ['api', _TickAgeSeconds(glApiBusySinceTick)]));
+          ['api', _TickAgeSeconds(glApiLastEndTick)]));
     finally
       glLock.Leave;
     end;
@@ -783,6 +789,7 @@ begin
   glStartTick := GetTickCount64;
   glMainThreadBeat := glStartTick;
   glLastReportTick := 0;
+  glApiLastEndTick := 0;
 end;
 
 procedure WatchdogStart;
