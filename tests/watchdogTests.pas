@@ -15,6 +15,7 @@ type
     procedure TestParticipantLifecycle;
     procedure TestStaleParticipantMarkedStalled;
     procedure TestGenerateReport;
+    procedure TestReportDueCooldown;
   end;
 
 implementation
@@ -135,6 +136,20 @@ begin
     FindClose(fSearchRec);
   end;
   CheckTrue(fReportCount >= 1, 'at least one report file must have been written');
+end;
+
+// the first report must be due on a fresh state and blocked inside the cooldown window
+procedure TTestWatchdog.TestReportDueCooldown;
+begin
+  WatchdogInit;
+  try
+    CheckTrue(WatchdogReportDue, 'first report must be due on a fresh watchdog state');
+
+    CheckTrue(WatchdogGenerateReport('unit test cooldown') <> '', 'report must be written');
+    CheckFalse(WatchdogReportDue, 'report must not be due inside the cooldown window');
+  finally
+    WatchdogInit;
+  end;
 end;
 
 initialization

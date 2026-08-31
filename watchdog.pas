@@ -82,7 +82,12 @@ procedure WatchdogApiRequestStart(const aUrl: String);
 { Counts a finished REST API request. }
 procedure WatchdogApiRequestEnd;
 
+{ Returns true if a new report may be written, honoring the report_cooldown setting.
+  Always true if no report was written yet. }
+function WatchdogReportDue: boolean;
+
 { Writes a full diagnostic report to watchdog.<timestamp>.log next to the binary.
+  Starts the report cooldown clock regardless of the write result.
   @param(aReason reason why the report was written)
   @returns(the written filename or an empty string on failure) }
 function WatchdogGenerateReport(const aReason: String): String;
@@ -302,6 +307,30 @@ begin
     Result := -1
   else
     Result := (GetTickCount64 - aTick) / 1000.0;
+end;
+
+function WatchdogReportDue: boolean;
+begin
+  // glLastReportTick = 0 is the "no report written yet" sentinel
+  if (glReportCooldown = 0) or (glLastReportTick = 0) then
+    Result := True
+  else
+    Result := _TickAgeSeconds(glLastReportTick) >= glReportCooldown;
+end;
+
+procedure _MarkReport;
+begin
+  if glLock <> nil then
+  begin
+    glLock.Enter('WatchdogMarkReport');
+    try
+      glLastReportTick := GetTickCount64;
+    finally
+      glLock.Leave;
+    end;
+  end
+  else
+    glLastReportTick := GetTickCount64;
 end;
 
 procedure _AppendHeader(const aOutput: TStringList; const aReason: String);
@@ -584,6 +613,8 @@ var
 begin
   Result := '';
 
+  _MarkReport;
+
   fOutput := TStringList.Create;
   try
     _AppendHeader(fOutput, aReason);
@@ -699,9 +730,8 @@ begin
 
         if fWorstName <> '' then
         begin
-          if (glReportCooldown = 0) or (_TickAgeSeconds(glLastReportTick) >= glReportCooldown) then
+          if WatchdogReportDue then
           begin
-            glLastReportTick := GetTickCount64;
             fReason := Format('%s shows no progress for %.0fs', [fWorstName, fWorstAge]);
             fReportFile := WatchdogGenerateReport(fReason);
             if fReportFile <> '' then
