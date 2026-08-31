@@ -61,6 +61,7 @@
 --=============================( SLFTP v1.5.11 )==================================-
     {+} Add watchdog which writes self-contained stall diagnostic reports (watchdog.*.log) automatically and on demand via the !watchdog IRC command
     {#} Fix watchdog automatic reports never firing with the default report_cooldown setting
+    {#} Fix watchdog cooldown race letting concurrent manual and automatic reports bypass the cooldown window
     {#} Report !watchdog IRC command write failures instead of claiming success with an empty report path
     {+} Add lock state report for all critical sections (last owner, nest count, segment, enter/leave age)
     {+} Complete React 19 / Mantine 8 Web UI (http://localhost:8089/ui) with real-time monitoring and configuration
