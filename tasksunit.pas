@@ -74,6 +74,7 @@ var
   GlTaskRaceBadCrcEvents: integer;
   GlPostCrcErrorsToIRC: boolean;
   GlPostFilenameNotAllowedToIRC: boolean;
+  GlPostZipscriptErrorToIRC: boolean;
 
 implementation
 
@@ -184,7 +185,8 @@ begin
   GlTaskRaceAutoRuleAdd := config.ReadBool('taskrace', 'autoruleadd', True);
   GlTaskRaceBadCrcEvents := config.ReadInteger('taskrace', 'badcrcevents', 15);
   GlPostCrcErrorsToIRC := spamcfg.readbool('taskrace', 'crc_error', True);
-  GlPostFilenameNotAllowedToIRC := spamcfg.ReadBool('taskrace', 'filename_not_allowed', True)
+  GlPostFilenameNotAllowedToIRC := spamcfg.ReadBool('taskrace', 'filename_not_allowed', True);
+  GlPostZipscriptErrorToIRC := spamcfg.ReadBool('taskrace', 'zipscript_error', True)
 end;
 
 procedure Tasks_Uninit;

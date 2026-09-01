@@ -1169,8 +1169,13 @@ begin
               if (fTask is TPazoRaceTask) then
               begin
                 i_tpr := TPazoRaceTask(fTask);
+                // deliberately not checking i_tpr.slot1 = nil here: an already-executing
+                // race task (slot1 <> nil) for the same site1/site2/dir/filename must also
+                // count as a duplicate, otherwise the ~100ms dirlist re-poll lets the same
+                // source spawn parallel duplicate transfers of the same file to the same
+                // destination while its own earlier attempt is still in flight.
                 if ((i_tpr.ready = False) and (i_tpr.readyerror = False) and
-                  (i_tpr.slot1 = nil) and (i_tpr.pazo_id = tpr.pazo_id) and
+                  (i_tpr.pazo_id = tpr.pazo_id) and
                   (i_tpr.site1 = tpr.site1) and (i_tpr.site2 = tpr.site2) and
                   (i_tpr.dir = tpr.dir) and (i_tpr.filename = tpr.filename)) then
                 begin
