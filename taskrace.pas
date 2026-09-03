@@ -3358,7 +3358,8 @@ begin
       (sdst.lastResponse.Contains('CRC-Check: Not in sfv!')) or
       (sdst.lastResponse.Contains('-file: Not allowed')) or
       (sdst.lastResponse.Contains('NFO-File: DUPE!')) or
-      (sdst.lastResponse.Contains('SFV-file: BAD!')) ) ) then
+      (sdst.lastResponse.Contains('SFV-file: BAD!')) or
+      (sdst.lastResponse.Contains('(zipscript) could not be executed')) ) ) then
   begin
     Debug(dpSpam, c_section, 'Broken transfer event!');
 
@@ -3418,6 +3419,15 @@ begin
       if GlPostFilenameNotAllowedToIRC then
       begin
         irc_Adderror(sdst.todotask, '<c4>[NOT ALLOWED]</c> %s', [Name]);
+      end;
+      ps2.SetFileError(netname, channel, dir, filename);
+    end
+
+    else if sdst.lastResponse.Contains('(zipscript) could not be executed') then
+    begin
+      if GlPostZipscriptErrorToIRC then
+      begin
+        irc_Adderror(sdst.todotask, '<c4>[ZIPSCRIPT BROKEN]</c> %s', [Name]);
       end;
       ps2.SetFileError(netname, channel, dir, filename);
     end;
