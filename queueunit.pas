@@ -1624,7 +1624,19 @@ begin
     on e: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] AddTask tasks.Add (Step: %s): %s', [step, e.Message]));
-      raise; // re-raise
+      { Do not re-raise: callers do not handle exceptions from AddTask.
+        If the task never made it into the list, the caller has lost its
+        reference — free it here so it does not leak. }
+      if not fTaskAdded then
+      begin
+        try
+          t.Free;
+        except
+          on e2: Exception do
+            Debug(dpError, section, Format('[EXCEPTION] AddTask cleanup free failed: %s', [e2.Message]));
+        end;
+      end;
+      exit;
     end;
   end;
 
