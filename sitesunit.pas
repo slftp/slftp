@@ -159,6 +159,11 @@ type
     { Public helper to clear the currently assigned task and update freeslots.
       Used by TWaitTask.Execute because it performs its own cleanup. }
     procedure ClearTodotask;
+    { Clears the cached WAITTASK event if it still points to aEvent.
+      Used by TWaitTask.Execute for zombie slots where SetTodotask early-exits
+      and would otherwise leave a dangling event reference behind.
+      @param(aEvent event pointer to compare against the cached wait event) }
+    procedure ClearWaitEventIfMatching(aEvent: TSynEvent);
     { True once the slot has been removed from the live slots list. }
     property IsZombie: Boolean read fIsZombie;
     { Reads the last-modified time (cmd: MDTM = MODIFICATION TIME) of the specified file @link(aFilename)
@@ -3388,6 +3393,17 @@ begin
   SetTodotask(nil);
 end;
 
+procedure TSiteSlot.ClearWaitEventIfMatching(aEvent: TSynEvent);
+begin
+  site.fFreeSlotsCS.Enter('ClearWaitEventIfMatching');
+  try
+    if fCurrentWaitEvent = aEvent then
+      fCurrentWaitEvent := nil;
+  finally
+    site.fFreeSlotsCS.Leave;
+  end;
+end;
+
 { TSite }
 
 constructor TSite.Create(const Name: String);
@@ -3493,8 +3509,6 @@ begin
     Debug(dpSpam, section, 'Slot %s stop begin', [Name]);
     shouldquit := True;
     event.SetEvent;
-    if (fCurrentWaitEvent = nil) and (ftodotask <> nil) and (ftodotask.ClassType = TWaitTask) then
-      Debug(dpError, section, Format('[QUEUE-DIAG] TSiteSlot.Stop: %s has WAITTASK %s but no cached wait event - task may never wake', [Name, ftodotask.Name]));
     // If the slot thread is currently executing a WAITTASK it is blocked on
     // the task's own event, not on this slot's event, so Fire above would not
     // wake it. Signal the wait task event as well so the slot thread can
@@ -3504,6 +3518,15 @@ begin
     // event reference maintained by SetTodotask instead of looking at todotask.
     site.fFreeSlotsCS.Enter('Stop WaitEvent');
     try
+      { ftodotask may dangle (the queue thread frees tasks independently), so
+        the diagnostic check must run under the lock and behind try/except. }
+      try
+        if (fCurrentWaitEvent = nil) and (ftodotask <> nil) and (ftodotask.ClassType = TWaitTask) then
+          Debug(dpError, section, Format('[QUEUE-DIAG] TSiteSlot.Stop: %s has WAITTASK %s but no cached wait event - task may never wake', [Name, ftodotask.Name]));
+      except
+        on E: Exception do
+          Debug(dpError, section, Format('[WARNING] TSiteSlot.Stop: WAITTASK diagnostic failed for %s: %s', [Name, E.Message]));
+      end;
       if fCurrentWaitEvent <> nil then
       begin
         try
@@ -4771,6 +4794,7 @@ end;
 procedure TSite.RebuildSlot(const aSlotNumber: integer);
 var
   fOldSiteSlot: TSiteSlot;
+  fOldTask: TTask;
   fStopWaitStart: TDateTime;
   fStopped: boolean;
 const
@@ -4783,19 +4807,13 @@ begin
   try
     fOldSiteSlot := TSiteSlot(self.slots[aSlotNumber]);
 
-    { Prevent dangling slot1 pointers: if a task still references this slot,
-      clear its slot1 before the old slot object is replaced. Do NOT clear
-      todotask here: Stop needs it (or the cached wait event) to wake a
-      WAITTASK that is blocked on the task event. }
-    if fOldSiteSlot.todotask <> nil then
-    begin
-      try
-        fOldSiteSlot.todotask.slot1 := nil;
-      except
-        on E: Exception do
-          Debug(dpError, section, Format('[WARNING] TSite.RebuildSlot: failed to clear slot1 for %s: %s', [fOldSiteSlot.Name, E.Message]));
-      end;
-    end;
+    { Remember the task the old slot is working on. Do NOT clear its slot1
+      here: the queue thread frees ready tasks as soon as slot1 becomes nil,
+      and the old slot thread may still be executing the task — freeing it
+      now is a use-after-free. The task's slot1 is cleared below once the
+      old thread has terminated. Do NOT clear todotask either: Stop needs it
+      (or the cached wait event) to wake a WAITTASK blocked on its event. }
+    fOldTask := fOldSiteSlot.todotask;
 
     { Replace the slot in the live list immediately so no other thread can
       pick the old slot for new assignments while we wait for its thread. }
@@ -4839,14 +4857,24 @@ begin
   if fStopped then
   begin
     try
-      { The old slot thread has terminated. It may still have a todotask
-        reference, but because the slot is no longer in the live list we must
-        not call SetTodotask (which would adjust freeslots). Just clear it. }
+      { The old slot thread has terminated, so it can no longer touch the task
+        it was executing. Only now is it safe to detach the task from the old
+        slot object: clearing slot1 allows the queue thread to collect the
+        task. Also drop the cached wait event so the about-to-be-freed slot
+        cannot signal a freed TWaitTask event. Because the slot is no longer
+        in the live list we must not call SetTodotask (which would adjust
+        freeslots) — RecalcFreeslots below fixes the accounting. }
       if fOldSiteSlot.todotask <> nil then
         fOldSiteSlot.ftodotask := nil;
+      fOldSiteSlot.fCurrentWaitEvent := nil;
+      if fOldTask <> nil then
+      begin
+        fOldTask.slot1 := nil;
+        fOldTask.slot1name := '';
+      end;
     except
       on E: Exception do
-        Debug(dpError, section, Format('[WARNING] TSite.RebuildSlot: failed to clear todotask for terminated %s: %s', [fOldSiteSlot.Name, E.Message]));
+        Debug(dpError, section, Format('[WARNING] TSite.RebuildSlot: failed to clear task references for terminated %s: %s', [fOldSiteSlot.Name, E.Message]));
     end;
     fOldSiteSlot.Free;
     Debug(dpSpam, section, Format('TSite.RebuildSlot: rebuilt slot %d for %s (old thread terminated)', [aSlotNumber, self.Name]));
