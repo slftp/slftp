@@ -2743,6 +2743,7 @@ var
   ss: String;
   t:  TTask;
   ts, ts2: TSite;
+  fSlotBusy: boolean;
 begin
 
   try
@@ -2805,12 +2806,13 @@ begin
                 begin
                   // Slot still holds a reference to this task — it may be actively
                   // executing it. Clear todotask to unblock slot assignment for new
-                  // tasks, but do NOT clear slot1: the slot thread will clear it in
-                  // its own post-execute cleanup after Execute() returns. Clearing
-                  // slot1 here makes the task eligible for removal (ready+slot1=nil)
-                  // while the slot thread still holds fCurrentTask pointing to it,
-                  // causing a use-after-free crash in the removal loop.
+                  // tasks, but do NOT remove the task from the list: the slot
+                  // thread still holds fCurrentTask pointing to it and freeing it
+                  // here would be a use-after-free. It is now ready=True, so
+                  // RemoveReady collects it once the slot thread has detached.
                   TSiteSlot(t.slot1).todotask := nil;
+                  Debug(dpSpam, section, Format('[QUEUECLEAN] Marked unassigned task ready (slot still busy) : %s', [t.Fullname]));
+                  Continue;
                 end
                 else
                 begin
@@ -2823,6 +2825,9 @@ begin
                 ts.ReleaseSlotsAssignmentLock;
               end;
             end;
+
+            if t.IsNotifyTask then
+              TaskReady(t);
 
             Inc(tkill_unassigne);
 
@@ -2864,8 +2869,57 @@ begin
         begin
           ss := t.UidText;
           ts2 := nil;
+          fSlotBusy := False;
           ts.AcquireSlotsAssignmentLock('QueueClean race');
           try
+            { Never free a task object while a slot thread is still executing
+              it — the thread dereferences it (fCurrentTask) in its post-Execute
+              cleanup. If a slot still owns the task, only mark it ready and
+              retry removal on a later QueueClean/RemoveReady pass. }
+            if (t.slot1 <> nil) then
+            begin
+              try
+                fSlotBusy := (TSiteSlot(t.slot1).todotask = t) and TSiteSlot(t.slot1).IsThreadRunning;
+              except
+                on e: Exception do
+                  Debug(dpError, section, Format('[EXCEPTION] slot1 QueueClean busy check: Exception : %s', [e.Message]));
+              end;
+            end;
+
+            if (t.slot2 <> nil) then
+            begin
+              try
+                TSiteSlot(t.slot2).site.AcquireSlotsAssignmentLock('QueueClean race destination');
+                // we were able to get the slots assignment lock. set the site here to release the lock later.
+                ts2 := TSiteSlot(t.slot2).site;
+                if not fSlotBusy then
+                  fSlotBusy := (TSiteSlot(t.slot2).todotask = t) and TSiteSlot(t.slot2).IsThreadRunning;
+              except
+                on e: Exception do
+                begin
+                  Debug(dpError, section, Format('[EXCEPTION] slot2 QueueClean busy check: Exception : %s', [e.Message]));
+                end;
+              end;
+            end;
+
+            if fSlotBusy then
+            begin
+              t.ready := True;
+              // Signal the destination WAITTASK to unblock its slot thread,
+              // same as RemoveReady does when collecting a completed RACE task.
+              if (TPazoRaceTask(t).dst <> nil) then
+              begin
+                try
+                  TPazoRaceTask(t).dst.event.SetEvent;
+                except
+                  on e: Exception do
+                    Debug(dpError, section, Format('[EXCEPTION] QueueClean race: signal dst event : %s', [e.Message]));
+                end;
+              end;
+              Debug(dpSpam, section, Format('[QUEUECLEAN] Race task still executing on a slot, deferring removal : %s', [t.Fullname]));
+              Continue;
+            end;
+
             if (t.slot1 <> nil) then
             begin
               try
@@ -2885,10 +2939,6 @@ begin
             if (t.slot2 <> nil) then
             begin
               try
-                TSiteSlot(t.slot2).site.AcquireSlotsAssignmentLock('QueueClean race destination');
-                // we were able to get the slots assignment lock. set the site here to release the lock later.
-                ts2 := TSiteSlot(t.slot2).site;
-
                 TSiteSlot(t.slot2).todotask := nil;
                 TSiteSlot(t.slot2).downloadingfrom := False;
                 TSiteSlot(t.slot2).uploadingto := False;
@@ -2973,6 +3023,16 @@ begin
               ss := t.UidText;
               ts.AcquireSlotsAssignmentLock('QueueClean login, quit, idle, mkdir');
               try
+                { Never free a task object while its slot thread is still
+                  executing it — the thread dereferences it (fCurrentTask) in
+                  its post-Execute cleanup. Mark it ready and retry removal on
+                  a later QueueClean/RemoveReady pass. }
+                if (TSiteSlot(t.slot1).todotask = t) and TSiteSlot(t.slot1).IsThreadRunning then
+                begin
+                  t.ready := True;
+                  Debug(dpSpam, section, Format('[QUEUECLEAN] Task still executing on a slot, deferring removal : %s', [t.Fullname]));
+                  Continue;
+                end;
                 TSiteSlot(t.slot1).todotask := nil;
               finally
                 ts.ReleaseSlotsAssignmentLock;
@@ -3096,6 +3156,10 @@ begin
     Exit;
   end;
 
+  { The tasks list is mutated by the queue thread under main_lock; iterating it
+    without the lock races with AddTask/RemoveReady/QueueClean. }
+  main_lock.Enter('QueueDebugSnapshot');
+  try
   for i := 0 to tasks.Count - 1 do
   begin
     try
@@ -3188,6 +3252,9 @@ begin
       on E: Exception do
         Debug(dpError, section, Format('[QUEUE-DEBUG] site=%s task #%d scan failed: %s', [fSiteName, i, E.Message]));
     end;
+  end;
+  finally
+    main_lock.Leave;
   end;
 
   fSlotOnline := 0;
