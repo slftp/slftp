@@ -81,7 +81,7 @@ implementation
 
 uses
   Contnrs,
-  queueunit, sitesunit, tasksunit, taskrace, tasklogin, encinifile;
+  queueunit, sitesunit, tasksunit, taskrace, tasklogin, encinifile, diagunit;
 
 { TTestQueueEvent }
 
@@ -97,6 +97,10 @@ var
   fSitesDatFile: String;
 begin
   inherited;
+
+  { Init diag unit first: TWaitTask.Create and queue code call DiagRecord*
+    which require GlDiagCS to be initialized. }
+  DiagInit;
 
   { Init tasks unit }
   Tasks_Init;
@@ -168,6 +172,8 @@ begin
   // fPazo.Free;
 
   Tasks_Uninit;
+
+  DiagUninit;
 
   inherited;
 end;
@@ -723,6 +729,10 @@ begin
   try
     fWaitTask := TWaitTask.Create('', '', 'SRC');
     fQueue.AddTask(fWaitTask);
+    { FindBestTask skips tasks whose site has no free slots. The site's queue
+      thread creates and consumes slots asynchronously, so force a free slot
+      to keep the test deterministic. }
+    TSite(fWaitTask.ssite1).freeslots := 1;
     fResult := fQueue.FindBestTask(Now);
     CheckTrue(fResult = fWaitTask, 'Should return the single waiting task');
   finally
@@ -745,6 +755,10 @@ begin
     fQueue.AddTask(fLoginTask);
     fWaitTask := TWaitTask.Create('', '', 'SRC');
     fQueue.AddTask(fWaitTask);
+    { FindBestTask skips tasks whose site has no free slots. The site's queue
+      thread creates and consumes slots asynchronously, so force a free slot
+      to keep the test deterministic. }
+    TSite(fWaitTask.ssite1).freeslots := 1;
     fResult := fQueue.FindBestTask(Now);
     CheckTrue(fResult = fWaitTask, 'WaitTask should beat LoginTask');
   finally
