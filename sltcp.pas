@@ -1286,6 +1286,16 @@ end;
 destructor TslTCPThread.Destroy;
 begin
   Stop;
+  if IsThreadRunning then
+  begin
+    { The worker thread survived the stop timeout and may still touch fSSL /
+      fSSLLock (e.g. mid SSL handshake). The inherited destructor would free
+      them under the running thread — a use-after-free. Leak them
+      deliberately instead; the socket fd itself was already closed in Stop. }
+    Debug(dpError, 'sltcp', Format('Destroying %s while its thread is still running, leaking SSL state to avoid UAF', [FThreadName]));
+    fSSL := nil;
+    fSSLLock := nil;
+  end;
   inherited;
 end;
 
@@ -1306,13 +1316,15 @@ var
 begin
   shouldquit:= True;
 
-  // Closing the socket wakes the worker thread if it is blocked in a
-  // connect/read/select call. We only close the OS handle here and clear the
+  // Shutting down the socket first wakes the worker thread reliably if it is
+  // blocked in a connect/read/select call (a plain close does not interrupt a
+  // blocking recv on Linux). We only close the OS handle here and clear the
   // cached socket value; we must NOT touch fSSL because the worker thread may
   // be in the middle of an SSL handshake. The destructor will clean up SSL
   // once the thread has terminated.
   if slSocket.socket <> slSocketError then
   begin
+    slstack.slShutdown(slSocket);
     slstack.slClose(slSocket);
     ClearSocket;
   end;
