@@ -1180,63 +1180,68 @@ begin
   Result := False;
 
   // Use cached section-to-sites lookup instead of iterating all sites
+  // (GetSitesForSection returns a copy which we own and must free)
   fSitesForSection := GetSitesForSection(rls.section);
   if fSitesForSection = nil then
     exit;
 
-  for s in fSitesForSection do
-  begin
-    try
-      if not (s.WorkingStatus in [sstUnknown, sstUp]) then
-        Continue;
-      if s.PermDown then
-        Continue;
-      if aIsSpreadJob then
-      begin
-        if s.SkipPre then
+  try
+    for s in fSitesForSection do
+    begin
+      try
+        if not (s.WorkingStatus in [sstUnknown, sstUp]) then
           Continue;
-      end;
-
-      // sectiondir is guaranteed to exist (cache only contains sites with section configured)
-      sectiondir := DatumIdentifierReplace(s.sectiondir[rls.section]);
-
-      if FindSite(s.Name) <> nil then
-        Continue;
-
-      if not aIsSpreadJob then
-      begin
-        if glPazoPreTimeLookupMode <> plmNone then
+        if s.PermDown then
+          Continue;
+        if aIsSpreadJob then
         begin
-          if not (rls.pretime <> 0) then
-            Continue;
-
-          if not (s.IsPretimeOk(rls.section, rls.pretime)) then
+          if s.SkipPre then
             Continue;
         end;
-      end;
 
-      ps := TPazoSite.Create(self, s.Name, sectiondir, s);
-      ps.status := rssNotAllowed;
-      if not aIsSpreadJob then
-      begin
-        ps.DelaySetup;
-      end;
+        // sectiondir is guaranteed to exist (cache only contains sites with section configured)
+        sectiondir := DatumIdentifierReplace(s.sectiondir[rls.section]);
 
-      if s.IsAffil(rls.groupname) then
-      begin
-        ps.status := rssShouldPre;
-      end;
+        if FindSite(s.Name) <> nil then
+          Continue;
 
-      PazoSitesList.Add(ps);
-      CheckSiteSlots(s);
-      Result := True;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TPazo.AddSites: %s', [e.Message]));
-        Continue;
+        if not aIsSpreadJob then
+        begin
+          if glPazoPreTimeLookupMode <> plmNone then
+          begin
+            if not (rls.pretime <> 0) then
+              Continue;
+
+            if not (s.IsPretimeOk(rls.section, rls.pretime)) then
+              Continue;
+          end;
+        end;
+
+        ps := TPazoSite.Create(self, s.Name, sectiondir, s);
+        ps.status := rssNotAllowed;
+        if not aIsSpreadJob then
+        begin
+          ps.DelaySetup;
+        end;
+
+        if s.IsAffil(rls.groupname) then
+        begin
+          ps.status := rssShouldPre;
+        end;
+
+        PazoSitesList.Add(ps);
+        CheckSiteSlots(s);
+        Result := True;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] TPazo.AddSites: %s', [e.Message]));
+          Continue;
+        end;
       end;
     end;
+  finally
+    fSitesForSection.Free;
   end;
 end;
 

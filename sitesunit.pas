@@ -661,12 +661,13 @@ function FindSlotByName(const aSlotname: String): TSiteSlot;
 
 { Returns a list of sites that have the given section configured.
   Uses a cached dictionary for O(1) lookup instead of iterating all sites.
+  The lookup is case-insensitive.
   @param(aSection section name to look up)
-  @returns(TList<TSite> of sites with this section, or empty list if none) }
+  @returns(new TList<TSite> with the sites which have this section, owned by the caller (must be freed), or @nil if no site has this section) }
 function GetSitesForSection(const aSection: String): TList<TSite>;
 
-{ Rebuilds the section-to-sites cache. Called automatically during SitesStart
-  and when section configurations change. }
+{ Rebuilds the section-to-sites cache. Called automatically during SitesStart,
+  when a site is added or deleted and when section configurations change. }
 procedure RebuildSectionSitesCache;
 
 procedure SitesInit;
@@ -785,12 +786,14 @@ procedure AddSite(const aSite: TSite);
 begin
   sites.Add(aSite);
   sitesDict.Add(aSite.Name, aSite);
+  RebuildSectionSitesCache;
 end;
 
 procedure DeleteSite(const aSite: TSite);
 begin
-  sites.Delete(sites.IndexOf(aSite));
   sitesDict.Remove(aSite.Name);
+  sites.Delete(sites.IndexOf(aSite));
+  RebuildSectionSitesCache;
 end;
 
   procedure QueueStart;
@@ -1352,6 +1355,7 @@ var
   s: TSite;
   fSectionList: TStringList;
   fSectionName: String;
+  fSectionKey: String;
   fSiteList: TList<TSite>;
 begin
   if sectionSitesCache = nil then
@@ -1370,24 +1374,25 @@ begin
       // Parse the site's sections string
       fSectionList := TStringList.Create;
       try
-        fSectionList.Delimiter := ',';
+        fSectionList.Delimiter := ' ';
         fSectionList.StrictDelimiter := True;
         fSectionList.DelimitedText := s.sections;
 
         for fSectionName in fSectionList do
         begin
-          if fSectionName = '' then
+          fSectionKey := UpperCase(Trim(fSectionName));
+          if fSectionKey = '' then
             Continue;
 
           // Check if site has a directory configured for this section
-          if s.sectiondir[fSectionName] = '' then
+          if s.sectiondir[fSectionKey] = '' then
             Continue;
 
           // Get or create the site list for this section
-          if not sectionSitesCache.TryGetValue(fSectionName, fSiteList) then
+          if not sectionSitesCache.TryGetValue(fSectionKey, fSiteList) then
           begin
             fSiteList := TList<TSite>.Create;
-            sectionSitesCache.Add(fSectionName, fSiteList);
+            sectionSitesCache.Add(fSectionKey, fSiteList);
           end;
 
           fSiteList.Add(s);
@@ -1404,6 +1409,8 @@ begin
 end;
 
 function GetSitesForSection(const aSection: String): TList<TSite>;
+var
+  fCachedList: TList<TSite>;
 begin
   Result := nil;
 
@@ -1412,8 +1419,13 @@ begin
 
   sectionSitesCacheLock.Enter('GetSitesForSection');
   try
-    if not sectionSitesCache.TryGetValue(aSection, Result) then
-      Result := nil;
+    // return a copy, so the caller can safely use it after the lock is
+    // released and even while the cache is rebuilt on another thread
+    if sectionSitesCache.TryGetValue(UpperCase(aSection), fCachedList) then
+    begin
+      Result := TList<TSite>.Create;
+      Result.AddRange(fCachedList);
+    end;
   finally
     sectionSitesCacheLock.Leave;
   end;
