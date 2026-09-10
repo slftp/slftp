@@ -3714,21 +3714,59 @@ var
   ss: TSiteSlot;
   local_event: TSynEvent;
   fElapsedMs: Int64;
+  fWaitStart: TDateTime;
+  fSite1, fWaitFor: String;
 begin
   Result := True;
   wait_start := Now;
-  DiagRecordWaitTaskAssigned(site1);
-  DiagUpdateActiveWaitTask(site1, wait_for, ready, wait_done);
+  { Capture everything the diagnostics below need in locals: once wait_done is
+    set, RemoveReady may free this task object at any time, so no field of
+    self may be touched after that point. }
+  fSite1 := site1;
+  fWaitFor := wait_for;
+  fWaitStart := wait_start;
+  DiagRecordWaitTaskAssigned(fSite1);
+  DiagUpdateActiveWaitTask(fSite1, fWaitFor, ready, wait_done);
   { Keep a local reference to the event object. If the task object were ever
     freed while we are blocked in WaitFor, the local reference stays valid
     long enough to exit the wait safely. }
   local_event := event;
+  ss := TSiteSlot(slot);
   try
     try
       local_event.WaitFor($FFFFFFFF);
       { Reset manual TSynEvent flag so a reused/restarted wait task blocks again. }
       local_event.ResetEvent;
     finally
+      { Clear the slot's todotask reference BEFORE marking the task ready and
+        releasing slot1. Once slot1 is nil, RemoveReady may collect the task
+        (as soon as wait_done is also set). If todotask still pointed to it,
+        the slot would keep a dangling pointer and could call Execute again on
+        freed memory. ClearTodotask keeps the freeslots bookkeeping correct
+        under the slot lock. }
+      try
+        if (ss <> nil) and (ss.site <> nil) then
+        begin
+          if not ss.IsZombie then
+          begin
+            ss.site.AcquireSlotsAssignmentLock('TWaitTask ready');
+            try
+              if ss.todotask = self then
+                ss.ClearTodotask;
+            finally
+              ss.site.ReleaseSlotsAssignmentLock;
+            end;
+          end
+          else
+            { SetTodotask early-exits on zombie slots, so the cached wait event
+              would otherwise keep pointing at our event after this task is
+              freed and TSiteSlot.Stop would signal freed memory. }
+            ss.ClearWaitEventIfMatching(local_event);
+        end;
+      except
+        on E: Exception do
+          Debug(dpError, c_section, Format('[WARNING] TWaitTask.Execute slot cleanup failed (slot may have been rebuilt): %s', [E.Message]));
+      end;
       { Mark the task as ready in any case (success or exception) so the queue
         thread will collect it. Also clear slot1 here so a later exception in
         this method cannot leave the queue thread unable to free the task. }
@@ -3740,61 +3778,40 @@ begin
       Debug(dpError, c_section, Format('[EXCEPTION] TWaitTask.Execute wait stage: %s', [E.Message]));
   end;
 
-  { Clear the slot's todotask reference BEFORE setting wait_done. Once
-    wait_done is true, RemoveReady is allowed to free this task object. If
-    todotask still pointed to it, the slot would keep a dangling pointer and
-    could call Execute again on freed memory. Use ClearTodotask so freeslots
-    bookkeeping is updated correctly under the slot lock. }
-  ss := TSiteSlot(slot);
-  try
-    if (ss <> nil) and (ss.site <> nil) and (not ss.IsZombie) then
-    begin
-      ss.site.AcquireSlotsAssignmentLock('TWaitTask ready');
-      try
-        if ss.todotask = self then
-          ss.ClearTodotask;
-      finally
-        ss.site.ReleaseSlotsAssignmentLock;
-      end;
-    end;
-  except
-    on E: Exception do
-      Debug(dpError, c_section, Format('[WARNING] TWaitTask.Execute slot cleanup failed (slot may have been rebuilt): %s', [E.Message]));
-  end;
-
   { The slot thread (TSiteSlot.Execute) knows that WAITTASKs perform their own
     cleanup and will not touch this task object after Execute returns. It is
     therefore safe to set wait_done here; RemoveReady can collect the task as
-    soon as it sees wait_done=True. }
+    soon as it sees wait_done=True. From here on only the local copies may be
+    used — the task object may already be freed. }
   wait_done := True;
   try
     try
-      if (wait_start > 0) and (wait_start <= Now) then
-        fElapsedMs := MilliSecondsBetween(Now, wait_start)
+      if (fWaitStart > 0) and (fWaitStart <= Now) then
+        fElapsedMs := MilliSecondsBetween(Now, fWaitStart)
       else
       begin
-        Debug(dpError, c_section, Format('[DIAG] TWaitTask.Execute invalid wait_start for %s: %s', [wait_for, DateTimeToStr(wait_start)]));
+        Debug(dpError, c_section, Format('[DIAG] TWaitTask.Execute invalid wait_start for %s: %s', [fWaitFor, DateTimeToStr(fWaitStart)]));
         fElapsedMs := 0;
       end;
     except
       on E: Exception do
       begin
-        Debug(dpError, c_section, Format('[EXCEPTION] TWaitTask.Execute diag stage (elapsed): %s wait_start=%s', [E.Message, DateTimeToStr(wait_start)]));
+        Debug(dpError, c_section, Format('[EXCEPTION] TWaitTask.Execute diag stage (elapsed): %s wait_start=%s', [E.Message, DateTimeToStr(fWaitStart)]));
         fElapsedMs := 0;
       end;
     end;
 
     try
-      DiagRecordWaitTaskDone(fElapsedMs, site1);
+      DiagRecordWaitTaskDone(fElapsedMs, fSite1);
       if fElapsedMs > 60000 then
-        Debug(dpError, c_section, Format('[QUEUE-DIAG] WAITTASK woke after %d ms: site=%s wait_for=%s slot1=%p', [fElapsedMs, site1, wait_for, Pointer(slot1)]));
+        Debug(dpError, c_section, Format('[QUEUE-DIAG] WAITTASK woke after %d ms: site=%s wait_for=%s slot1=%p', [fElapsedMs, fSite1, fWaitFor, Pointer(ss)]));
     except
       on E: Exception do
         Debug(dpError, c_section, Format('[EXCEPTION] TWaitTask.Execute diag stage (record done): %s', [E.Message]));
     end;
 
     try
-      DiagUpdateActiveWaitTask(site1, wait_for, ready, wait_done);
+      DiagUpdateActiveWaitTask(fSite1, fWaitFor, True, True);
     except
       on E: Exception do
         Debug(dpError, c_section, Format('[EXCEPTION] TWaitTask.Execute diag stage (update active): %s', [E.Message]));
