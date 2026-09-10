@@ -1856,8 +1856,18 @@ begin
     debug(dpSpam, section, 'MkdirError ' + Name + ' ' + dir);
     irc_Addstats(Format('<c7>[MKDIR ERROR]</c> : %s %s/%s @ <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, dir, Name]));
     Debug(dpSpam, section, 'MkdirError re-setting need_mkdir=True and error=True for %s/%s', [Name, dir]);
-    d.need_mkdir := True;
-    d.error := True;
+    { Mirror MkdirReady: mutate the flags under dirlist_lock and clear the
+      mkdir dependency, otherwise race tasks keep waiting on a dependency
+      pointing to the failed mkdir task (MKDIR retry stall). }
+    d.dirlist_lock.Enter('TPazoSite.MkdirError');
+    try
+      d.need_mkdir := True;
+      d.error := True;
+      d.dependency_mkdir := '';
+      d.mkdir_started_at := 0;
+    finally
+      d.dirlist_lock.Leave;
+    end;
   end;
 
   Result := True;
