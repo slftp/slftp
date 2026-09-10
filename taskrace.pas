@@ -81,6 +81,9 @@ type
     isSample, isProof, isCovers, isSubs: Boolean;
     dst: TWaitTask;
     constructor Create(const netname, channel, site1, site2: String; pazo: TPazo; const aDependingOnDirlist: TDirList; const dir, filename: String; const filesize: Int64; const rank: integer);
+    { Clears the back-reference in the destination WAITTASK before the race task
+      is freed, so TWaitTask.Destroy cannot write into freed memory. }
+    destructor Destroy; override;
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
   end;
@@ -1277,6 +1280,20 @@ begin
     self.FFilenameForSTORCommand := filename;
 
   self.filesize := filesize;
+end;
+
+destructor TPazoRaceTask.Destroy;
+begin
+  { Symmetric to TWaitTask.Destroy: detach the back-reference of the
+    destination WAITTASK before this object is freed, so the wait task's
+    destructor cannot write dst := nil into freed memory. Both objects are
+    only ever freed by the queue thread (RemoveReady/QueueClean). }
+  if dst <> nil then
+  begin
+    dst.parentRaceTask := nil;
+    dst := nil;
+  end;
+  inherited;
 end;
 
 function GetSitePercent(const aSite: TPazoSite; const aDir: String): Integer;
