@@ -99,7 +99,7 @@ var
 
 implementation
   uses
-    SysUtils, Math, mormot.core.os;
+    SysUtils, Math, StrUtils, mormot.core.os;
 
   // these types are used for timer log output
   type
@@ -613,7 +613,7 @@ begin
 
         aOutput.Add(Format('%-40s mode=%-6s lastowner=%s (%s) nest=%d segment=%s lastenter=%.1fs ago lastleave=%.1fs ago',
           [fCs.FName,
-           BoolToStr(fCs.FUseTimeoutLocking, 'timeout', 'plain'),
+           IfThen(fCs.FUseTimeoutLocking, 'timeout', 'plain'),
            IntToHex(fCs.FLastOwnerThreadId, 4),
            string(fCs.FLastOwnerName),
            fCs.FLockCount,
