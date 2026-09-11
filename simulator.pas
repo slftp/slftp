@@ -96,7 +96,7 @@ implementation
 
 uses
   SysUtils, TypInfo, sitesunit, rulesunit, routeconfig, debugunit, DateUtils, StrUtils, configunit, kb, encinifile,
-  globalskipunit, slapi.issueshook {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  globalskipunit, slapi.issueshook, mormot.core.os {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   rsections = 'simulator';

@@ -407,7 +407,7 @@ implementation
 uses
   debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
   taskrace, sitesunit, queueunit, pazo, irc, SysUtils, fake, mystrings,
-  rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup,
+  rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup, mormot.core.os,
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, SyncObjs,

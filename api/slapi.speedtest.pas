@@ -76,7 +76,7 @@ type
 implementation
 
 uses
-  irccommands.speed, debugunit, irc, configunit, sitesunit;
+  irccommands.speed, debugunit, irc, configunit, sitesunit, mormot.core.os;
 
 const
   section = 'slapi.speedtest';
