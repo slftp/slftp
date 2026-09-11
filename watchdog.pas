@@ -125,7 +125,7 @@ uses
   {$IFDEF UNIX}
   BaseUnix,
   {$ENDIF}
-  DateUtils, Math, StrUtils, configunit, slcriticalsection2;
+  DateUtils, Math, StrUtils, configunit, slcriticalsection2, mormot.core.os;
 
 const
   CReportPrefix = 'watchdog.';
