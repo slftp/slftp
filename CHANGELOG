@@ -54,10 +54,16 @@
     Statsoutput sometimes screwed -> NEGATIVE BYTES (due to parsing of x-dupe response)
 
 --=============================( IMDBAPI MIGRATION )================================-
+    {^} Disable noisy CRC error IRC announcements by default
     {#} Fix BOM screen count lookup fetching re-release page instead of Original Release, resulting in 0 screens for wide movies
     {+} Add enable_boxofficemojo_lookup option in [dbaddimdb] to fetch screen counts from Box Office Mojo (adds ~5-6s to IMDB lookup)
 
 --=============================( SLFTP v1.5.11 )==================================-
+    {+} Add watchdog which writes self-contained stall diagnostic reports (watchdog.*.log) automatically and on demand via the !watchdog IRC command
+    {#} Fix watchdog automatic reports never firing with the default report_cooldown setting
+    {#} Fix watchdog cooldown race letting concurrent manual and automatic reports bypass the cooldown window
+    {#} Report !watchdog IRC command write failures instead of claiming success with an empty report path
+    {+} Add lock state report for all critical sections (last owner, nest count, segment, enter/leave age)
     {+} Complete React 19 / Mantine 8 Web UI (http://localhost:8089/ui) with real-time monitoring and configuration
     {+} Comprehensive REST API (/api) for external integrations and remote management
     {+} Add AES-256-CBC encryption support for cbftp UDP race notifications

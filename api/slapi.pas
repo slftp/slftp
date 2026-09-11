@@ -32,7 +32,8 @@ uses
   configunit,
   debugunit,
   globals,
-  StrUtils;
+  StrUtils,
+  watchdog;
 
 type
   { REST API Server for slftp }
@@ -95,6 +96,7 @@ var
 
 threadvar
   ApiExceptionLogged: boolean;
+  WatchdogRequestCounted: boolean;
 
 function GetApiServer: TSlftpApiServer;
 begin
@@ -200,6 +202,11 @@ begin
         Debug(dpError, rsection, Format('[API ERROR] %s status=%d', [url, status]));
     end;
   finally
+    if WatchdogRequestCounted then
+    begin
+      WatchdogApiRequestEnd;
+      WatchdogRequestCounted := False;
+    end;
     ApiExceptionLogged := False;
   end;
 end;
@@ -216,6 +223,13 @@ begin
   if (Ctxt = nil) or (Ctxt.Call = nil) then
     Exit;
 
+  sUrl := UTF8ToString(Ctxt.Call^.Url);
+  if (Length(sUrl) >= 4) and (UpperCase(Copy(sUrl, 1, 4)) = '/API') then
+  begin
+    WatchdogApiRequestStart(UTF8ToString(Ctxt.Call^.Method) + ' ' + sUrl);
+    WatchdogRequestCounted := True;
+  end;
+
   if Length(Ctxt.Call^.InBody) > CMaxBodySize then
   begin
     Ctxt.Call^.OutStatus := 413;
@@ -230,6 +244,16 @@ begin
     sUrl := '/' + sUrl;
 
   sUrlLower := LowerCase(sUrl);
+
+  // Public cbftp capability check - bypass all auth
+  if (Ctxt.Call^.Method = 'GET') and
+     ((Pos('/cbftp/enabled', sUrlLower) = 1) or
+      (Pos('/api/cbftp/enabled', sUrlLower) = 1)) then
+  begin
+    ServeCbftpEnabledResponse(Ctxt.Call^);
+    Result := False; // Halt further processing
+    Exit;
+  end;
 
   Result := True;
 end;
@@ -451,15 +475,11 @@ begin
 
   sUrlLower := LowerCase(sUrl);
   isCbftpCall :=
-    ((Length(sUrlLower) >= 7) and (Copy(sUrlLower, 1, 7) = '/cbftp/')) or
-    (sUrlLower = '/cbftp') or
-    ((Length(sUrlLower) >= 11) and (Copy(sUrlLower, 1, 11) = '/api/cbftp/')) or
-    (sUrlLower = '/api/cbftp');
+    (Pos('/cbftp/', sUrlLower) = 1) or
+    (Pos('/api/cbftp/', sUrlLower) = 1);
   isCbftpEnabledEndpoint :=
-    (sUrlLower = '/cbftp/enabled') or
-    (Copy(sUrlLower, 1, 15) = '/cbftp/enabled?') or
-    (sUrlLower = '/api/cbftp/enabled') or
-    (Copy(sUrlLower, 1, 19) = '/api/cbftp/enabled?');
+    (Pos('/cbftp/enabled', sUrlLower) = 1) or
+    (Pos('/api/cbftp/enabled', sUrlLower) = 1);
   isSlotsStreamCall :=
     (sUrlLower = '/api/sites/slots/stream') or
     (Copy(sUrlLower, 1, 24) = '/api/sites/slots/stream?');

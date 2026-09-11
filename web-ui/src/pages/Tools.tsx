@@ -1,11 +1,13 @@
 import { Alert, Badge, Button, Card, Center, Group, Loader, ScrollArea, Stack, Switch, Table, Text, TextInput, Title, Autocomplete, ActionIcon, Tooltip, Tabs, Textarea, Modal } from '@mantine/core';
-import { IconAlertCircle, IconPlayerPlay, IconWand, IconBolt, IconCpu, IconSettings, IconUpload, IconDeviceFloppy, IconListCheck, IconCheck, IconX, IconBan, IconNews, IconTrash } from '@tabler/icons-react';
+import { IconAlertCircle, IconPlayerPlay, IconWand, IconBolt, IconCpu, IconSettings, IconUpload, IconDeviceFloppy, IconListCheck, IconCheck, IconX, IconBan, IconNews, IconTrash, IconRocket, IconHelpCircle } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { useMemo, useState, useRef } from 'react';
 import { apiClient, batchTestSections, saveSectionTesterData, loadSectionTesterData, type SectionTestItem } from '../api/client';
 import { SpeedTest } from './SpeedTest';
 import { ConfigEditor } from './ConfigEditor';
+import { Pre } from './Pre';
+import { Help } from './Help';
 
 type RecentRelease = {
   ReleaseName: string;
@@ -856,6 +858,9 @@ export function Tools() {
 
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List>
+          <Tabs.Tab value="pre" leftSection={<IconRocket size="0.8rem" />}>
+            PRE
+          </Tabs.Tab>
           <Tabs.Tab value="simulator" leftSection={<IconCpu size="0.8rem" />}>
             Release Simulator
           </Tabs.Tab>
@@ -871,7 +876,14 @@ export function Tools() {
           <Tabs.Tab value="news" leftSection={<IconNews size="0.8rem" />}>
             News
           </Tabs.Tab>
+          <Tabs.Tab value="help" leftSection={<IconHelpCircle size="0.8rem" />}>
+            Help
+          </Tabs.Tab>
         </Tabs.List>
+
+        <Tabs.Panel value="pre" pt="xs">
+          <Pre />
+        </Tabs.Panel>
 
         <Tabs.Panel value="simulator" pt="xs">
           <ReleaseSimulator />
@@ -891,6 +903,10 @@ export function Tools() {
 
         <Tabs.Panel value="news" pt="xs">
           <NewsViewer />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="help" pt="xs">
+          <Help />
         </Tabs.Panel>
       </Tabs>
     </Stack>

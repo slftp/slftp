@@ -147,7 +147,11 @@ export function Issues() {
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['issuesList'],
     queryFn: async () => {
-      const res = await apiClient.post('/ApiIssuesService/GetIssues', { Limit: 500, SinceUnix: 0, TypesCsv: '' });
+      const res = await apiClient.post('/ApiIssuesService/GetIssues', {
+        Limit: 5000,
+        SinceUnix: Math.floor(Date.now() / 1000) - 24 * 3600,
+        TypesCsv: '',
+      });
       if (res.data?.result && Array.isArray(res.data.result)) {
         const list = res.data.result[0];
         const issues = list?.Issues ? parseMaybeJsonArray(list.Issues) : [];

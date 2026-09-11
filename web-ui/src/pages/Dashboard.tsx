@@ -17,6 +17,7 @@ import {
   Tooltip,
   Box,
   Grid,
+  Anchor,
 } from '@mantine/core';
 import {
   IconClock,
@@ -28,10 +29,13 @@ import {
   IconActivity,
   IconCpu,
   IconHash,
+  IconBrandGitlab,
 } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import type { SystemStatus, IssuesSummary } from '../api/client';
+import { commitsBehind, gitlabCommitsQuery, parseRunningCommit } from '../api/gitlabClient';
 import { useMemo, useState } from 'react';
 import { StatCard, MiniStatCard } from '../components/StatCard';
 
@@ -81,8 +85,11 @@ interface ReleaseDetails {
 
 
 export function Dashboard() {
+  const navigate = useNavigate();
   const [selectedPazoId, setSelectedPazoId] = useState<number | null>(null);
   const [modalOpened, setModalOpened] = useState(false);
+
+  const { data: gitlabCommits } = useQuery(gitlabCommitsQuery);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['systemStatus'],
@@ -229,6 +236,10 @@ export function Dashboard() {
   const formatLoadAvg = (avg1: number, avg5: number, avg15: number) =>
     `${avg1.toFixed(2)}, ${avg5.toFixed(2)}, ${avg15.toFixed(2)}`;
 
+  // undefined means "no statement possible" (no SL_REV in the build, GitLab unreachable,
+  // or the running commit is too old) - in that case we show nothing.
+  const updatesBehind = commitsBehind(gitlabCommits, parseRunningCommit(stats.Version));
+
   const uptimeStr = formatUptime(stats.Uptime);
   const totalSites = stats.SitesCount;
   const sitesUpPct = totalSites > 0 ? (stats.SitesUp / totalSites) * 100 : 0;
@@ -264,6 +275,25 @@ export function Dashboard() {
           </Badge>
         </Group>
       </Box>
+
+      {/* slftp Update Available */}
+      {!!updatesBehind && (
+        <Alert
+          className="alert-glass-warn"
+          icon={<IconBrandGitlab size="1.25rem" />}
+          title={`Update available — ${updatesBehind} commit${updatesBehind === 1 ? '' : 's'} behind`}
+          radius="lg"
+        >
+          <Group justify="space-between" align="center" wrap="wrap" gap="sm">
+            <Text size="sm">
+              Newer commits are available on GitLab. Pull and rebuild to catch up.
+            </Text>
+            <Anchor size="sm" fw={600} onClick={() => navigate('/gitlab')}>
+              View commits
+            </Anchor>
+          </Group>
+        </Alert>
+      )}
 
       {/* Main Stats Grid */}
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">

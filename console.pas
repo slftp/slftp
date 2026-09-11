@@ -984,8 +984,8 @@ end;
 procedure TTextBoxAddLineTask.Execute;
 var
   w: TslCommandWindow;
-  s, ss: String;
   i: Integer;
+  fLineStart, fLineEnd: Integer;
 begin
   try
     i:=0;
@@ -993,15 +993,29 @@ begin
     if w = nil then exit;
     w.textbox.BeginUpdate;
     try
-      s:= msg;
-      while(true) do
+      // scan msg once instead of GetFirstLineFromTextViaNewlineIndicators per
+      // line: that one copies and deletes the remaining text on every call,
+      // making console output O(n^2) (FetchSL showed up hot in CPU profiling).
+      // Semantics kept: stop on an empty line and after 201 lines.
+      fLineStart := 1;
+      while fLineStart <= Length(msg) do
       begin
         if (i>200) then Break;
         inc(i);
-        ss:= GetFirstLineFromTextViaNewlineIndicators(s);
-        if ss = '' then Break;
 
-        w.textbox.AddLine(consolestrip(ss));
+        fLineEnd := fLineStart;
+        while (fLineEnd <= Length(msg)) and (msg[fLineEnd] <> #13) and (msg[fLineEnd] <> #10) do
+          Inc(fLineEnd);
+
+        if fLineEnd = fLineStart then
+          Break; // empty line, same as FetchSL returning ''
+
+        w.textbox.AddLine(consolestrip(Copy(msg, fLineStart, fLineEnd - fLineStart)));
+
+        // skip the newline sequence (#13, #10 or #13#10)
+        while (fLineEnd <= Length(msg)) and ((msg[fLineEnd] = #13) or (msg[fLineEnd] = #10)) do
+          Inc(fLineEnd);
+        fLineStart := fLineEnd;
       end;
     finally
       w.textbox.EndUpdate;

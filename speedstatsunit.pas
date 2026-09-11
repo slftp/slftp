@@ -3,7 +3,7 @@ unit speedstatsunit;
 interface
 
 uses
-  Contnrs, SysUtils, Classes;
+  Contnrs, SysUtils, Classes, slcriticalsection2;
 
 type
   TSpeedStat = class
@@ -36,17 +36,17 @@ var
   speedstats_last_recalc: TDateTime;
   speedstats: TObjectList;
   GlSpeedStatsMinFileSize: integer;
+  speedstatlock: TSlCriticalSection2;
 
 implementation
 
 uses
-  irc, sitesunit, Debugunit, mystrings, configunit, encinifile, Math, IdGlobal, slcriticalsection2, routeconfig;
+  irc, sitesunit, Debugunit, mystrings, configunit, encinifile, Math, IdGlobal, routeconfig;
 
 const
   r_section = 'speedstats';
 
 var
-  speedstatlock: TSlCriticalSection2;
   max_entries: integer;
 
 procedure SpeedStatsInit;

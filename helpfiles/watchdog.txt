@@ -1,0 +1,5 @@
+Writes a self-contained diagnostic report (watchdog.<timestamp>.log next to the binary) containing
+heartbeats of all monitored threads, the state of every lock, the kernel state of all threads,
+application inventory and the last log lines. Use it when the bot appears stuck, and send the
+generated file for analysis. The watchdog also writes such a report automatically when it detects
+a stall (see [watchdog] section in slftp.ini).

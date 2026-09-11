@@ -187,7 +187,7 @@ begin
   glMaxDirlistSlots := '';
   CheckEquals(2, _CalcMaxDirlistSlots(4), 'Empty config should fallback to slots div 2');
   CheckEquals(5, _CalcMaxDirlistSlots(10), 'Empty config should fallback to slots div 2');
-  CheckEquals(0, _CalcMaxDirlistSlots(0), 'Empty config with 0 slots should return 0');
+  CheckEquals(1, _CalcMaxDirlistSlots(0), 'Empty config with 0 slots returns 1 (api_and_webui enforces a minimum of one dirlist slot)');
   CheckEquals(1, _CalcMaxDirlistSlots(3), 'Empty config with 3 slots should return 1 (3 div 2)');
 end;
 

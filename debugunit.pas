@@ -54,6 +54,7 @@ uses
 
 const
   section = 'debug';
+  C_IO_ERROR_CIRCUIT_SECONDS = 60; //< how long Debug output is suppressed after an I/O error (circuit breaker)
 
 var
   f: TextFile;
@@ -61,6 +62,7 @@ var
   glCachedDebugPriority: TDebugPriority = dpError;
   glCachedDebugCategories: string = ',verbose,';
   glFlushLines: boolean = False;
+  glLastIOErrorTime: TDateTime = 0;
 
 function _GetDebugLogFileName: String;
 begin
@@ -181,6 +183,11 @@ begin
   {$ENDIF}
 end;
 
+procedure _SlCriticalSectionError(const aMsg: String);
+begin
+  Debug(dpError, section, aMsg);
+end;
+
 procedure DebugInit;
 begin
   glCachedDebugPriority := TDebugPriority(config.ReadInteger(section, 'verbosity', 0));
@@ -188,12 +195,26 @@ begin
   glFlushLines := config.ReadBool(section, 'flushlines', False);
   _OpenLogFile;
   debug_lock := TSlCriticalSection2.Create('debug_lock');
+  GlErrorLogProc := @_SlCriticalSectionError;
 end;
 
 procedure DebugUninit;
 begin
   _CloseLogFile;
   debug_lock.Free;
+end;
+
+function IsInIOErrorState: Boolean;
+begin
+  Result := False;
+
+  if (glLastIOErrorTime > 0) then
+  begin
+    if (SecondsBetween(Now, glLastIOErrorTime) < C_IO_ERROR_CIRCUIT_SECONDS) then
+      Result := True
+    else
+      glLastIOErrorTime := 0;
+  end;
 end;
 
 procedure Debug(const priority: TDebugPriority; const section, msg: String); overload;
@@ -207,6 +228,10 @@ begin
     exit;
 
   if (_GetDebugCategories <> ',verbose,') and (not {$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(_GetDebugCategories, section)) then
+    exit;
+
+  // circuit breaker: skip logging if we recently hit an I/O error
+  if IsInIOErrorState then
     exit;
 
   DateTimeToString(nowstr, 'mm-dd hh:nn:ss.zzz', Now());
@@ -228,6 +253,11 @@ begin
         {$ENDIF}
       end;
     except
+      on e: EInOutError do
+      begin
+        glLastIOErrorTime := Now;
+        exit;
+      end;
       on e: Exception do
       begin
         irc_Adderror(Format('<c4>[EXCEPTION]</c> Debug: %s', [e.Message]));
@@ -241,11 +271,20 @@ end;
 
 procedure Debug(const priority: TDebugPriority; const section, FormatStr: String; const Args: array of const); overload;
 begin
+  // early exit before Format() to spare the string allocation and the
+  // exception frame below in hot paths when this priority is not logged
+  if (glCachedDebugPriority = dpNone) or (glCachedDebugPriority < priority) then
+    exit;
+
   try
     Debug(priority, section, Format(FormatStr, Args));
   except
     on e: Exception do
     begin
+      // suppress error reporting while the I/O circuit breaker is open
+      if IsInIOErrorState then
+        exit;
+
       irc_Adderror(Format('<c4>[EXCEPTION]</c> Debug: %s', [e.Message]));
       exit;
     end;

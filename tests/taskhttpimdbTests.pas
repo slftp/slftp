@@ -18,6 +18,7 @@ type
     procedure TestProcess_PrisonBreak;              // tt0455275 (TV Series)
     procedure TestProcess_MarvelRising;             // tt7728344 (TV Movie / STV)
     procedure TestCountryOrder_WarForThePlanetOfTheApes; // Validates country order for rules
+    procedure TestCountryNormalizationGermany;
   end;
 
   TTestTHtmlBoxOfficeMojoParser = class(TTestCase)
@@ -215,6 +216,23 @@ begin
     // Note: HTML parser had "USA", API also returns "USA" (consistent)
     CheckEqualsString('USA', fImdbData.imdb_countries.DelimitedText, 'Countries mismatch');
     CheckTrue(fImdbData.imdb_countries.IndexOf('USA') >= 0, 'USA should be present');
+  finally
+    fImdbData.Free;
+  end;
+end;
+
+procedure TTestTImdbDataProcessor.TestCountryNormalizationGermany;
+var
+  fTitleJson: Variant;
+  fImdbData: TDbImdbData;
+begin
+  fTitleJson := _JsonFast('{"originCountries":[{"name":"West Germany"},{"name":"East Germany"}]}');
+
+  TImdbDataProcessor.Process('Example.Release.1984', 'tt0000000', fTitleJson, Null, nil, fImdbData);
+
+  try
+    CheckEqualsString('Germany,Germany', fImdbData.imdb_countries.DelimitedText,
+      'Historical German country names must normalize to Germany');
   finally
     fImdbData.Free;
   end;

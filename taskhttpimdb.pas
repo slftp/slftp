@@ -244,6 +244,7 @@ begin
           if fCountryName = 'United States' then fCountryName := 'USA'
           else if fCountryName = 'United Kingdom' then fCountryName := 'UK'
           else if Pos('Hong Kong', fCountryName) > 0 then fCountryName := 'Hong Kong'
+          else if (fCountryName = 'West Germany') or (fCountryName = 'East Germany') then fCountryName := 'Germany'
           else if Pos('(', fCountryName) > 0 then
           begin
             // Remove everything in parentheses (e.g., "Taiwan (Province of China)" -> "Taiwan")

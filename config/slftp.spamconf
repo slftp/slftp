@@ -12,7 +12,10 @@ denying_creation_of=1
 filename_not_allowed=1
 cant_create_dir=1
 permission_denied=1
-crc_error=1
+# Disabled by default because CRC error announcements are too noisy.
+crc_error=0
+# Destination site's post_check script (zipscript) could not be executed at all (broken pzs-ng state).
+zipscript_error=1
 mkdir=1
 
 [kb]

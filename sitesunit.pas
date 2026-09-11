@@ -115,6 +115,7 @@ type
     { Cached task type so SetTodotask(nil) does not have to dereference a
       potentially already-freed task object to know if it was a dirlist task. }
     fCurrentTaskIsDirlist: Boolean;
+    fWatchdog: TObject;
     function LoginBnc(const i: integer; kill: boolean = False): boolean;
     procedure SetOnline(Value: TSlotStatus);
 
@@ -807,6 +808,8 @@ procedure DeleteSite(const aSite: TSite);
 
 { @abstract(Returns count of pending race tasks targeting the given destination site) }
 function GetPendingRaceTaskCountForDestination(const aDestinationSiteName: String): integer;
+{ Appends per site and slot state lines for the watchdog report. }
+procedure WatchdogSiteInfo(const aOutput: TStrings);
 
 var
   sitesdat: TEncIniFile = nil; //< the inifile @link(encinifile.TEncIniFile) object for sites.dat
@@ -817,7 +820,7 @@ implementation
 uses
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
-  dirlist.helpers, tags, Generics.Defaults, diagunit;
+  dirlist.helpers, tags, Generics.Defaults, diagunit, watchdog;
 
 const
   section = 'sites';
@@ -1526,6 +1529,7 @@ begin
   debug(dpSpam, section, Format('Start creating of slot %s/%d', [aSite.Name, aSlotNumber]));
   self.site := aSite;
   self.FSlotNumber := aSlotNumber;
+  fWatchdog := WatchdogNewParticipant('slot/' + Name, 1800);
 
   todotask := nil;
   fCurrentTaskIsDirlist := False;
@@ -1619,6 +1623,13 @@ begin
   while ((not slshutdown) and (not shouldquit)) do
   begin
     try
+      if fWatchdog <> nil then
+      begin
+        TWatchdogParticipant(fWatchdog).Beat;
+        TWatchdogParticipant(fWatchdog).SetInfo(Format('status=%s todo=%s up=%s dn=%s',
+          [SlotStatusToString(fstatus), tname, BoolToStr(fuploadingto, True), BoolToStr(fdownloadingfrom, True)]));
+      end;
+
       if status = ssOnline then
         Console_Slot_Add(Name, 'Idle...');
 
@@ -1740,7 +1751,8 @@ begin
         downloadingfrom := False;
 
         // Use fCurrentTask (captured before Execute) instead of self.todotask.
-        // DestroySocket called inside Execute may have already set self.todotask := nil,
+        // DestroySocket called inside Execute or QueueClean on the queue thread
+        // may have already set self.todotask := nil,
         // which would skip slot1 cleanup and leave the task stuck in the queue.
         if (fCurrentTask <> nil) then
         begin
@@ -1846,6 +1858,13 @@ begin
                     Debug(dpError, section, Format('[WARNING] TSiteSlot.Execute: fCurrentTask.slot1 cleanup failed (dangling pointer?): %s', [E.Message]));
                   end;
                 end;
+              end;
+
+              // Now clear slot1 — this makes the task eligible for removal by RemoveReady.
+              // We no longer access fCurrentTask after this point.
+              if (fCurrentTask.slot1 <> nil) then
+              begin
+                fCurrentTask.slot1 := nil;
               end;
             end;
           except
@@ -1957,6 +1976,7 @@ begin
   Stop;
   DestroySocket(True);
 
+  WatchdogReleaseParticipant(fWatchdog);
   FreeAndNil(event);
   mdtmre.Free;
 
@@ -5613,5 +5633,57 @@ function GetPendingRaceTaskCountForDestination(const aDestinationSiteName: Strin
 begin
   Result := GetPendingRaceTasksToDestination(aDestinationSiteName);
 end;
+
+procedure WatchdogSiteInfo(const aOutput: TStrings);
+var
+  fSite: TSite;
+  fSlot: TSiteSlot;
+  fTodo: String;
+  i: integer;
+begin
+  if sites = nil then
+    exit;
+
+  for i := 0 to sites.Count - 1 do
+  begin
+    fSite := TSite(sites.Items[i]);
+    if fSite = nil then
+      Continue;
+
+    try
+      aOutput.Add(Format('  site %-16s slots=%-3d free=%-3d up=%-3d dn=%-3d',
+        [fSite.Name, fSite.slots.Count, fSite.freeslots, fSite.num_up, fSite.num_dn]));
+    except
+      on e: Exception do
+      begin
+        aOutput.Add('  site <error reading state: ' + e.Message + '>');
+        Continue;
+      end;
+    end;
+
+    for fSlot in fSite.slots do
+    begin
+      try
+        if fSlot.ftodotask = nil then
+          fTodo := 'nil'
+        else
+          fTodo := fSlot.ftodotask.Name;
+
+        aOutput.Add(Format('    slot %-20s status=%-11s todo=%s up=%s dn=%s',
+          [fSlot.Name,
+           SlotStatusToString(fSlot.fstatus),
+           fTodo,
+           BoolToStr(fSlot.fuploadingto, True),
+           BoolToStr(fSlot.fdownloadingfrom, True)]));
+      except
+        on e: Exception do
+          aOutput.Add('    slot <error reading state: ' + e.Message + '>');
+      end;
+    end;
+  end;
+end;
+
+initialization
+  WatchdogRegisterInventory('sites', @WatchdogSiteInfo);
 
 end.

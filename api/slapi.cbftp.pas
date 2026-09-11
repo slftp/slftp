@@ -11,6 +11,9 @@ function HandleCbftpRequest(var Call: TRestUriParams): Boolean;
 { Check if cbftp integration is enabled }
 function IsCbftpEnabled: Boolean;
 
+{ Serve the public cbftp enabled response }
+procedure ServeCbftpEnabledResponse(var aCall: TRestUriParams);
+
 implementation
 
 uses
@@ -30,6 +33,16 @@ var
 begin
   s := LowerCase(config.ReadString('UDPConfig', 'EnableUDP', '0'));
   Result := (s = 'true') or (s = '1') or (s = 'yes');
+end;
+
+procedure ServeCbftpEnabledResponse(var aCall: TRestUriParams);
+begin
+  aCall.OutStatus := 200;
+  if IsCbftpEnabled then
+    aCall.OutBody := '{"enabled":true}'
+  else
+    aCall.OutBody := '{"enabled":false}';
+  aCall.OutHead := 'Content-Type: application/json';
 end;
 
 function GetCbftpClient: TCbftpClient;
@@ -131,12 +144,7 @@ begin
   path := ExtractCbftpPath(Call.Url);
   if (Call.Method = 'GET') and (path = '/enabled') then
   begin
-    Call.OutStatus := 200;
-    if IsCbftpEnabled then
-      Call.OutBody := '{"enabled":true}'
-    else
-      Call.OutBody := '{"enabled":false}';
-    Call.OutHead := 'Content-Type: application/json';
+    ServeCbftpEnabledResponse(Call);
     Exit(True);
   end;
 
