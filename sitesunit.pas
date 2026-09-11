@@ -1713,7 +1713,7 @@ begin
           if fTaskElapsedMs > 60000 then
           begin
             try
-              Debug(dpError, section, Format('[QUEUE-DIAG] RACE task took %d ms on %s: %s', [fTaskElapsedMs, Name, tname]));
+              Debug(dpSpam, section, Format('[QUEUE-DIAG] RACE task took %d ms on %s: %s', [fTaskElapsedMs, Name, tname]));
             except
               on E: Exception do
                 Debug(dpError, section, Format('[QUEUE-DIAG] RACE task took %d ms on %s: <name unreadable: %s>', [fTaskElapsedMs, Name, E.Message]));
@@ -4849,7 +4849,7 @@ begin
     so no other thread will touch it. }
   try
     if (fOldSiteSlot.todotask <> nil) and (fOldSiteSlot.todotask.ClassType = TWaitTask) then
-      Debug(dpError, section, Format('[QUEUE-DIAG] TSite.RebuildSlot rebuilding slot %d for %s with WAITTASK %s (threadrunning=%s)',
+      Debug(dpSpam, section, Format('[QUEUE-DIAG] TSite.RebuildSlot rebuilding slot %d for %s with WAITTASK %s (threadrunning=%s)',
         [aSlotNumber, self.Name, fOldSiteSlot.todotask.Name, BoolToStr(fOldSiteSlot.IsThreadRunning, True)]));
     fOldSiteSlot.Stop;
   except

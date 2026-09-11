@@ -3486,7 +3486,7 @@ begin
   if MilliSecondsBetween(fMethodEnd, fMethodStart) > 60000 then
   begin
     try
-      Debug(dpError, c_section, Format('[QUEUE-DIAG] RACE phases total=%dms ready=%dms transfer=%dms post=%dms on %s/%s: %s',
+      Debug(dpSpam, c_section, Format('[QUEUE-DIAG] RACE phases total=%dms ready=%dms transfer=%dms post=%dms on %s/%s: %s',
         [MilliSecondsBetween(fMethodEnd, fMethodStart),
          MilliSecondsBetween(fReadyStart, fMethodStart),
          MilliSecondsBetween(fTransferEnd, fReadyStart),
@@ -3892,7 +3892,7 @@ begin
     try
       DiagRecordWaitTaskDone(fElapsedMs, fSite1);
       if fElapsedMs > 60000 then
-        Debug(dpError, c_section, Format('[QUEUE-DIAG] WAITTASK woke after %d ms: site=%s wait_for=%s slot1=%p', [fElapsedMs, fSite1, fWaitFor, Pointer(ss)]));
+        Debug(dpSpam, c_section, Format('[QUEUE-DIAG] WAITTASK woke after %d ms: site=%s wait_for=%s slot1=%p', [fElapsedMs, fSite1, fWaitFor, Pointer(ss)]));
     except
       on E: Exception do
         Debug(dpError, c_section, Format('[EXCEPTION] TWaitTask.Execute diag stage (record done): %s', [E.Message]));

@@ -3161,7 +3161,7 @@ begin
 
   if tasks = nil then
   begin
-    Debug(dpError, section, Format('[QUEUE-DEBUG] site=%s tasks=nil', [fSiteName]));
+    Debug(dpSpam, section, Format('[QUEUE-DEBUG] site=%s tasks=nil', [fSiteName]));
     Exit;
   end;
 
@@ -3186,7 +3186,7 @@ begin
       except
         on E: Exception do
         begin
-          Debug(dpError, section, Format('[QUEUE-DEBUG] site=%s task #%d class check failed: %s', [fSiteName, i, E.Message]));
+          Debug(dpSpam, section, Format('[QUEUE-DEBUG] site=%s task #%d class check failed: %s', [fSiteName, i, E.Message]));
           Continue;
         end;
       end;
@@ -3201,7 +3201,7 @@ begin
             Inc(fRaceUnassigned);
         except
           on E: Exception do
-            Debug(dpError, section, Format('[QUEUE-DEBUG] site=%s race task #%d slot1 check failed: %s', [fSiteName, i, E.Message]));
+            Debug(dpSpam, section, Format('[QUEUE-DEBUG] site=%s race task #%d slot1 check failed: %s', [fSiteName, i, E.Message]));
         end;
         try
           if (fTask.assigned > 0) and (fTask.slot1 = nil) then
@@ -3219,7 +3219,7 @@ begin
           end;
         except
           on E: Exception do
-            Debug(dpError, section, Format('[QUEUE-DEBUG] site=%s race task #%d assigned check failed: %s', [fSiteName, i, E.Message]));
+            Debug(dpSpam, section, Format('[QUEUE-DEBUG] site=%s race task #%d assigned check failed: %s', [fSiteName, i, E.Message]));
         end;
       end
       else if fTask is TPazoDirlistTask then
@@ -3254,12 +3254,12 @@ begin
           end;
         except
           on E: Exception do
-            Debug(dpError, section, Format('[QUEUE-DEBUG] site=%s wait task #%d state check failed: %s', [fSiteName, i, E.Message]));
+            Debug(dpSpam, section, Format('[QUEUE-DEBUG] site=%s wait task #%d state check failed: %s', [fSiteName, i, E.Message]));
         end;
       end;
     except
       on E: Exception do
-        Debug(dpError, section, Format('[QUEUE-DEBUG] site=%s task #%d scan failed: %s', [fSiteName, i, E.Message]));
+        Debug(dpSpam, section, Format('[QUEUE-DEBUG] site=%s task #%d scan failed: %s', [fSiteName, i, E.Message]));
     end;
   end;
   finally
@@ -3293,7 +3293,7 @@ begin
               Inc(fSlotFree);
           except
             on E: Exception do
-              Debug(dpError, section, Format('[QUEUE-DEBUG] site=%s slot scan failed: %s', [fSiteName, E.Message]));
+              Debug(dpSpam, section, Format('[QUEUE-DEBUG] site=%s slot scan failed: %s', [fSiteName, E.Message]));
           end;
         end;
       finally
@@ -3301,7 +3301,7 @@ begin
       end;
     except
       on E: Exception do
-        Debug(dpError, section, Format('[QUEUE-DEBUG] site=%s slot scan lock failed: %s', [fSiteName, E.Message]));
+        Debug(dpSpam, section, Format('[QUEUE-DEBUG] site=%s slot scan lock failed: %s', [fSiteName, E.Message]));
     end;
   end;
 
@@ -3314,10 +3314,10 @@ begin
       fReport := fReport + Format(' oldest_wait=%ds:%s', [fOldestWaitAge, fOldestWaitName]);
     if fOldestRaceAge > 0 then
       fReport := fReport + Format(' oldest_unassigned_race=%ds:%s', [fOldestRaceAge, fOldestRaceName]);
-    Debug(dpError, section, fReport);
+    Debug(dpSpam, section, fReport);
   except
     on E: Exception do
-      Debug(dpError, section, Format('[QUEUE-DEBUG] site=%s report formatting failed: %s', [fSiteName, E.Message]));
+      Debug(dpSpam, section, Format('[QUEUE-DEBUG] site=%s report formatting failed: %s', [fSiteName, E.Message]));
   end;
 end;
 
@@ -3334,7 +3334,7 @@ begin
      fPerfAggAssign, fPerfAggQueueStat, fPerfAggIdleQuit,
      fPerfAggFindBestTaskCount, fPerfAggSuccessfulAssignments]);
 
-  Debug(dpError, section, '[QUEUE-PERF] ' + fLine);
+  Debug(dpSpam, section, '[QUEUE-PERF] ' + fLine);
 
   QueuePerfLogCS.Enter('PerfLog');
   try
