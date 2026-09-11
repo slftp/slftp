@@ -290,7 +290,7 @@ uses
   SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
   taskrace, mystrings, irc, sltcp, slhelper, Math, taskpretime, configunit,
   mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv,
-  mormot.core.base, mormot.core.unicode, mormot.net.sock, mycrypto;
+  mormot.core.base, mormot.core.unicode, mormot.core.os, mormot.net.sock, mycrypto;
 
 const
   section = 'pazo';
