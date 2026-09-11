@@ -363,9 +363,13 @@ end;
 
 procedure TIdThreadSafeInt32WithEvent.Decrease;
 begin
-  Decrement;
+  // Fire OnChange with the would-be value BEFORE decrementing: once the
+  // counter actually reaches 0 the kb thread considers the owning pazo
+  // taskless and may free it immediately, so the handler must run while the
+  // counter is still > 0.
   if (Assigned(OnChange)) then
-    OnChange(self, Value);
+    OnChange(self, Value - 1);
+  Decrement;
 end;
 
 function FindMostCompleteSite(pazo: TPazo): TPazoSite;

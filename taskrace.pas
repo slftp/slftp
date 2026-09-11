@@ -166,8 +166,6 @@ destructor TPazoTask.Destroy;
 begin
   if IsPazoAlive(mainpazo) then
   begin
-    mainpazo.queuenumber.Decrease;
-
     if ClassType = TPazoRaceTask then
     begin
       mainpazo.racetasks.Decrement;
@@ -189,6 +187,11 @@ begin
   end;
 
   inherited;
+
+  // Must stay the last access to mainpazo: once queuenumber reaches 0 the kb
+  // thread treats the pazo as taskless and may free it at any time.
+  if IsPazoAlive(mainpazo) then
+    mainpazo.queuenumber.Decrease;
 end;
 
 function TPazoTask.IsReadyToBeExecuted: boolean;
