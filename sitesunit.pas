@@ -1728,8 +1728,6 @@ begin
               except
                 on E: Exception do
                 begin
-                  // could not reset todotask with the slots assignment lock, but we should reset the todotask anyway.
-                  // This should not really ever happen, other than in a deadlock situation.
                   todotask := nil;
                   Debug(dpError, section,
                     Format('[EXCEPTION] TSiteSlot.Execute : Exception remove todotask with slots assignment lock. Proceed without the lock : %s',

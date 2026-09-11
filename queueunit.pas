@@ -811,9 +811,6 @@ begin
 
         if t.kill then
         begin
-          // Only use slot 0 for ghost kill to avoid disrupting active transfers
-          if i > 0 then
-            ss := nil;
           Break;
         end;
 
@@ -828,6 +825,7 @@ begin
     begin
       if t.kill then
       begin
+        Debug(dpError, section, 'GhostKill %s: no free slot found, ghost kill skipped', [t.site1]);
         if not t.noannounce then
           irc_Addtext(t, '<c4>Unable to kill ghosts on <b>%s</b>: all slots busy</c>', [t.site1]);
       end

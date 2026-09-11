@@ -143,7 +143,6 @@ type
     entries: TObjectDictionary<string, TDirListEntry>; //< contains the @link(TDirlistEntry) objects for the dirlist
     skipped: TStringList;
     dependency_mkdir: String;
-    mkdir_not_ready_retry_count: Integer; //< number of consecutive mkdir-not-ready retries; used for backoff throttling
 
     procedure Clear;
     constructor Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const aPazoSFV: TPazoSFV; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
@@ -439,7 +438,6 @@ begin
   error := False;
 
   need_mkdir := True;
-  mkdir_not_ready_retry_count := 0;
   FCachedCompleteResult := False;
   FHasNFO := False;
   FHasSFV := False;
@@ -819,7 +817,6 @@ begin
         if de.IsOnSite then
         begin
           need_mkdir := False;
-          mkdir_not_ready_retry_count := 0;
           break;
         end;
       end;
@@ -1672,9 +1669,7 @@ var
   i: Integer;
   de: TDirListEntry;
 begin
-
   allCdNumbers := '';
-
   biggestcd := 0;
 
   // find the biggest CD
