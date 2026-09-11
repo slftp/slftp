@@ -1825,9 +1825,9 @@ begin
                 // IMPORTANT: Set todotask := nil BEFORE clearing slot1.
                 // RemoveReady frees tasks where (ready/readyerror=True AND slot1=nil).
                 // If we clear slot1 first, RemoveReady can free the task while we still
-                // need fTodotask in SetTodotask (to read .Name and adjust freeslots).
+                // need fCurrentTask in SetTodotask (to read .Name and adjust freeslots).
                 // By clearing todotask first (while slot1 still prevents freeing), the
-                // SetTodotask call safely accesses fTodotask before it can be freed.
+                // SetTodotask call safely accesses fCurrentTask before it can be freed.
                 try
                   self.site.AcquireSlotsAssignmentLock('Reset TodoTask');
                   try
@@ -1858,13 +1858,6 @@ begin
                     Debug(dpError, section, Format('[WARNING] TSiteSlot.Execute: fCurrentTask.slot1 cleanup failed (dangling pointer?): %s', [E.Message]));
                   end;
                 end;
-              end;
-
-              // Now clear slot1 — this makes the task eligible for removal by RemoveReady.
-              // We no longer access fCurrentTask after this point.
-              if (fCurrentTask.slot1 <> nil) then
-              begin
-                fCurrentTask.slot1 := nil;
               end;
             end;
           except

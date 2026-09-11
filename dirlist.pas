@@ -149,7 +149,6 @@ type
     entries: TObjectDictionary<string, TDirListEntry>; //< contains the @link(TDirlistEntry) objects for the dirlist
     skipped: TStringList;
     dependency_mkdir: String;
-    mkdir_not_ready_retry_count: Integer; //< number of consecutive mkdir-not-ready retries; used for backoff throttling
 
     procedure Clear;
     constructor Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const aPazoSFV: TPazoSFV; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
@@ -450,7 +449,6 @@ begin
   first_dirlist_completed_at := 0;
   mkdir_started_at := 0;
   mkdir_unnecessary := False;
-  mkdir_not_ready_retry_count := 0;
   FCachedCompleteResult := False;
   FHasNFO := False;
   FHasSFV := False;
@@ -835,7 +833,6 @@ begin
       if need_mkdir then
       begin
         need_mkdir := False;
-        mkdir_not_ready_retry_count := 0;
         need_mkdir_cleared_at := Now();
         Debug(dpSpam, section, 'ParseDirlist cleared need_mkdir for %s (%d entries, dep=%s)', [FFullPath, entries.Count, dependency_mkdir]);
         DiagRecordNeedMkdirClear(MilliSecondsBetween(need_mkdir_cleared_at, first_dirlist_completed_at), site_name);
@@ -1694,9 +1691,7 @@ var
   i: Integer;
   de: TDirListEntry;
 begin
-
   allCdNumbers := '';
-
   biggestcd := 0;
 
   // find the biggest CD

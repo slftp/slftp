@@ -434,7 +434,7 @@ begin
     tvr.tv_url := UTF8Encode(WideString(js.Field['url'].Value));
 
     if js.Field['language'].SelfType <> jsNull then
-      tvr.tv_language := UTF8Encode(WideString(js.Field['language'].Value))
+      tvr.tv_language:=String(js.Field['language'].Value)
     else
       tvr.tv_language := 'unknown';
 

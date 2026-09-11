@@ -22,6 +22,13 @@ type
     function IsReadyToBeExecuted: boolean; override;
   end;
 
+  TPazoMkdirTask = class(TPazoTask)
+    dir: String;
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const aDependingOnDirlist: TDirList; const dir: String);
+    function Execute(slot: Pointer): boolean; override;
+    function Name: String; override;
+  end;
+
   TPazoDirlistTask = class(TPazoTask)
     dir: String;
     is_pre: boolean;
@@ -31,13 +38,6 @@ type
     function Name: String; override;
     function GetDirlistReaddValue(aSite: TPazoSite; aDirlist: TDirList): integer;
     function TryCreateMkdirFromFailedDirlist(aDirlist: TDirList): TPazoMkdirTask;
-  end;
-
-  TPazoMkdirTask = class(TPazoTask)
-    dir: String;
-    constructor Create(const netname, channel, site: String; pazo: TPazo; const aDependingOnDirlist: TDirList; const dir: String);
-    function Execute(slot: Pointer): boolean; override;
-    function Name: String; override;
   end;
 
   TWaitTask = class(TTask)
@@ -407,13 +407,6 @@ TryAgain:
             end;
             if (d = nil) Or (d.need_mkdir and not d.error) then
             begin
-              //we're too early, mkdir is not done yet ... the site is slow?
-              //continue to create a new dirlist task below
-              // note: deliberately no dirlist_lock here - a rare lost update
-              // against the locked resets is harmless for the backoff
-              if d <> nil then
-                Inc(d.mkdir_not_ready_retry_count);
-
               Debug(dpMessage, c_section, 'DIRLIST: mkdir not ready: ' + tname);
 
               // try to create MKDIR directly from the failed dirlist
@@ -803,14 +796,6 @@ begin
 
   baseValue := GetNewdirDirlistReaddLoadAdjustedValue(baseValue);
 
-  // linear backoff (base * retry_count, capped) for mkdir-not-ready
-  // retries to avoid 10ms retry storms
-  if (aDirlist <> nil) and (aDirlist.mkdir_not_ready_retry_count > 0) then
-  begin
-    Result := Min(baseValue * aDirlist.mkdir_not_ready_retry_count, 5000);
-    exit;
-  end;
-
   if (aSite <> nil) and (aDirlist <> nil) then
   begin
     secondsSinceLastChange := SecondsBetween(Now, aDirlist.LastChanged);
@@ -862,6 +847,9 @@ begin
 
   // Site must be allowed as a destination
   if not (ps1.status in [rssAllowed]) then
+    Exit;
+
+  if (not aDirlist.need_mkdir) or (aDirlist.error) or (aDirlist.dependency_mkdir <> '') then
     Exit;
 
   aDirlist.dirlist_lock.Enter('TPazoDirlistTask.TryCreateMkdirFromFailedDirlist');
@@ -1246,7 +1234,7 @@ begin
                 SlftpNewsAdd('FTP', Format('[RULES] Adding rule to DROP group <b>%s</b> on <b>%s</b>', [mainpazo.rls.groupname, site1]));
                 irc_Addadmin(Format('Adding rule to DROP group <b>%s</b> on <b>%s</b>', [mainpazo.rls.groupname, site1]));
                 rule_err := '';
-                AddRule(Format('%s %s if group = %s then DROP',[site1, mainpazo.rls.section, mainpazo.rls.groupname]), rule_err);
+                AddRule(Format('%s %s if group = %s then DROP',[site1, mainpazo.rls.section, mainpazo.rls.groupname]), rule_err, True);
               end;
             end;
             if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then

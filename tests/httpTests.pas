@@ -16,12 +16,14 @@ type
     procedure TestIMDBHTTPS;
     procedure TestBOMHTTPS;
     procedure TestTVMAZEHTTPS;
+    procedure TestHTTP404NoRetry;
+    procedure TestHTTP500NoRetry;
   end;
 
 implementation
 
 uses
-  SysUtils, StrUtils, http;
+  SysUtils, StrUtils, DateUtils, http;
 
 { TTestHTTP }
 
@@ -68,6 +70,40 @@ begin
   CheckNotEquals(0, Length(fHTML), 'Length of HTML code should be longer than 0');
   CheckTrue(ContainsText(fHTML, '{"id":64,"url":"https://www.tvmaze.com/shows/64/utopia","name":"Utopia",'), 'HTML content should include ID 64 - Utopia');
   CheckTrue(ContainsText(fHTML, '"country":{"name":"Australia","code":"AU"'), 'HTML content should include country Australia AU');
+end;
+
+procedure TTestHTTP.TestHTTP404NoRetry;
+var
+  Result: Boolean;
+  fURL, fHTML, fErrMsg: String;
+  fStart: TDateTime;
+  fElapsedMs: Int64;
+begin
+  fURL := 'https://mock.httpstatus.io/404';
+  fStart := Now;
+  Result := HttpGetUrl(fURL, fHTML, fErrMsg, 2);
+  fElapsedMs := MilliSecondsBetween(Now, fStart);
+
+  CheckFalse(Result, 'HTTP 404 should return False, not retry-then-succeed');
+  CheckTrue(ContainsText(fErrMsg, '404'), Format('Error message should mention 404 status, got: %s', [fErrMsg]));
+  CheckTrue(fElapsedMs < 5000, Format('404 should not trigger retries (took %d ms, expected < 5000 ms)', [fElapsedMs]));
+end;
+
+procedure TTestHTTP.TestHTTP500NoRetry;
+var
+  Result: Boolean;
+  fURL, fHTML, fErrMsg: String;
+  fStart: TDateTime;
+  fElapsedMs: Int64;
+begin
+  fURL := 'https://mock.httpstatus.io/500';
+  fStart := Now;
+  Result := HttpGetUrl(fURL, fHTML, fErrMsg, 2);
+  fElapsedMs := MilliSecondsBetween(Now, fStart);
+
+  CheckFalse(Result, 'HTTP 500 should return False, not retry-then-succeed (5xx is non-transient)');
+  CheckTrue(ContainsText(fErrMsg, '500'), Format('Error message should mention 500 status, got: %s', [fErrMsg]));
+  CheckTrue(fElapsedMs < 5000, Format('500 must not trigger retries (took %d ms, expected < 5000 ms). Regression: 5xx was retried and could return HTML body on success, masking server errors.', [fElapsedMs]));
 end;
 
 initialization
