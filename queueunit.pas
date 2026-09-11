@@ -50,10 +50,10 @@ type
 
   { Aggregated per-second performance counters. Flushed to QueuePerfLog
     when the second changes. }
-  fPerfSecond: QWord;
+  fPerfSecond: UInt64;
   fPerfIterCount: Integer;
   fPerfAggTotal, fPerfAggPhase5b, fPerfAggDelayed,
-  fPerfAggRemoveReady, fPerfAggAssign, fPerfAggQueueStat, fPerfAggIdleQuit: QWord;
+  fPerfAggRemoveReady, fPerfAggAssign, fPerfAggQueueStat, fPerfAggIdleQuit: UInt64;
   fPerfAggFindBestTaskCount, fPerfAggSuccessfulAssignments: Integer;
 
   { Exponential backoff for timer-based wakeups. When the thread wakes from
@@ -2000,8 +2000,8 @@ var
   fLastStep: String;
   { Timing variables for perf analysis }
   fTickTotal, fTickPhase5b, fTickDelayed, fTickRemoveReady,
-  fTickAssign, fTickQueueStat, fTickIdleQuit: QWord;
-  fTickStart, fTickSectionStart: QWord;
+  fTickAssign, fTickQueueStat, fTickIdleQuit: UInt64;
+  fTickStart, fTickSectionStart: UInt64;
   fFindBestTaskCount: Integer;
   fSuccessfulAssignments: Integer;
   fPerfLine: String;
