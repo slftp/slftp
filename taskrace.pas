@@ -755,8 +755,8 @@ begin
   if not (ps1.status in [rssAllowed]) then
     Exit;
 
-  // HARD GUARD: never create mkdir task without pretime when pretime lookup is enabled
-  if (GetPretimeMode <> plmNone) and (mainpazo.rls <> nil) and (mainpazo.rls.pretime = 0) then
+  // HARD GUARD: never create mkdir task without pretime when pretime lookup is enabled (requests / manual transfers bypass this)
+  if (not mainpazo.SkipPretimeCheck) and (GetPretimeMode <> plmNone) and (mainpazo.rls <> nil) and (mainpazo.rls.pretime = 0) then
   begin
     mainpazo.rls.SetPretime;
     if mainpazo.rls.pretime = 0 then

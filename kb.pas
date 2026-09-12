@@ -1661,6 +1661,7 @@ begin
       rc := FindSectionHandler(p.rls.section);
       rls := rc.Create(p.rls.rlsname, p.rls.section);
       p := PazoAdd(rls);
+      p.SkipPretimeCheck := True;
       kb_list.AddObject('INC-' + p.rls.rlsname, p);
     finally
       kb_lock.Leave;

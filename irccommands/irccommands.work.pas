@@ -722,6 +722,7 @@ begin
   rc := FindSectionHandler(srcdir); //srcdir is our "section"
   rls := rc.Create(rlsname, srcdir);
   p := PazoAdd(rls);
+  p.SkipPretimeCheck := True;
   //  pazo_id := p.pazo_id;
   AddPazoToKB('TRANSFER-' + IntToStr(RandomRange(10000000, 99999999)), p);
 

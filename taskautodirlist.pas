@@ -287,7 +287,9 @@ begin
 
       rc := FindSectionHandler(ss);
       rls := rc.Create(releasenametofind, ss);
+      rls.kb_event := kbeREQUEST;
       p := PazoAdd(rls);
+      p.IsRequest := True;
       AddPazoToKB(fKbKey, p);
       SetRequestFilled(fKbKey);
 

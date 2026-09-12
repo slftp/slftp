@@ -176,9 +176,14 @@ type
     lastannounceirc: String; //< last announce string for [STATS] after race
     lastannounceroutes: String; //< last announce string from @link(TPazo.RoutesText)
     FExcludeFromIncfiller: boolean; //< @true if the incomplete filler should ignore this TPazo (e.g. already handled once), @false otherwise.
+    FIsRequest: boolean; //< @true if this pazo represents a request-fill job, @false otherwise.
+    FSkipPretimeCheck: boolean; //< @true if pretime checks should be bypassed for this pazo, @false otherwise.
     FUniqueFileListOfRelease_cs: TSlCriticalSection2; //< Critical section for Add calls to @link(FUniqueFileListOfRelease)
     FUniqueFileListOfRelease: TDictionary<String, Int64>; //< Dictionary with files (including subdirs) and corresponding filesize (biggest value seen on any site) for this release, Key="dir + '/' + filename" and Value=filesize
     FPazoSFV: TPazoSFV;
+
+    function GetIsRequest: boolean;
+    function GetSkipPretimeCheck: boolean;
 
     { Creates/Updates the filesize for given subdir and filename combination
       @param(aDir Location of the file inside releasedir)
@@ -269,6 +274,8 @@ type
     function PFileSize(const aDir, aFilename: String): Int64;
 
     property ExcludeFromIncfiller: Boolean read FExcludeFromIncfiller write FExcludeFromIncfiller;
+    property IsRequest: Boolean read GetIsRequest write FIsRequest; //< @true if this pazo represents a request-fill job, @false otherwise
+    property SkipPretimeCheck: Boolean read GetSkipPretimeCheck write FSkipPretimeCheck; //< @true if pretime checks should be bypassed (e.g. requests, manual transfers), @false otherwise
     property PazoSFV: TPazoSFV read FPazoSFV;
   end;
 
@@ -468,8 +475,8 @@ begin
   // something's fucked
   if error then exit;
 
-  // HARD GUARD: never create mkdir or race tasks without pretime when pretime lookup is enabled
-  if (GetPretimeMode <> plmNone) and (pazo.rls <> nil) and (pazo.rls.pretime = 0) then
+  // HARD GUARD: never create mkdir or race tasks without pretime when pretime lookup is enabled (requests / manual transfers bypass this)
+  if (not pazo.SkipPretimeCheck) and (GetPretimeMode <> plmNone) and (pazo.rls <> nil) and (pazo.rls.pretime = 0) then
   begin
     pazo.rls.SetPretime;
     if pazo.rls.pretime = 0 then
@@ -1013,6 +1020,8 @@ begin
   self.cleared := False;
 
   FExcludeFromIncfiller := False;
+  FIsRequest := False;
+  FSkipPretimeCheck := False;
   if rls.IsSFVRelease then
     FPazoSFV := TPazoSFV.Create;
 
@@ -1040,6 +1049,16 @@ begin
   if FPazoSFV <> nil then FPazoSFV.Free;
 
   inherited;
+end;
+
+function TPazo.GetIsRequest: boolean;
+begin
+  Result := FIsRequest or ((rls <> nil) and ((rls.kb_event = kbeREQUEST) or (rls.section = 'REQUEST')));
+end;
+
+function TPazo.GetSkipPretimeCheck: boolean;
+begin
+  Result := FSkipPretimeCheck or GetIsRequest;
 end;
 
 function TPazo.FindSite(const sitename: String): TPazoSite;
