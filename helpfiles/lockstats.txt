@@ -1,0 +1,2 @@
+Displays a live summary of critical sections and locks, showing top locks by contention and wait/hold times.
+Syntax: lockstats [top_n] (default top 5)

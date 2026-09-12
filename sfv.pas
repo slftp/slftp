@@ -3,17 +3,17 @@ unit sfv;
 interface
 
 uses
-  Classes, Generics.Collections, SyncObjs;
+  Classes, Generics.Collections, SyncObjs, slcriticalsection2;
 
 type
   TPazoSFV = class
   private
-    FSFVList_cs: TCriticalSection;
+    FSFVList_cs: TSlCriticalSection2;
     FSFVList: TObjectDictionary<String, TDictionary<string, integer>>;
     FSFVDownloadRunning: boolean;
     FSFVFileType: string;
   public
-    constructor Create;
+    constructor Create(const aName: string = '');
     destructor Destroy; override;
     function RegisterSFV(const aDir: String): boolean; //< Try to register a SFV file. Returns true, if the SFV was registered, False if the SFV was already registered.
     function HasSFV(const aDir: String): boolean; //< Returns true, if an SFV file has been registered for the given dictionary.
@@ -29,9 +29,15 @@ uses SysUtils, mystrings, globals, debugunit;
 const
   section = 'sfv';
 
-constructor TPazoSFV.Create;
+constructor TPazoSFV.Create(const aName: string = '');
+var
+  fLockName: string;
 begin
-  self.FSFVList_cs := TCriticalSection.Create;
+  if aName <> '' then
+    fLockName := 'SFVList_' + aName
+  else
+    fLockName := 'SFVList_' + Format('%p', [Pointer(Self)]);
+  self.FSFVList_cs := TSlCriticalSection2.Create(fLockName);
   self.FSFVList := TObjectDictionary < String, TDictionary < string, integer >>.Create([doOwnsValues]);
 end;
 
@@ -43,7 +49,7 @@ end;
 
 function TPazoSFV.HasSFV(const aDir: String): boolean;
 begin
-  FSFVList_cs.Enter;
+  FSFVList_cs.Enter('TPazoSFV.HasSFV');
   try
     Result := FSFVList.ContainsKey(aDir) and (FSFVList[aDir] <> nil);
   finally
@@ -54,7 +60,7 @@ end;
 function TPazoSFV.RegisterSFV(const aDir: String): boolean;
 begin
   Result := False;
-  FSFVList_cs.Enter;
+  FSFVList_cs.Enter('TPazoSFV.RegisterSFV');
   try
     if not FSFVList.ContainsKey(aDir) then
     begin
@@ -73,7 +79,7 @@ begin
   begin
     if not FSFVDownloadRunning then
     begin
-      FSFVList_cs.Enter;
+      FSFVList_cs.Enter('TPazoSFV.SetSFVDownloadRunning');
       try
         if not FSFVDownloadRunning then
         begin
@@ -96,7 +102,7 @@ procedure TPazoSFV.SetSFVList(const aDir: string; const aFiles: TDictionary<stri
 var
   fExtension: String;
 begin
-  FSFVList_cs.Enter;
+  FSFVList_cs.Enter('TPazoSFV.SetSFVList');
   try
 
     if aFiles.Count = 0 then
@@ -151,7 +157,7 @@ begin
   else if FSFVFileType <> aExtension then
     exit;
 
-  FSFVList_cs.Enter;
+  FSFVList_cs.Enter('TPazoSFV.CheckSFV');
   try
     Result := not FSFVList.TryGetValue(aDir, fSFVFiles) or (fSFVFiles = nil) or fSFVFiles.ContainsKey(aFilename);
   finally

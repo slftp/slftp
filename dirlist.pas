@@ -236,7 +236,7 @@ const
 var
   image_files_priority: Integer; //< value for priority in dirlist sorter for image files from slftp.ini
   video_files_priority: Integer; //< value for priority in dirlist sorter for video files from slftp.ini
-  uid_lock: TCriticalSection;
+  uid_lock: TSlCriticalSection2;
   uidg: UInt64 = 1;
 {$I common.inc}
 
@@ -413,22 +413,14 @@ var
   sf: TSkipListFilter;
   uid: uint64;
 begin
-  if GetUseTimeoutLocking then
-  begin
-    uid_lock.Enter;
-    try
-      uid := uidg;
-      inc(uidg);
-    finally
-      uid_lock.Leave;
-    end;
-    dirlist_lock := TSlCriticalSection2.Create('dirlist_' + site_name + '_' + uid.ToString());
-  end
-  else
-  begin
-    // no need for a unique name if we do not use timeout locking
-    dirlist_lock := TSlCriticalSection2.Create('dirlist_create');
+  uid_lock.Enter('TDirList.Create');
+  try
+    uid := uidg;
+    inc(uidg);
+  finally
+    uid_lock.Leave;
   end;
+  dirlist_lock := TSlCriticalSection2.Create('dirlist_' + site_name + '_' + uid.ToString());
 
   biggestcd:= 0;
   error := False;
@@ -1701,7 +1693,7 @@ end;
 procedure DirlistInit;
 begin
   DirlistHelperInit;
-  uid_lock := TCriticalSection.Create;
+  uid_lock := TSlCriticalSection2.Create('dirlist_uid_lock');
 
   image_files_priority := config.ReadInteger('queue', 'image_files_priority', 2);
   if not (image_files_priority in [0..2]) then

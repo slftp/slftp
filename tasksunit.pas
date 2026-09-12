@@ -78,14 +78,14 @@ var
 
 implementation
 
-uses SysUtils, Contnrs, SyncObjs, debugunit, queueunit, sitesunit, configunit, notify, mrdohutils;
+uses SysUtils, Contnrs, SyncObjs, slcriticalsection2, debugunit, queueunit, sitesunit, configunit, notify, mrdohutils;
 
 const
   section = 'tasks';
 
 var
   uidg: UInt64 = 1;
-  uid_lock: TCriticalSection;
+  uid_lock: TSlCriticalSection2;
 
 constructor TTask.Create(const netname, channel, site1: String);
 begin
@@ -128,7 +128,7 @@ begin
       readyerror := True;
   end;
 
-  uid_lock.Enter;
+  uid_lock.Enter('TTask.Create');
   try
     uid := uidg;
     inc(uidg);
@@ -176,7 +176,7 @@ end;
 
 procedure Tasks_Init;
 begin
-  uid_lock := TCriticalSection.Create;
+  uid_lock := TSlCriticalSection2.Create('tasks_uid_lock');
   GlConvertFilenamesToLowercase := config.ReadBool('taskrace', 'convert_filenames_to_lowercase', True);
   GlTaskSiteNfoReaddAttempts := config.ReadInteger('tasksitenfo', 'readd_attempts', 5);
   GlTaskSiteNfoReaddInterval := config.ReadInteger('tasksitenfo', 'readd_interval', 3);

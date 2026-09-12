@@ -3,7 +3,7 @@ unit variantcache;
 interface
 
 uses
-  SysUtils, SyncObjs,
+  SysUtils, SyncObjs, slcriticalsection2,
 {$IFDEF FPC}
   fgl, Variants;
 {$ELSE}
@@ -21,7 +21,7 @@ type
   TVariantCache = class
   private
     FDict: TBaseVariantDict; //< Internal dictionary which stores the data - different for Delphi and FPC
-    FLock: TCriticalSection;
+    FLock: TSlCriticalSection2;
     procedure DoSetValue(const aKey: string; const aValue: Variant);
     function DoTryGetValue(const aKey: string; out aValue: Variant): Boolean;
   public
@@ -41,7 +41,7 @@ constructor TVariantCache.Create;
 begin
   inherited Create;
   FDict := TBaseVariantDict.Create;
-  FLock := TCriticalSection.Create;
+  FLock := TSlCriticalSection2.Create('VariantCache_' + Format('%p', [Pointer(Self)]));
 end;
 
 destructor TVariantCache.Destroy;
@@ -71,7 +71,7 @@ end;
 
 procedure TVariantCache.SetValue(const aKey: string; const aValue: Variant);
 begin
-  FLock.Enter;
+  FLock.Enter('TVariantCache.SetValue');
   try
     self.DoSetValue(aKey, aValue);
   finally
@@ -81,7 +81,7 @@ end;
 
 function TVariantCache.TryGetValue(const aKey: string; out aValue: Variant): Boolean;
 begin
-  FLock.Enter;
+  FLock.Enter('TVariantCache.TryGetValue');
   try
     Result := self.DoTryGetValue(aKey, aValue);
   finally
@@ -91,7 +91,7 @@ end;
 
 procedure TVariantCache.Delete(const aKey: string);
 begin
-  FLock.Enter;
+  FLock.Enter('TVariantCache.Delete');
   try
     FDict.Remove(aKey);
   finally

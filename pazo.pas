@@ -53,7 +53,7 @@ type
     cds: String;
     FDestinations: TList<TDestinationRank>; //< destination sites and ranks
     FActiveTransfers: TDictionary<string, string>; //< stores which files have an active tranfer to this destination site. Key: filepath, Value: source site
-    FActiveTransfersCS: TCriticalSection;
+    FActiveTransfersCS: TSlCriticalSection2;
     function Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>): boolean;
     function GetDirlistGaveUp: boolean;
     procedure SetDirlistGaveUp(const aGaveUp: boolean);
@@ -65,7 +65,7 @@ type
     Name: String; //< sitename
     maindir: String; //< sectiondir? TODO: debug real value
     pazo: TPazo; //< pazo where this TPazoSite belongs to
-    destinations_cs: TCriticalSection; //< Critical section to protect adding of values to @link(destinations)
+    destinations_cs: TSlCriticalSection2; //< Critical section to protect adding of values to @link(destinations)
     dirlist: TDirList;
 
     delay_leech: integer; //< value of delay for leeching from site in seconds
@@ -837,7 +837,7 @@ begin
 
   FExcludeFromIncfiller := False;
   if rls.IsSFVRelease then
-    FPazoSFV := TPazoSFV.Create;
+    FPazoSFV := TPazoSFV.Create(rls.Name + '_' + IntToStr(pazo_id));
 
   inherited Create;
 end;
@@ -1296,7 +1296,7 @@ begin
       if ps.error then
         exit;
 
-      destinations_cs.Enter;
+      destinations_cs.Enter('TPazoSite.AddDestination');
       try
         for fDestinationRank in destinations do
         begin
@@ -1332,6 +1332,7 @@ end;
 constructor TPazoSite.Create(const aParentPazo: TPazo; const aName, aMaindir: String; const aSite: TObject = nil);
 var
   fSite: TSite;
+  fPazoIdStr: string;
 begin
   inherited Create;
 
@@ -1345,13 +1346,18 @@ begin
   Name := aName;
 
   FActiveTransfers := TDictionary<string, string>.Create(GetCaseInsensitveStringComparer);
-  FActiveTransfersCS := TCriticalSection.Create;
+  if pazo <> nil then
+    fPazoIdStr := IntToStr(pazo.pazo_id)
+  else
+    fPazoIdStr := Format('%p', [Pointer(Self)]);
+
+  FActiveTransfersCS := TSlCriticalSection2.Create('ActiveTransfers_' + Name + '_' + fPazoIdStr);
   ts := 0;
   firesourcesinstead := False;
   badcrcevents := 0;
 
   FDestinations := TList<TDestinationRank>.Create(TComparer<TDestinationRank>.Construct(_CompareDestinationRanks));
-  destinations_cs := TCriticalSection.Create;
+  destinations_cs := TSlCriticalSection2.Create('Destinations_' + Name + '_' + fPazoIdStr);
 
   dirlist := TDirlist.Create(Name, nil, pazo.sl, pazo.FPazoSFV);
   if dirlist <> nil then
@@ -2059,12 +2065,17 @@ end;
 
 function TPazoSite.GetActiveTransferCount;
 begin
-  Result := FActiveTransfers.Count;
+  FActiveTransfersCS.Enter('TPazoSite.GetActiveTransferCount');
+  try
+    Result := FActiveTransfers.Count;
+  finally
+    FActiveTransfersCS.Leave;
+  end;
 end;
 
 procedure TPazoSite.RemoveActiveTransfer(const aFilepath: String);
 begin
-  FActiveTransfersCS.Enter;
+  FActiveTransfersCS.Enter('TPazoSite.RemoveActiveTransfer');
   try
     try
       FActiveTransfers.Remove(aFilepath);
@@ -2081,7 +2092,7 @@ end;
 
 function TPazoSite.HasActiveTransfer(const aFilepath: String): boolean;
 begin
-  FActiveTransfersCS.Enter;
+  FActiveTransfersCS.Enter('TPazoSite.HasActiveTransfer');
   try
     Result := FActiveTransfers.ContainsKey(aFilepath);
   finally
@@ -2093,7 +2104,7 @@ function TPazoSite.HasActiveTransfer(const aFilepath, aSourceSite: String): bool
 var
   fSourceSiteName: string;
 begin
-  FActiveTransfersCS.Enter;
+  FActiveTransfersCS.Enter('TPazoSite.HasActiveTransfer2');
   try
     Result := FActiveTransfers.TryGetValue(aFilepath, fSourceSiteName) and (fSourceSiteName = aSourceSite);
   finally
@@ -2103,7 +2114,7 @@ end;
 
 procedure TPazoSite.AddActiveTransfer(const aFilepath, aSourceSite: String);
 begin
-  FActiveTransfersCS.Enter;
+  FActiveTransfersCS.Enter('TPazoSite.AddActiveTransfer');
   try
     if not FActiveTransfers.TryAdd(aFilepath, aSourceSite) then
     begin
