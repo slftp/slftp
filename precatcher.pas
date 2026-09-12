@@ -298,83 +298,84 @@ var
 begin
   if aIrcMicroSec = 0 then
     QueryPerformanceMicroSeconds(aIrcMicroSec);
-  precatcher_lock.Enter('ProcessReleaseVege');
-  try
-    event := KBEventTypeToString(kb_event);
-    MyDebug('ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]);
-    Debug(dpSpam, rsections, Format('--> ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]));
 
-    if (kb_event <> kbeREQUEST) then
+  event := KBEventTypeToString(kb_event);
+  MyDebug('ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]);
+  Debug(dpSpam, rsections, Format('--> ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]));
+
+  if (kb_event <> kbeREQUEST) then
+  begin
+
+    if CheckIfGlobalSkippedGroup(rls) then
     begin
-
-      if CheckIfGlobalSkippedGroup(rls) then
-      begin
-        MyDebug('<c4>[GLOBAL SKIPPED GROUP]</c> detected!: ' + rls);
-        Debug(dpSpam, rsections, 'Global skipped group detected!: ' + rls);
-        if ((not precatcher_debug) and (spamcfg.ReadBool('precatcher', 'global_skip_group', True))) then
-          irc_addadmin('<b><c14>Info</c></b>: Global skipped group detected!: ' + rls);
-        skiprlses.Add(rls);
-        exit;
-      end;
-
-    end;
-
-    // removing double spaces
-    s := ts_data.DelimitedText;
-
-    MyDebug('Cleaned up line with rlsname: %s', [s]);
-    Debug(dpSpam, rsections, 'Cleaned up line with rlsname: %s', [s]);
-    s := ' ' + s + ' ';
-
-    if section = '' then
-    begin
-      section := FindSection(s);
-    end;
-    MyDebug('Section: %s', [section]);
-
-    if section <> 'REQUEST' then
-    begin
-
-      oldsection := section;
+      MyDebug('<c4>[GLOBAL SKIPPED GROUP]</c> detected!: ' + rls);
+      Debug(dpSpam, rsections, 'Global skipped group detected!: ' + rls);
+      if ((not precatcher_debug) and (spamcfg.ReadBool('precatcher', 'global_skip_group', True))) then
+        irc_addadmin('<b><c14>Info</c></b>: Global skipped group detected!: ' + rls);
+      precatcher_lock.Enter('skiprlses.Add');
       try
-        section := PrecatcherSectionMapping(rls, section);
-      except
-        on e: Exception do
-        begin
-          section := '';
-          Debug(dpError, rsections, Format('[EXCEPTION] PrecatcherSectionMapping: %s', [e.Message]));
-        end;
+        skiprlses.Add(rls);
+      finally
+        precatcher_lock.Leave;
       end;
-    end;
-
-    if oldsection <> section then
-    begin
-      MyDebug('Mapped section: %s', [section]);
-      Debug(dpSpam, rsections, 'Mapped section: %s', [section]);
-    end;
-
-    if ((section = '') and (not (kb_event in [kbeCOMPLETE, kbeNUKE]))) then
-    begin
-      irc_Addadmin('<c14><b>Info</c></b>: Section on %s for %s was not found. Add Sectionname to slftp.precatcher under [sections] and/or [mappings].', [sitename, rls]);
-      MyDebug('No section?! ' + sitename + '@' + rls);
       exit;
     end;
 
-    genre := '';
-    if ((kb_event <> kbeNEWDIR) and (FindSectionHandler(section).Name = 'TMP3Release')) then
-    begin
-      // TODO: add an extra event for GENRE and/or do a proper way of parsing genre
+  end;
 
-      // removes rlsname from irc line to avoid detecting genre Noise for e.g. Systemic_Noise_-_Show_Me-(FU122)-WEB-2018-ZzZz
-      genre := TryToExtractMP3GenreFromSitebotAnnounce(StringReplace(s, rls, '', [rfReplaceAll, rfIgnoreCase]));
-      if genre <> '' then
+  // removing double spaces
+  s := ts_data.DelimitedText;
+
+  MyDebug('Cleaned up line with rlsname: %s', [s]);
+  Debug(dpSpam, rsections, 'Cleaned up line with rlsname: %s', [s]);
+  s := ' ' + s + ' ';
+
+  if section = '' then
+  begin
+    section := FindSection(s);
+  end;
+  MyDebug('Section: %s', [section]);
+
+  if section <> 'REQUEST' then
+  begin
+
+    oldsection := section;
+    try
+      section := PrecatcherSectionMapping(rls, section);
+    except
+      on e: Exception do
       begin
-        MyDebug('Genre: %s', [genre]);
-        Debug(dpSpam, rsections, Format('Genre found via IRC announce: %s', [genre]));
+        section := '';
+        Debug(dpError, rsections, Format('[EXCEPTION] PrecatcherSectionMapping: %s', [e.Message]));
       end;
     end;
-  finally
-    precatcher_lock.Leave;
+  end;
+
+  if oldsection <> section then
+  begin
+    MyDebug('Mapped section: %s', [section]);
+    Debug(dpSpam, rsections, 'Mapped section: %s', [section]);
+  end;
+
+  if ((section = '') and (not (kb_event in [kbeCOMPLETE, kbeNUKE]))) then
+  begin
+    irc_Addadmin('<c14><b>Info</c></b>: Section on %s for %s was not found. Add Sectionname to slftp.precatcher under [sections] and/or [mappings].', [sitename, rls]);
+    MyDebug('No section?! ' + sitename + '@' + rls);
+    exit;
+  end;
+
+  genre := '';
+  if ((kb_event <> kbeNEWDIR) and (FindSectionHandler(section).Name = 'TMP3Release')) then
+  begin
+    // TODO: add an extra event for GENRE and/or do a proper way of parsing genre
+
+    // removes rlsname from irc line to avoid detecting genre Noise for e.g. Systemic_Noise_-_Show_Me-(FU122)-WEB-2018-ZzZz
+    genre := TryToExtractMP3GenreFromSitebotAnnounce(StringReplace(s, rls, '', [rfReplaceAll, rfIgnoreCase]));
+    if genre <> '' then
+    begin
+      MyDebug('Genre: %s', [genre]);
+      Debug(dpSpam, rsections, Format('Genre found via IRC announce: %s', [genre]));
+    end;
   end;
 
   MyDebug('Event: %s', [event]);
@@ -410,6 +411,7 @@ var
   rls, s: String;
   fRequestDirlistTask: TAutoDirlistTask;
   fIrcMicroSec: Int64;
+  fIsSkipped: boolean;
 begin
   MyDebug('Process %s %s %s %s', [net, chan, nick, Data]);
 
@@ -494,10 +496,17 @@ begin
         exit;
       end;
 
-      if (skiprlses.IndexOf(rls) <> -1) then
+      fIsSkipped := False;
+      precatcher_lock.Enter('skiprlses.IndexOf');
+      try
+        fIsSkipped := (skiprlses.IndexOf(rls) <> -1);
+      finally
+        precatcher_lock.Leave;
+      end;
+      if fIsSkipped then
       begin
         MyDebug('Release found in SkipRlses ...');
-        Debug(dpSpam, rsections, Format('Release %s found in SkipRlses (%s) ...', [rls, skiprlses.ValueFromIndex[skiprlses.IndexOf(rls)]]));
+        Debug(dpSpam, rsections, Format('Release %s found in SkipRlses ...', [rls]));
         exit;
       end;
 

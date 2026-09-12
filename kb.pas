@@ -86,7 +86,7 @@ const
 var
   addpreechocmd: String;
   kb_last_saved: TDateTime;
-  kb_list: TStringList;
+  kb_list: TDictionary<String, TPazo>;
   kb_lock: TSLCriticalSection2;
 
   // TODO: Using THashedStringList does fuckup cleaning because it does not have a constant index which is used to delete oldest (latest) entries
@@ -213,6 +213,7 @@ var
   fDirlistSites: String;
   fDirlistCount: Integer;
   sTiming: String;
+  fIsNew: boolean;
 
   { Removes the oldest knowledge base entries }
   procedure KbListsCleanUp;
@@ -439,203 +440,193 @@ begin
     kb_lock.Leave;
   end;
 
+  fIsNew := False;
+  p := nil;
   kb_lock.Enter('kb_AddB_2');
   try
-    i := kb_list.IndexOf(section + '-' + rls);
-    if i = -1 then
+    if not kb_list.TryGetValue(section + '-' + rls, p) then
     begin
-      if (event = kbeNUKE) then
+      if (event = kbeNUKE) or (event = kbeCOMPLETE) then
       begin
-        // nuking an old rls not in kb
-        irc_Addstats(Format('<c4>[NUKE]</c> %s %s @ %s (not in kb)',
-          [section, rls, '<b>' + sitename + '</b>']));
-        exit;
-      end;
-
-      if (event = kbeCOMPLETE) then
-      begin
-        // complet an old rls not in kb
-        irc_Addstats(Format('<c7>[COMPLETE]</c> %s %s @ %s (not in kb)',
-          [section, rls, '<b>' + sitename + '</b>']));
-        exit;
-      end;
-
-      debug(dpSpam, rsections,
-        'This NEWDIR [event: %s] task for %s (%s) was the first one to hit kb - checking eljut etc',
-        [KBEventTypeToString(event), rls, section]);
-
-      // uj joveveny!
-      rc := FindSectionHandler(section);
-      if (event = kbePRE) then
-      begin
-        // no fakecheck needed, it's a pre from one of our sites
-        r := rc.Create(rls, section, False, DateTimeToUnix(Now(), False));
-        irc_SendAddPre(format('%s %s %s', [addpreechocmd, rls, section]));
-        if TPretimeLookupMOde(taskpretime_mode) = plmSQLITE then
-        begin
-          try
-            dbaddpre_InsertRlz(rls, section, 'SITE-' + sitename, True);
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, rsections, 'dbaddpre_InsertRlz error : %s', [e.Message]);
-            end;
-          end;
-        end;
-      end
-      else if (event = kbeSPREAD) then
-      begin
-        r := rc.Create(rls, section, False, DateTimeToUnix(Now(), False));
+        // old rls not in kb, do nothing in lock
       end
       else
       begin
-        r := rc.Create(rls, section);
-      end;
-
-      r.kb_event := event;
-
-      if genre <> '' then
-      begin
-        try
-          r.Aktualizald(genre);
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, rsections, 'r.Aktualizald(genre) : %s', [e.Message]);
-          end;
-        end;
-      end;
-
-      p := PazoAdd(r);
-
-      // need to search all sites where there is such a section ...
-      p.AddSites;
-
-      // If pretime is 0 and a specific site announced, add this source site to pazo so it can start dirlisting early
-      if (r.pretime = 0) and (sitename <> '') and (sitename <> getAdminSiteName) then
-      begin
-        p.AddSite(sitename);
-        p.RecordEarlyAnnounce(sitename);
-        Inc(GlEarlyAnnouncesTotal);
-        Inc(GlEarlyAnnounceReleasesTotal);
-      end;
-
-      kb_list.BeginUpdate;
-      try
-        kb_list.AddObject(section + '-' + rls, p);
-      finally
-        kb_list.EndUpdate;
-      end;
-
-      // announce event on admin chan
-      if (event = kbeADDPRE) then
-      begin
-        if spamcfg.ReadBool('kb', 'new_rls', True) then
-          irc_Addstats(Format('<c3>[ADDPRE]</c> %s %s @ <b>%s</b>', [section, rls, channel]));
-      end
-      else if (event = kbePRE) then
-      begin
-        if spamcfg.ReadBool('kb', 'pre_rls', True) then
-          irc_Addstats(Format('<c9>[<b>PRE</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
-      end
-      else if (event = kbeSPREAD) then
-      begin
-        if spamcfg.ReadBool('kb', 'spread_rls', True) then
-          irc_Addstats(Format('<c9>[<b>SPREAD</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
-      end
-      else
-      begin
-        if (r.pretime = 0) then
-        begin
-          if TPretimeLookupMOde(taskpretime_mode) = plmNone then
-          begin
-            if spamcfg.ReadBool('kb', 'new_rls', True) then
-              irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b>', [section, rls, sitename]));
-          end
-          else
-          begin
-            if spamcfg.ReadBool('kb', 'new_rls', True) then
-              irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<c7><b>Not found in PreDB</b></c>)', [section, rls, sitename]));
-
-            if GlTaskPretimeReaddAttempts > 0 then
-            begin
-              fPreTimeLookupTask := TPazoPretimeLookupTask.Create(netname, channel, getadminsitename, p, 1);
-              fPreTimeLookupTask.startat := IncSecond(Now, GlTaskPretimeReaddInterval);
-              AddTask(fPreTimeLookupTask);
-            end;
-          end;
-        end
+        fIsNew := True;
+        rc := FindSectionHandler(section);
+        if (event in [kbePRE, kbeSPREAD]) then
+          r := rc.Create(rls, section, False, DateTimeToUnix(Now(), False))
         else
-        begin
-          if spamcfg.ReadBool('kb', 'new_rls', True) then
-            irc_Addstats(Format('<c3>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<b>%s</b>) (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, p.sl.sectionname, dbaddpre_GetPreduration(r.pretime), r.PretimeSource]));
-        end;
-      end;
-    end
-    else
-    begin
-      if (event = kbePRE) then
-      begin
-        if spamcfg.ReadBool('kb', 'pre_rls', True) then
-          irc_Addstats(Format('<c9>[<b>PRE</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
-      end;
-
-      // meg kell tudni mi valtozott //you need to know what's changed
-      p := TPazo(kb_list.Objects[i]);
-      r := p.rls;
-
-      debug(dpSpam, rsections,
-        'This NEWDIR [event: %s] task was not the first one to hit kb as kb_list already contained an entry for %s in %s',
-        [KBEventTypeToString(event), rls, section]);
-
-      if r.rlsname <> rls then
-      begin
-        irc_addadmin(Format('<b><c4>%s</c> @ %s changed case!</b>!!', [rls,
-          sitename]));
-        exit;
-      end;
-
-      if genre <> '' then
-      begin
-        try
-          p.rls.Aktualizald(genre);
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, rsections, 'p.rls.Aktualizald(genre) : %s',
-              [e.Message]);
-          end;
-        end;
-      end;
-
-      if (event <> kbeSPREAD) and (TPretimeLookupMOde(taskpretime_mode) <> plmNone) then
-      begin
-        if (r.pretime = 0) then
-        begin
-          r.SetPretime;
-          if (r.pretime <> 0) then
-          begin
-            if spamcfg.ReadBool('kb', 'updated_rls', True) then
-              irc_SendUPDATE(Format('<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, dbaddpre_GetPreduration(r.pretime), r.PretimeSource]));
-            p.AddSites;
-            p.RecordPretimeArrived;
-            Inc(GlEarlyAnnounceResolvedCount);
-          end
-          else
-          begin
-            // Still no pretime, but this site announced! Add it as early source site
-            if (sitename <> '') and (sitename <> getAdminSiteName) then
-            begin
-              p.AddSite(sitename);
-              p.RecordEarlyAnnounce(sitename);
-              Inc(GlEarlyAnnouncesTotal);
-            end;
-          end;
-        end;
+          r := rc.Create(rls, section);
+        r.kb_event := event;
+        p := PazoAdd(r);
+        kb_list.Add(section + '-' + rls, p);
       end;
     end;
   finally
     kb_lock.Leave;
+  end;
+
+  if (p = nil) and not fIsNew then
+  begin
+    if (event = kbeNUKE) then
+      irc_Addstats(Format('<c4>[NUKE]</c> %s %s @ %s (not in kb)',
+        [section, rls, '<b>' + sitename + '</b>']))
+    else if (event = kbeCOMPLETE) then
+      irc_Addstats(Format('<c7>[COMPLETE]</c> %s %s @ %s (not in kb)',
+        [section, rls, '<b>' + sitename + '</b>']));
+    exit;
+  end;
+
+  if fIsNew then
+  begin
+    debug(dpSpam, rsections,
+      'This NEWDIR [event: %s] task for %s (%s) was the first one to hit kb - checking eljut etc',
+      [KBEventTypeToString(event), rls, section]);
+
+    if (event = kbePRE) then
+    begin
+      irc_SendAddPre(format('%s %s %s', [addpreechocmd, rls, section]));
+      if TPretimeLookupMOde(taskpretime_mode) = plmSQLITE then
+      begin
+        try
+          dbaddpre_InsertRlz(rls, section, 'SITE-' + sitename, True);
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, rsections, 'dbaddpre_InsertRlz error : %s', [e.Message]);
+          end;
+        end;
+      end;
+    end;
+
+    if genre <> '' then
+    begin
+      try
+        r.Aktualizald(genre);
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, rsections, 'r.Aktualizald(genre) : %s', [e.Message]);
+        end;
+      end;
+    end;
+
+    // need to search all sites where there is such a section ...
+    p.AddSites;
+
+    // If pretime is 0 and a specific site announced, add this source site to pazo so it can start dirlisting early
+    if (r.pretime = 0) and (sitename <> '') and (sitename <> getAdminSiteName) then
+    begin
+      p.AddSite(sitename);
+      p.RecordEarlyAnnounce(sitename);
+      Inc(GlEarlyAnnouncesTotal);
+      Inc(GlEarlyAnnounceReleasesTotal);
+    end;
+
+    // announce event on admin chan
+    if (event = kbeADDPRE) then
+    begin
+      if spamcfg.ReadBool('kb', 'new_rls', True) then
+        irc_Addstats(Format('<c3>[ADDPRE]</c> %s %s @ <b>%s</b>', [section, rls, channel]));
+    end
+    else if (event = kbePRE) then
+    begin
+      if spamcfg.ReadBool('kb', 'pre_rls', True) then
+        irc_Addstats(Format('<c9>[<b>PRE</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
+    end
+    else if (event = kbeSPREAD) then
+    begin
+      if spamcfg.ReadBool('kb', 'spread_rls', True) then
+        irc_Addstats(Format('<c9>[<b>SPREAD</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
+    end
+    else
+    begin
+      if (r.pretime = 0) then
+      begin
+        if TPretimeLookupMOde(taskpretime_mode) = plmNone then
+        begin
+          if spamcfg.ReadBool('kb', 'new_rls', True) then
+            irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b>', [section, rls, sitename]));
+        end
+        else
+        begin
+          if spamcfg.ReadBool('kb', 'new_rls', True) then
+            irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<c7><b>Not found in PreDB</b></c>)', [section, rls, sitename]));
+
+          if GlTaskPretimeReaddAttempts > 0 then
+          begin
+            fPreTimeLookupTask := TPazoPretimeLookupTask.Create(netname, channel, getadminsitename, p, 1);
+            fPreTimeLookupTask.startat := IncSecond(Now, GlTaskPretimeReaddInterval);
+            AddTask(fPreTimeLookupTask);
+          end;
+        end;
+      end
+      else
+      begin
+        if spamcfg.ReadBool('kb', 'new_rls', True) then
+          irc_Addstats(Format('<c3>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<b>%s</b>) (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, p.sl.sectionname, dbaddpre_GetPreduration(r.pretime), r.PretimeSource]));
+      end;
+    end;
+  end
+  else
+  begin
+    if (event = kbePRE) then
+    begin
+      if spamcfg.ReadBool('kb', 'pre_rls', True) then
+        irc_Addstats(Format('<c9>[<b>PRE</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
+    end;
+
+    // meg kell tudni mi valtozott //you need to know what's changed
+    r := p.rls;
+
+    debug(dpSpam, rsections,
+      'This NEWDIR [event: %s] task was not the first one to hit kb as kb_list already contained an entry for %s in %s',
+      [KBEventTypeToString(event), rls, section]);
+
+    if r.rlsname <> rls then
+    begin
+      irc_addadmin(Format('<b><c4>%s</c> @ %s changed case!</b>!!', [rls, sitename]));
+      exit;
+    end;
+
+    if genre <> '' then
+    begin
+      try
+        p.rls.Aktualizald(genre);
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, rsections, 'p.rls.Aktualizald(genre) : %s', [e.Message]);
+        end;
+      end;
+    end;
+
+    if (event <> kbeSPREAD) and (TPretimeLookupMOde(taskpretime_mode) <> plmNone) then
+    begin
+      if (r.pretime = 0) then
+      begin
+        r.SetPretime;
+        if (r.pretime <> 0) then
+        begin
+          if spamcfg.ReadBool('kb', 'updated_rls', True) then
+            irc_SendUPDATE(Format('<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, dbaddpre_GetPreduration(r.pretime), r.PretimeSource]));
+          p.AddSites;
+          p.RecordPretimeArrived;
+          Inc(GlEarlyAnnounceResolvedCount);
+        end
+        else
+        begin
+          // Still no pretime, but this site announced! Add it as early source site
+          if (sitename <> '') and (sitename <> getAdminSiteName) then
+          begin
+            p.AddSite(sitename);
+            p.RecordEarlyAnnounce(sitename);
+            Inc(GlEarlyAnnouncesTotal);
+          end;
+        end;
+      end;
+    end;
   end;
 
   Result := p.pazo_id;
@@ -772,13 +763,8 @@ begin
   // implement firerules, routes, stb. set rs.srcsite:= rss.sitename;
   if (not (event in [kbeNUKE, kbeADDPRE])) then
   begin
-    kb_lock.Enter('kb_AddB_3');
-    try
-      rule_result := raDrop;
-      rule_result := FireRuleSet(p, psource);
-    finally
-      kb_lock.Leave;
-    end;
+    rule_result := raDrop;
+    rule_result := FireRuleSet(p, psource);
 
     // announce SKIP and DONT MATCH only if the site is not a PRE site
     if (psource <> nil) and (psource.status <> rssRealPre) then
@@ -808,17 +794,12 @@ begin
         Break;
       end;
       ps := TPazoSite(p.PazoSitesList[i]);
-      kb_lock.Enter('kb_AddB_4');
-      try
-        if (ps.status in [rssNotAllowed, rssNotAllowedButItsThere]) then
+      if (ps.status in [rssNotAllowed, rssNotAllowedButItsThere]) then
+      begin
+        if FireRuleSet(p, ps) = raAllow then
         begin
-          if FireRuleSet(p, ps) = raAllow then
-          begin
-            ps.status := rssAllowed;
-          end;
+          ps.status := rssAllowed;
         end;
-      finally
-        kb_lock.Leave;
       end;
     end;
     QueryPerformanceMicroSeconds(t_rules1_stop);
@@ -835,12 +816,7 @@ begin
         Break;
       end;
       ps := TPazoSite(p.PazoSitesList[i]);
-      kb_lock.Enter('kb_AddB_5');
-      try
-        FireRules(p, ps);
-      finally
-        kb_lock.Leave;
-      end;
+      FireRules(p, ps);
     end;
     QueryPerformanceMicroSeconds(t_rules2_stop);
     t_rules2_us := t_rules2_stop - t_rules2_start;
@@ -1057,16 +1033,16 @@ end;
 
 function FindReleaseInKbList(const rls: String): String;
 var
-  i: integer;
+  fKey: String;
 begin
   Result := '';
   kb_lock.Enter('FindReleaseInKbList ' + rls);
   try
-    for i := 0 to kb_list.Count - 1 do
+    for fKey in kb_list.Keys do
     begin
-      if AnsiContainsText(kb_list[i], rls) then
+      if AnsiContainsText(fKey, rls) then
       begin
-        Result := kb_list[i];
+        Result := fKey;
         break;
       end;
     end;
@@ -1094,29 +1070,18 @@ end;
 
 function FindPazoByRls(const rlsname: String): TPazo;
 var
-  i: integer;
   p: TPazo;
 begin
   Result := nil;
   kb_lock.Enter('FindPazoByRls');
   try
     try
-      for i := kb_list.Count - 1 downto 0 do
+      for p in kb_list.Values do
       begin
-        if i < 0 then
-          Break;
-
-        p := TPazo(kb_list.Objects[i]);
-
-        if p = nil then
-          Continue;
-
-        if p.rls = nil then
-          Continue;
-
-        if (p.rls.rlsname = rlsname) then
+        if (p <> nil) and (p.rls <> nil) and (p.rls.rlsname = rlsname) then
         begin
           Result := p;
+          Break;
         end;
       end;
     except
@@ -1133,26 +1098,21 @@ end;
 
 function FindPazoById(const id: integer): TPazo;
 var
-  i: integer;
   p: TPazo;
 begin
   Result := nil;
   kb_lock.Enter('FindPazoById');
   try
     try
-      for i := kb_list.Count - 1 downto 0 do
+      for p in kb_list.Values do
       begin
-        if i < 0 then
-            Break;
-
-        p := TPazo(kb_list.Objects[i]);
         if p = nil then
-          exit;
+          Continue;
         if p.pazo_id = id then
         begin
           Result := p;
           p.lastTouch := Now();
-          exit;
+          Break;
         end;
       end;
     except
@@ -1168,29 +1128,19 @@ begin
 end;
 
 function FindPazoByKey(const aKey: String): TPazo;
-var
-  i: integer;
 begin
   Result := nil;
   kb_lock.Enter('FindPazoByKey');
   try
     try
-      i := kb_list.IndexOf(aKey);
-      if i <> -1 then
-      begin
-        Result := TPazo(kb_list.Objects[i]);
-
-        if Result <> nil then
-          Result.lastTouch := Now;
-
-        exit;
-      end;
+      if kb_list.TryGetValue(aKey, Result) and (Result <> nil) then
+        Result.lastTouch := Now;
     except
-     on E: Exception do
-     begin
-       Debug(dpError, 'kb', Format('[EXCEPTION] FindPazoByKey: %s', [e.Message]));
-       Result := nil;
-     end;
+      on E: Exception do
+      begin
+        Debug(dpError, 'kb', Format('[EXCEPTION] FindPazoByKey: %s', [e.Message]));
+        Result := nil;
+      end;
     end;
   finally
      kb_lock.Leave;
@@ -1206,7 +1156,7 @@ procedure AddPazoToKB(const aKey: String; const aPazo: TPazo);
 begin
   kb_lock.Enter('AddPazoToKB');
   try
-    kb_list.AddObject(aKey, aPazo);
+    kb_list.AddOrSetValue(aKey, aPazo);
   finally
     kb_lock.Leave;
   end;
@@ -1214,19 +1164,18 @@ end;
 
 procedure ListKBToIRC(const netname, channel, section: string; const hits: integer);
 var
-  db, i: integer;
+  db: integer;
   p: TPazo;
 begin
   kb_lock.Enter('ListKBToIRC');
   try
     db := 0;
-    for i := kb_list.Count - 1 downto 0 do
+    for p in kb_list.Values do
     begin
-      if (db > hits) then
+      if (db >= hits) then
         break;
 
-      p := TPazo(kb_list.Objects[i]);
-      if p <> nil then
+      if (p <> nil) and (p.rls <> nil) then
       begin
         if ((section = '') or (p.rls.section = section)) then
         begin
@@ -1236,10 +1185,6 @@ begin
 
           Inc(db);
         end;
-      end
-      else
-      begin
-        irc_addtext(Netname, Channel, 'Whops, Pazo is nil! Anything screwed up!');
       end;
     end;
   finally
@@ -1289,7 +1234,7 @@ var
     p.stated := True;
     p.cleared := True;
     p.ExcludeFromIncfiller := True;
-    kb_list.AddObject(section + '-' + rlsname, p);
+    kb_list.AddOrSetValue(section + '-' + rlsname, p);
   end;
 
 begin
@@ -1350,6 +1295,8 @@ var
   i: integer;
   x: TEncStringList;
   p: TPazo;
+  fPair: TPair<String, TPazo>;
+  fSkipCopy: TStringList;
 
   function GetKbPazoInfoLine(p: TPazo): String;
   const
@@ -1363,55 +1310,63 @@ begin
   kb_last_saved := Now();
   Debug(dpSpam, rsections, 'kb_Save');
   x := TEncStringList.Create(passphrase);
+  fSkipCopy := TStringList.Create;
   try
+    kb_lock.Enter('kb_Save');
     try
-      for i := 0 to kb_list.Count - 1 do
+      for fPair in kb_list do
       begin
-        p := TPazo(kb_list.Objects[i]);
-        if ((p <> nil) and (1 <> Pos('TRANSFER-', kb_list[i])) and
-          (1 <> Pos('REQUEST-', kb_list[i])) and
+        p := fPair.Value;
+        if ((p <> nil) and (p.rls <> nil) and not fPair.Key.StartsWith('TRANSFER-') and
+          not fPair.Key.StartsWith('REQUEST-') and
           (SecondsBetween(Now, p.added) < kb_keep_entries)) then
           x.Add(GetKbPazoInfoLine(p));
       end;
-    except
-      exit;
-    end;
-    x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.kb');
-  finally
-    x.Free;
-  end;
 
-  debug(dpSpam, rsections, 'kb_Save - saving %d renames', [kb_skip.Count]);
-  x := TEncStringList.Create(passphrase);
-  try
-    try
       for i := 0 to kb_skip.Count - 1 do
       begin
         if i > 249 then
           break;
-        x.Add(kb_skip[i]);
+        fSkipCopy.Add(kb_skip[i]);
       end;
+    finally
+      kb_lock.Leave;
+    end;
+
+    try
+      x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.kb');
     except
       exit;
     end;
-    x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.renames');
   finally
     x.Free;
+  end;
+
+  debug(dpSpam, rsections, 'kb_Save - saving %d renames', [fSkipCopy.Count]);
+  x := TEncStringList.Create(passphrase);
+  try
+    try
+      for i := 0 to fSkipCopy.Count - 1 do
+        x.Add(fSkipCopy[i]);
+      x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.renames');
+    except
+      exit;
+    end;
+  finally
+    x.Free;
+    fSkipCopy.Free;
   end;
 end;
 
 procedure kb_FreeList;
 var
-  i: integer;
+  p: TPazo;
 begin
-  for i := 0 to kb_list.Count - 1 do
+  for p in kb_list.Values do
   begin
     try
-      if kb_List.Objects[i] <> nil then
-      begin
-        kb_List.Objects[i].Free;
-        kb_List.Objects[i] := nil;
-      end;
+      if p <> nil then
+        p.Free;
     except
       continue;
     end;
@@ -1481,10 +1436,7 @@ begin
   kb_trimmed_rls := THashedStringList.Create;
   kb_trimmed_rls.CaseSensitive := False;
 
-  kb_list := TStringList.Create;
-  kb_list.CaseSensitive := False;
-  kb_list.Duplicates := dupIgnore;
-  kb_list.OwnsObjects := False;
+  kb_list := TDictionary<String, TPazo>.Create(GetCaseInsensitveStringComparer);
 
   kb_sections := TStringList.Create;
   kb_sections.Sorted := True;
@@ -1662,7 +1614,7 @@ begin
       rls := rc.Create(p.rls.rlsname, p.rls.section);
       p := PazoAdd(rls);
       p.SkipPretimeCheck := True;
-      kb_list.AddObject('INC-' + p.rls.rlsname, p);
+      kb_list.AddOrSetValue('INC-' + p.rls.rlsname, p);
     finally
       kb_lock.Leave;
     end;
@@ -1746,15 +1698,19 @@ end;
 
 procedure TKBThread.Execute;
 var
-  i, j: integer;
+  j: integer;
   p: TPazo;
   fIncFillPazos, fFinishedPazos, fFinishedRankCalcPazos, fDeletedPazos: TList<TPazo>;
+  fKeysToDelete: TList<String>;
+  fPair: TPair<String, TPazo>;
+  fKey: String;
   fIsSpecialKB, fTryToCompleteTimeReached: boolean;
 begin
   fIncFillPazos := TList<TPazo>.Create;
   fFinishedPazos := TList<TPazo>.Create;
   fFinishedRankCalcPazos := TList<TPazo>.Create;
   fDeletedPazos := TList<TPazo>.Create;
+  fKeysToDelete := TList<String>.Create;
   try
     while (not slshutdown) do
     begin
@@ -1762,13 +1718,14 @@ begin
         kb_lock.Enter('Execute');
         p := nil;
         try
-          for i := kb_list.Count - 1 downto 0 do
+          for fPair in kb_list do
           begin
-            if i < 0 then
-              Break;
+            fKey := fPair.Key;
+            p := fPair.Value;
+            if p = nil then
+              Continue;
 
-            p := TPazo(kb_list.Objects[i]);
-            fIsSpecialKB := kb_list[i].StartsWith('TRANSFER-') Or kb_list[i].StartsWith('REQUEST-') Or kb_list[i].StartsWith('INC-');
+            fIsSpecialKB := fKey.StartsWith('TRANSFER-') or fKey.StartsWith('REQUEST-') or fKey.StartsWith('INC-');
             fTryToCompleteTimeReached := True;
 
             if enable_try_to_complete and not fIsSpecialKB then
@@ -1790,18 +1747,22 @@ begin
             end;
 
             // finally if the pazo has been cleared and the time to keep it has been reached, delete it from the kb_list
-            if p.stated and (fTryToCompleteTimeReached and not fIncFillPazos.Contains(p)) and ((kb_save_entries <= 0) Or (SecondsBetween(Now, p.added) > kb_keep_entries)) then
+            if p.stated and (fTryToCompleteTimeReached and not fIncFillPazos.Contains(p)) and ((kb_save_entries <= 0) or (SecondsBetween(Now, p.added) > kb_keep_entries)) then
             begin
-              kb_list.Delete(i);
-              j := kb_latest.IndexOf(p.rls.rlsname);
-              if j <> -1 then
+              fKeysToDelete.Add(fKey);
+              if p.rls <> nil then
               begin
-                kb_latest.Delete(j);
+                j := kb_latest.IndexOf(p.rls.rlsname);
+                if j <> -1 then
+                  kb_latest.Delete(j);
               end;
               fDeletedPazos.Add(p);
             end;
-
           end;
+
+          for fKey in fKeysToDelete do
+            kb_list.Remove(fKey);
+          fKeysToDelete.Clear;
         finally
           kb_lock.Leave;
         end;
@@ -1863,12 +1824,7 @@ begin
       if ((kb_save_entries <> 0) and (SecondsBetween(Now(), kb_last_saved) > kb_save_entries)) then
       begin
         try
-          kb_lock.Enter('kb_save');
-          try
-            kb_Save;
-          finally
-            kb_lock.Leave;
-          end;
+          kb_Save;
         except
           on e: Exception do
           begin
@@ -1884,6 +1840,7 @@ begin
     fFinishedPazos.Free;
     fFinishedRankCalcPazos.Free;
     fDeletedPazos.Free;
+    fKeysToDelete.Free;
   end;
 end;
 

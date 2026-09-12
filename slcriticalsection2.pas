@@ -27,6 +27,12 @@ type
     FWaitTimesDict: TDictionary<string, Double>;
     FHoldTimesDict: TDictionary<string, Double>;
     FLockCountDict: TDictionary<string, Integer>;
+    FContentionCount: Int64;
+    FMaxWaitUs: Int64;
+    FTotalWaitUs: Int64;
+    FMaxHoldUs: Int64;
+    FHoldStartUs: Int64;
+    FLastWaitOwner: string;
     function GetCurrentLockOwnerName: string;
     procedure InitNoTimeoutLocking;
     procedure FreeObjects;
@@ -62,6 +68,12 @@ type
 
     { Returns the name of the code part that is currently executing while holding this lock. }
     property CurrentLockOwnerName: string read GetCurrentLockOwnerName;
+    property Name: string read FName; //< name of this critical section
+    property ContentionCount: Int64 read FContentionCount; //< number of times a thread had to wait to acquire this lock
+    property MaxWaitUs: Int64 read FMaxWaitUs; //< maximum wait time in microseconds to acquire this lock
+    property TotalWaitUs: Int64 read FTotalWaitUs; //< total wait time in microseconds across all acquisitions
+    property MaxHoldUs: Int64 read FMaxHoldUs; //< maximum duration in microseconds this lock was held
+    property LastWaitOwner: string read FLastWaitOwner; //< name of the last code segment that experienced a delay
   end;
 
   { Initalize this unit.
@@ -80,6 +92,10 @@ type
 
   { Writes all wait and hold times of locks into a log file at the path of slftp executable and returns that path. }
   function WriteCriticalSection2StatsToFile: String;
+
+  { Returns a formatted summary string of lock contention statistics across all critical sections
+    @returns(Formatted statistics string) }
+  function GetCriticalSection2Summary: String;
 
 
 implementation
@@ -171,20 +187,26 @@ implementation
     aName := aName.Replace('\', '_'); // backslash not allowed on windows
 
     FName := aName;
+    FContentionCount := 0;
+    FMaxWaitUs := 0;
+    FTotalWaitUs := 0;
+    FMaxHoldUs := 0;
+    FHoldStartUs := 0;
+    FLastWaitOwner := '';
+
+    glUsedCriticalSectionsLock.Enter;
+    try
+      if glUsedCriticalSections.ContainsKey(aName) then
+      begin
+        raise Exception.Create(Format('SL Critical section with name %s already exists.', [aName]));
+      end;
+      glUsedCriticalSections.Add(aName, self);
+    finally
+      glUsedCriticalSectionsLock.Leave;
+    end;
+
     if glUseTimeoutLocking Or aAlwaysUseTimeoutLocking then
     begin
-      // make sure a TslCriticalSection2 only exists once with the same name, because of the named mutex
-      glUsedCriticalSectionsLock.Enter;
-      try
-        if glUsedCriticalSections.ContainsKey(aName) then
-        begin
-          raise Exception.Create(Format('SL Critical section with name %s already exists.', [aName]));
-        end;
-        glUsedCriticalSections.Add(aName, self);
-      finally
-        glUsedCriticalSectionsLock.Leave;
-      end;
-
       FUseTimeoutLocking := True;
       FEvent := TEvent.Create(nil, False, True, 'SLFTP_' + aName);
       FLockCount := 0;
@@ -223,6 +245,17 @@ implementation
 
   procedure TSlCriticalSection2.FreeObjects;
   begin
+    if glUsedCriticalSectionsLock <> nil then
+    begin
+      glUsedCriticalSectionsLock.Enter;
+      try
+        if glUsedCriticalSections <> nil then
+          glUsedCriticalSections.Remove(self.FName);
+      finally
+        glUsedCriticalSectionsLock.Leave;
+      end;
+    end;
+
     if FUseTimeoutLocking then
     begin
       FEvent.Free;
@@ -233,16 +266,6 @@ implementation
         FreeAndNil(FHoldTimesDict);
         FreeAndNil(FLockCountDict);
         FreeAndNil(FHoldTimerStack);
-      end;
-
-      if glUsedCriticalSectionsLock <> nil then
-      begin
-        glUsedCriticalSectionsLock.Enter;
-        try
-          glUsedCriticalSections.Remove(self.FName);
-        finally
-          glUsedCriticalSectionsLock.Leave;
-        end;
       end;
     end
     else
@@ -264,6 +287,7 @@ implementation
   function TslCriticalSection2.Enter(const aLockOwnerName: string; const aTimeoutMs: Cardinal; const aRaiseExceptionOnFail: boolean = True): boolean;
   var
     fTimer, fHoldTimer: TSLTimer;
+    tWaitStart, tWaitStop, tWaitUs: Int64;
   begin
 
     if FUseTimeoutLocking then
@@ -338,7 +362,23 @@ implementation
     end
     else
     begin
+      QueryPerformanceMicroSeconds(tWaitStart);
       FInternalCriticalSection.Enter;
+      QueryPerformanceMicroSeconds(tWaitStop);
+      tWaitUs := tWaitStop - tWaitStart;
+      if tWaitUs > 50 then
+      begin
+        Inc(FContentionCount);
+        Inc(FTotalWaitUs, tWaitUs);
+        if tWaitUs > FMaxWaitUs then
+          FMaxWaitUs := tWaitUs;
+        FLastWaitOwner := aLockOwnerName;
+        if (tWaitUs > 200) and (FName <> 'debug_lock') then
+          Debug(dpMessage, glDebugSection, Format('[LOCK DELAY] %s (%s): waited %d us', [FName, aLockOwnerName, tWaitUs]));
+      end;
+      Inc(FLockCount);
+      if FLockCount = 1 then
+        QueryPerformanceMicroSeconds(FHoldStartUs);
       Result := True;
     end;
   end;
@@ -347,6 +387,7 @@ implementation
   var
     fLockOwnerName: String;
     fTimer: TSLTimer;
+    tHoldStop, tHoldUs: Int64;
 
     procedure _handleTimer;
     begin
@@ -394,6 +435,15 @@ implementation
     end
     else
     begin
+      Dec(FLockCount);
+      if (FLockCount = 0) and (FHoldStartUs > 0) then
+      begin
+        QueryPerformanceMicroSeconds(tHoldStop);
+        tHoldUs := tHoldStop - FHoldStartUs;
+        if tHoldUs > FMaxHoldUs then
+          FMaxHoldUs := tHoldUs;
+        FHoldStartUs := 0;
+      end;
       FInternalCriticalSection.Leave;
     end;
   end;
@@ -526,6 +576,65 @@ begin
     fFilename := ExtractFilePath(ParamStr(0)) + 'lockinfo.' + fNowstr + '.log';
     fOutput.SaveToFile(fFilename);
     Result := fFilename;
+  finally
+    fSortedList.Free;
+    fOutput.Free;
+  end;
+end;
+
+function _CriticalSectionStatsSorter({$IFDEF FPC}constref{$ELSE}const{$ENDIF} Left, Right: TslCriticalSection2): Integer;
+begin
+  Result := CompareValue(Right.MaxWaitUs, Left.MaxWaitUs);
+end;
+
+function GetCriticalSection2Summary: String;
+var
+  fSortedList: TList<TslCriticalSection2>;
+  fCs: TslCriticalSection2;
+  fOutput: TStringList;
+  fAvgWaitUs: Int64;
+begin
+  fSortedList := TList<TslCriticalSection2>.Create;
+  fOutput := TStringList.Create;
+  try
+    if glUsedCriticalSectionsLock <> nil then
+    begin
+      glUsedCriticalSectionsLock.Enter;
+      try
+        if glUsedCriticalSections <> nil then
+        begin
+          for fCs in glUsedCriticalSections.Values do
+          begin
+            if (fCs.ContentionCount > 0) or (fCs.MaxHoldUs > 0) or (fCs.MaxWaitUs > 0) then
+              fSortedList.Add(fCs);
+          end;
+        end;
+      finally
+        glUsedCriticalSectionsLock.Leave;
+      end;
+    end;
+
+    if fSortedList.Count = 0 then
+    begin
+      Result := 'Lock contention stats: No lock contention or delays recorded.';
+      Exit;
+    end;
+
+    fSortedList.Sort(TComparer<TslCriticalSection2>.Construct(_CriticalSectionStatsSorter));
+
+    fOutput.Add(Format('<b>Lock Contention Stats</b> (%d active locks):', [fSortedList.Count]));
+    for fCs in fSortedList do
+    begin
+      if fCs.ContentionCount > 0 then
+        fAvgWaitUs := fCs.TotalWaitUs div fCs.ContentionCount
+      else
+        fAvgWaitUs := 0;
+
+      fOutput.Add(Format('  <b>%s</b>: contentions=%d, max_wait=%dus, avg_wait=%dus, max_hold=%dus (last: %s)',
+        [fCs.Name, fCs.ContentionCount, fCs.MaxWaitUs, fAvgWaitUs, fCs.MaxHoldUs, fCs.LastWaitOwner]));
+    end;
+
+    Result := fOutput.Text;
   finally
     fSortedList.Free;
     fOutput.Free;

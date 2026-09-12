@@ -17,6 +17,7 @@ function IrcKillAll(const netname, channel, params: String): boolean;
 function IrcSpamConfig(const netname, channel, params: String): boolean;
 function Ircaddknowngroup(const netname, channel, params: String): boolean;
 function IrcLogLockStats(const netname, channel, params: String): boolean;
+function IrcLockStats(const netname, channel, params: String): boolean;
 
 implementation
 
@@ -513,6 +514,37 @@ begin
     begin
       Debug(dpError, section, '[EXCEPTION] IrcLogLockStats : %s', [E.Message]);
       irc_addtext(netname, channel, 'Error while saving stats to file: <b>%s</b>', [E.Message]);
+      exit;
+    end;
+  end;
+end;
+
+function IrcLockStats(const netname, channel, params: String): boolean;
+var
+  fSummary: String;
+  fLines: TStringList;
+  fLine: String;
+begin
+  Result := False;
+  try
+    fSummary := GetCriticalSection2Summary;
+    fLines := TStringList.Create;
+    try
+      fLines.Text := fSummary;
+      for fLine in fLines do
+      begin
+        if fLine <> '' then
+          irc_addtext(netname, channel, fLine);
+      end;
+    finally
+      fLines.Free;
+    end;
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, '[EXCEPTION] IrcLockStats : %s', [E.Message]);
+      irc_addtext(netname, channel, 'Error retrieving lock stats: <b>%s</b>', [E.Message]);
       exit;
     end;
   end;

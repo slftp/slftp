@@ -1,0 +1,1 @@
+Shows lock contention and delay statistics across all active critical sections.
