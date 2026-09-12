@@ -375,36 +375,37 @@ begin
         begin
           if not FindSite(y[j]) then Continue;
 
-          fSpeedFromStrOld := sitesdat.ReadString('speed-from-' + x[i], y[j], '0');
-          fSpeedFromInfoOld := TSpeedFromRouteInfo.CreateFromConfigString(fSpeedFromStrOld);
-          if (fSpeedFromInfoOld.Locked) then
+          fSite := FindSiteByName('', x[i]);
+          if fSite <> nil then
           begin
-            irc_SendSPEEDSTATS(Format('Route locked %s -> %s %d', [x[i], y[j], fSpeedFromInfoOld.Speed]));
-            Continue;
-          end;
-
-          d := AvgSpeed(x[i], y[j]);
-          if d <> 0 then
-          begin
-            if fSpeedFromInfoOld.Speed <> 0 then
+            fSpeedFromStrOld := fSite.RCString('speed-from-' + y[j], '0');
+            fSpeedFromInfoOld := TSpeedFromRouteInfo.CreateFromConfigString(fSpeedFromStrOld);
+            if (fSpeedFromInfoOld.Locked) then
             begin
-              speed_new := Round((d - min_speed) / diff * 8) + 1;
-              if ((speed_new >= 1) and (speed_new <= 9) and (speed_new <> fSpeedFromInfoOld.Speed)) then
+              irc_SendSPEEDSTATS(Format('Route locked %s -> %s %d', [x[i], y[j], fSpeedFromInfoOld.Speed]));
+              Continue;
+            end;
+
+            d := AvgSpeed(x[i], y[j]);
+            if d <> 0 then
+            begin
+              if fSpeedFromInfoOld.Speed <> 0 then
               begin
-                if ((netname = 'CONSOLE') and (channel = 'SPEEDSTATS')) then
+                speed_new := Round((d - min_speed) / diff * 8) + 1;
+                if ((speed_new >= 1) and (speed_new <= 9) and (speed_new <> fSpeedFromInfoOld.Speed)) then
                 begin
-                  irc_SendSPEEDSTATS(Format('Changing route %s -> %s from %d to %d', [x[i], y[j], fSpeedFromInfoOld.Speed, speed_new]));
-                end else
-                begin
-                  irc_addtext(netname, channel, 'Changing route %s -> %s from %d to %d', [x[i], y[j], fSpeedFromInfoOld.Speed, speed_new]);
-                end;
+                  if ((netname = 'CONSOLE') and (channel = 'SPEEDSTATS')) then
+                  begin
+                    irc_SendSPEEDSTATS(Format('Changing route %s -> %s from %d to %d', [x[i], y[j], fSpeedFromInfoOld.Speed, speed_new]));
+                  end else
+                  begin
+                    irc_addtext(netname, channel, 'Changing route %s -> %s from %d to %d', [x[i], y[j], fSpeedFromInfoOld.Speed, speed_new]);
+                  end;
 
-                fSpeedFromInfoOld.Speed := speed_new;
-                sitesdat.WriteString('speed-from-' + x[i], y[j], fSpeedFromInfoOld.ToConfigString);
-
-                fSite := FindSiteByName('', x[i]);
-                if fSite <> nil then
+                  fSpeedFromInfoOld.Speed := speed_new;
+                  fSite.WCString('speed-from-' + y[j], fSpeedFromInfoOld.ToConfigString);
                   fSite.UpdateSpeedFromCache;
+                end;
               end;
             end;
           end;

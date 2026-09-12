@@ -59,7 +59,17 @@ begin
 
   if self.wantedslot = '' then
   begin
-    if not readd or (not(s.site.WorkingStatus in [sstMarkedAsDownByUser, sstUp])) then
+    if kill then
+    begin
+      Debug(dpSpam, section, 'GhostKill %s: executing on slot %s, disconnecting...', [site1, s.Name]);
+      s.Quit;
+      Result := s.ReLogin(1, True, section, readd);
+      if Result then
+        Debug(dpSpam, section, 'GhostKill %s: slot %s reconnect successful', [site1, s.Name])
+      else
+        Debug(dpSpam, section, 'GhostKill %s: slot %s reconnect failed', [site1, s.Name]);
+    end
+    else if not readd or (not(s.site.WorkingStatus in [sstMarkedAsDownByUser, sstUp])) then
     begin
       if (s.Status <> ssOnline) then
       begin
@@ -92,7 +102,7 @@ begin
   end
   else
   begin
-    if (s.Status <> ssOnline) or not(s.site.WorkingStatus in [sstUp, sstMarkedAsDownByUser]) then
+    if kill or (s.Status <> ssOnline) or not(s.site.WorkingStatus in [sstUp, sstMarkedAsDownByUser]) then
     begin
       s.Quit;
       Result := s.ReLogin(1, kill, section);

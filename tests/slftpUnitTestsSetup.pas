@@ -19,7 +19,8 @@ procedure InitialFakeSetup;
 implementation
 
 uses
-  configunit, debugunit, encinifile, kb, sllanguagebase, globalskipunit, tags, dirlist, dbaddimdb, precatcher, knowngroups, skiplists, fake;
+  configunit, debugunit, encinifile, kb, sllanguagebase, globalskipunit, tags, dirlist, dbaddimdb, precatcher, knowngroups, skiplists, fake,
+  mrdohutils;
 
 procedure InitialConfigSetup;
 var
@@ -27,6 +28,7 @@ var
 begin
   fDefaultPassword := 'nopw';
   ConfigInit(fDefaultPassword);
+  InitmRdOHConfigFiles;
 end;
 
 procedure InitialDebugSetup;
@@ -66,7 +68,7 @@ end;
 
 procedure InitialPrecatcherSetup;
 begin
-  Precatcher_Init;
+  Precatcher_Init(True);
   PrecatcherStart;
 end;
 

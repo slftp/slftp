@@ -299,7 +299,7 @@ begin
         sitename := Fetch(ss, '-', True, False);
         ps := p.AddSite(sitename, x.Values[x.Names[i]]);
         ps.status := rssRealPre;
-        ps.AddDestination(site1, TSpeedFromRouteInfo.CreateFromConfigString(sitesdat.ReadString('speed-from-' + sitename, site1, '0')).Speed);
+        ps.AddDestination(site1, TSpeedFromRouteInfo.CreateFromConfigString(sitesdat.ReadString('site-' + sitename, 'speed-from-' + site1, '0')).Speed);
       end;
 
       for ps in p.PazoSitesList do

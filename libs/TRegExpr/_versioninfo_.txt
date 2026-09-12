@@ -1,2 +1,2 @@
-b574d688d28751b76387e82b319fb1f4bd08108a
-micro fix from https://gitlab.com/freepascal.org/fpc/source/-/commit/ae74e9f8cd6a28e24be7e4d47b00039bfbfe8a57
+19389caeb6823cddfb110ed284f57d1088dd8ac2
+prettify .inc file

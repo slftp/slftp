@@ -32,11 +32,17 @@ var
   fNumErrors: Integer;
   fOutHeaders: RawUtf8;
   fOutStatus: integer;
+  fInHeaders: RawUtf8;
+  fRandomUserAgent: String;
 begin
   Result := False;
   fNumErrors := 0;
   fOutHeaders := '';
   fOutStatus := 0;
+
+  // Select random User-Agent
+  fRandomUserAgent := UserAgents[Random(UserAgentsCount + 1)];
+  fInHeaders := 'User-Agent: ' + fRandomUserAgent;
 
   TryAgain:
   Inc(fNumErrors);
@@ -46,13 +52,28 @@ begin
     aErrMsg := '';
     // load website
     try
-      aRecvStr := HttpGet(aUrl, @fOutHeaders, {forceNotSocket:}False, @fOutStatus, {timeout:}0, {forcesocket:}False, {ignoreTlsCertError:}True);
+      aRecvStr := HttpGet(aUrl, fInHeaders, @fOutHeaders, {forceNotSocket:}False, @fOutStatus, {timeout:}0, {forcesocket:}False, {ignoreTlsCertError:}True);
     except
       on e: Exception do
       begin
         Debug(dpError, section, Format('HTTP GET for %s failed due to error <--> %s.', [aUrl, Utf8ToString(fOutHeaders)]));
         Debug(dpError, section, Format('ClassName: %s <--> Exception: %s', [e.ClassName, e.Message]));
         aErrMsg := Format('HTTP GET failed with error <--> %s.', [e.Message]);
+      end;
+    end;
+
+    if aErrMsg = '' then
+    begin
+      if fOutStatus = 404 then
+      begin
+        aErrMsg := Format('HTTP GET failed with 404 Not Found. (%s)', [aUrl]);
+        exit;
+      end;
+
+      if ((fOutStatus >= 400) and (fOutStatus < 600)) then
+      begin
+        aErrMsg := Format('HTTP GET failed with status %d. (%s)', [fOutStatus, aUrl]);
+        exit;
       end;
     end;
 

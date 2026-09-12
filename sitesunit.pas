@@ -6,7 +6,7 @@ uses
   Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
   taskrules, taskrace, queueunit, Generics.Collections, pazo, slcriticalsection2,
-  variantcache, routeconfig;
+  variantcache, routeconfig, StrUtils;
 
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
@@ -560,6 +560,9 @@ type
     { Updates the speed-from cache of this site from the sites.dat. }
     procedure UpdateSpeedFromCache;
 
+    { Migrates old speed-from config values to the new combined route config. }
+    procedure MigrateSpeedFromConfig;
+
     { Migrates old speedlock config values to the new speed-from config and remove all speed-to configs which we don't need anymore. }
     procedure MigrateSpeedLockAndSpeedToConfig;
 
@@ -767,6 +770,9 @@ var
   sitesDict: TDictionary<string, TSite>; //holds sites in a dictionary for faster access by @link(FindSiteByName)
   gAdminSiteName: String;
   glSpamLoginLogout: boolean;
+  glSocks5: boolean;
+  siteslot_recycle: boolean;
+  slot_down_message_to_irc: boolean;
 
 procedure AddSite(const aSite: TSite);
 begin
@@ -1061,6 +1067,18 @@ end;
 
 procedure TSite.AddTask(const t: TTask; const queueFire: boolean = false);
 begin
+  if fQueue = nil then
+  begin
+    Debug(dpError, section, Format('CRITICAL LOG: fQueue is nil in TSite.AddTask for site %s', [Name]));
+    exit;
+  end;
+
+  if t = nil then
+  begin
+    Debug(dpError, section, Format('CRITICAL LOG: task t is nil in TSite.AddTask for site %s', [Name]));
+    exit;
+  end;
+
   fQueue.AddTask(t);
   if queueFire then self.QueueFire;
 end;
@@ -1084,7 +1102,15 @@ begin
 end;
 
 procedure AddTask(const t: TTask; const queueFire: boolean = false);
+var
+  fAdminSite: TSite;
 begin
+  if t = nil then
+  begin
+    Debug(dpError, section, 'CRITICAL LOG: Global AddTask called with nil task!');
+    exit;
+  end;
+
   try
     if not (t.ssite1 = nil) then
     begin
@@ -1094,7 +1120,11 @@ begin
     begin
       if t.ready or t.readyerror then
       begin
-        FindSiteByName('', getAdminSiteName).AddTask(t, queueFire);
+        fAdminSite := FindSiteByName('', getAdminSiteName);
+        if fAdminSite <> nil then
+          fAdminSite.AddTask(t, queueFire)
+        else
+          Debug(dpError, section, Format('AddTask - Admin site not found for task: %s', [t.Name]));
       end
       else
         debug(dpError, section, 'AddTask - No site for task:' + t.Name);
@@ -1339,6 +1369,9 @@ begin
   gAdminSiteName := UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP'));
   glSpamLoginLogout := spamcfg.readbool(section, 'login_logout', False);
   bnccsere := TSlCriticalSection2.Create('bnccsere');
+  glSocks5 := config.ReadBool(section, 'socks5', False);
+  siteslot_recycle := spamcfg.readbool(section, 'siteslot_recycle', False);
+  slot_down_message_to_irc := spamcfg.readbool(section, 'slot_down', False);
   sites := TObjectList.Create;
   sitesDict := TDictionary<string, TSite>.Create;
 end;
@@ -1522,6 +1555,7 @@ var
   fPazoSite: TPazoSite;
   fPair: TDestinationRank;
   fSite: TSite;
+  fCurrentTask: TTask;
 begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
   tname := 'nil';
@@ -1534,8 +1568,14 @@ begin
 
       if (todotask <> nil) then
       begin
+        // Capture the task reference now: the queue thread (QueueClean /
+        // RebuildSlot in queueunit.pas) can set self.todotask := nil from the
+        // outside while Execute below is still running, which would make the
+        // cleanup block below skip slot1/slot2 cleanup. Using fCurrentTask
+        // ensures cleanup always runs.
+        fCurrentTask := todotask;
         try
-          tname := todotask.Name;
+          tname := fCurrentTask.Name;
         except
           on E: Exception do
           begin
@@ -1546,18 +1586,18 @@ begin
         Debug(dpSpam, section, Format('--> %s', [Name]));
 
         try
-          if todotask.Execute(self) then
+          if fCurrentTask.Execute(self) then
           begin
             LastTaskExecution := Now();
 
-            if not (todotask is TIdleTask)
+            if not (fCurrentTask is TIdleTask)
 
               //if maxidle is reached, there will be a quit task. we don't want this to count as non-idle operation because
               //then idle tasks would be created again right away
-              and not (todotask is TQuitTask)
+              and not (fCurrentTask is TQuitTask)
 
               //ignore login task if its set to readd (autobnctest)
-              and not ((todotask is TLoginTask) and TLoginTask(todotask).readd)
+              and not ((fCurrentTask is TLoginTask) and TLoginTask(fCurrentTask).readd)
             then
             begin
               LastNonIdleTaskExecution := LastTaskExecution;
@@ -1569,7 +1609,13 @@ begin
             Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) %s: %s', [tname, e.Message]));
 
             //make sure the task gets cleaned if an unhandled exception occured when executing the task
-            todotask.readyerror := True;
+            try
+              fCurrentTask.readyerror := True;
+            except
+              // fCurrentTask may point to already-freed memory (use-after-free).
+              // Swallow the AV to prevent it from skipping the cleanup block below
+              // which MUST clear todotask to avoid an infinite AV loop.
+            end;
           end;
         end;
 
@@ -1578,18 +1624,21 @@ begin
         uploadingto := False;
         downloadingfrom := False;
 
-        if (todotask <> nil) then
+        // Use fCurrentTask (captured before Execute) instead of self.todotask:
+        // QueueClean on the queue thread may have already set self.todotask := nil,
+        // which would skip slot1 cleanup and leave the task stuck in the queue.
+        if (fCurrentTask <> nil) then
         begin
           try
             try
-              if todotask is TPazoRaceTask then
+              if fCurrentTask is TPazoRaceTask then
               begin
-                fSite := TSite(TPazoRaceTask(todotask).ssite2);
+                fSite := TSite(TPazoRaceTask(fCurrentTask).ssite2);
                 if fSite <> nil then
                 begin
                   fSite.AcquireSlotsAssignmentLock('RemoveActiveTransfer');
                   try
-                    TPazoRaceTask(todotask).ps2.RemoveActiveTransfer(TPazoRaceTask(todotask).dir + TPazoRaceTask(todotask).filename);
+                    TPazoRaceTask(fCurrentTask).ps2.RemoveActiveTransfer(TPazoRaceTask(fCurrentTask).dir + TPazoRaceTask(fCurrentTask).filename);
                   finally
                     fSite.ReleaseSlotsAssignmentLock;
                   end;
@@ -1598,7 +1647,7 @@ begin
                 // prepare all possible destination sites for a possible new transfer by firing their queue
                 if ((not shouldquit) and (not slshutdown)) then
                 begin
-                  for fPazoSite in TPazoRaceTask(todotask).mainpazo.PazoSitesList do
+                  for fPazoSite in TPazoRaceTask(fCurrentTask).mainpazo.PazoSitesList do
                   begin
                     for fPair in fPazoSite.destinations do
                     begin
@@ -1609,11 +1658,13 @@ begin
                 end;
               end;
 
-              if (todotask.slot1 <> nil) then
-              begin
-                todotask.slot1 := nil;
-              end;
             finally
+              // IMPORTANT: Set todotask := nil BEFORE clearing slot1.
+              // RemoveReady frees tasks where (ready/readyerror=True AND slot1=nil).
+              // If we clear slot1 first, RemoveReady can free the task while we still
+              // need fTodotask in SetTodotask (to read .Name and adjust freeslots).
+              // By clearing todotask first (while slot1 still prevents freeing), the
+              // SetTodotask call safely accesses fTodotask before it can be freed.
               try
                 self.site.AcquireSlotsAssignmentLock('Reset TodoTask');
                 try
@@ -1624,18 +1675,27 @@ begin
               except
                 on E: Exception do
                 begin
-                  // could not reset todotask with the slots assignment lock, but we should reset the todotask anyway.
-                  // This should not really ever happen, other than in a deadlock situation.
                   todotask := nil;
                   Debug(dpError, section,
                     Format('[EXCEPTION] TSiteSlot.Execute : Exception remove todotask with slots assignment lock. Proceed without the lock : %s',
                     [e.Message]));
                 end;
               end;
+
+              // Now clear slot1 — this makes the task eligible for removal by RemoveReady.
+              // We no longer access fCurrentTask after this point.
+              if (fCurrentTask.slot1 <> nil) then
+              begin
+                fCurrentTask.slot1 := nil;
+              end;
             end;
           except
             on e: Exception do
             begin
+              // Even if the cleanup block AVs (dangling fCurrentTask), todotask MUST
+              // be cleared. Otherwise the while loop will spin forever trying to
+              // access the freed task object on every iteration.
+              todotask := nil;
               Debug(dpError, section,
                 Format('[EXCEPTION] TSiteSlot.Execute : Exception remove todotask : %s',
                 [e.Message]));
@@ -1658,7 +1718,7 @@ begin
             end;
         else { Timeout reach }
           begin
-            if spamcfg.readbool(section, 'siteslot_recycle', False) then
+            if siteslot_recycle then
               irc_Adderror('TSiteSlot.Execute: <c2>Force Leave</c>:' +
                 Name + ' SiteSlot Recycle 15min');
             Debug(dpSpam, section, 'TSiteSlot.Execute: Force Leave:' +
@@ -2054,7 +2114,7 @@ begin
   end;
 
   if ((site.proxyname = '!!NOIN!!') or (site.proxyname = '0') or (site.proxyname = '')) then
-    SetupSocks5(self, (not RCBool('nosocks5', False)) and (config.ReadBool(section, 'socks5', False)))
+    SetupSocks5(self, (not RCBool('nosocks5', False)) and (glSocks5))
   else
     mSLSetupSocks5(site.proxyname, self, True);
 
@@ -2384,7 +2444,7 @@ begin
       else
       begin
         DestroySocket(False);
-        if spamcfg.readbool(section, 'slot_down', False) then
+        if slot_down_message_to_irc then
           irc_addtext(todotask, '<c4>SLOT <b>%s</b> IS DOWN</c>', [Name]);
       end;
     end;
@@ -2458,7 +2518,7 @@ begin
       if ((lastResponseCode = 234) and (0 <> Pos('234 AUTH TLS successful', lastResponse))) then
       begin
         if (site.WorkingStatus <> sstTempDown) or aShowDownMessageIfAlreadyDown then
-          irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN, maybe enforce TLS?', [site.Name]);
+          irc_Addadmin('<c4>SITE <b>%s</b></c> WiLL DOWN, maybe enforce TLS?', [site.Name]);
 
         site.WorkingStatus := sstTempDown;
         exit;
@@ -2475,7 +2535,7 @@ begin
       end;
 
       if (site.WorkingStatus <> sstTempDown) or aShowDownMessageIfAlreadyDown then
-        irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN %s - lastResponse: %d %s', [site.Name, s_message, lastResponseCode, lastResponse]);
+        irc_Addadmin('<c4>SITE <b>%s</b></c> WiLL DOWN %s - lastResponse: %d %s', [site.Name, s_message, lastResponseCode, lastResponse]);
 
       site.WorkingStatus := sstTempDown;
     end;
@@ -2939,6 +2999,13 @@ begin
           exit;
         if not Read('PRET RETR %s') then
           exit;
+
+        if (lastResponseCode < 200) Or (lastResponseCode > 299) then
+        begin
+          irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: PRET Error on %s: %s', [site.name, Trim(lastResponse)]);
+          Result := -1;
+          exit;
+        end;
       end;
 
       if not Send('PASV') then
@@ -3017,6 +3084,7 @@ begin
       if not Read() then
         exit;
 
+      irc_SendRACESTATS(Format('LEECH : %s %s', [site.Name, filename]));
       Result := 1;
     finally
       if idTCP <> nil then
@@ -3169,6 +3237,7 @@ begin
 
   RecalcFreeslots;
   MigrateSpeedLockAndSpeedToConfig;
+  MigrateSpeedFromConfig;
 
   debug(dpSpam, section, 'Site %s has been created', [Name]);
 end;
@@ -4925,18 +4994,23 @@ var
   fSpeedInfo: TSpeedFromRouteInfo;
   fStringList: TStringList;
   i: Integer;
+  fKey: string;
 begin
   fNewValue := TList<TSpeedFromRouteInfo>.Create;
   fStringList := TStringList.Create;
-  sitesdat.ReadSectionValues('speed-from-' + Name, fStringList);
+  sitesdat.ReadSectionValues('site-' + Name, fStringList);
 
   if fStringList.Count > 0 then
   begin
     for i := 0 to fStringList.Count - 1 do
     begin
-      fSpeedInfo := TSpeedFromRouteInfo.CreateFromConfigString(fStringList.ValueFromIndex[i]);
-      fSpeedInfo.Sitename := fStringList.Names[i];
-      fNewValue.Add(fSpeedInfo);
+      fKey := fStringList.Names[i];
+      if AnsiStartsText('speed-from-', fKey) then
+      begin
+        fSpeedInfo := TSpeedFromRouteInfo.CreateFromConfigString(fStringList.ValueFromIndex[i]);
+        fSpeedInfo.Sitename := Copy(fKey, Length('speed-from-') + 1, Length(fKey));
+        fNewValue.Add(fSpeedInfo);
+      end;
     end;
   end;
 
@@ -4951,6 +5025,29 @@ begin
 
   FreeAndNil(fOldValue);
   FreeAndNil(fStringList);
+end;
+
+procedure TSite.MigrateSpeedFromConfig;
+var
+  fStringList: TStringList;
+  i: Integer;
+begin
+  fStringList := TStringList.Create;
+  try
+    sitesdat.ReadSectionValues('speed-from-' + Name, fStringList);
+    if fStringList.Count > 0 then
+    begin
+      irc_addadmin('<c14><b>Info</c></b>: Migrating speed-from routes on %s to the new site config layout.', [self.Name]);
+      for i := 0 to fStringList.Count - 1 do
+      begin
+        WCString('speed-from-' + fStringList.Names[i], fStringList.ValueFromIndex[i]);
+      end;
+      sitesdat.EraseSection('speed-from-' + Name);
+    end;
+
+  finally
+    FreeAndNil(fStringList);
+  end;
 end;
 
 procedure TSite.MigrateSpeedLockAndSpeedToConfig;

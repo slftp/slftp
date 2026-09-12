@@ -1,7 +1,7 @@
 SHELL = bash
 SLFTPPATH = ~/slftp
 CC = fpc
-CFLAGS = -MDelphi -O3 -Xs
+CFLAGS = -MDelphi -O3 -Xs -Ct-
 CINCLUDES = -Fuirccommands -Furules -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline -Fulibs/lkJSON -Fulibs/TRegExpr -Fulibs/pasmp -Fulibs/Indy10/* -Fulibs/Indy10/Protocols -Fulibs/Indy10/Protocols/OpenSSL -Fulibs/Indy10/Protocols/OpenSSL/* -Fulibs/LibTar -Fulibs/mORMot2/src/core -Fulibs/mORMot2/src/lib -Fulibs/mORMot2/src/crypt -Fulibs/mORMot2/src/db -Fulibs/mORMot2/src/orm -Fulibs/mORMot2/src/rest -Fulibs/mORMot2/src/soa -Fulibs/ZeosLib/* -Fulibs/mORMot2/src/net/
 CTESTINCLUDES = -Futests/* -Futests/fptest/*
 CDBFLAGS = -dDEBUG -MDelphi -gl -gp -gw3
@@ -13,6 +13,9 @@ HEAPTRACE = -gh
 VALGRIND = -gv
 GPROF = -pg
 VTUNE = -dDEBUG -MDelphi -gl -gp -gw3 -O2
+# release-near build with debug info for profiling (no -dDEBUG on purpose:
+# fpc.cfg would add -Crtoi checks then, skewing the measurements)
+PROFILE = -MDelphi -O3 -gl -gw3 -Ct-
 
 default: clean slftp
 
@@ -21,6 +24,7 @@ heaptrace: clean slftp_debug_heaptrace
 valgrind: clean slftp_debug_valgrind
 gprof: clean slftp_debug_gprof
 vtune: clean slftp_debug_vtune
+profile: clean slftp_profile
 
 all: slftp install
 
@@ -79,6 +83,11 @@ slftp_debug_gprof:	FORCE
 slftp_debug_vtune:	FORCE
 	$(MAKE) revpatch
 	$(CC) $(VTUNE) $(CINCLUDES) slftp.lpr
+	$(MAKE) revpatchrevert
+
+slftp_profile:	FORCE
+	$(MAKE) revpatch
+	$(CC) $(PROFILE) $(CINCLUDES) slftp.lpr
 	$(MAKE) revpatchrevert
 
 test:	FORCE

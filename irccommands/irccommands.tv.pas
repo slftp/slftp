@@ -155,6 +155,12 @@ begin
     end;
 
     tvr := parseTVMazeInfos(resp, ssname, url);
+    if tvr = nil then
+    begin
+      irc_addtext(Netname, Channel, Format('<c4>[FAILED]</c> TVMaze parse for %s returned no result.', [ssname]));
+      Result := True;
+      Exit;
+    end;
     tvr.rls_showname := mystrings.RightStr(params, length(sid) + 1);
     try
       tvr.Save;

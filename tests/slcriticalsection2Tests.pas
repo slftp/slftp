@@ -21,6 +21,7 @@ type
     {$ENDIF}
   published
     procedure TestNestedLocks;
+    procedure TestGetOrCreate;
   end;
 
 implementation
@@ -59,6 +60,17 @@ begin
   finally
     cs.Free;
   end;
+end;
+
+procedure TTestSLCriticalSection2.TestGetOrCreate;
+var
+  cs1: TSlCriticalSection2;
+  cs2: TSlCriticalSection2;
+begin
+  cs1 := TSlCriticalSection2.GetOrCreate('Test2');
+  cs2 := TSlCriticalSection2.GetOrCreate('Test2');
+  // we must get the same object from both calls. first call creates the object, second call returns the already existing object.
+  CheckTrue(cs1 = cs2);
 end;
 
 initialization

@@ -1,4 +1,4 @@
-﻿unit RegExpr;
+unit RegExpr;
 
 {
   TRegExpr class library
@@ -952,7 +952,7 @@ uses
 const
   // TRegExpr.VersionMajor/Minor return values of these constants:
   REVersionMajor = 1;
-  REVersionMinor = 191;
+  REVersionMinor = 194;
 
   OpKind_End = REChar(1);
   OpKind_MetaClass = REChar(2);
@@ -5098,14 +5098,14 @@ begin
         }
         Inc(opnd, RENumberSz);
         while (Result < TheMax) and (opnd^ = scan^) do
-        begin // prevent unneeded InvertCase
+        begin // prevent unneeded _UpperCase
           Inc(Result);
           Inc(scan);
         end;
         if Result < TheMax then
         begin
           InvChar := _LowerCase(opnd^); // store in register
-          while (Result < TheMax) and ((opnd^ = scan^) or (InvChar = scan^)) do
+          while (Result < TheMax) and ((opnd^ = scan^) or (InvChar = scan^) or (opnd^ = _UpperCase(scan^)) ) do
           begin
             Inc(Result);
             Inc(scan);
@@ -5710,8 +5710,8 @@ begin
           if (regInput + no > fInputCurrentEnd) then
             Exit;
           Inc(opnd, RENumberSz);
-          // Inline the first character, for speed.
-          if (opnd^ <> regInput^) and (_LowerCase(opnd^) <> regInput^) then
+          // Prefer _UpperCase usage here, because _LowerCase fails with 'Greek lowercase final sigma'
+          if (opnd^ <> regInput^) and (opnd^ <> _UpperCase(regInput^)) then
             Exit;
           save := regInput;
           Inc(regInput, no);
@@ -5719,7 +5719,7 @@ begin
           begin
             Inc(save);
             Inc(opnd);
-            if (opnd^ <> save^) and (_LowerCase(opnd^) <> save^) then
+            if (opnd^ <> save^) and (opnd^ <> _UpperCase(save^)) then
               Exit;
             Dec(no);
           end;
@@ -6945,10 +6945,19 @@ begin
     Exit;
   end;
 
-  Offset := PtrEnd - fInputStart + 1;
+  if ABackward then
+    Offset := PtrEnd - fInputStart - 1
+  else
+    Offset := PtrEnd - fInputStart + 1;
+
   // prevent infinite looping if empty string matches r.e.
   if PtrBegin = PtrEnd then
-    Inc(Offset);
+  begin
+    if ABackward then
+      Dec(Offset)
+    else
+      Inc(Offset);
+  end;
 
   Result := ExecPrim(Offset, False, ABackward, 0);
 end; { of function TRegExpr.ExecNext

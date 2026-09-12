@@ -48,6 +48,7 @@ function RanksReload: boolean;
 var
   ranks_last_save: TDateTime;
   ranks_last_process: TDateTime;
+  max_entries: integer;
 
 implementation
 
@@ -144,6 +145,7 @@ begin
   ranks_last_save := Now;
   ranks_last_process := Now;
   glRanks := TObjectList.Create;
+  max_entries := config.readInteger(r_section, 'max_entries', 1000);
 end;
 
 procedure RanksUnInit;
@@ -280,7 +282,7 @@ begin
       if ((ps.dirlist <> nil) and (ps.dirlist.CompletedTime <> 0)) then
       begin
         d := Millisecondsbetween(ps.dirlist.CompletedTime, p.added);
-        ranknew := Round((d - minduration) / diff * 8) + 1;
+        ranknew := 9 - Round((d - minduration) / diff * 8);
         rankstatAdd(ps.name, p.rls.section, ranknew);
       end;
     except
@@ -393,11 +395,8 @@ begin
 end;
 
 procedure RankStatAdd(s: TRankStat); overload;
-var
-  max_entries: Integer;
 begin
   debug(dpSpam, r_section, 'Rankstat %s -> %s %d', [s.sitename, s.section, s.score]);
-  max_entries := config.readInteger(r_section, 'max_entries', 1000);
 
   try
     rankslock.Enter('RankStatAdd');
