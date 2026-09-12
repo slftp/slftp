@@ -629,7 +629,7 @@ begin
 
   FDbCleanupCounter := TIdThreadSafeInt32.Create;
 
-  if ( (dbaddpre_mode = apmSQLITE) or (dbaddpre_plm1 = plmSQLITE) or (dbaddpre_plm2 = plmSQLITE) ) then
+  if ( (dbaddpre_mode in [apmMemory, apmSQLITE]) or (dbaddpre_plm1 = plmSQLITE) or (dbaddpre_plm2 = plmSQLITE) ) then
   begin
     db_pre_name := Trim(config.ReadString(section, 'db_file', 'db_addpre.db'));
 

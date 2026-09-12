@@ -81,7 +81,7 @@ uses
   Classes, Contnrs, StrUtils, kb, sitesunit, configunit, taskdel, DateUtils,
   SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc,
   midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news, dirlist.helpers,
-  globals, Math;
+  globals, Math, dbaddpre;
 
 const
   c_section = 'taskrace';
@@ -754,6 +754,14 @@ begin
   // Site must be allowed as a destination
   if not (ps1.status in [rssAllowed]) then
     Exit;
+
+  // HARD GUARD: never create mkdir task without pretime when pretime lookup is enabled
+  if (GetPretimeMode <> plmNone) and (mainpazo.rls <> nil) and (mainpazo.rls.pretime = 0) then
+  begin
+    mainpazo.rls.SetPretime;
+    if mainpazo.rls.pretime = 0 then
+      Exit;
+  end;
 
   if (not aDirlist.need_mkdir) or (aDirlist.error) or (aDirlist.dependency_mkdir <> '') then
     Exit;

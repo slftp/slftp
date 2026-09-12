@@ -8,11 +8,12 @@ function IrcSetupPretimeMode2(const netname, channel, params: String): boolean;
 function IrcSetupADDPreMode(const netname, channel, params: String): boolean;
 function IrcFindPretime(const netname, channel, params: String): boolean;
 function IrcSetPretime(const netname, channel, params: String): boolean;
+function IrcPretimeStats(const netname, channel, params: String): boolean;
 
 implementation
 
 uses
-  SysUtils, Classes, DateUtils, Contnrs, dbaddpre, irc, configunit, sitesunit, RegExpr, mystrings;
+  SysUtils, Classes, DateUtils, Contnrs, dbaddpre, irc, configunit, sitesunit, RegExpr, mystrings, kb;
 
 const
   section = 'irccommands.pretime';
@@ -177,6 +178,20 @@ begin
     end;
   end;
 
+  Result := True;
+end;
+
+function IrcPretimeStats(const netname, channel, params: String): boolean;
+var
+  fUnpred: Int64;
+begin
+  fUnpred := GlEarlyAnnounceReleasesTotal - GlEarlyAnnounceResolvedCount;
+  if fUnpred < 0 then
+    fUnpred := 0;
+
+  irc_addtext(Netname, Channel,
+    '<b>Pretime Stats:</b> Early announces: <b>%d</b> (%d unique releases) · Resolved by PreDB: <b>%d</b> · Still unpred/blocked: <b>%d</b>',
+    [GlEarlyAnnouncesTotal, GlEarlyAnnounceReleasesTotal, GlEarlyAnnounceResolvedCount, fUnpred]);
   Result := True;
 end;
 

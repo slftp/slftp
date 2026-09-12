@@ -64,6 +64,9 @@ function kb_reloadsections: boolean;
 var
   kb_sections: TStringList;
   kb_thread: TKBThread;
+  GlEarlyAnnouncesTotal: Int64; //< total number of site announces received before PreDB
+  GlEarlyAnnounceReleasesTotal: Int64; //< total unique releases announced before PreDB
+  GlEarlyAnnounceResolvedCount: Int64; //< total releases where pretime arrived after early announce
 
 implementation
 
@@ -508,6 +511,15 @@ begin
       // need to search all sites where there is such a section ...
       p.AddSites;
 
+      // If pretime is 0 and a specific site announced, add this source site to pazo so it can start dirlisting early
+      if (r.pretime = 0) and (sitename <> '') and (sitename <> getAdminSiteName) then
+      begin
+        p.AddSite(sitename);
+        p.RecordEarlyAnnounce(sitename);
+        Inc(GlEarlyAnnouncesTotal);
+        Inc(GlEarlyAnnounceReleasesTotal);
+      end;
+
       kb_list.BeginUpdate;
       try
         kb_list.AddObject(section + '-' + rls, p);
@@ -606,6 +618,18 @@ begin
             if spamcfg.ReadBool('kb', 'updated_rls', True) then
               irc_SendUPDATE(Format('<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, dbaddpre_GetPreduration(r.pretime), r.PretimeSource]));
             p.AddSites;
+            p.RecordPretimeArrived;
+            Inc(GlEarlyAnnounceResolvedCount);
+          end
+          else
+          begin
+            // Still no pretime, but this site announced! Add it as early source site
+            if (sitename <> '') and (sitename <> getAdminSiteName) then
+            begin
+              p.AddSite(sitename);
+              p.RecordEarlyAnnounce(sitename);
+              Inc(GlEarlyAnnouncesTotal);
+            end;
           end;
         end;
       end;
@@ -960,6 +984,12 @@ begin
       Debug(dpError, rsections, Format('[EXCEPTION] kb_Add add dirlist: %s', [e.Message]));
       exit;
     end;
+  end;
+
+  // If pretime is confirmed, trigger Tuzelj for any sites that already completed dirlisting
+  if (p <> nil) and (p.rls <> nil) and (p.rls.pretime > 0) then
+  begin
+    p.TriggerTuzeljForReadySites(netname, channel);
   end;
 
   QueryPerformanceMicroSeconds(t_total_stop);
@@ -1437,6 +1467,10 @@ end;
 procedure kb_Init;
 begin
   kb_last_saved := Now();
+
+  GlEarlyAnnouncesTotal := 0;
+  GlEarlyAnnounceReleasesTotal := 0;
+  GlEarlyAnnounceResolvedCount := 0;
 
   KbReleaseInit;
 

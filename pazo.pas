@@ -115,6 +115,11 @@ type
     function ParseDirlist(const netname, channel, dir, liststring: String; pre: boolean = False): boolean;
     function MkdirReady(const dir: String): boolean;
     function MkdirError(const dir: String): boolean;
+    { Dispatches existing dirlist entries to destinations via Tuzelj
+      @param(aNetname netname)
+      @param(aChannel channelname)
+      @returns(@true if at least one task was added, @false otherwise) }
+    function ProcessExistingEntries(const aNetname, aChannel: String): Boolean;
     function AddDestination(const sitename: String; const rank: integer): boolean; overload;
     function AddDestination(const ps: TPazoSite; const rank: integer): boolean; overload;
 
@@ -210,6 +215,10 @@ type
 
     added: TDateTime;
     TimingInfo: String; //< High-resolution milestone timing info (from IRC recognition to first dirlist)
+    PretimeGapInfo: String; //< Information about early announces before PreDB and pretime gap duration
+    FEarlyAnnounceSites: String;
+    FEarlyAnnounceTime: Int64;
+    FPretimeGapMicroSec: Int64;
 
     // Integers with locking and event
     queuenumber: TIdThreadSafeInt32WithEvent;
@@ -232,10 +241,20 @@ type
       @param(console @true if output is for console, @false for IRC)
       @returns(Formatted string with site completion times) }
     function SiteCompleteTimesStats(const console: boolean): String;
+    { Records an early announce on a site that arrived before PreDB
+      @param(aSiteName Name of the site that announced) }
+    procedure RecordEarlyAnnounce(const aSiteName: String);
+    { Calculates and records the pretime gap duration when pretime becomes available }
+    procedure RecordPretimeArrived;
+    { Dispatches existing dirlist entries for all ready sites once pretime and routes are established
+      @param(aNetname netname)
+      @param(aChannel channelname) }
+    procedure TriggerTuzeljForReadySites(const aNetname, aChannel: String);
     constructor Create(const rls: TRelease; const pazo_id: integer);
     destructor Destroy; override;
     function FindSite(const sitename: String): TPazoSite;
-    function AddSite(const sitename, maindir: String; delay: boolean = True): TPazoSite;
+    function AddSite(const sitename, maindir: String; delay: boolean = True): TPazoSite; overload;
+    function AddSite(const aSiteName: String): TPazoSite; overload;
     { Iterates through all @link(sitesunit.sites) and adds a @link(TPazoSite) to @link(TPazo.PazoSitesList) if the site is not down, has the section, rls fits pretime, etc and sets @link(TPazoSite.status)
       @returns(@true if at least one site was added, @false otherwise) }
     function AddSites: boolean; overload;
@@ -263,7 +282,8 @@ implementation
 uses
   SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
   taskrace, mystrings, irc, sltcp, slhelper, Math, taskpretime, configunit,
-  mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv;
+  mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv,
+  mormot.core.os, mormot.core.text, dbaddpre;
 
 const
   section = 'pazo';
@@ -447,6 +467,17 @@ begin
 
   // something's fucked
   if error then exit;
+
+  // HARD GUARD: never create mkdir or race tasks without pretime when pretime lookup is enabled
+  if (GetPretimeMode <> plmNone) and (pazo.rls <> nil) and (pazo.rls.pretime = 0) then
+  begin
+    pazo.rls.SetPretime;
+    if pazo.rls.pretime = 0 then
+    begin
+      Debug(dpMessage, section, Format('Tuzelj: blocked mkdir/race for %s @ %s due to missing pretime', [pazo.rls.rlsname, Name]));
+      Exit;
+    end;
+  end;
 
   if (dir <> '') then
     fd := pazo.rls.rlsname + '/' + dir
@@ -669,6 +700,78 @@ begin
   end;
 end;
 
+function TPazoSite.ProcessExistingEntries(const aNetname, aChannel: String): Boolean;
+var
+  fTasksAdded: Boolean;
+  fSite: TSite;
+
+  procedure ProcessDir(aDir: TDirList; const aSubDir: String);
+  var
+    fFoundDirListEntries: TObjectList<TDirListEntry>;
+    fSubDirs: TList<TDirListEntry>;
+    de: TDirListEntry;
+    curSubDir: String;
+  begin
+    if (aDir = nil) or (aDir.entries = nil) then
+      Exit;
+
+    fFoundDirListEntries := TObjectList<TDirListEntry>.Create(False);
+    fSubDirs := TList<TDirListEntry>.Create;
+    try
+      aDir.dirlist_lock.Enter('TPazoSite.ProcessExistingEntries');
+      try
+        for de in aDir.entries.Values do
+        begin
+          if (not de.skiplisted) and (de.IsOnSite) then
+            fFoundDirListEntries.Add(de);
+          if de.Directory and (de.subdirlist <> nil) then
+            fSubDirs.Add(de);
+        end;
+      finally
+        aDir.dirlist_lock.Leave;
+      end;
+
+      if fFoundDirListEntries.Count > 0 then
+      begin
+        SortDirlistEntries(fFoundDirListEntries);
+        if Tuzelj(aNetname, aChannel, aSubDir, fFoundDirListEntries) then
+          fTasksAdded := True;
+      end;
+
+      for de in fSubDirs do
+      begin
+        if aSubDir = '' then
+          curSubDir := de.filename
+        else
+          curSubDir := aSubDir + '/' + de.filename;
+        ProcessDir(de.subdirlist, curSubDir);
+      end;
+    finally
+      fFoundDirListEntries.Free;
+      fSubDirs.Free;
+    end;
+  end;
+
+begin
+  Result := False;
+  if dirlist = nil then
+    Exit;
+
+  fTasksAdded := False;
+  ProcessDir(dirlist, '');
+
+  if fTasksAdded then
+  begin
+    fSite := FindSiteByName('', Name);
+    if fSite <> nil then
+    begin
+      fSite.QueueSort;
+      fSite.QueueFire;
+    end;
+    Result := True;
+  end;
+end;
+
 { TPazo }
 
 // TODO: Remove it add replace all calls to AddSite with TPazoSite.Create(self, s.Name, sectiondir);
@@ -681,6 +784,74 @@ begin
     Result.DelaySetup;
   PazoSitesList.Add(Result);
   CheckSiteSlots(sitename);
+end;
+
+function TPazo.AddSite(const aSiteName: String): TPazoSite;
+var
+  s: TSite;
+  sectiondir: String;
+begin
+  Result := FindSite(aSiteName);
+  if Result <> nil then
+    Exit;
+
+  s := FindSiteByName('', aSiteName);
+  if s = nil then
+    Exit;
+
+  sectiondir := s.sectiondir[rls.section];
+  if (sectiondir = '') then
+    Exit;
+
+  sectiondir := DatumIdentifierReplace(sectiondir);
+
+  Result := TPazoSite.Create(self, s.Name, sectiondir, s);
+  Result.status := rssNotAllowed;
+  Result.DelaySetup;
+  if s.IsAffil(rls.groupname) then
+    Result.status := rssShouldPre;
+
+  PazoSitesList.Add(Result);
+  CheckSiteSlots(s);
+end;
+
+procedure TPazo.RecordEarlyAnnounce(const aSiteName: String);
+begin
+  if FEarlyAnnounceTime = 0 then
+    QueryPerformanceMicroSeconds(FEarlyAnnounceTime);
+
+  if aSiteName <> '' then
+  begin
+    if FEarlyAnnounceSites = '' then
+      FEarlyAnnounceSites := aSiteName
+    else if Pos(aSiteName, FEarlyAnnounceSites) = 0 then
+      FEarlyAnnounceSites := FEarlyAnnounceSites + ', ' + aSiteName;
+  end;
+
+  PretimeGapInfo := Format('waiting for PreDB (early announce on %s)', [FEarlyAnnounceSites]);
+end;
+
+procedure TPazo.RecordPretimeArrived;
+var
+  t_now: Int64;
+begin
+  if (FEarlyAnnounceTime > 0) and (FPretimeGapMicroSec = 0) then
+  begin
+    QueryPerformanceMicroSeconds(t_now);
+    FPretimeGapMicroSec := t_now - FEarlyAnnounceTime;
+    PretimeGapInfo := Format('%s (early announce on %s)', [String(MicroSecToString(FPretimeGapMicroSec)), FEarlyAnnounceSites]);
+  end;
+end;
+
+procedure TPazo.TriggerTuzeljForReadySites(const aNetname, aChannel: String);
+var
+  ps: TPazoSite;
+begin
+  for ps in PazoSitesList do
+  begin
+    if ps.status in [rssAllowed, rssRealPre, rssShouldPre, rssNotAllowedButItsThere] then
+      ps.ProcessExistingEntries(aNetname, aChannel);
+  end;
 end;
 
 function TPazo.Age: integer;
@@ -718,6 +889,8 @@ begin
   Result := Result + Format('Sites: %d %s', [PazoSitesList.Count, #13#10]);
   if TimingInfo <> '' then
     Result := Result + Format('Timings: %s%s', [TimingInfo, #13#10]);
+  if PretimeGapInfo <> '' then
+    Result := Result + Format('Pretime Gap: %s%s', [PretimeGapInfo, #13#10]);
 
   for ps in PazoSitesList do
   begin
@@ -842,6 +1015,12 @@ begin
   FExcludeFromIncfiller := False;
   if rls.IsSFVRelease then
     FPazoSFV := TPazoSFV.Create;
+
+  TimingInfo := '';
+  PretimeGapInfo := '';
+  FEarlyAnnounceSites := '';
+  FEarlyAnnounceTime := 0;
+  FPretimeGapMicroSec := 0;
 
   inherited Create;
 end;
@@ -1200,10 +1379,19 @@ begin
       if (sectiondir = '') then
         Continue;
 
-      sectiondir := DatumIdentifierReplace(sectiondir);
-
-      if FindSite(s.Name) <> nil then
+      ps := FindSite(s.Name);
+      if ps <> nil then
+      begin
+        if (not aIsSpreadJob) and (glPazoPreTimeLookupMode <> plmNone) and (rls.pretime <> 0) then
+        begin
+          if not s.IsPretimeOk(rls.section, rls.pretime) then
+          begin
+            ps.status := rssNotAllowed;
+            ps.reason := 'Backfill';
+          end;
+        end;
         Continue;
+      end;
 
       if not aIsSpreadJob then
       begin
