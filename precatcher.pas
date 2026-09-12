@@ -64,6 +64,7 @@ var
 implementation
 
 uses
+  mormot.core.os, mormot.core.perf,
   SysUtils, sitesunit, Dateutils, irc, queueunit, mystrings, precatcher.helpers,
   inifiles, DebugUnit, StrUtils, configunit, Regexpr, globalskipunit, dbaddpre,
   console, mrdohutils, SlCriticalSection2, taskautodirlist, IdGlobal {$IFDEF MSWINDOWS}, Windows{$ENDIF}
@@ -291,10 +292,12 @@ begin
   Result := rep_s;
 end;
 
-procedure ProcessReleaseVege(net, chan, nick, sitename: String; kb_event: TKBEventType; section, rls: String; ts_data: TStringList);
+procedure ProcessReleaseVege(net, chan, nick, sitename: String; kb_event: TKBEventType; section, rls: String; ts_data: TStringList; aIrcMicroSec: Int64 = 0);
 var
   genre, s, oldsection, event: String;
 begin
+  if aIrcMicroSec = 0 then
+    QueryPerformanceMicroSeconds(aIrcMicroSec);
   precatcher_lock.Enter('ProcessReleaseVege');
   try
     event := KBEventTypeToString(kb_event);
@@ -385,7 +388,7 @@ begin
       begin
         irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[%s]</c> %s %s @ <b>%s</b>', [event, section, rls, sitename]));
       end;
-      kb_Add('', '', sitename, section, genre, kb_event, rls, '');
+      kb_Add('', '', sitename, section, genre, kb_event, rls, '', False, False, 0, aIrcMicroSec);
     except
       on e: Exception do
       begin
@@ -406,6 +409,7 @@ var
   ts_data: TStringList;
   rls, s: String;
   fRequestDirlistTask: TAutoDirlistTask;
+  fIrcMicroSec: Int64;
 begin
   MyDebug('Process %s %s %s %s', [net, chan, nick, Data]);
 
@@ -520,6 +524,7 @@ begin
         if (mind) then
         begin
           try
+            QueryPerformanceMicroSeconds(fIrcMicroSec);
 
             if (ss.section = 'REQUEST') or (ss.eventtype = kbeREQUEST) then
             begin
@@ -542,7 +547,7 @@ begin
               exit;
             end;
 
-            ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data);
+            ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data, fIrcMicroSec);
 
           except
             on e: Exception do

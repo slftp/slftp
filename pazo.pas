@@ -209,6 +209,7 @@ type
     sl: TSkipList;
 
     added: TDateTime;
+    TimingInfo: String; //< High-resolution milestone timing info (from IRC recognition to first dirlist)
 
     // Integers with locking and event
     queuenumber: TIdThreadSafeInt32WithEvent;
@@ -715,6 +716,8 @@ begin
     Result := Result + '?#13#10';
 
   Result := Result + Format('Sites: %d %s', [PazoSitesList.Count, #13#10]);
+  if TimingInfo <> '' then
+    Result := Result + Format('Timings: %s%s', [TimingInfo, #13#10]);
 
   for ps in PazoSitesList do
   begin

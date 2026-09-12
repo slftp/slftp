@@ -21,7 +21,7 @@ type
 
 function renameCheck(const pattern, i, len: integer; const rls: String): boolean;
 function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String;
-  dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
+  dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0; aIrcMicroSec: Int64 = 0): integer;
 function FindReleaseInKbList(const rls: String): String;
 
 { Finds a release in latest KB list
@@ -68,6 +68,7 @@ var
 implementation
 
 uses
+  mormot.core.os, mormot.core.perf, mormot.core.text,
   debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
   taskrace, sitesunit, queueunit, irc, SysUtils, fake, mystrings, tasksunit,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup, encinifile,
@@ -185,7 +186,7 @@ begin
   Result := TComparer<Integer>.Default.Compare(Right.Rank, Left.Rank); //descending
 end;
 
-function kb_AddB(const netname, channel, sitename, section, genre: String; event: TKBEventType; rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
+function kb_AddB(const netname, channel, sitename, section, genre: String; event: TKBEventType; rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0; aIrcMicroSec: Int64 = 0): integer;
 var
   i, j, len: integer;
   r: TRelease;
@@ -202,6 +203,11 @@ var
   fSourcesRank: TSiteRank;
   fSourceSites: TList<TSiteRank>;
   fAdder: Integer;
+  t_kbadd_us, t_rules1_start, t_rules1_stop, t_rules2_start, t_rules2_stop: Int64;
+  t_sort_start, t_sort_stop, t_first_dirlist, t_total_stop: Int64;
+  t_irc_to_kbadd, t_rules1_us, t_rules2_us, t_sort_us, t_first_dirlist_us, t_total_us: Int64;
+  fFirstDirlistSite: String;
+  sTiming: String;
 
   { Removes the oldest knowledge base entries }
   procedure KbListsCleanUp;
@@ -276,6 +282,22 @@ var
   end;
 
 begin
+  QueryPerformanceMicroSeconds(t_kbadd_us);
+  if aIrcMicroSec = 0 then
+    aIrcMicroSec := t_kbadd_us;
+  t_irc_to_kbadd := t_kbadd_us - aIrcMicroSec;
+  t_rules1_us := 0;
+  t_rules2_us := 0;
+  t_sort_us := 0;
+  t_first_dirlist := 0;
+  t_first_dirlist_us := 0;
+  t_total_us := 0;
+  fFirstDirlistSite := '';
+  sTiming := '';
+
+  Debug(dpError, rsections, Format('[TIMING][%s %s @ %s] kb_Add called (IRC->kb_Add: %s)',
+    [section, rls, sitename, String(MicroSecToString(t_irc_to_kbadd))]));
+
   debug(dpSpam, rsections, '--> %s %s %s %s %s %d %d', [sitename, section, KBEventTypeToString(event), rls, cdno, integer(dontFire), integer(forceFire)]);
 
   Result := -1;
@@ -751,6 +773,7 @@ begin
 
   try
     // check rules for site only if needed
+    QueryPerformanceMicroSeconds(t_rules1_start);
     for i := p.PazoSitesList.Count - 1 downto 0 do
     begin
       try
@@ -773,8 +796,13 @@ begin
         kb_lock.Leave;
       end;
     end;
+    QueryPerformanceMicroSeconds(t_rules1_stop);
+    t_rules1_us := t_rules1_stop - t_rules1_start;
+    Debug(dpError, rsections, Format('[TIMING][%s %s @ %s] Rules Step 1 (Site Allow): %s',
+      [section, rls, sitename, String(MicroSecToString(t_rules1_us))]));
 
     // now add all dst
+    QueryPerformanceMicroSeconds(t_rules2_start);
     for i := p.PazoSitesList.Count - 1 downto 0 do
     begin
       try
@@ -791,6 +819,10 @@ begin
         kb_lock.Leave;
       end;
     end;
+    QueryPerformanceMicroSeconds(t_rules2_stop);
+    t_rules2_us := t_rules2_stop - t_rules2_start;
+    Debug(dpError, rsections, Format('[TIMING][%s %s @ %s] Rules Step 2 (Routes/Dst): %s',
+      [section, rls, sitename, String(MicroSecToString(t_rules2_us))]));
   except
     on e: Exception do
     begin
@@ -800,7 +832,25 @@ begin
   end;
 
   if dontFire then
+  begin
+    QueryPerformanceMicroSeconds(t_total_stop);
+    t_total_us := t_total_stop - aIrcMicroSec;
+    sTiming := Format('IRC->KB: %s, Rules1: %s, Rules2: %s (dontFire), Total: %s',
+      [String(MicroSecToString(t_irc_to_kbadd)),
+       String(MicroSecToString(t_rules1_us)),
+       String(MicroSecToString(t_rules2_us)),
+       String(MicroSecToString(t_total_us))]);
+    if p <> nil then
+    begin
+      if p.TimingInfo = '' then
+        p.TimingInfo := Format('[%s @ %s] %s', [KBEventTypeToString(event), sitename, sTiming])
+      else if Length(p.TimingInfo) < 500 then
+        p.TimingInfo := p.TimingInfo + #13#10 + Format('         [%s @ %s] %s', [KBEventTypeToString(event), sitename, sTiming]);
+    end;
+    Debug(dpError, rsections, Format('[TIMING][%s %s @ %s] SUMMARY: %s',
+      [section, rls, sitename, sTiming]));
     exit;
+  end;
 
   // status changed
   ss := p.RoutesText;
@@ -818,6 +868,7 @@ begin
   try
     if (event in [kbeNEWDIR, kbePRE, kbeSPREAD, kbeADDPRE, kbeUPDATE]) then
     begin
+      QueryPerformanceMicroSeconds(t_sort_start);
       fSourceSites := TList<TSiteRank>.Create(TComparer<TSiteRank>.Construct(_CompareSiteRanks));
       try
         for i := p.PazoSitesList.Count - 1 downto 0 do
@@ -845,6 +896,10 @@ begin
         end;
 
         fSourceSites.Sort;
+        QueryPerformanceMicroSeconds(t_sort_stop);
+        t_sort_us := t_sort_stop - t_sort_start;
+        Debug(dpError, rsections, Format('[TIMING][%s %s @ %s] Site Ranking & Sort: %s (%d sites)',
+          [section, rls, sitename, String(MicroSecToString(t_sort_us)), fSourceSites.Count]));
 
         for fSourcesRank in fSourceSites do
         begin
@@ -854,7 +909,7 @@ begin
             // dirlist not available
             if ps.dirlist = nil then
             begin
-              Debug(dpError, section, 'ERROR: ps.dirlist = nil');
+              Debug(dpError, rsections, 'ERROR: ps.dirlist = nil');
               Continue;
             end;
 
@@ -870,21 +925,31 @@ begin
               irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
               ps.dirlist.dirlistadded := True;
               AddTask(dlt, true);
-            end;
-
-            // Source site is _not_ a PRE site for this group
-            if ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete] then
+            end
+            else if ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete] then
             begin
               dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
               irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
               ps.dirlist.dirlistadded := True;
               AddTask(dlt, true);
+            end
+            else
+              Continue;
+
+            if t_first_dirlist = 0 then
+            begin
+              QueryPerformanceMicroSeconds(t_first_dirlist);
+              t_first_dirlist_us := t_first_dirlist - t_kbadd_us;
+              fFirstDirlistSite := ps.Name;
+              Debug(dpError, rsections, Format('[TIMING][%s %s @ %s] First Dirlist Task created: %s @ %s (since IRC: %s)',
+                [section, rls, sitename, String(MicroSecToString(t_first_dirlist_us)), ps.Name,
+                 String(MicroSecToString(t_first_dirlist - aIrcMicroSec))]));
             end;
 
           except
             on E: Exception do
             begin
-              Debug(dpError, section, Format('[EXCEPTION] kb_Add add dirlist iterate: %s', [e.Message]));
+              Debug(dpError, rsections, Format('[EXCEPTION] kb_Add add dirlist iterate: %s', [e.Message]));
               continue;
             end;
           end;
@@ -896,17 +961,48 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] kb_Add add dirlist: %s', [e.Message]));
+      Debug(dpError, rsections, Format('[EXCEPTION] kb_Add add dirlist: %s', [e.Message]));
       exit;
     end;
   end;
+
+  QueryPerformanceMicroSeconds(t_total_stop);
+  t_total_us := t_total_stop - aIrcMicroSec;
+
+  if fFirstDirlistSite <> '' then
+    sTiming := Format('IRC->KB: %s, Rules1: %s, Rules2: %s, Sort: %s, 1stDirlist: %s (%s), Total: %s',
+      [String(MicroSecToString(t_irc_to_kbadd)),
+       String(MicroSecToString(t_rules1_us)),
+       String(MicroSecToString(t_rules2_us)),
+       String(MicroSecToString(t_sort_us)),
+       String(MicroSecToString(t_first_dirlist_us)),
+       fFirstDirlistSite,
+       String(MicroSecToString(t_total_us))])
+  else
+    sTiming := Format('IRC->KB: %s, Rules1: %s, Rules2: %s, Sort: %s, 1stDirlist: none, Total: %s',
+      [String(MicroSecToString(t_irc_to_kbadd)),
+       String(MicroSecToString(t_rules1_us)),
+       String(MicroSecToString(t_rules2_us)),
+       String(MicroSecToString(t_sort_us)),
+       String(MicroSecToString(t_total_us))]);
+
+  if p <> nil then
+  begin
+    if p.TimingInfo = '' then
+      p.TimingInfo := Format('[%s @ %s] %s', [KBEventTypeToString(event), sitename, sTiming])
+    else if Length(p.TimingInfo) < 500 then
+      p.TimingInfo := p.TimingInfo + #13#10 + Format('         [%s @ %s] %s', [KBEventTypeToString(event), sitename, sTiming]);
+  end;
+
+  Debug(dpError, rsections, Format('[TIMING][%s %s @ %s] SUMMARY: %s',
+    [section, rls, sitename, sTiming]));
 
   debug(dpSpam, rsections, '<-- %s %s %s %s %s %s %d %d',
     [sitename, section, genre, KBEventTypeToString(event), rls, cdno, integer(dontFire),
     integer(forceFire)]);
 end;
 
-function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
+function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0; aIrcMicroSec: Int64 = 0): integer;
 begin
   Result := 0;
   if (Trim(sitename) = '') then
@@ -922,7 +1018,7 @@ begin
     Debug(dpMessage, 'kb', '--> ' + Format('%s: %s %s @ %s (%s%s)',
       [KBEventTypeToString(event), section, rls, sitename, genre, cdno]));
     Result := kb_AddB(netname, channel, sitename, section, genre,
-      event, rls, cdno, dontFire, forceFire, ts);
+      event, rls, cdno, dontFire, forceFire, ts, aIrcMicroSec);
     Debug(dpMessage, 'kb', '<-- ' + Format('%s: %s %s @ %s (%s%s)',
       [KBEventTypeToString(event), section, rls, sitename, genre, cdno]));
   except
