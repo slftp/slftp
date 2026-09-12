@@ -1186,29 +1186,32 @@ begin
         d := TDirListEntry.Create(firstdir, self, True);
         entries.Add(d.filename, d);
       end;
+
+      if (not d.Directory) then
+      begin
+        exit;
+      end;
+
+      if d.subdirlist = nil then
+      begin
+        d.subdirlist := TDirlist.Create(site_name, d, skiplist, FPazoSFV);
+        if d.subdirlist <> nil then
+          d.subdirlist.FullPath := MyIncludeTrailingSlash(self.FFullPath) + d.filename;
+      end;
     finally
       dirlist_lock.Leave;
     end;
 
-    if (not d.Directory) then
-    begin
-      exit;
-    end;
-
-    if d.subdirlist = nil then
-    begin
-      d.subdirlist := TDirlist.Create(site_name, d, skiplist, FPazoSFV);
-      if d.subdirlist <> nil then
-        d.subdirlist.FullPath := MyIncludeTrailingSlash(self.FFullPath) + d.filename;
-    end;
+    if d.subdirlist <> nil then
+      Result := d.subdirlist.FindDirlist(lastdir, createit);
   except
     on E: Exception do
     begin
       debugunit.Debug(dpError, section, 'TDirList.FindDirlist: %s', [e.Message]);
+      Result := nil;
       exit;
     end;
   end;
-  Result := d.subdirlist.FindDirlist(lastdir, createit);
 end;
 
 function TDirList.Done: Integer;

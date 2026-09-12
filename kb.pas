@@ -478,111 +478,115 @@ begin
     exit;
   end;
 
-  if fIsNew then
-  begin
-    debug(dpSpam, rsections,
-      'This NEWDIR [event: %s] task for %s (%s) was the first one to hit kb - checking eljut etc',
-      [KBEventTypeToString(event), rls, section]);
+  p.PazoLock.Enter('kb_AddB');
+  try
+    r := p.rls;
 
-    if (event = kbePRE) then
+    if not p.InitialSetupDone then
     begin
-      irc_SendAddPre(format('%s %s %s', [addpreechocmd, rls, section]));
-      if TPretimeLookupMOde(taskpretime_mode) = plmSQLITE then
+      p.InitialSetupDone := True;
+
+      debug(dpSpam, rsections,
+        'This NEWDIR [event: %s] task for %s (%s) was the first one to hit kb - checking eljut etc',
+        [KBEventTypeToString(event), rls, section]);
+
+      if (event = kbePRE) then
       begin
-        try
-          dbaddpre_InsertRlz(rls, section, 'SITE-' + sitename, True);
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, rsections, 'dbaddpre_InsertRlz error : %s', [e.Message]);
+        irc_SendAddPre(format('%s %s %s', [addpreechocmd, rls, section]));
+        if TPretimeLookupMOde(taskpretime_mode) = plmSQLITE then
+        begin
+          try
+            dbaddpre_InsertRlz(rls, section, 'SITE-' + sitename, True);
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, rsections, 'dbaddpre_InsertRlz error : %s', [e.Message]);
+            end;
           end;
         end;
       end;
-    end;
 
-    if genre <> '' then
-    begin
-      try
-        r.Aktualizald(genre);
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, rsections, 'r.Aktualizald(genre) : %s', [e.Message]);
+      if genre <> '' then
+      begin
+        try
+          r.Aktualizald(genre);
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, rsections, 'r.Aktualizald(genre) : %s', [e.Message]);
+          end;
         end;
       end;
-    end;
 
-    // need to search all sites where there is such a section ...
-    p.AddSites;
+      // need to search all sites where there is such a section ...
+      p.AddSites;
 
-    // If pretime is 0 and a specific site announced, add this source site to pazo so it can start dirlisting early
-    if (r.pretime = 0) and (sitename <> '') and (sitename <> getAdminSiteName) then
-    begin
-      p.AddSite(sitename);
-      p.RecordEarlyAnnounce(sitename);
-      Inc(GlEarlyAnnouncesTotal);
-      Inc(GlEarlyAnnounceReleasesTotal);
-    end;
-
-    // announce event on admin chan
-    if (event = kbeADDPRE) then
-    begin
-      if spamcfg.ReadBool('kb', 'new_rls', True) then
-        irc_Addstats(Format('<c3>[ADDPRE]</c> %s %s @ <b>%s</b>', [section, rls, channel]));
-    end
-    else if (event = kbePRE) then
-    begin
-      if spamcfg.ReadBool('kb', 'pre_rls', True) then
-        irc_Addstats(Format('<c9>[<b>PRE</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
-    end
-    else if (event = kbeSPREAD) then
-    begin
-      if spamcfg.ReadBool('kb', 'spread_rls', True) then
-        irc_Addstats(Format('<c9>[<b>SPREAD</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
-    end
-    else
-    begin
-      if (r.pretime = 0) then
+      // If pretime is 0 and a specific site announced, add this source site to pazo so it can start dirlisting early
+      if (r.pretime = 0) and (sitename <> '') and (sitename <> getAdminSiteName) then
       begin
-        if TPretimeLookupMOde(taskpretime_mode) = plmNone then
+        p.AddSite(sitename);
+        p.RecordEarlyAnnounce(sitename);
+        Inc(GlEarlyAnnouncesTotal);
+        Inc(GlEarlyAnnounceReleasesTotal);
+      end;
+
+      // announce event on admin chan
+      if (event = kbeADDPRE) then
+      begin
+        if spamcfg.ReadBool('kb', 'new_rls', True) then
+          irc_Addstats(Format('<c3>[ADDPRE]</c> %s %s @ <b>%s</b>', [section, rls, channel]));
+      end
+      else if (event = kbePRE) then
+      begin
+        if spamcfg.ReadBool('kb', 'pre_rls', True) then
+          irc_Addstats(Format('<c9>[<b>PRE</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
+      end
+      else if (event = kbeSPREAD) then
+      begin
+        if spamcfg.ReadBool('kb', 'spread_rls', True) then
+          irc_Addstats(Format('<c9>[<b>SPREAD</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
+      end
+      else
+      begin
+        if (r.pretime = 0) then
         begin
-          if spamcfg.ReadBool('kb', 'new_rls', True) then
-            irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b>', [section, rls, sitename]));
+          if TPretimeLookupMOde(taskpretime_mode) = plmNone then
+          begin
+            if spamcfg.ReadBool('kb', 'new_rls', True) then
+              irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b>', [section, rls, sitename]));
+          end
+          else
+          begin
+            if spamcfg.ReadBool('kb', 'new_rls', True) then
+              irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<c7><b>Not found in PreDB</b></c>)', [section, rls, sitename]));
+
+            if GlTaskPretimeReaddAttempts > 0 then
+            begin
+              fPreTimeLookupTask := TPazoPretimeLookupTask.Create(netname, channel, getadminsitename, p, 1);
+              fPreTimeLookupTask.startat := IncSecond(Now, GlTaskPretimeReaddInterval);
+              AddTask(fPreTimeLookupTask);
+            end;
+          end;
         end
         else
         begin
           if spamcfg.ReadBool('kb', 'new_rls', True) then
-            irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<c7><b>Not found in PreDB</b></c>)', [section, rls, sitename]));
-
-          if GlTaskPretimeReaddAttempts > 0 then
-          begin
-            fPreTimeLookupTask := TPazoPretimeLookupTask.Create(netname, channel, getadminsitename, p, 1);
-            fPreTimeLookupTask.startat := IncSecond(Now, GlTaskPretimeReaddInterval);
-            AddTask(fPreTimeLookupTask);
-          end;
+            irc_Addstats(Format('<c3>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<b>%s</b>) (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, p.sl.sectionname, dbaddpre_GetPreduration(r.pretime), r.PretimeSource]));
         end;
-      end
-      else
-      begin
-        if spamcfg.ReadBool('kb', 'new_rls', True) then
-          irc_Addstats(Format('<c3>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<b>%s</b>) (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, p.sl.sectionname, dbaddpre_GetPreduration(r.pretime), r.PretimeSource]));
       end;
-    end;
-  end
-  else
-  begin
-    if (event = kbePRE) then
+    end
+    else
     begin
-      if spamcfg.ReadBool('kb', 'pre_rls', True) then
-        irc_Addstats(Format('<c9>[<b>PRE</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
-    end;
+      if (event = kbePRE) then
+      begin
+        if spamcfg.ReadBool('kb', 'pre_rls', True) then
+          irc_Addstats(Format('<c9>[<b>PRE</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
+      end;
 
-    // meg kell tudni mi valtozott //you need to know what's changed
-    r := p.rls;
-
-    debug(dpSpam, rsections,
-      'This NEWDIR [event: %s] task was not the first one to hit kb as kb_list already contained an entry for %s in %s',
-      [KBEventTypeToString(event), rls, section]);
+      // meg kell tudni mi valtozott //you need to know what's changed
+      debug(dpSpam, rsections,
+        'This NEWDIR [event: %s] task was not the first one to hit kb as kb_list already contained an entry for %s in %s',
+        [KBEventTypeToString(event), rls, section]);
 
     if r.rlsname <> rls then
     begin
@@ -997,9 +1001,12 @@ begin
       p.TimingInfo := p.TimingInfo + #13#10 + Format('         [%s @ %s] %s', [KBEventTypeToString(event), sitename, sTiming]);
   end;
 
-  debug(dpSpam, rsections, '<-- %s %s %s %s %s %s %d %d',
-    [sitename, section, genre, KBEventTypeToString(event), rls, cdno, integer(dontFire),
-    integer(forceFire)]);
+    debug(dpSpam, rsections, '<-- %s %s %s %s %s %s %d %d',
+      [sitename, section, genre, KBEventTypeToString(event), rls, cdno, integer(dontFire),
+      integer(forceFire)]);
+  finally
+    p.PazoLock.Leave;
+  end;
 end;
 
 function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0; aIrcMicroSec: Int64 = 0): integer;
@@ -1804,6 +1811,12 @@ begin
         for p in fDeletedPazos do
         begin
           try
+            p.PazoLock.Enter('FreePazo');
+            try
+              // Drain any concurrent thread holding PazoLock
+            finally
+              p.PazoLock.Leave;
+            end;
             p.Free;
           except
             on e: Exception do

@@ -181,6 +181,8 @@ type
     FUniqueFileListOfRelease_cs: TSlCriticalSection2; //< Critical section for Add calls to @link(FUniqueFileListOfRelease)
     FUniqueFileListOfRelease: TDictionary<String, Int64>; //< Dictionary with files (including subdirs) and corresponding filesize (biggest value seen on any site) for this release, Key="dir + '/' + filename" and Value=filesize
     FPazoSFV: TPazoSFV;
+    FPazoLock: TSlCriticalSection2; //< Critical section for thread-safe access to this TPazo and its @link(PazoSitesList)
+    FInitialSetupDone: boolean; //< @true if initial setup in kb_AddB has completed, @false otherwise
 
     function GetIsRequest: boolean;
     function GetSkipPretimeCheck: boolean;
@@ -277,6 +279,8 @@ type
     property IsRequest: Boolean read GetIsRequest write FIsRequest; //< @true if this pazo represents a request-fill job, @false otherwise
     property SkipPretimeCheck: Boolean read GetSkipPretimeCheck write FSkipPretimeCheck; //< @true if pretime checks should be bypassed (e.g. requests, manual transfers), @false otherwise
     property PazoSFV: TPazoSFV read FPazoSFV;
+    property PazoLock: TSlCriticalSection2 read FPazoLock; //< Lock protecting this TPazo instance and its @link(PazoSitesList)
+    property InitialSetupDone: boolean read FInitialSetupDone write FInitialSetupDone; //< @true if initial setup in kb_AddB has completed, @false otherwise
   end;
 
 function PazoAdd(const rls: TRelease): TPazo;
@@ -786,11 +790,16 @@ end;
 // Sometime before TPazoSite.AddSites called AddSite but was changed to create TPazoSite instantly!
 function TPazo.AddSite(const sitename, maindir: String; delay: boolean = True): TPazoSite;
 begin
-  Result := TPazoSite.Create(self, sitename, maindir);
-  if delay then
-    Result.DelaySetup;
-  PazoSitesList.Add(Result);
-  CheckSiteSlots(sitename);
+  FPazoLock.Enter('TPazo.AddSite');
+  try
+    Result := TPazoSite.Create(self, sitename, maindir);
+    if delay then
+      Result.DelaySetup;
+    PazoSitesList.Add(Result);
+    CheckSiteSlots(sitename);
+  finally
+    FPazoLock.Leave;
+  end;
 end;
 
 function TPazo.AddSite(const aSiteName: String): TPazoSite;
@@ -798,28 +807,33 @@ var
   s: TSite;
   sectiondir: String;
 begin
-  Result := FindSite(aSiteName);
-  if Result <> nil then
-    Exit;
+  FPazoLock.Enter('TPazo.AddSite');
+  try
+    Result := FindSite(aSiteName);
+    if Result <> nil then
+      Exit;
 
-  s := FindSiteByName('', aSiteName);
-  if s = nil then
-    Exit;
+    s := FindSiteByName('', aSiteName);
+    if s = nil then
+      Exit;
 
-  sectiondir := s.sectiondir[rls.section];
-  if (sectiondir = '') then
-    Exit;
+    sectiondir := s.sectiondir[rls.section];
+    if (sectiondir = '') then
+      Exit;
 
-  sectiondir := DatumIdentifierReplace(sectiondir);
+    sectiondir := DatumIdentifierReplace(sectiondir);
 
-  Result := TPazoSite.Create(self, s.Name, sectiondir, s);
-  Result.status := rssNotAllowed;
-  Result.DelaySetup;
-  if s.IsAffil(rls.groupname) then
-    Result.status := rssShouldPre;
+    Result := TPazoSite.Create(self, s.Name, sectiondir, s);
+    Result.status := rssNotAllowed;
+    Result.DelaySetup;
+    if s.IsAffil(rls.groupname) then
+      Result.status := rssShouldPre;
 
-  PazoSitesList.Add(Result);
-  CheckSiteSlots(s);
+    PazoSitesList.Add(Result);
+    CheckSiteSlots(s);
+  finally
+    FPazoLock.Leave;
+  end;
 end;
 
 procedure TPazo.RecordEarlyAnnounce(const aSiteName: String);
@@ -854,10 +868,15 @@ procedure TPazo.TriggerTuzeljForReadySites(const aNetname, aChannel: String);
 var
   ps: TPazoSite;
 begin
-  for ps in PazoSitesList do
-  begin
-    if ps.status in [rssAllowed, rssRealPre, rssShouldPre, rssNotAllowedButItsThere] then
-      ps.ProcessExistingEntries(aNetname, aChannel);
+  FPazoLock.Enter('TPazo.TriggerTuzeljForReadySites');
+  try
+    for ps in PazoSitesList do
+    begin
+      if ps.status in [rssAllowed, rssRealPre, rssShouldPre, rssNotAllowedButItsThere] then
+        ps.ProcessExistingEntries(aNetname, aChannel);
+    end;
+  finally
+    FPazoLock.Leave;
   end;
 end;
 
@@ -868,11 +887,16 @@ var
 begin
   Result := -1;
 
-  for ps in PazoSitesList do
-  begin
-    a := ps.Age;
-    if ((a <> -1) and ((Result = -1) or (Result < a))) then
-      Result := a;
+  FPazoLock.Enter('TPazo.Age');
+  try
+    for ps in PazoSitesList do
+    begin
+      a := ps.Age;
+      if ((a <> -1) and ((Result = -1) or (Result < a))) then
+        Result := a;
+    end;
+  finally
+    FPazoLock.Leave;
   end;
 
   if Result = -1 then
@@ -883,25 +907,30 @@ function TPazo.AsText: String;
 var
   ps: TPazoSite;
 begin
-  Result := rls.AsText(pazo_id);
+  FPazoLock.Enter('TPazo.AsText');
+  try
+    Result := rls.AsText(pazo_id);
 
-  Result := Result + Format('Age: %ds %s', [age, #13#10]);
+    Result := Result + Format('Age: %ds %s', [age, #13#10]);
 
-  Result := Result + 'Skiplist: ';
-  if sl <> nil then
-    Result := Result + Format('%s%s', [sl.sectionname, #13#10])
-  else
-    Result := Result + '?#13#10';
+    Result := Result + 'Skiplist: ';
+    if sl <> nil then
+      Result := Result + Format('%s%s', [sl.sectionname, #13#10])
+    else
+      Result := Result + '?#13#10';
 
-  Result := Result + Format('Sites: %d %s', [PazoSitesList.Count, #13#10]);
-  if TimingInfo <> '' then
-    Result := Result + Format('Timings: %s%s', [TimingInfo, #13#10]);
-  if PretimeGapInfo <> '' then
-    Result := Result + Format('Pretime Gap: %s%s', [PretimeGapInfo, #13#10]);
+    Result := Result + Format('Sites: %d %s', [PazoSitesList.Count, #13#10]);
+    if TimingInfo <> '' then
+      Result := Result + Format('Timings: %s%s', [TimingInfo, #13#10]);
+    if PretimeGapInfo <> '' then
+      Result := Result + Format('Pretime Gap: %s%s', [PretimeGapInfo, #13#10]);
 
-  for ps in PazoSitesList do
-  begin
-    Result := Result + ps.AsText;
+    for ps in PazoSitesList do
+    begin
+      Result := Result + ps.AsText;
+    end;
+  finally
+    FPazoLock.Leave;
   end;
 end;
 
@@ -909,21 +938,26 @@ function TPazo.RoutesText: String;
 var
   ps: TPazoSite;
 begin
-  Result := Format('<c3>[ROUTES]</c> : <b>%s</b> (%d sites)', [rls.rlsname, PazoSitesList.Count]);
-  Result := Result + #13#10;
+  FPazoLock.Enter('TPazo.RoutesText');
+  try
+    Result := Format('<c3>[ROUTES]</c> : <b>%s</b> (%d sites)', [rls.rlsname, PazoSitesList.Count]);
+    Result := Result + #13#10;
 
-  for ps in PazoSitesList do
-  begin
-    Result := Result + ps.RoutesText;
-  end;
+    for ps in PazoSitesList do
+    begin
+      Result := Result + ps.RoutesText;
+    end;
 
-  if (Result <> lastannounceroutes) then
-  begin
-    lastannounceroutes := Result;
-  end
-  else
-  begin
-    Result := '';
+    if (Result <> lastannounceroutes) then
+    begin
+      lastannounceroutes := Result;
+    end
+    else
+    begin
+      Result := '';
+    end;
+  finally
+    FPazoLock.Leave;
   end;
 end;
 
@@ -987,17 +1021,21 @@ begin
 end;
 
 constructor TPazo.Create(const rls: TRelease; const pazo_id: integer);
+var
+  fRlsName: String;
 begin
   if rls <> nil then
   begin
     Debug(dpSpam, section, 'TPazo.Create: %s', [rls.rlsname]);
     sl := FindSkipList(rls.section);
     self.rls := rls;
+    fRlsName := rls.rlsname;
   end
   else
   begin
     Debug(dpSpam, section, 'TPazo.Create: SPEEDTEST');
     self.rls := nil;
+    fRlsName := 'SPEEDTEST';
   end;
 
   added := Now;
@@ -1013,8 +1051,10 @@ begin
   stopped := False;
   ready := False;
   lastTouch := Now();
-  FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_' + rls.Name + '_' + IntToStr(pazo_id));
+  FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_' + fRlsName + '_' + IntToStr(pazo_id));
   FUniqueFileListOfRelease := TDictionary<String, Int64>.Create;
+  FPazoLock := TSlCriticalSection2.Create('Pazo_' + fRlsName + '_' + IntToStr(pazo_id));
+  FInitialSetupDone := False;
 
   self.stated := False;
   self.cleared := False;
@@ -1022,7 +1062,7 @@ begin
   FExcludeFromIncfiller := False;
   FIsRequest := False;
   FSkipPretimeCheck := False;
-  if rls.IsSFVRelease then
+  if (rls <> nil) and rls.IsSFVRelease then
     FPazoSFV := TPazoSFV.Create;
 
   TimingInfo := '';
@@ -1036,7 +1076,10 @@ end;
 
 destructor TPazo.Destroy;
 begin
-  Debug(dpSpam, section, 'TPazo.Destroy: %s', [rls.rlsname]);
+  if rls <> nil then
+    Debug(dpSpam, section, 'TPazo.Destroy: %s', [rls.rlsname])
+  else
+    Debug(dpSpam, section, 'TPazo.Destroy: SPEEDTEST');
   Clear;
   PazoSitesList.Free;
   queuenumber.Free;
@@ -1045,6 +1088,7 @@ begin
   mkdirtasks.Free;
   FUniqueFileListOfRelease.Free;
   FUniqueFileListOfRelease_cs.Free;
+  FPazoLock.Free;
   FreeAndNil(rls);
   if FPazoSFV <> nil then FPazoSFV.Free;
 
@@ -1066,21 +1110,26 @@ var
   ps: TPazoSite;
 begin
   Result := nil;
+  FPazoLock.Enter('TPazo.FindSite');
   try
-    for ps in PazoSitesList do
-    begin
-      if ps.Name = sitename then
+    try
+      for ps in PazoSitesList do
       begin
-        Result := ps;
-        Break;
+        if ps.Name = sitename then
+        begin
+          Result := ps;
+          Break;
+        end;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TPazo.FindSite: %s', [e.Message]));
+        Result := nil;
       end;
     end;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazo.FindSite: %s', [e.Message]));
-      Result := nil;
-    end;
+  finally
+    FPazoLock.Leave;
   end;
 end;
 
@@ -1187,7 +1236,12 @@ begin
   sitesSorted := TObjectList<TPazoSite>.Create(False);
   try
     // add references to original sites list and sort them
-    sitesSorted.AddRange(PazoSitesList);
+    FPazoLock.Enter('TPazo.Stats');
+    try
+      sitesSorted.AddRange(PazoSitesList);
+    finally
+      FPazoLock.Leave;
+    end;
     sitesSorted.Sort(TComparer<TPazoSite>.Construct(_CompareCompleteTimes));
 
     for ps in sitesSorted do
@@ -1252,7 +1306,12 @@ begin
 
   sitesSorted := TObjectList<TPazoSite>.Create(False);
   try
-    sitesSorted.AddRange(PazoSitesList);
+    FPazoLock.Enter('TPazo.SiteCompleteTimesStats');
+    try
+      sitesSorted.AddRange(PazoSitesList);
+    finally
+      FPazoLock.Leave;
+    end;
     sitesSorted.Sort(TComparer<TPazoSite>.Construct(_CompareCompleteTimes));
 
     for ps in sitesSorted do
@@ -1335,9 +1394,14 @@ var
   ps: TPazoSite;
 begin
   Result := '';
-  for ps in PazoSitesList do
-  begin
-    Result := Result + ps.StatusText + ' ';
+  FPazoLock.Enter('TPazo.StatusText');
+  try
+    for ps in PazoSitesList do
+    begin
+      Result := Result + ps.StatusText + ' ';
+    end;
+  finally
+    FPazoLock.Leave;
   end;
 
   // remove superfluous whitespace
@@ -1346,24 +1410,29 @@ end;
 
 procedure TPazo.Clear;
 begin
+  FPazoLock.Enter('TPazo.Clear');
   try
-    RemovePazo(pazo_id, True);
+    try
+      RemovePazo(pazo_id, True);
 
-    FExcludeFromIncfiller := False;
-    stopped := False; // ha stoppoltak korabban akkor ez most szivas
-    ready := False;
-    readyerror := False;
-    errorreason := '';
-    FUniqueFileListOfRelease.Clear;
-    PazoSitesList.Clear;
+      FExcludeFromIncfiller := False;
+      stopped := False; // ha stoppoltak korabban akkor ez most szivas
+      ready := False;
+      readyerror := False;
+      errorreason := '';
+      FUniqueFileListOfRelease.Clear;
+      PazoSitesList.Clear;
 
-    self.cleared := True;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, '[EXCEPTION] TPazo.Clear : %s', [e.Message]);
-      exit;
+      self.cleared := True;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, '[EXCEPTION] TPazo.Clear : %s', [e.Message]);
+        exit;
+      end;
     end;
+  finally
+    FPazoLock.Leave;
   end;
 end;
 
@@ -1380,73 +1449,78 @@ var
   ps: TPazoSite;
 begin
   Result := False;
-  for i := sitesunit.sites.Count - 1 downto 0 do
-  begin
-    try
-      s := TSite(sitesunit.sites[i]);
-      if not (s.WorkingStatus in [sstUnknown, sstUp]) then
-        Continue;
-      if s.PermDown then
-        Continue;
-      if aIsSpreadJob then
-      begin
-        if s.SkipPre then
+  FPazoLock.Enter('TPazo.AddSites');
+  try
+    for i := sitesunit.sites.Count - 1 downto 0 do
+    begin
+      try
+        s := TSite(sitesunit.sites[i]);
+        if not (s.WorkingStatus in [sstUnknown, sstUp]) then
           Continue;
-      end;
-
-      sectiondir := s.sectiondir[rls.section];
-      if (sectiondir = '') then
-        Continue;
-
-      ps := FindSite(s.Name);
-      if ps <> nil then
-      begin
-        if (not aIsSpreadJob) and (glPazoPreTimeLookupMode <> plmNone) and (rls.pretime <> 0) then
+        if s.PermDown then
+          Continue;
+        if aIsSpreadJob then
         begin
-          if not s.IsPretimeOk(rls.section, rls.pretime) then
+          if s.SkipPre then
+            Continue;
+        end;
+
+        sectiondir := s.sectiondir[rls.section];
+        if (sectiondir = '') then
+          Continue;
+
+        ps := FindSite(s.Name);
+        if ps <> nil then
+        begin
+          if (not aIsSpreadJob) and (glPazoPreTimeLookupMode <> plmNone) and (rls.pretime <> 0) then
           begin
-            ps.status := rssNotAllowed;
-            ps.reason := 'Backfill';
+            if not s.IsPretimeOk(rls.section, rls.pretime) then
+            begin
+              ps.status := rssNotAllowed;
+              ps.reason := 'Backfill';
+            end;
+          end;
+          Continue;
+        end;
+
+        if not aIsSpreadJob then
+        begin
+          if glPazoPreTimeLookupMode <> plmNone then
+          begin
+            if not (rls.pretime <> 0) then
+              Continue;
+
+            if not (s.IsPretimeOk(rls.section, rls.pretime)) then
+              Continue;
           end;
         end;
-        Continue;
-      end;
 
-      if not aIsSpreadJob then
-      begin
-        if glPazoPreTimeLookupMode <> plmNone then
+        ps := TPazoSite.Create(self, s.Name, sectiondir, s);
+        ps.status := rssNotAllowed;
+        if not aIsSpreadJob then
         begin
-          if not (rls.pretime <> 0) then
-            Continue;
+          ps.DelaySetup;
+        end;
 
-          if not (s.IsPretimeOk(rls.section, rls.pretime)) then
-            Continue;
+        if s.IsAffil(rls.groupname) then
+        begin
+          ps.status := rssShouldPre;
+        end;
+
+        PazoSitesList.Add(ps);
+        CheckSiteSlots(s);
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] TPazo.AddSites: %s', [e.Message]));
+          Continue;
         end;
       end;
 
-      ps := TPazoSite.Create(self, s.Name, sectiondir, s);
-      ps.status := rssNotAllowed;
-      if not aIsSpreadJob then
-      begin
-        ps.DelaySetup;
-      end;
-
-      if s.IsAffil(rls.groupname) then
-      begin
-        ps.status := rssShouldPre;
-      end;
-
-      PazoSitesList.Add(ps);
-      CheckSiteSlots(s);
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TPazo.AddSites: %s', [e.Message]));
-        Continue;
-      end;
+      Result := True;
     end;
-
-    Result := True;
+  finally
+    FPazoLock.Leave;
   end;
 end;
 

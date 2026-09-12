@@ -177,6 +177,9 @@ implementation
   end;
 
   constructor TslCriticalSection2.Create(aName: string; const aAlwaysUseTimeoutLocking: boolean = False);
+  var
+    fDisambigName: string;
+    fDupCounter: Integer;
   begin
     if not glIsInitialized then // happens at startup when a TslCriticalSection2 is created before initialization
     begin
@@ -196,11 +199,15 @@ implementation
 
     glUsedCriticalSectionsLock.Enter;
     try
-      if glUsedCriticalSections.ContainsKey(aName) then
+      fDisambigName := aName;
+      fDupCounter := 1;
+      while glUsedCriticalSections.ContainsKey(fDisambigName) do
       begin
-        raise Exception.Create(Format('SL Critical section with name %s already exists.', [aName]));
+        Inc(fDupCounter);
+        fDisambigName := Format('%s#%d', [aName, fDupCounter]);
       end;
-      glUsedCriticalSections.Add(aName, self);
+      FName := fDisambigName;
+      glUsedCriticalSections.Add(fDisambigName, self);
     finally
       glUsedCriticalSectionsLock.Leave;
     end;
@@ -208,7 +215,7 @@ implementation
     if glUseTimeoutLocking Or aAlwaysUseTimeoutLocking then
     begin
       FUseTimeoutLocking := True;
-      FEvent := TEvent.Create(nil, False, True, 'SLFTP_' + aName);
+      FEvent := TEvent.Create(nil, False, True, 'SLFTP_' + FName);
       FLockCount := 0;
       FLockOwningThreadID := 0;
       FCurrentCodeSegmentName := '';
