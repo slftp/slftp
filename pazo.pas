@@ -47,11 +47,12 @@ type
       property Rank: integer read FRank;
       constructor Create(const aPazoSite: TPazoSite; const aRank: integer);
    end;
+  TDestinationRank = TSiteRank; //< Backwards-compatible alias
 
   TPazoSite = class
   private
     cds: String;
-    FDestinations: TList<TDestinationRank>; //< destination sites and ranks
+    FDestinations: TList<TSiteRank>; //< destination sites and ranks
     FActiveTransfers: TDictionary<string, string>; //< stores which files have an active tranfer to this destination site. Key: filepath, Value: source site
     FActiveTransfersCS: TCriticalSection;
     function Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>): boolean;
@@ -92,7 +93,7 @@ type
     speed_from: TList<TSpeedFromRouteInfo>;
 
     property dirlistgaveup: boolean read GetDirlistGaveUp write SetDirListGaveUp; //< gets or sets a value indicating whether dirlisting have been given up for this site
-    property Destinations: TList<TDestinationRank> read FDestinations; //< destination sites and ranks
+    property Destinations: TList<TSiteRank> read FDestinations; //< destination sites and ranks
     property ActiveTransferCount: Int32 read GetActiveTransferCount;
 
     function StatusRealPreOrShouldPre: boolean;  //< returns @true if its a pre or at least it should be one
