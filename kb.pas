@@ -207,6 +207,8 @@ var
   t_sort_start, t_sort_stop, t_first_dirlist, t_total_stop: Int64;
   t_irc_to_kbadd, t_rules1_us, t_rules2_us, t_sort_us, t_first_dirlist_us, t_total_us: Int64;
   fFirstDirlistSite: String;
+  fDirlistSites: String;
+  fDirlistCount: Integer;
   sTiming: String;
 
   { Removes the oldest knowledge base entries }
@@ -293,10 +295,9 @@ begin
   t_first_dirlist_us := 0;
   t_total_us := 0;
   fFirstDirlistSite := '';
+  fDirlistSites := '';
+  fDirlistCount := 0;
   sTiming := '';
-
-  Debug(dpError, rsections, Format('[TIMING][%s %s @ %s] kb_Add called (IRC->kb_Add: %s)',
-    [section, rls, sitename, String(MicroSecToString(t_irc_to_kbadd))]));
 
   debug(dpSpam, rsections, '--> %s %s %s %s %s %d %d', [sitename, section, KBEventTypeToString(event), rls, cdno, integer(dontFire), integer(forceFire)]);
 
@@ -798,8 +799,6 @@ begin
     end;
     QueryPerformanceMicroSeconds(t_rules1_stop);
     t_rules1_us := t_rules1_stop - t_rules1_start;
-    Debug(dpError, rsections, Format('[TIMING][%s %s @ %s] Rules Step 1 (Site Allow): %s',
-      [section, rls, sitename, String(MicroSecToString(t_rules1_us))]));
 
     // now add all dst
     QueryPerformanceMicroSeconds(t_rules2_start);
@@ -821,8 +820,6 @@ begin
     end;
     QueryPerformanceMicroSeconds(t_rules2_stop);
     t_rules2_us := t_rules2_stop - t_rules2_start;
-    Debug(dpError, rsections, Format('[TIMING][%s %s @ %s] Rules Step 2 (Routes/Dst): %s',
-      [section, rls, sitename, String(MicroSecToString(t_rules2_us))]));
   except
     on e: Exception do
     begin
@@ -844,11 +841,9 @@ begin
     begin
       if p.TimingInfo = '' then
         p.TimingInfo := Format('[%s @ %s] %s', [KBEventTypeToString(event), sitename, sTiming])
-      else if Length(p.TimingInfo) < 500 then
+      else if Length(p.TimingInfo) < 1000 then
         p.TimingInfo := p.TimingInfo + #13#10 + Format('         [%s @ %s] %s', [KBEventTypeToString(event), sitename, sTiming]);
     end;
-    Debug(dpError, rsections, Format('[TIMING][%s %s @ %s] SUMMARY: %s',
-      [section, rls, sitename, sTiming]));
     exit;
   end;
 
@@ -898,8 +893,6 @@ begin
         fSourceSites.Sort;
         QueryPerformanceMicroSeconds(t_sort_stop);
         t_sort_us := t_sort_stop - t_sort_start;
-        Debug(dpError, rsections, Format('[TIMING][%s %s @ %s] Site Ranking & Sort: %s (%d sites)',
-          [section, rls, sitename, String(MicroSecToString(t_sort_us)), fSourceSites.Count]));
 
         for fSourcesRank in fSourceSites do
         begin
@@ -936,14 +929,17 @@ begin
             else
               Continue;
 
+            Inc(fDirlistCount);
+            if fDirlistSites = '' then
+              fDirlistSites := ps.Name
+            else
+              fDirlistSites := fDirlistSites + ', ' + ps.Name;
+
             if t_first_dirlist = 0 then
             begin
               QueryPerformanceMicroSeconds(t_first_dirlist);
               t_first_dirlist_us := t_first_dirlist - t_kbadd_us;
               fFirstDirlistSite := ps.Name;
-              Debug(dpError, rsections, Format('[TIMING][%s %s @ %s] First Dirlist Task created: %s @ %s (since IRC: %s)',
-                [section, rls, sitename, String(MicroSecToString(t_first_dirlist_us)), ps.Name,
-                 String(MicroSecToString(t_first_dirlist - aIrcMicroSec))]));
             end;
 
           except
@@ -969,17 +965,18 @@ begin
   QueryPerformanceMicroSeconds(t_total_stop);
   t_total_us := t_total_stop - aIrcMicroSec;
 
-  if fFirstDirlistSite <> '' then
-    sTiming := Format('IRC->KB: %s, Rules1: %s, Rules2: %s, Sort: %s, 1stDirlist: %s (%s), Total: %s',
+  if fDirlistCount > 0 then
+    sTiming := Format('IRC->KB: %s, Rules1: %s, Rules2: %s, Sort: %s, Dirlists (%d): %s (1st: %s), Total: %s',
       [String(MicroSecToString(t_irc_to_kbadd)),
        String(MicroSecToString(t_rules1_us)),
        String(MicroSecToString(t_rules2_us)),
        String(MicroSecToString(t_sort_us)),
+       fDirlistCount,
+       fDirlistSites,
        String(MicroSecToString(t_first_dirlist_us)),
-       fFirstDirlistSite,
        String(MicroSecToString(t_total_us))])
   else
-    sTiming := Format('IRC->KB: %s, Rules1: %s, Rules2: %s, Sort: %s, 1stDirlist: none, Total: %s',
+    sTiming := Format('IRC->KB: %s, Rules1: %s, Rules2: %s, Sort: %s, Dirlists: none, Total: %s',
       [String(MicroSecToString(t_irc_to_kbadd)),
        String(MicroSecToString(t_rules1_us)),
        String(MicroSecToString(t_rules2_us)),
@@ -990,12 +987,9 @@ begin
   begin
     if p.TimingInfo = '' then
       p.TimingInfo := Format('[%s @ %s] %s', [KBEventTypeToString(event), sitename, sTiming])
-    else if Length(p.TimingInfo) < 500 then
+    else if Length(p.TimingInfo) < 1000 then
       p.TimingInfo := p.TimingInfo + #13#10 + Format('         [%s @ %s] %s', [KBEventTypeToString(event), sitename, sTiming]);
   end;
-
-  Debug(dpError, rsections, Format('[TIMING][%s %s @ %s] SUMMARY: %s',
-    [section, rls, sitename, sTiming]));
 
   debug(dpSpam, rsections, '<-- %s %s %s %s %s %s %d %d',
     [sitename, section, genre, KBEventTypeToString(event), rls, cdno, integer(dontFire),
