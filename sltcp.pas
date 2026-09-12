@@ -294,6 +294,12 @@ begin
 
   if slsocket.socket = slsocketerror then exit;
 
+  if shouldread and (fSSL <> nil) and (SSL_pending(fSSL) > 0) then
+  begin
+    Result := True;
+    exit;
+  end;
+
   try
     i:= 1;
     while(true) do
@@ -925,6 +931,17 @@ begin
     begin
       readlnsession:= False;
       exit;
+    end;
+
+    // TCP framing: if buffer doesn't contain CRLF/LF, fetch more chunks until full line is present
+    while (Pos(#10, alllines) = 0) and (Pos(#13, alllines) = 0) do
+    begin
+      fss.Size := 0;
+      if not Read(fss, timeout) then
+        break;
+      if fss.Size = 0 then
+        break;
+      alllines := alllines + fss.DataString;
     end;
 
     line:= ElsoSor(alllines);
