@@ -687,9 +687,9 @@ begin
                 pr.startat := IncSecond(Now, dst.delay_upload);
             end;
 
-            // finally we can add the task
+            // finally we can add the task (defer slot assignment until all batch tasks are queued and sorted)
             try
-              AddTask(pr);
+              AddTask(pr, False, False);
               Result := True;
             except
               on e: Exception do
@@ -1848,8 +1848,11 @@ begin
       if fTasksAdded then
       begin
         fSite := FindSiteByName('', Name);
-        fSite.QueueSort;
-        fSite.QueueFire;
+        if fSite <> nil then
+        begin
+          fSite.QueueSort;
+          fSite.QueueFire;
+        end;
       end;
 
       for de in fRemovePazoRaceEntries do
@@ -2000,8 +2003,11 @@ begin
       if fTasksAdded then
       begin
         fSite := FindSiteByName('', Name);
-        fSite.QueueSort;
-        fSite.QueueFire;
+        if fSite <> nil then
+        begin
+          fSite.QueueSort;
+          fSite.QueueFire;
+        end;
       end;
 
       for de in fFilesToRace do

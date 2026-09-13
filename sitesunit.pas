@@ -434,7 +434,7 @@ type
     function RCDateTime(const Name: String; const def: TDateTime): TDateTime;
     procedure WCDateTime(const Name: String; const val: TDateTime);
 
-    procedure AddTask(const t: TTask; const queueFire: boolean = false);
+    procedure AddTask(const t: TTask; const queueFire: boolean = false; const aAssignSlot: boolean = true);
     procedure QueueFire;
     procedure QueueClean;
     procedure QueueSort;
@@ -638,7 +638,7 @@ type
 function ReadSites(): boolean;
 procedure SlotsFire;
 procedure SiteAutoStart;
-procedure AddTask(const t: TTask; const queueFire: boolean = false);
+procedure AddTask(const t: TTask; const queueFire: boolean = false; const aAssignSlot: boolean = true);
 procedure QueueFireInverval(const interval: integer);
 procedure QueueCleanInverval(const interval: integer);
 function RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
@@ -1065,7 +1065,7 @@ begin
   end;
 end;
 
-procedure TSite.AddTask(const t: TTask; const queueFire: boolean = false);
+procedure TSite.AddTask(const t: TTask; const queueFire: boolean = false; const aAssignSlot: boolean = true);
 begin
   if fQueue = nil then
   begin
@@ -1079,7 +1079,7 @@ begin
     exit;
   end;
 
-  fQueue.AddTask(t);
+  fQueue.AddTask(t, aAssignSlot);
   if queueFire then self.QueueFire;
 end;
 
@@ -1101,7 +1101,7 @@ begin
   end;
 end;
 
-procedure AddTask(const t: TTask; const queueFire: boolean = false);
+procedure AddTask(const t: TTask; const queueFire: boolean = false; const aAssignSlot: boolean = true);
 var
   fAdminSite: TSite;
 begin
@@ -1114,7 +1114,7 @@ begin
   try
     if not (t.ssite1 = nil) then
     begin
-        TSite(t.ssite1).AddTask(t, queueFire);
+        TSite(t.ssite1).AddTask(t, queueFire, aAssignSlot);
     end
     else
     begin
@@ -1122,7 +1122,7 @@ begin
       begin
         fAdminSite := FindSiteByName('', getAdminSiteName);
         if fAdminSite <> nil then
-          fAdminSite.AddTask(t, queueFire)
+          fAdminSite.AddTask(t, queueFire, aAssignSlot)
         else
           Debug(dpError, section, Format('AddTask - Admin site not found for task: %s', [t.Name]));
       end

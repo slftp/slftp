@@ -236,6 +236,8 @@ const
 var
   image_files_priority: Integer; //< value for priority in dirlist sorter for image files from slftp.ini
   video_files_priority: Integer; //< value for priority in dirlist sorter for video files from slftp.ini
+  sfv_files_priority: Integer;   //< value for priority in dirlist sorter for sfv files from slftp.ini
+  nfo_files_priority: Integer;   //< value for priority in dirlist sorter for nfo files from slftp.ini
   uid_lock: TCriticalSection;
   uidg: UInt64 = 1;
 {$I common.inc}
@@ -889,28 +891,79 @@ begin
     // At least one file need to have an extension for extention sorting
     if (i1.Extension <> '') or (i2.Extension <> '') then
     begin
-      // sfv priority
-      if ((i1.IsSFV) and (not i2.IsSFV)) then
+      // SFV and NFO priorities
+      if (i1.IsSFV or i2.IsSFV or i1.IsNFO or i2.IsNFO) then
       begin
-        Result := -1;
-        exit;
-      end;
-      if ((not i1.IsSFV) and (i2.IsSFV)) then
-      begin
-        Result := 1;
-        exit;
-      end;
-
-      // nfo priority
-      if ((i1.IsNFO) and (not i2.IsNFO)) then
-      begin
-        Result := -1;
-        exit;
-      end;
-      if ((not i1.IsNFO) and (i2.IsNFO)) then
-      begin
-        Result := 1;
-        exit;
+        if (i1.IsSFV and i2.IsNFO) then
+        begin
+          if (sfv_files_priority <> 0) and (nfo_files_priority <> 0) and (sfv_files_priority <> nfo_files_priority) then
+          begin
+            if sfv_files_priority < nfo_files_priority then
+              Result := -1
+            else
+              Result := 1;
+          end
+          else
+            Result := -1; // Default: SFV before NFO
+          exit;
+        end
+        else if (i1.IsNFO and i2.IsSFV) then
+        begin
+          if (sfv_files_priority <> 0) and (nfo_files_priority <> 0) and (sfv_files_priority <> nfo_files_priority) then
+          begin
+            if nfo_files_priority < sfv_files_priority then
+              Result := -1
+            else
+              Result := 1;
+          end
+          else
+            Result := 1; // Default: SFV before NFO
+          exit;
+        end
+        else if (i1.IsSFV and not i2.IsSFV) then
+        begin
+          if sfv_files_priority <> 0 then
+          begin
+            case sfv_files_priority of
+              1: Result := -1;
+              2: Result := 1;
+            end;
+            exit;
+          end;
+        end
+        else if (not i1.IsSFV and i2.IsSFV) then
+        begin
+          if sfv_files_priority <> 0 then
+          begin
+            case sfv_files_priority of
+              1: Result := 1;
+              2: Result := -1;
+            end;
+            exit;
+          end;
+        end
+        else if (i1.IsNFO and not i2.IsNFO) then
+        begin
+          if nfo_files_priority <> 0 then
+          begin
+            case nfo_files_priority of
+              1: Result := -1;
+              2: Result := 1;
+            end;
+            exit;
+          end;
+        end
+        else if (not i1.IsNFO and i2.IsNFO) then
+        begin
+          if nfo_files_priority <> 0 then
+          begin
+            case nfo_files_priority of
+              1: Result := 1;
+              2: Result := -1;
+            end;
+            exit;
+          end;
+        end;
       end;
 
       // image files priority (i.e.: proofs, covers)
@@ -929,8 +982,8 @@ begin
             2 : Result := -1;
           end;
 
-        //Debug(dpSpam, section, '_DirListSorter (image): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
-        exit;
+        if (Result <> 0) then
+          exit;
       end;
 
       // video files priority
@@ -949,8 +1002,8 @@ begin
             2 : Result := -1;
           end;
 
-        //Debug(dpSpam, section, '_DirListSorter (video): i1: %s i2: %s result: %d', [i1.Extension, i2.Extension, Result]);
-        exit;
+        if (Result <> 0) then
+          exit;
       end;
     end;
 
@@ -1713,6 +1766,14 @@ begin
   video_files_priority := config.ReadInteger('queue', 'video_files_priority', 2);
   if not (video_files_priority in [0..2]) then
     video_files_priority := 2;
+
+  sfv_files_priority := config.ReadInteger('queue', 'sfv_files_priority', 1);
+  if not (sfv_files_priority in [0..2]) then
+    sfv_files_priority := 1;
+
+  nfo_files_priority := config.ReadInteger('queue', 'nfo_files_priority', 1);
+  if not (nfo_files_priority in [0..2]) then
+    nfo_files_priority := 1;
 end;
 
 procedure DirlistUnInit;

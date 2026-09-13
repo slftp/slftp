@@ -48,7 +48,7 @@ public
 
 procedure QueueFire;
 procedure QueueStart;
-procedure AddTask(t: TTask);
+procedure AddTask(t: TTask; const aAssignSlot: boolean = true);
 procedure QueueEmpty(const sitename: String);
 procedure RemovePazoMKDIR(const pazo_id: integer; const dir: String);
 procedure RemovePazoSfv(const aPazoID: integer; const aDir: String);
@@ -105,6 +105,8 @@ var
   proof_dirs_priority: Integer; //< value for priority in queue sorter for proof dirs from slftp.ini
   subs_dirs_priority: Integer; //< value for priority in queue sorter for subtitle dirs from slftp.ini
   cover_dirs_priority: Integer; //< value for priority in queue sorter for cover dirs from slftp.ini
+  sfv_files_priority: Integer; //< value for priority in queue sorter for sfv files from slftp.ini
+  nfo_files_priority: Integer; //< value for priority in queue sorter for nfo files from slftp.ini
   queueclean_unassigned: Integer;
   queueclean_maxrunning: Integer;
   enable_queueclean: boolean;
@@ -233,38 +235,91 @@ begin
       if (Result <> 0) then
         exit;
 
-      // Give priority to sfv
-      if ((tpr1.IsSfv) and (not tpr2.IsSfv)) then
+      // SFV and NFO priorities
+      if (tpr1.IsSfv or tpr2.IsSfv or tpr1.IsNfo or tpr2.IsNfo) then
       begin
-        Result := -1;
-        exit;
-      end;
-      if ((not tpr1.IsSfv) and (tpr2.IsSfv)) then
-      begin
-        Result := 1;
-        exit;
-      end;
-      if ((tpr1.IsSfv) and (tpr2.IsSfv)) then
-      begin
-        Result := CompareValue(tpr2.rank, tpr1.rank);
-        exit;
-      end;
-
-      // Give priority to nfo
-      if ((tpr1.IsNfo) and (not tpr2.IsNfo)) then
-      begin
-        Result := -1;
-        exit;
-      end;
-      if ((not tpr1.IsNfo) and (tpr2.IsNfo)) then
-      begin
-        Result := 1;
-        exit;
-      end;
-      if ((tpr1.IsNfo) and (tpr2.IsNfo)) then
-      begin
-        Result := CompareValue(tpr2.rank, tpr1.rank);
-        exit;
+        if (tpr1.IsSfv and tpr2.IsSfv) then
+        begin
+          Result := CompareValue(tpr2.rank, tpr1.rank);
+          if (Result <> 0) then
+            exit;
+        end
+        else if (tpr1.IsNfo and tpr2.IsNfo) then
+        begin
+          Result := CompareValue(tpr2.rank, tpr1.rank);
+          if (Result <> 0) then
+            exit;
+        end
+        else if (tpr1.IsSfv and tpr2.IsNfo) then
+        begin
+          if (sfv_files_priority <> 0) and (nfo_files_priority <> 0) and (sfv_files_priority <> nfo_files_priority) then
+          begin
+            if sfv_files_priority < nfo_files_priority then
+              Result := -1
+            else
+              Result := 1;
+          end
+          else
+            Result := -1; // Default: SFV before NFO
+          exit;
+        end
+        else if (tpr1.IsNfo and tpr2.IsSfv) then
+        begin
+          if (sfv_files_priority <> 0) and (nfo_files_priority <> 0) and (sfv_files_priority <> nfo_files_priority) then
+          begin
+            if nfo_files_priority < sfv_files_priority then
+              Result := -1
+            else
+              Result := 1;
+          end
+          else
+            Result := 1; // Default: SFV before NFO
+          exit;
+        end
+        else if (tpr1.IsSfv and not tpr2.IsSfv) then
+        begin
+          if sfv_files_priority <> 0 then
+          begin
+            case sfv_files_priority of
+              1: Result := -1;
+              2: Result := 1;
+            end;
+            exit;
+          end;
+        end
+        else if (not tpr1.IsSfv and tpr2.IsSfv) then
+        begin
+          if sfv_files_priority <> 0 then
+          begin
+            case sfv_files_priority of
+              1: Result := 1;
+              2: Result := -1;
+            end;
+            exit;
+          end;
+        end
+        else if (tpr1.IsNfo and not tpr2.IsNfo) then
+        begin
+          if nfo_files_priority <> 0 then
+          begin
+            case nfo_files_priority of
+              1: Result := -1;
+              2: Result := 1;
+            end;
+            exit;
+          end;
+        end
+        else if (not tpr1.IsNfo and tpr2.IsNfo) then
+        begin
+          if nfo_files_priority <> 0 then
+          begin
+            case nfo_files_priority of
+              1: Result := 1;
+              2: Result := -1;
+            end;
+            exit;
+          end;
+        end;
       end;
 
       // Sample dir priority
@@ -288,6 +343,9 @@ begin
         end
         else
           Result := CompareValue(tpr2.rank, tpr1.rank);
+
+        if (Result <> 0) then
+          exit;
       end;
 
       // Proof priority
@@ -311,6 +369,9 @@ begin
         end
         else
           Result := CompareValue(tpr2.rank, tpr1.rank);
+
+        if (Result <> 0) then
+          exit;
       end;
 
       // Subs priority
@@ -334,6 +395,9 @@ begin
         end
         else
           Result := CompareValue(tpr2.rank, tpr1.rank);
+
+        if (Result <> 0) then
+          exit;
       end;
 
       // Covers priority
@@ -357,6 +421,9 @@ begin
         end
         else
           Result := CompareValue(tpr2.rank, tpr1.rank);
+
+        if (Result <> 0) then
+          exit;
       end;
 
       if (Result = 0) then
@@ -1197,7 +1264,7 @@ begin
   Console_QueueAdd(fTaskUid, Format('%s', [fTaskName]));
 end;
 
-procedure TQueueThread.AddTask(t: TTask);
+procedure TQueueThread.AddTask(t: TTask; const aAssignSlot: boolean = true);
 var
   tname: String;
   fCheckSiteSlotsSite: TSite;
@@ -1245,7 +1312,7 @@ begin
 
 
       try
-        if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted and (TSite(fSite).freeslots > 0)) then
+        if (aAssignSlot and (t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted and (TSite(fSite).freeslots > 0)) then
         begin
           TSite(fSite).AcquireSlotsAssignmentLock('AddTask-Slot');
           try
@@ -1887,6 +1954,14 @@ begin
   cover_dirs_priority := config.ReadInteger(section, 'cover_dirs_priority', 2);
   if not (cover_dirs_priority in [0..2]) then
     cover_dirs_priority := 2;
+
+  sfv_files_priority := config.ReadInteger(section, 'sfv_files_priority', 1);
+  if not (sfv_files_priority in [0..2]) then
+    sfv_files_priority := 1;
+
+  nfo_files_priority := config.ReadInteger(section, 'nfo_files_priority', 1);
+  if not (nfo_files_priority in [0..2]) then
+    nfo_files_priority := 1;
 
   queueclean_maxrunning := config.ReadInteger('queue', 'queueclean_maxrunning', 900);
   queueclean_unassigned := config.ReadInteger('queue', 'queueclean_unassigned', 600);
