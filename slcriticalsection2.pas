@@ -125,10 +125,10 @@ implementation
   var
     fExistingCs: TSlCriticalSection2;
   begin
+    glDefaultLockingTimeout := aLockingTimeout;
     if aLockingTimeout > 0 then
     begin
       glUseTimeoutLocking := True;
-      glDefaultLockingTimeout := aLockingTimeout;
     end
     else
       glUseTimeoutLocking := False;
@@ -197,19 +197,22 @@ implementation
     FHoldStartUs := 0;
     FLastWaitOwner := '';
 
-    glUsedCriticalSectionsLock.Enter;
-    try
-      fDisambigName := aName;
-      fDupCounter := 1;
-      while glUsedCriticalSections.ContainsKey(fDisambigName) do
-      begin
-        Inc(fDupCounter);
-        fDisambigName := Format('%s#%d', [aName, fDupCounter]);
+    if glUseTimer or glUseTimeoutLocking or aAlwaysUseTimeoutLocking then
+    begin
+      glUsedCriticalSectionsLock.Enter;
+      try
+        fDisambigName := aName;
+        fDupCounter := 1;
+        while glUsedCriticalSections.ContainsKey(fDisambigName) do
+        begin
+          Inc(fDupCounter);
+          fDisambigName := Format('%s#%d', [aName, fDupCounter]);
+        end;
+        FName := fDisambigName;
+        glUsedCriticalSections.Add(fDisambigName, self);
+      finally
+        glUsedCriticalSectionsLock.Leave;
       end;
-      FName := fDisambigName;
-      glUsedCriticalSections.Add(fDisambigName, self);
-    finally
-      glUsedCriticalSectionsLock.Leave;
     end;
 
     if glUseTimeoutLocking Or aAlwaysUseTimeoutLocking then
@@ -295,6 +298,7 @@ implementation
   var
     fTimer, fHoldTimer: TSLTimer;
     tWaitStart, tWaitStop, tWaitUs: Int64;
+    fLogTimeoutMs: Integer;
   begin
 
     if FUseTimeoutLocking then
@@ -369,23 +373,34 @@ implementation
     end
     else
     begin
-      QueryPerformanceMicroSeconds(tWaitStart);
-      FInternalCriticalSection.Enter;
-      QueryPerformanceMicroSeconds(tWaitStop);
-      tWaitUs := tWaitStop - tWaitStart;
-      if tWaitUs > 50 then
+      if glUseTimer then
       begin
+        QueryPerformanceMicroSeconds(tWaitStart);
+        FInternalCriticalSection.Enter;
+        QueryPerformanceMicroSeconds(tWaitStop);
+        tWaitUs := tWaitStop - tWaitStart;
         Inc(FContentionCount);
         Inc(FTotalWaitUs, tWaitUs);
         if tWaitUs > FMaxWaitUs then
           FMaxWaitUs := tWaitUs;
         FLastWaitOwner := aLockOwnerName;
-        if (tWaitUs > 200) and (FName <> 'debug_lock') then
-          Debug(dpMessage, glDebugSection, Format('[LOCK DELAY] %s (%s): waited %d us', [FName, aLockOwnerName, tWaitUs]));
+
+        fLogTimeoutMs := aTimeoutMs;
+        if (fLogTimeoutMs = 0) and (glDefaultLockingTimeout > 0) then
+          fLogTimeoutMs := glDefaultLockingTimeout;
+
+        if (fLogTimeoutMs > 0) and (tWaitUs >= Int64(fLogTimeoutMs) * 1000) and (FName <> 'debug_lock') then
+          Debug(dpError, glDebugSection, Format('[LOCK TIMEOUT] %s (%s): waited %d ms (threshold: %d ms)',
+            [FName, aLockOwnerName, tWaitUs div 1000, fLogTimeoutMs]));
+
+        Inc(FLockCount);
+        if FLockCount = 1 then
+          QueryPerformanceMicroSeconds(FHoldStartUs);
+      end
+      else
+      begin
+        FInternalCriticalSection.Enter;
       end;
-      Inc(FLockCount);
-      if FLockCount = 1 then
-        QueryPerformanceMicroSeconds(FHoldStartUs);
       Result := True;
     end;
   end;
@@ -442,14 +457,17 @@ implementation
     end
     else
     begin
-      Dec(FLockCount);
-      if (FLockCount = 0) and (FHoldStartUs > 0) then
+      if glUseTimer then
       begin
-        QueryPerformanceMicroSeconds(tHoldStop);
-        tHoldUs := tHoldStop - FHoldStartUs;
-        if tHoldUs > FMaxHoldUs then
-          FMaxHoldUs := tHoldUs;
-        FHoldStartUs := 0;
+        Dec(FLockCount);
+        if (FLockCount = 0) and (FHoldStartUs > 0) then
+        begin
+          QueryPerformanceMicroSeconds(tHoldStop);
+          tHoldUs := tHoldStop - FHoldStartUs;
+          if tHoldUs > FMaxHoldUs then
+            FMaxHoldUs := tHoldUs;
+          FHoldStartUs := 0;
+        end;
       end;
       FInternalCriticalSection.Leave;
     end;
@@ -601,6 +619,12 @@ var
   fOutput: TStringList;
   fAvgWaitUs: Int64;
 begin
+  if not glUseTimer then
+  begin
+    Result := 'Lock monitoring is disabled (set monitor_lock_times=1 in slftp.ini to enable).';
+    Exit;
+  end;
+
   fSortedList := TList<TslCriticalSection2>.Create;
   fOutput := TStringList.Create;
   try

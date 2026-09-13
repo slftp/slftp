@@ -867,16 +867,25 @@ end;
 procedure TPazo.TriggerTuzeljForReadySites(const aNetname, aChannel: String);
 var
   ps: TPazoSite;
+  fReadySites: TList<TPazoSite>;
 begin
-  FPazoLock.Enter('TPazo.TriggerTuzeljForReadySites');
+  fReadySites := TList<TPazoSite>.Create;
   try
-    for ps in PazoSitesList do
-    begin
-      if ps.status in [rssAllowed, rssRealPre, rssShouldPre, rssNotAllowedButItsThere] then
-        ps.ProcessExistingEntries(aNetname, aChannel);
+    FPazoLock.Enter('TPazo.TriggerTuzeljForReadySites');
+    try
+      for ps in PazoSitesList do
+      begin
+        if ps.status in [rssAllowed, rssRealPre, rssShouldPre, rssNotAllowedButItsThere] then
+          fReadySites.Add(ps);
+      end;
+    finally
+      FPazoLock.Leave;
     end;
+
+    for ps in fReadySites do
+      ps.ProcessExistingEntries(aNetname, aChannel);
   finally
-    FPazoLock.Leave;
+    fReadySites.Free;
   end;
 end;
 
@@ -1485,11 +1494,8 @@ begin
 
         if not aIsSpreadJob then
         begin
-          if glPazoPreTimeLookupMode <> plmNone then
+          if (glPazoPreTimeLookupMode <> plmNone) and (rls.pretime <> 0) then
           begin
-            if not (rls.pretime <> 0) then
-              Continue;
-
             if not (s.IsPretimeOk(rls.section, rls.pretime)) then
               Continue;
           end;

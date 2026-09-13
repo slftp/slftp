@@ -521,10 +521,9 @@ begin
       // need to search all sites where there is such a section ...
       p.AddSites;
 
-      // If pretime is 0 and a specific site announced, add this source site to pazo so it can start dirlisting early
+      // If pretime is 0 and a specific site announced, record early announce stats
       if (r.pretime = 0) and (sitename <> '') and (sitename <> getAdminSiteName) then
       begin
-        p.AddSite(sitename);
         p.RecordEarlyAnnounce(sitename);
         Inc(GlEarlyAnnouncesTotal);
         Inc(GlEarlyAnnounceReleasesTotal);
@@ -621,16 +620,18 @@ begin
         end
         else
         begin
-          // Still no pretime, but this site announced! Add it as early source site
+          // Still no pretime, but this site announced! Record early announce stats
           if (sitename <> '') and (sitename <> getAdminSiteName) then
           begin
-            p.AddSite(sitename);
             p.RecordEarlyAnnounce(sitename);
             Inc(GlEarlyAnnouncesTotal);
           end;
         end;
       end;
     end;
+  end;
+  finally
+    p.PazoLock.Leave;
   end;
 
   Result := p.pazo_id;
@@ -1004,9 +1005,6 @@ begin
     debug(dpSpam, rsections, '<-- %s %s %s %s %s %s %d %d',
       [sitename, section, genre, KBEventTypeToString(event), rls, cdno, integer(dontFire),
       integer(forceFire)]);
-  finally
-    p.PazoLock.Leave;
-  end;
 end;
 
 function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0; aIrcMicroSec: Int64 = 0): integer;
