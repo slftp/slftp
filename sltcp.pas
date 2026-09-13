@@ -39,9 +39,12 @@ type
     fSSLCTX: PSSL_CTX;
     fBindIp: String;
     fBindPort: Integer;
+    fNoDelay: Boolean;
     fOnWaitingforSocket: TWaitingforsocketEvent;
     socksextra: {$IFDEF UNICODE}RawByteString{$ELSE}AnsiString{$ENDIF};
     readlnsession: Boolean;
+    function GetNoDelay: Boolean;
+    procedure SetNoDelay(const aValue: Boolean);
     function ConnectSocks5(timeout: Integer): Boolean;
     function ConnectB(host: String; port: Integer; timeout: Integer; udp: Boolean): Boolean;
     procedure DisconnectSSL;
@@ -91,6 +94,8 @@ type
   published
     property BindPort: Integer read fBindPort write fBindPort;
     property OnWaitingforSocket: TWaitingForSocketEvent read fOnWaitingforSocket write fOnWaitingforSocket;
+    //< Controls whether TCP_NODELAY is enabled (disables Nagle's algorithm for lower latency)
+    property NoDelay: Boolean read GetNoDelay write SetNoDelay;
   end;
 
   TslTCPThread = class;
@@ -192,6 +197,7 @@ begin
   socks5.enabled:= ((slDefaultSocks5.enabled) and (socks5.host <> ''));
 
   fss:= TStringStream.Create('');
+  fNoDelay := True;
 
   inherited Create;
 end;
@@ -219,6 +225,7 @@ end;
   socks5.enabled:= ((sok5.enabled) and (sok5.host <> ''));
 
   fss:= TStringStream.Create('');
+  fNoDelay := True;
 
   inherited Create;
 end;
@@ -418,6 +425,12 @@ begin
   begin
     Disconnect;
     exit;
+  end;
+
+  if (not udp) and fNoDelay then
+  begin
+    if not slSetNoDelay(slSocket, True, error) then
+      Debug(dpSpam, 'sltcp', 'Failed to set TCP_NODELAY: ' + error);
   end;
 
   if not slSetblocking(slSocket, error) then
@@ -1176,11 +1189,15 @@ begin
     slSocket.peerport:= newSocket.peerport;
     slSocket.localip:= newSocket.localip;
     slSocket.localport:= newSocket.localport;
+    if fNoDelay and (slSocket.socket <> slSocketError) then
+      slSetNoDelay(slSocket, True, error);
   end;
 end;
 
 
 procedure TslTCPSocket.SetupSocket(c: TslSocket);
+var
+  dummyErr: String;
 begin
 //  slSocket:= c;
   slSocket.socket:= c.Socket;
@@ -1189,6 +1206,30 @@ begin
   slSocket.localip:= c.localip;
   slSocket.localport:= c.localport;
 
+  if fNoDelay and (slSocket.socket <> slSocketError) then
+    slSetNoDelay(slSocket, True, dummyErr);
+end;
+
+function TslTCPSocket.GetNoDelay: Boolean;
+var
+  b: Boolean;
+  err: String;
+begin
+  if (slSocket.socket <> slSocketError) then
+  begin
+    if slGetNoDelay(slSocket, b, err) then
+      fNoDelay := b;
+  end;
+  Result := fNoDelay;
+end;
+
+procedure TslTCPSocket.SetNoDelay(const aValue: Boolean);
+var
+  err: String;
+begin
+  fNoDelay := aValue;
+  if (slSocket.socket <> slSocketError) then
+    slSetNoDelay(slSocket, fNoDelay, err);
 end;
 
 function TslTCPSocket.Listen(backlog: Integer): Boolean;

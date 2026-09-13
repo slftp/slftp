@@ -75,6 +75,18 @@ function slSoError(slSocket: TslSocket; var error: String): String;
 function slSetSockOpt(slSocket: TslSocket; i: Integer; rc: Integer; var error: String): Boolean;
 function slSetKeepalive(slSocket: TslSocket; alive: Boolean; var error: String): Boolean;
 function slGetKeepalive(slSocket: TslSocket; var alive: Boolean;var error: String): Boolean;
+{ Sets the TCP_NODELAY socket option to disable Nagle's algorithm
+  @param(slSocket The socket structure)
+  @param(nodelay True to disable Nagle's algorithm, False to enable it)
+  @param(error Output error message on failure)
+  @returns(True on success, False otherwise) }
+function slSetNoDelay(slSocket: TslSocket; nodelay: Boolean; var error: String): Boolean;
+{ Gets the current TCP_NODELAY socket option
+  @param(slSocket The socket structure)
+  @param(nodelay Output boolean holding the TCP_NODELAY state)
+  @param(error Output error message on failure)
+  @returns(True on success, False otherwise) }
+function slGetNoDelay(slSocket: TslSocket; var nodelay: Boolean; var error: String): Boolean;
 function slSelect(var slSocket: TslSocket; timeout: Integer; shouldread, shouldwrite: Boolean; var error: String): Boolean; overload;
 function slSelect(var slSocket1, slSocket2: TslSocket; timeout: Integer; shouldread, shouldwrite: Boolean; var error: String): Integer; overload;
 function slLastError: String; overload;
@@ -554,6 +566,48 @@ var ret: Integer;
 begin
   Result:= slGetSockOpt(slSocket, so_keepalive, ret, error);
   alive:= Boolean(ret);
+end;
+
+function slSetNoDelay(slSocket: TslSocket; nodelay: Boolean; var error: String): Boolean;
+var
+  rc: Integer;
+begin
+  Result := False;
+  rc := Integer(nodelay);
+{$IFDEF FPC}
+  if (0 <> fpsetsockopt(slSocket.socket, IPPROTO_TCP, TCP_NODELAY, @rc, SizeOf(Integer))) then
+{$ELSE}
+{$IFDEF MSWINDOWS}
+  if (0 <> setsockopt(slSocket.socket, IPPROTO_TCP, TCP_NODELAY, PAnsiChar(@rc), SizeOf(Integer))) then
+{$ELSE}
+  if (0 <> setsockopt(slSocket.socket, IPPROTO_TCP, TCP_NODELAY, @rc, SizeOf(Integer))) then
+{$ENDIF}
+{$ENDIF}
+  begin
+    error := 'setsockopt TCP_NODELAY failed';
+    exit;
+  end;
+  Result := True;
+end;
+
+function slGetNoDelay(slSocket: TslSocket; var nodelay: Boolean; var error: String): Boolean;
+var
+  rc, l: Integer;
+begin
+  Result := False;
+  rc := 0;
+  l := SizeOf(Integer);
+{$IFDEF FPC}
+  if (0 > fpgetsockopt(slSocket.socket, IPPROTO_TCP, TCP_NODELAY, PAnsiChar(@rc), @l)) then
+{$ELSE}
+  if (0 > getsockopt(slSocket.socket, IPPROTO_TCP, TCP_NODELAY, PAnsiChar(@rc), l)) then
+{$ENDIF}
+  begin
+    error := 'getsockopt TCP_NODELAY failed: ' + slLastError;
+    exit;
+  end;
+  nodelay := Boolean(rc);
+  Result := True;
 end;
 
 {$IFDEF FPC}
