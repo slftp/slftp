@@ -60,6 +60,7 @@
     {+} Add enable_boxofficemojo_lookup option in [dbaddimdb] to fetch screen counts from Box Office Mojo (adds ~5-6s to IMDB lookup)
 
 --=============================( SLFTP v1.5.11 )==================================-
+    {^} Switch IMDb lookups to the IMDb GraphQL API
     {+} Add watchdog which writes self-contained stall diagnostic reports (watchdog.*.log) automatically and on demand via the !watchdog IRC command
     {#} Fix watchdog automatic reports never firing with the default report_cooldown setting
     {#} Fix watchdog cooldown race letting concurrent manual and automatic reports bypass the cooldown window

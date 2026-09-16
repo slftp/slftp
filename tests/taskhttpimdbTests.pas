@@ -144,15 +144,13 @@ end;
 
 procedure TTestTImdbDataProcessor.TestProcess_WarForThePlanetOfTheApes;
 var
-  fTitleJson, fReleaseDatesJson: Variant;
+  fTitleJson: Variant;
   fImdbData: TDbImdbData;
 begin
   fTitleJson := _JsonFast(LoadResource('tt3450958_Main'));
   CheckFalse(VarIsNull(fTitleJson), 'Failed to load tt3450958_Main JSON');
-  
-  fReleaseDatesJson := _JsonFast(LoadResource('tt3450958_ReleaseDates'));
 
-  TImdbDataProcessor.Process('War.for.the.Planet.of.the.Apes.2017.1080p.BluRay.x264-CiNEFiLE', 'tt3450958', fTitleJson, fReleaseDatesJson, nil, fImdbData);
+  TImdbDataProcessor.Process('War.for.the.Planet.of.the.Apes.2017.1080p.BluRay.x264-CiNEFiLE', 'tt3450958', fTitleJson, nil, fImdbData);
 
   try
     CheckEquals(2017, fImdbData.imdb_year, 'IMDB Year mismatch');
@@ -160,11 +158,14 @@ begin
     CheckFalse(fImdbData.imdb_stvm, 'Should not be STV');
     CheckEquals(2017, fImdbData.imdb_cineyear, 'IMDB CineYear mismatch');
 
-    // Country validation
-    // Note: HTML parser had "USA", API now returns "USA,Canada" (more data - improvement)
+    // Country validation (GraphQL returns ISO codes, mapped via slftp.imdbcountries)
     CheckEqualsString('USA,Canada', fImdbData.imdb_countries.DelimitedText, 'Countries mismatch');
     CheckTrue(fImdbData.imdb_countries.IndexOf('USA') >= 0, 'USA should be present');
     CheckTrue(fImdbData.imdb_countries.IndexOf('Canada') >= 0, 'Canada should be present');
+
+    // Language validation (GraphQL supplies full names in text)
+    CheckTrue(fImdbData.imdb_languages.IndexOf('English') >= 0, 'English should be present');
+    CheckTrue(fImdbData.imdb_languages.IndexOf('American Sign Language') >= 0, 'ase must be mapped to its full name for imdblanguages rules');
   finally
     fImdbData.Free;
   end;
@@ -172,13 +173,12 @@ end;
 
 procedure TTestTImdbDataProcessor.TestProcess_PrisonBreak;
 var
-  fTitleJson, fReleaseDatesJson: Variant;
+  fTitleJson: Variant;
   fImdbData: TDbImdbData;
 begin
   fTitleJson := _JsonFast(LoadResource('tt0455275_Main'));
-  fReleaseDatesJson := _JsonFast(LoadResource('tt0455275_ReleaseDates'));
 
-  TImdbDataProcessor.Process('Prison.Break.S01E01.Pilot.720p.BluRay.x264-GRP', 'tt0455275', fTitleJson, fReleaseDatesJson, nil, fImdbData);
+  TImdbDataProcessor.Process('Prison.Break.S01E01.Pilot.720p.BluRay.x264-GRP', 'tt0455275', fTitleJson, nil, fImdbData);
 
   try
     CheckEqualsString('Prison Break', fImdbData.imdb_origtitle);
@@ -193,6 +193,9 @@ begin
     CheckEqualsString('USA', fImdbData.imdb_countries.DelimitedText, 'Countries mismatch');
     CheckTrue(fImdbData.imdb_countries.IndexOf('USA') >= 0, 'USA should be present');
     CheckEquals(-1, fImdbData.imdb_countries.IndexOf('UK'), 'UK is missing from API (known issue)');
+
+    // Language validation
+    CheckTrue(fImdbData.imdb_languages.IndexOf('English') >= 0, 'English should be present');
   finally
     fImdbData.Free;
   end;
@@ -200,22 +203,23 @@ end;
 
 procedure TTestTImdbDataProcessor.TestProcess_MarvelRising;
 var
-  fTitleJson, fReleaseDatesJson: Variant;
+  fTitleJson: Variant;
   fImdbData: TDbImdbData;
 begin
   fTitleJson := _JsonFast(LoadResource('tt7728344_Main'));
-  fReleaseDatesJson := _JsonFast(LoadResource('tt7728344_ReleaseDates'));
 
-  TImdbDataProcessor.Process('Marvel.Rising.Secret.Warriors.2018.1080p.BluRay.x264-GRP', 'tt7728344', fTitleJson, fReleaseDatesJson, nil, fImdbData);
+  TImdbDataProcessor.Process('Marvel.Rising.Secret.Warriors.2018.1080p.BluRay.x264-GRP', 'tt7728344', fTitleJson, nil, fImdbData);
 
   try
     // This is a TV Movie
     CheckTrue(fImdbData.imdb_stvm, 'Should be STV (TV Movie)');
 
     // Country validation
-    // Note: HTML parser had "USA", API also returns "USA" (consistent)
     CheckEqualsString('USA', fImdbData.imdb_countries.DelimitedText, 'Countries mismatch');
     CheckTrue(fImdbData.imdb_countries.IndexOf('USA') >= 0, 'USA should be present');
+
+    // Language validation
+    CheckEqualsString('English', fImdbData.imdb_languages.DelimitedText, 'Languages mismatch');
   finally
     fImdbData.Free;
   end;
@@ -226,13 +230,13 @@ var
   fTitleJson: Variant;
   fImdbData: TDbImdbData;
 begin
-  fTitleJson := _JsonFast('{"originCountries":[{"name":"West Germany"},{"name":"East Germany"}]}');
+  fTitleJson := _JsonFast('{"countriesOfOrigin":{"countries":[{"id":"DE"},{"id":"DE"}]}}');
 
-  TImdbDataProcessor.Process('Example.Release.1984', 'tt0000000', fTitleJson, Null, nil, fImdbData);
+  TImdbDataProcessor.Process('Example.Release.1984', 'tt0000000', fTitleJson, nil, fImdbData);
 
   try
     CheckEqualsString('Germany,Germany', fImdbData.imdb_countries.DelimitedText,
-      'Historical German country names must normalize to Germany');
+      'DE country codes must map to Germany via slftp.imdbcountries');
   finally
     fImdbData.Free;
   end;
@@ -240,7 +244,7 @@ end;
 
 procedure TTestTImdbDataProcessor.TestCountryOrder_WarForThePlanetOfTheApes;
 var
-  fTitleJson, fReleaseDatesJson: Variant;
+  fTitleJson: Variant;
   fImdbData: TDbImdbData;
 begin
   // This test validates that country ORDER is consistent for rule matching
@@ -248,9 +252,8 @@ begin
   // See rulesunit.pas TMultiStringEqualOperator.Match() -> IndexOf(GetOperandValue) = 0
 
   fTitleJson := _JsonFast(LoadResource('tt3450958_Main'));
-  fReleaseDatesJson := _JsonFast(LoadResource('tt3450958_ReleaseDates'));
 
-  TImdbDataProcessor.Process('War.for.the.Planet.of.the.Apes.2017.1080p.BluRay.x264-CiNEFiLE', 'tt3450958', fTitleJson, fReleaseDatesJson, nil, fImdbData);
+  TImdbDataProcessor.Process('War.for.the.Planet.of.the.Apes.2017.1080p.BluRay.x264-CiNEFiLE', 'tt3450958', fTitleJson, nil, fImdbData);
 
   try
     // Validate first country (index 0) - critical for rule matching
@@ -612,20 +615,19 @@ end;
 
 procedure TTestScreenCountClassification.TestWideClassification;
 var
-  fTitleJson, fReleaseDatesJson: Variant;
+  fTitleJson: Variant;
   fImdbData: TDbImdbData;
   fBomScreenCounts: TDictionary<String, Integer>;
 begin
   // Load War for the Planet of the Apes data
   fTitleJson := _JsonFast(LoadResource('tt3450958_Main'));
-  fReleaseDatesJson := _JsonFast(LoadResource('tt3450958_ReleaseDates'));
 
   // Create BOM screen counts with Wide threshold (500+)
   fBomScreenCounts := TDictionary<String, Integer>.Create;
   try
     fBomScreenCounts.Add('USA', 4100); // Wide release
 
-    TImdbDataProcessor.Process('War.for.the.Planet.of.the.Apes.2017.1080p.BluRay.x264-CiNEFiLE', 'tt3450958', fTitleJson, fReleaseDatesJson, fBomScreenCounts, fImdbData);
+    TImdbDataProcessor.Process('War.for.the.Planet.of.the.Apes.2017.1080p.BluRay.x264-CiNEFiLE', 'tt3450958', fTitleJson, fBomScreenCounts, fImdbData);
 
     try
       CheckEquals(4100, fImdbData.imdb_screens, 'Screen count mismatch');
@@ -642,20 +644,19 @@ end;
 
 procedure TTestScreenCountClassification.TestLimitedClassification;
 var
-  fTitleJson, fReleaseDatesJson: Variant;
+  fTitleJson: Variant;
   fImdbData: TDbImdbData;
   fBomScreenCounts: TDictionary<String, Integer>;
 begin
   // Load War for the Planet of the Apes data
   fTitleJson := _JsonFast(LoadResource('tt3450958_Main'));
-  fReleaseDatesJson := _JsonFast(LoadResource('tt3450958_ReleaseDates'));
 
   // Create BOM screen counts with Limited threshold (250-499)
   fBomScreenCounts := TDictionary<String, Integer>.Create;
   try
     fBomScreenCounts.Add('USA', 350); // Limited release
 
-    TImdbDataProcessor.Process('War.for.the.Planet.of.the.Apes.2017.1080p.BluRay.x264-CiNEFiLE', 'tt3450958', fTitleJson, fReleaseDatesJson, fBomScreenCounts, fImdbData);
+    TImdbDataProcessor.Process('War.for.the.Planet.of.the.Apes.2017.1080p.BluRay.x264-CiNEFiLE', 'tt3450958', fTitleJson, fBomScreenCounts, fImdbData);
 
     try
       CheckEquals(350, fImdbData.imdb_screens, 'Screen count mismatch');
@@ -672,13 +673,12 @@ end;
 
 procedure TTestScreenCountClassification.TestFallbackToUSA;
 var
-  fTitleJson, fReleaseDatesJson: Variant;
+  fTitleJson: Variant;
   fImdbData: TDbImdbData;
   fBomScreenCounts: TDictionary<String, Integer>;
 begin
   // Load War for the Planet of the Apes data
   fTitleJson := _JsonFast(LoadResource('tt3450958_Main'));
-  fReleaseDatesJson := _JsonFast(LoadResource('tt3450958_ReleaseDates'));
 
   // Create BOM screen counts with only USA (German release should fall back to USA)
   fBomScreenCounts := TDictionary<String, Integer>.Create;
@@ -687,7 +687,7 @@ begin
     // Note: Germany is NOT in the dictionary
 
     // German release - should fall back to USA screen count
-    TImdbDataProcessor.Process('War.for.the.Planet.of.the.Apes.2017.GERMAN.DL.1080p.BluRay.x264-GRP', 'tt3450958', fTitleJson, fReleaseDatesJson, fBomScreenCounts, fImdbData);
+    TImdbDataProcessor.Process('War.for.the.Planet.of.the.Apes.2017.GERMAN.DL.1080p.BluRay.x264-GRP', 'tt3450958', fTitleJson, fBomScreenCounts, fImdbData);
 
     try
       CheckEquals(4100, fImdbData.imdb_screens, 'Should fall back to USA screen count');

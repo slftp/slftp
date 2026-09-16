@@ -28,7 +28,7 @@ type
   { @abstract(Processes IMDb JSON data into TDbImdbData structure) }
   TImdbDataProcessor = class
   public
-    class function Process(const aReleaseName, aImdbId: String; const aTitleJson, aReleaseDatesJson: Variant; const aBomScreenCounts: TDictionary<String, Integer>; out aImdbData: TDbImdbData): String;
+    class function Process(const aReleaseName, aImdbId: String; const aTitleJson: Variant; const aBomScreenCounts: TDictionary<String, Integer>; out aImdbData: TDbImdbData): String;
   end;
 
   TPazoHTTPImdbTask = class(TTask)
@@ -51,6 +51,18 @@ uses
 
 const
   section = 'taskhttpimdb';
+
+{ Maps an ISO 3166-1 alpha-2 country code to the country name from slftp.imdbcountries,
+  falls back to the raw code when unknown (GB is stored as UK in slftp.imdbcountries) }
+function _CountryNameByCode(const aCode: String): String;
+begin
+  if aCode = 'GB' then
+    Result := TMapLanguageCountry.GetCountrynameByCode('UK')
+  else
+    Result := TMapLanguageCountry.GetCountrynameByCode(aCode);
+  if Result = '' then
+    Result := aCode;
+end;
 
 { THtmlBoxOfficeMojoParser }
 
@@ -129,7 +141,7 @@ end;
 
 { TImdbDataProcessor }
 
-class function TImdbDataProcessor.Process(const aReleaseName, aImdbId: String; const aTitleJson, aReleaseDatesJson: Variant; const aBomScreenCounts: TDictionary<String, Integer>; out aImdbData: TDbImdbData): String;
+class function TImdbDataProcessor.Process(const aReleaseName, aImdbId: String; const aTitleJson: Variant; const aBomScreenCounts: TDictionary<String, Integer>; out aImdbData: TDbImdbData): String;
 var
   fImdbOriginalTitle: String;
   fImdbTitleExtraInfo: String;
@@ -155,8 +167,9 @@ var
   fReleasenameCountry: String;
   
   i, j: Integer;
-  fVariant, fVariant2, fCountryVariant, fNameVariant: Variant;
-  fCountryName, fLanguageName, fAttributesStr: String;
+  fVariant, fVariant2, fNameVariant: Variant;
+  fListVariant, fNodeVariant: Variant;
+  fCountryName, fAttributesStr: String;
 begin
   aImdbData := TDbImdbData.Create(aImdbId);
   fImdbCineYear := 0;
@@ -165,32 +178,47 @@ begin
   // Parse Main Data
   if not VarIsNull(aTitleJson) then
   begin
-    fVariant := TDocVariantData(aTitleJson).GetValueOrNull('originalTitle');
+    fVariant := TDocVariantData(aTitleJson).GetValueOrNull('originalTitleText');
     if not VarIsNull(fVariant) then
-      fImdbOriginalTitle := fVariant
-    else
     begin
-      fVariant := TDocVariantData(aTitleJson).GetValueOrNull('primaryTitle');
-      if not VarIsNull(fVariant) then
-        fImdbOriginalTitle := fVariant;
+      fNameVariant := TDocVariantData(fVariant).GetValueOrNull('text');
+      if not VarIsNull(fNameVariant) then
+        fImdbOriginalTitle := fNameVariant;
     end;
-      
-    // 'type' is a keyword, use explicit access
-    // Try titleType first (preferred), fallback to type
+    if fImdbOriginalTitle = '' then
+    begin
+      fVariant := TDocVariantData(aTitleJson).GetValueOrNull('titleText');
+      if not VarIsNull(fVariant) then
+      begin
+        fNameVariant := TDocVariantData(fVariant).GetValueOrNull('text');
+        if not VarIsNull(fNameVariant) then
+          fImdbOriginalTitle := fNameVariant;
+      end;
+    end;
+
+    // titleType.id matches the camelCase values used by the STV checks below (movie, tvMovie, video, ...)
     fVariant := TDocVariantData(aTitleJson).GetValueOrNull('titleType');
-    if VarIsNull(fVariant) then
-      fVariant := TDocVariantData(aTitleJson).GetValueOrNull('type');
     if not VarIsNull(fVariant) then
-      fImdbTitleExtraInfo := fVariant; 
-      
-    fVariant := TDocVariantData(aTitleJson).GetValueOrNull('startYear');
-    if not (VarIsNull(fVariant) or VarIsEmpty(fVariant)) then
-      aImdbData.imdb_year := fVariant
+    begin
+      fNameVariant := TDocVariantData(fVariant).GetValueOrNull('id');
+      if not VarIsNull(fNameVariant) then
+        fImdbTitleExtraInfo := fNameVariant;
+    end;
+
+    fVariant := TDocVariantData(aTitleJson).GetValueOrNull('releaseYear');
+    if not VarIsNull(fVariant) then
+    begin
+      fVariant2 := TDocVariantData(fVariant).GetValueOrNull('year');
+      if not (VarIsNull(fVariant2) or VarIsEmpty(fVariant2)) then
+        aImdbData.imdb_year := fVariant2
+      else
+        aImdbData.imdb_year := 0;
+    end
     else
       aImdbData.imdb_year := 0;
-      
+
     // Rating & Votes
-    fVariant := TDocVariantData(aTitleJson).GetValueOrNull('rating');
+    fVariant := TDocVariantData(aTitleJson).GetValueOrNull('ratingsSummary');
     if not VarIsNull(fVariant) then
     begin
       fVariant2 := TDocVariantData(fVariant).GetValueOrNull('voteCount');
@@ -198,7 +226,7 @@ begin
         fImdbVotes := fVariant2
       else
         fImdbVotes := 0;
-        
+
       fVariant2 := TDocVariantData(fVariant).GetValueOrNull('aggregateRating');
       if not VarIsNull(fVariant2) then
         fImdbRating := Round(Double(fVariant2) * 10) // 7.5 -> 75
@@ -210,74 +238,73 @@ begin
       fImdbVotes := 0;
       fImdbRating := 0;
     end;
-    
+
     // Genres
     aImdbData.imdb_genres.Clear;
     fVariant := TDocVariantData(aTitleJson).GetValueOrNull('genres');
     if not VarIsNull(fVariant) then
     begin
-      for i := 0 to TDocVariantData(fVariant).Count - 1 do
+      fListVariant := TDocVariantData(fVariant).GetValueOrNull('genres');
+      if not VarIsNull(fListVariant) then
       begin
-        fVariant2 := TDocVariantData(fVariant).Values[i];
-        if VarIsNull(fVariant2) then Continue;
-        fStrHelper := VarToStr(fVariant2);
-        if fStrHelper <> '' then
-          aImdbData.imdb_genres.Add(fStrHelper);
-      end;
-    end;
-    
-    // Countries
-    aImdbData.imdb_countries.Clear;
-    fVariant := TDocVariantData(aTitleJson).GetValueOrNull('originCountries');
-    if not VarIsNull(fVariant) then
-    begin
-      for i := 0 to TDocVariantData(fVariant).Count - 1 do
-      begin
-        fVariant2 := TDocVariantData(fVariant).Values[i];
-        if VarIsNull(fVariant2) then Continue;
-        fNameVariant := TDocVariantData(fVariant2).GetValueOrNull('name');
-        if VarIsNull(fNameVariant) then Continue;
-        fStrHelper := fNameVariant;
-        if fStrHelper <> '' then
+        for i := 0 to TDocVariantData(fListVariant).Count - 1 do
         begin
-          fCountryName := fStrHelper;
-          if fCountryName = 'United States' then fCountryName := 'USA'
-          else if fCountryName = 'United Kingdom' then fCountryName := 'UK'
-          else if Pos('Hong Kong', fCountryName) > 0 then fCountryName := 'Hong Kong'
-          else if (fCountryName = 'West Germany') or (fCountryName = 'East Germany') then fCountryName := 'Germany'
-          else if Pos('(', fCountryName) > 0 then
-          begin
-            // Remove everything in parentheses (e.g., "Taiwan (Province of China)" -> "Taiwan")
-            fCountryName := Trim(Copy(fCountryName, 1, Pos('(', fCountryName) - 1));
-          end;
-          aImdbData.imdb_countries.Add(fCountryName);
+          fVariant2 := TDocVariantData(fListVariant).Values[i];
+          if VarIsNull(fVariant2) then Continue;
+          fNameVariant := TDocVariantData(fVariant2).GetValueOrNull('text');
+          if VarIsNull(fNameVariant) then Continue;
+          fStrHelper := fNameVariant;
+          if fStrHelper <> '' then
+            aImdbData.imdb_genres.Add(fStrHelper);
         end;
       end;
     end;
-    
-    // Languages
+
+    // Countries
+    aImdbData.imdb_countries.Clear;
+    fVariant := TDocVariantData(aTitleJson).GetValueOrNull('countriesOfOrigin');
+    if not VarIsNull(fVariant) then
+    begin
+      fListVariant := TDocVariantData(fVariant).GetValueOrNull('countries');
+      if not VarIsNull(fListVariant) then
+      begin
+        for i := 0 to TDocVariantData(fListVariant).Count - 1 do
+        begin
+          fVariant2 := TDocVariantData(fListVariant).Values[i];
+          if VarIsNull(fVariant2) then Continue;
+          fNameVariant := TDocVariantData(fVariant2).GetValueOrNull('id');
+          if VarIsNull(fNameVariant) then Continue;
+          fStrHelper := fNameVariant;
+          if fStrHelper <> '' then
+            aImdbData.imdb_countries.Add(_CountryNameByCode(fStrHelper));
+        end;
+      end;
+    end;
+
+    // Languages (GraphQL supplies the full name in text, id is the fallback)
     aImdbData.imdb_languages.Clear;
     fVariant := TDocVariantData(aTitleJson).GetValueOrNull('spokenLanguages');
     if not VarIsNull(fVariant) then
     begin
-      for i := 0 to TDocVariantData(fVariant).Count - 1 do
+      fListVariant := TDocVariantData(fVariant).GetValueOrNull('spokenLanguages');
+      if not VarIsNull(fListVariant) then
       begin
-        fVariant2 := TDocVariantData(fVariant).Values[i];
-        if VarIsNull(fVariant2) then Continue;
-        fNameVariant := TDocVariantData(fVariant2).GetValueOrNull('name');
-        if VarIsNull(fNameVariant) then Continue;
-        fStrHelper := fNameVariant;
-        if fStrHelper <> '' then
+        for i := 0 to TDocVariantData(fListVariant).Count - 1 do
         begin
-          fLanguageName := fStrHelper;
-          // Simplify language variants to base language
-          if Pos('Chinese', fLanguageName) > 0 then fLanguageName := 'Chinese'
-          else if Pos('Arabic', fLanguageName) > 0 then fLanguageName := 'Arabic'
-          else if Pos('Spanish', fLanguageName) > 0 then fLanguageName := 'Spanish'
-          else if Pos('Portuguese', fLanguageName) > 0 then fLanguageName := 'Portuguese'
-          else if Pos('French', fLanguageName) > 0 then fLanguageName := 'French'
-          else if Pos('German', fLanguageName) > 0 then fLanguageName := 'German';
-          aImdbData.imdb_languages.Add(fLanguageName);
+          fVariant2 := TDocVariantData(fListVariant).Values[i];
+          if VarIsNull(fVariant2) then Continue;
+          fStrHelper := '';
+          fNameVariant := TDocVariantData(fVariant2).GetValueOrNull('text');
+          if not VarIsNull(fNameVariant) then
+            fStrHelper := fNameVariant;
+          if fStrHelper = '' then
+          begin
+            fNameVariant := TDocVariantData(fVariant2).GetValueOrNull('id');
+            if not VarIsNull(fNameVariant) then
+              fStrHelper := fNameVariant;
+          end;
+          if fStrHelper <> '' then
+            aImdbData.imdb_languages.Add(fStrHelper);
         end;
       end;
     end;
@@ -330,12 +357,13 @@ begin
        fStatusReasonList.Add(Format('STV due to being a TV show release (S%dE%d)', [fTvSeason, fTvEpisode]));
     end;
     
-    // 2. Fetch Release Dates for CineYear/Festival/STV logic
+    // 2. Release Dates for CineYear/Festival/STV logic (part of the title JSON)
     fIsFestival := False;
-    if not VarIsNull(aReleaseDatesJson) then
+    fVariant := TDocVariantData(aTitleJson).GetValueOrNull('releaseDates');
+    if not VarIsNull(fVariant) then
     begin
         fLanguageFromReleasename := FindLanguageOnDirectory(aReleaseName);
-        
+
         // Helper to map language (e.g. German) to Country (Germany)
         if (fLanguageFromReleasename = 'English') then
         begin
@@ -347,66 +375,78 @@ begin
            fStrHelper := fLanguageFromReleasename;
 
         fReleasenameCountry := TMapLanguageCountry.GetCountrynameByLanguage(fStrHelper);
-        
-        fVariant := TDocVariantData(aReleaseDatesJson).GetValueOrNull('releaseDates');
-        if (fReleasenameCountry <> '') and not VarIsNull(fVariant) then
+
+        fListVariant := TDocVariantData(fVariant).GetValueOrNull('edges');
+        if (fReleasenameCountry <> '') and not VarIsNull(fListVariant) then
         begin
-             for i := 0 to TDocVariantData(fVariant).Count - 1 do
+             for i := 0 to TDocVariantData(fListVariant).Count - 1 do
              begin
-                fVariant2 := TDocVariantData(fVariant).Values[i];
-                
-                // Skip if fVariant2 itself is null
+                fVariant2 := TDocVariantData(fListVariant).Values[i];
+
+                // Skip if the edge itself is null
                 if VarIsNull(fVariant2) then Continue;
-                
-                // Safely get country name using GetValueOrNull to avoid Null conversion errors
-                fCountryVariant := TDocVariantData(fVariant2).GetValueOrNull('country');
-                if VarIsNull(fCountryVariant) then Continue;
-                
-                fCountryName := TDocVariantData(fCountryVariant).GetValueOrNull('name');
+
+                // Safely unwrap edge -> node using GetValueOrNull to avoid Null conversion errors
+                fNodeVariant := TDocVariantData(fVariant2).GetValueOrNull('node');
+                if VarIsNull(fNodeVariant) then Continue;
+
+                fVariant := TDocVariantData(fNodeVariant).GetValueOrNull('country');
+                if VarIsNull(fVariant) then Continue;
+
+                fNameVariant := TDocVariantData(fVariant).GetValueOrNull('id');
+                if VarIsNull(fNameVariant) then Continue;
+                fCountryName := _CountryNameByCode(fNameVariant);
                 if fCountryName = '' then Continue;
-                
-                // Rewrite USA/UK to match internal standard if needed
-                if fCountryName = 'United States' then fCountryName := 'USA'
-                else if fCountryName = 'United Kingdom' then fCountryName := 'UK';
-                
+
                 if fCountryName = fReleasenameCountry then
                 begin
-                   if not VarIsNull(fVariant2.releaseDate) and
-                      not VarIsNull(fVariant2.releaseDate.year) and
-                      not VarIsNull(fVariant2.releaseDate.month) and
-                      not VarIsNull(fVariant2.releaseDate.day) then
-                     fImdbReleaseDate := Format('%d-%d-%d', [Integer(fVariant2.releaseDate.year), Integer(fVariant2.releaseDate.month), Integer(fVariant2.releaseDate.day)]);
-                   
-                   fAttributesStr := '';
-                   if not VarIsNull(fVariant2.attributes) then
+                   fVariant := TDocVariantData(fNodeVariant).GetValueOrNull('year');
+                   if not (VarIsNull(fVariant) or VarIsEmpty(fVariant)) then
                    begin
-                     for j := 0 to TDocVariantData(fVariant2.attributes).Count - 1 do
-                        fAttributesStr := fAttributesStr + VarToStr(TDocVariantData(fVariant2.attributes).Values[j]) + ' ';
+                     if not VarIsNull(TDocVariantData(fNodeVariant).GetValueOrNull('month')) and
+                        not VarIsNull(TDocVariantData(fNodeVariant).GetValueOrNull('day')) then
+                       fImdbReleaseDate := Format('%d-%d-%d', [Integer(fVariant),
+                         Integer(TDocVariantData(fNodeVariant).GetValueOrNull('month')),
+                         Integer(TDocVariantData(fNodeVariant).GetValueOrNull('day'))]);
+                   end;
+
+                   fAttributesStr := '';
+                   fVariant := TDocVariantData(fNodeVariant).GetValueOrNull('attributes');
+                   if not VarIsNull(fVariant) then
+                   begin
+                     for j := 0 to TDocVariantData(fVariant).Count - 1 do
+                     begin
+                       fNameVariant := TDocVariantData(fVariant).Values[j];
+                       if VarIsNull(fNameVariant) then Continue;
+                       fVariant2 := TDocVariantData(fNameVariant).GetValueOrNull('text');
+                       if not VarIsNull(fVariant2) then
+                         fAttributesStr := fAttributesStr + fVariant2 + ' ';
+                     end;
                    end;
                    fAttributesStr := Trim(fAttributesStr);
-                   
+
                    // Check STV in attributes
-                   if (Pos('video premiere', LowerCase(fAttributesStr)) > 0) or 
+                   if (Pos('video premiere', LowerCase(fAttributesStr)) > 0) or
                       (Pos('tv premiere', LowerCase(fAttributesStr)) > 0) or
                       (Pos('dvd premiere', LowerCase(fAttributesStr)) > 0) then
                    begin
                       fIsSTV := True;
                       fStatusReasonList.Add(Format('STV in %s due to %s on %s', [fReleasenameCountry, fAttributesStr, fImdbReleaseDate]));
                    end;
-                   
+
                    // Check Festival
                    if (Pos('festival', LowerCase(fAttributesStr)) > 0) then
                    begin
                       fIsFestival := True;
                       fStatusReasonList.Add(Format('Festival in %s due to %s on %s', [fReleasenameCountry, fAttributesStr, fImdbReleaseDate]));
                    end;
-                   
+
                    // Check CineYear (First theatrical release)
+                   fVariant := TDocVariantData(fNodeVariant).GetValueOrNull('year');
                    if (not fIsSTV) and (not fIsFestival) and (fImdbCineYear = 0) and
-                      not VarIsNull(fVariant2.releaseDate) and
-                      not VarIsNull(fVariant2.releaseDate.year) then
+                      not (VarIsNull(fVariant) or VarIsEmpty(fVariant)) then
                    begin
-                      fImdbCineYear := fVariant2.releaseDate.year;
+                      fImdbCineYear := fVariant;
                       fStatusReasonList.Add(Format('Cine year for %s is %d taken from %s (Attributes: %s)', [fReleasenameCountry, fImdbCineYear, fImdbReleaseDate, fAttributesStr]));
                    end;
                 end;
@@ -492,7 +532,6 @@ function TPazoHTTPImdbTask.Execute(slot: Pointer): Boolean;
 var
   imdbdata: TDbImdbData;
   fTitleJson: Variant;
-  fReleaseDatesJson: Variant;
   fBomScreenCounts: TDictionary<String, Integer>;
   fBomCountryLinks: TDictionary<String, String>;
   fBomCountryLinkPair: TPair<String, String>;
@@ -506,7 +545,7 @@ begin
   Result := False;
   fBomScreenCounts := nil;
 
-  // 1. Fetch Main Title Data from API
+  // 1. Fetch Main Title Data (incl. Release Dates) from API
   if not TImdbApi.GetTitle(FImdbTitleID, fTitleJson) then
   begin
     irc_Adderror(Format('<c4>[FAILED]</c> Unable to fetch JSON for %s from IMDb API', [FImdbTitleID]));
@@ -514,10 +553,6 @@ begin
     Result := True;
     Exit;
   end;
-
-  // 2. Fetch Release Dates from API
-  if not TImdbApi.GetReleaseDates(FImdbTitleID, fReleaseDatesJson) then
-    fReleaseDatesJson := Null;
 
   // 3. Optionally fetch BOM screen counts (if enabled in config)
   fParseBOM := config.ReadBool('dbaddimdb', 'enable_boxofficemojo_lookup', False);
@@ -604,7 +639,7 @@ begin
 
   // 4. Process with optional BOM data
   try
-    TImdbDataProcessor.Process(FReleaseName, FImdbTitleID, fTitleJson, fReleaseDatesJson, fBomScreenCounts, imdbdata);
+    TImdbDataProcessor.Process(FReleaseName, FImdbTitleID, fTitleJson, fBomScreenCounts, imdbdata);
   finally
     if fBomScreenCounts <> nil then
       fBomScreenCounts.Free;

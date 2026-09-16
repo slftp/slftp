@@ -22,6 +22,11 @@ type
       @returns(Countryname @br @note(empty string if Language does not exist)) }
     class function GetCountrynameByLanguage(const aLanguage: String): String;
 
+    { Returns the Countryname for a given Country Code
+      @param(aCountryCode ISO 3166-1 alpha-2 Code as stored in slftp.imdbcountries)
+      @returns(Countryname @br @note(empty string if Country Code does not exist)) }
+    class function GetCountrynameByCode(const aCountryCode: String): String;
+
     property Language: String read FLanguage;
     property CountryCode: String read FCountryCode;
     property Country: String read FCountry;
@@ -272,9 +277,29 @@ var
   fItem: TMapLanguageCountry;
 begin
   Result := '';
+
+  if glLanguageCountryMappingList = nil then
+    Exit;
+
   for fItem in glLanguageCountryMappingList do
   begin
     if fItem.FLanguage = aLanguage then
+      Exit(fItem.Country);
+  end;
+end;
+
+class function TMapLanguageCountry.GetCountrynameByCode(const aCountryCode: String): String;
+var
+  fItem: TMapLanguageCountry;
+begin
+  Result := '';
+
+  if glLanguageCountryMappingList = nil then
+    Exit;
+
+  for fItem in glLanguageCountryMappingList do
+  begin
+    if fItem.FCountryCode = aCountryCode then
       Exit(fItem.Country);
   end;
 end;
@@ -866,7 +891,7 @@ var
   fDoUpdate: Boolean;
 begin
   Debug(dpSpam, section, Format('[POSTRESULTS] Called with aRls: %s, imdb_id: %s', [aRls, imdb_id]));
-  
+
   if ImdbDatabase = nil then
   begin
     Debug(dpError, section, '[POSTRESULTS] ImdbDatabase is nil, exiting');
