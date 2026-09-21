@@ -2,6 +2,13 @@
 # special entries for US & United Kingdom
 USA=US,USA
 UK=UK,UK
+# IMDb GraphQL API returns 4-letter codes for historical countries
+# (DDDE East Germany, XWG West Germany, CSHH Czechoslovakia, SUHH Soviet Union),
+# mapped here to the successor country
+German=DDDE,Germany
+German=XWG,Germany
+Czech=CSHH,Czech Republic
+Russian=SUHH,Russia
 # below the format is:
 # language = countrycode, countryname
 Afrikaans=ZA,South Africa
