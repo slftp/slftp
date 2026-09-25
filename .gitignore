@@ -38,6 +38,8 @@ bin/*
 Win32/*
 Win64/*
 tests/openssl-*
+# von 'make test' nach tests/ kopierte Config-Dateien
+tests/slftp.*
 
 # Visual Studio Code
 .vscode/*
