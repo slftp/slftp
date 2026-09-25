@@ -4,7 +4,7 @@ interface
 
 uses
   {$IFDEF FPC}
-    TestFramework;
+    fpcunit, testregistry;
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility;
   {$ENDIF}
@@ -49,8 +49,8 @@ begin
   fExpectNick := 'invitee';
   parseIrcINVITE(fInput, fChan, fNick);
 
-  CheckEqualsString(fExpectChan, fChan);
-  CheckEqualsString(fExpectNick, fNick);
+  CheckEquals(fExpectChan, fChan);
+  CheckEquals(fExpectNick, fNick);
 end;
 
 
@@ -64,8 +64,8 @@ begin
   fExpectNick := 'sltest';
   parseIrcJOIN(fInput, fChan, fNick);
 
-  CheckEqualsString(fExpectChan, fChan);
-  CheckEqualsString(fExpectNick, fNick);
+  CheckEquals(fExpectChan, fChan);
+  CheckEquals(fExpectNick, fNick);
 end;
 
 procedure TTestIrcParsingUnit.TestParsingJoin2;
@@ -77,8 +77,8 @@ begin
   fExpectNick := 'sltest';
   parseIrcJOIN(fInput, fChan, fNick);
 
-  CheckEqualsString(fExpectChan, fChan);
-  CheckEqualsString(fExpectNick, fNick);
+  CheckEquals(fExpectChan, fChan);
+  CheckEquals(fExpectNick, fNick);
 end;
 
 procedure TTestIrcParsingUnit.TestParsingJoin3;
@@ -90,8 +90,8 @@ begin
   fExpectNick := 'sltest';
   parseIrcJOIN(fInput, fChan, fNick);
 
-  CheckEqualsString(fExpectChan, fChan);
-  CheckEqualsString(fExpectNick, fNick);
+  CheckEquals(fExpectChan, fChan);
+  CheckEquals(fExpectNick, fNick);
 end;
 
 procedure TTestIrcParsingUnit.TestParsingJoin4;
@@ -103,8 +103,8 @@ begin
   fExpectNick := 'sltest';
   parseIrcJOIN(fInput, fChan, fNick);
 
-  CheckEqualsString(fExpectChan, fChan);
-  CheckEqualsString(fExpectNick, fNick);
+  CheckEquals(fExpectChan, fChan);
+  CheckEquals(fExpectNick, fNick);
 end;
 
 
@@ -118,8 +118,8 @@ begin
   fExpectNick := 'sltest';
   parseIrcKICK(fInput, fChan, fNick);
 
-  CheckEqualsString(fExpectChan, fChan);
-  CheckEqualsString(fExpectNick, fNick);
+  CheckEquals(fExpectChan, fChan);
+  CheckEquals(fExpectNick, fNick);
 end;
 
 // NICK
@@ -131,7 +131,7 @@ begin
   fExpectNick := 'oldnick';
   parseIrcNICK(fInput, fNick);
 
-  CheckEqualsString(fExpectNick, fNick);
+  CheckEquals(fExpectNick, fNick);
 end;
 
 // PART
@@ -144,8 +144,8 @@ begin
   fExpectNick := 'sltest';
   parseIrcPART(fInput, fChan, fNick);
 
-  CheckEqualsString(fExpectChan, fChan);
-  CheckEqualsString(fExpectNick, fNick);
+  CheckEquals(fExpectChan, fChan);
+  CheckEquals(fExpectNick, fNick);
 end;
 
 // QUIT
@@ -157,7 +157,7 @@ begin
   fExpectQuit := 'Reason';
   parseIrcQUIT(fInput, aQuit);
 
-  CheckEqualsString(fExpectQuit, aQuit);
+  CheckEquals(fExpectQuit, aQuit);
 end;
 
 // TOPIC
@@ -170,8 +170,8 @@ begin
   fExpectTopic := 'newtopic test';
   parseIrcTOPIC(fInput, fChan, fTopic);
 
-  CheckEqualsString(fExpectChan, fChan);
-  CheckEqualsString(fExpectTopic, fTopic);
+  CheckEquals(fExpectChan, fChan);
+  CheckEquals(fExpectTopic, fTopic);
 end;
 
 procedure TTestIrcParsingUnit.TestParsingTopic2;
@@ -183,8 +183,8 @@ begin
   fExpectTopic := 'newtopic containing : colon';
   parseIrcTOPIC(fInput, fChan, fTopic);
 
-  CheckEqualsString(fExpectChan, fChan);
-  CheckEqualsString(fExpectTopic, fTopic);
+  CheckEquals(fExpectChan, fChan);
+  CheckEquals(fExpectTopic, fTopic);
 end;
 
 

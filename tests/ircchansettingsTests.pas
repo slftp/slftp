@@ -4,7 +4,7 @@ interface
 
 uses
   {$IFDEF FPC}
-    TestFramework;
+    fpcunit, testregistry;
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility, DUnitX.Assert;
   {$ENDIF}
@@ -12,11 +12,8 @@ uses
 type
   TTestIrcChannelSettingsSetup = class(TTestCase)
   protected
-    {$IFDEF FPC}
-      procedure SetUpOnce; override;
-      procedure TeardownOnce; override;
-    {$ELSE}
-      procedure SetUp; override;
+    procedure SetUp; override;
+    {$IFNDEF FPC}
       procedure Teardown; override;
     {$ENDIF}
   end;
@@ -26,10 +23,23 @@ implementation
 uses
   SysUtils, ircchansettings;
 
+{$IFDEF FPC}
+var
+  // fpcunit has no SetUpOnce, so guard the setup manually: the registered
+  // channel settings are identical for all suites inheriting this fixture
+  glIrcChannelSettingsSetupDone: Boolean = False;
+{$ENDIF}
+
 { TTestIrcChannelSettingsSetup }
 
-procedure TTestIrcChannelSettingsSetup.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
+procedure TTestIrcChannelSettingsSetup.SetUp;
 begin
+  {$IFDEF FPC}
+  if glIrcChannelSettingsSetupDone then
+    Exit;
+  glIrcChannelSettingsSetupDone := True;
+  {$ENDIF}
+
   // init
   IrcChannelSettingsInit;
 
@@ -48,16 +58,18 @@ begin
   CheckEquals(6, IrcChanSettingsList.Count, 'Should have 6 chan settings');
 end;
 
-procedure TTestIrcChannelSettingsSetup.{$IFDEF FPC}TeardownOnce{$ELSE}Teardown{$ENDIF};
+{$IFNDEF FPC}
+procedure TTestIrcChannelSettingsSetup.Teardown;
 begin
   try
     IrcChannelSettingsUninit;
   except
     on e: Exception do
     begin
-      {$IFNDEF FPC}DUnitX.Assert.Assert.{$ENDIF}Fail(Format('Failed to unload IRC Channel Settings: %s %s', [sLineBreak, e.Message]));
+      DUnitX.Assert.Assert.Fail(Format('Failed to unload IRC Channel Settings: %s %s', [sLineBreak, e.Message]));
     end;
   end;
 end;
+{$ENDIF}
 
 end.

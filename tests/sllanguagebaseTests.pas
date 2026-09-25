@@ -4,7 +4,7 @@ interface
 
 uses
   {$IFDEF FPC}
-    TestFramework;
+    fpcunit, testregistry;
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility;
   {$ENDIF}
@@ -83,7 +83,7 @@ begin
   fExpectedResultStr := 'English';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory2;
@@ -94,7 +94,7 @@ begin
   fExpectedResultStr := 'English';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory3;
@@ -105,7 +105,7 @@ begin
   fExpectedResultStr := 'Spanish';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory4;
@@ -116,7 +116,7 @@ begin
   fExpectedResultStr := 'Swedish';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory5;
@@ -127,7 +127,7 @@ begin
   fExpectedResultStr := 'Arabic';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory6;
@@ -138,7 +138,7 @@ begin
   fExpectedResultStr := 'Hungarian';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory7;
@@ -149,7 +149,7 @@ begin
   fExpectedResultStr := 'French';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory8;
@@ -160,7 +160,7 @@ begin
   fExpectedResultStr := 'Dutch';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory9;
@@ -171,7 +171,7 @@ begin
   fExpectedResultStr := 'Danish';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory10;
@@ -182,7 +182,7 @@ begin
   fExpectedResultStr := 'Polish';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory11;
@@ -193,7 +193,7 @@ begin
   fExpectedResultStr := 'English';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory12;
@@ -204,7 +204,7 @@ begin
   fExpectedResultStr := 'Slovenian';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory13;
@@ -215,7 +215,7 @@ begin
   fExpectedResultStr := 'English';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory14;
@@ -226,7 +226,7 @@ begin
   fExpectedResultStr := 'Flemish';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory15;
@@ -237,7 +237,7 @@ begin
   fExpectedResultStr := 'Dutch';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory16;
@@ -248,7 +248,7 @@ begin
   fExpectedResultStr := 'Chinese';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory17;
@@ -259,7 +259,7 @@ begin
   fExpectedResultStr := 'Belarusian';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory18;
@@ -270,7 +270,7 @@ begin
   fExpectedResultStr := 'Bulgarian';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory19;
@@ -281,7 +281,7 @@ begin
   fExpectedResultStr := 'Estonian';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory20;
@@ -292,7 +292,7 @@ begin
   fExpectedResultStr := 'Finnish';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory21;
@@ -303,7 +303,7 @@ begin
   fExpectedResultStr := 'Italian';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory22;
@@ -314,7 +314,7 @@ begin
   fExpectedResultStr := 'Polish';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory23;
@@ -325,7 +325,7 @@ begin
   fExpectedResultStr := 'Polish';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory24;
@@ -336,7 +336,7 @@ begin
   fExpectedResultStr := 'Portuguese';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory25;
@@ -347,7 +347,7 @@ begin
   fExpectedResultStr := 'English';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory26;
@@ -358,7 +358,7 @@ begin
   fExpectedResultStr := 'Romanian';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory27;
@@ -369,7 +369,7 @@ begin
   fExpectedResultStr := 'English';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory28;
@@ -380,7 +380,7 @@ begin
   fExpectedResultStr := 'Russian';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory29;
@@ -391,7 +391,7 @@ begin
   fExpectedResultStr := 'Spanish';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory30;
@@ -402,7 +402,7 @@ begin
   fExpectedResultStr := 'Swissgerman';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory31;
@@ -413,7 +413,7 @@ begin
   fExpectedResultStr := 'Swissgerman';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory32;
@@ -424,7 +424,7 @@ begin
   fExpectedResultStr := 'English';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory33;
@@ -435,7 +435,7 @@ begin
   fExpectedResultStr := 'Turkish';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory34;
@@ -446,7 +446,7 @@ begin
   fExpectedResultStr := 'English';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindLanguageOnDirectory35;
@@ -457,7 +457,7 @@ begin
   fExpectedResultStr := 'Ukrainian';
 
   fOutputStr := FindLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory1;
@@ -468,7 +468,7 @@ begin
   fExpectedResultStr := 'DE';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory2;
@@ -479,7 +479,7 @@ begin
   fExpectedResultStr := 'EN';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory3;
@@ -490,7 +490,7 @@ begin
   fExpectedResultStr := 'FR';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory4;
@@ -501,7 +501,7 @@ begin
   fExpectedResultStr := 'EN';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory5;
@@ -512,7 +512,7 @@ begin
   fExpectedResultStr := 'NL';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory6;
@@ -523,7 +523,7 @@ begin
   fExpectedResultStr := 'EN';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory7;
@@ -534,7 +534,7 @@ begin
   fExpectedResultStr := 'JA';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory8;
@@ -545,7 +545,7 @@ begin
   fExpectedResultStr := 'FR';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory9;
@@ -556,7 +556,7 @@ begin
   fExpectedResultStr := 'EN';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory10;
@@ -567,7 +567,7 @@ begin
   fExpectedResultStr := 'NO';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory11;
@@ -578,7 +578,7 @@ begin
   fExpectedResultStr := 'EN';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory12;
@@ -589,7 +589,7 @@ begin
   fExpectedResultStr := 'EN';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory13;
@@ -600,7 +600,7 @@ begin
   fExpectedResultStr := 'NO';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory14;
@@ -611,7 +611,7 @@ begin
   fExpectedResultStr := 'EN';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory15;
@@ -622,7 +622,7 @@ begin
   fExpectedResultStr := 'HR';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory16;
@@ -633,7 +633,7 @@ begin
   fExpectedResultStr := 'JA';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory17;
@@ -644,7 +644,7 @@ begin
   fExpectedResultStr := 'FR';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory18;
@@ -655,7 +655,7 @@ begin
   fExpectedResultStr := 'EN';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
 end;
 
 procedure TTestSLLanguageBase.TestFindMusicLanguageOnDirectory19;
@@ -666,7 +666,7 @@ begin
   fExpectedResultStr := 'SI';
 
   fOutputStr := FindMusicLanguageOnDirectory(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Music language detected!');
 end;
 
 initialization

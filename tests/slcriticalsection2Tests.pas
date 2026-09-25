@@ -4,7 +4,7 @@ interface
 
 uses
   {$IFDEF FPC}
-    TestFramework;
+    fpcunit, testregistry;
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility;
   {$ENDIF}
@@ -12,11 +12,8 @@ uses
 type
   TTestSLCriticalSection2 = class(TTestCase)
   protected
-    {$IFDEF FPC}
-      procedure SetUpOnce; override;
-      procedure TeardownOnce; override;
-    {$ELSE}
-      procedure SetUp; override;
+    procedure SetUp; override;
+    {$IFNDEF FPC}
       procedure Teardown; override;
     {$ENDIF}
   published
@@ -29,17 +26,32 @@ implementation
 uses
   slcriticalsection2;
 
+{$IFDEF FPC}
+var
+  // fpcunit has no SetUpOnce, so guard the setup manually: the critical
+  // section registry is process-global anyway
+  glSlCriticalSection2SetupDone: Boolean = False;
+{$ENDIF}
+
 { TTestSLCriticalSection2 }
 
-procedure TTestSLCriticalSection2.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
+procedure TTestSLCriticalSection2.SetUp;
 begin
+  {$IFDEF FPC}
+  if glSlCriticalSection2SetupDone then
+    Exit;
+  glSlCriticalSection2SetupDone := True;
+  {$ENDIF}
+
   SlCriticalSection2Init(100, True);
 end;
 
-procedure TTestSLCriticalSection2.{$IFDEF FPC}TeardownOnce{$ELSE}Teardown{$ENDIF};
+{$IFNDEF FPC}
+procedure TTestSLCriticalSection2.Teardown;
 begin
   SlCriticalSection2Uninit;
 end;
+{$ENDIF}
 
 // tests that the CurrentLockOwnerName returns the correct value in case of
 // the same thread entering the same lock multiple times
@@ -50,13 +62,13 @@ begin
   cs := TSlCriticalSection2.Create('Test');
   try
     cs.Enter('outer lock');
-    CheckEqualsString('outer lock', cs.CurrentLockOwnerName);
+    CheckEquals('outer lock', cs.CurrentLockOwnerName);
     cs.Enter('inner lock');
-    CheckEqualsString('inner lock', cs.CurrentLockOwnerName);
+    CheckEquals('inner lock', cs.CurrentLockOwnerName);
     cs.Leave;
-    CheckEqualsString('outer lock', cs.CurrentLockOwnerName);
+    CheckEquals('outer lock', cs.CurrentLockOwnerName);
     cs.Leave;
-    CheckEqualsString('', cs.CurrentLockOwnerName);
+    CheckEquals('', cs.CurrentLockOwnerName);
   finally
     cs.Free;
   end;

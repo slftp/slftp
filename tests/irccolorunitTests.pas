@@ -4,7 +4,7 @@ interface
 
 uses
   {$IFDEF FPC}
-    TestFramework;
+    fpcunit, testregistry;
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility;
   {$ENDIF}
@@ -34,7 +34,7 @@ begin
   fExpect := #2 + 'This is a' + #31 + 'TEST' + #31#2;
   fResult := ReplaceThemeMSG(fInput);
 
-  CheckEqualsString(fExpect, fResult);
+  CheckEquals(fExpect, fResult);
 end;
 
 procedure TTestIrcColorUnit.TestReplaceThemeMSG2;
@@ -45,7 +45,7 @@ begin
   fExpect := #3 + '04Another test ' + #2 + 'with bold' + #2 + ' and colors' + #3;
   fResult := ReplaceThemeMSG(fInput);
 
-  CheckEqualsString(fExpect, fResult);
+  CheckEquals(fExpect, fResult);
 end;
 
 procedure TTestIrcColorUnit.TestReplaceThemeMSG3;
@@ -56,7 +56,7 @@ begin
   fExpect := #3 + '12Testing ' + #2 + 'with bold' + #2 + ' and high color code' + #3;
   fResult := ReplaceThemeMSG(fInput);
 
-  CheckEqualsString(fExpect, fResult);
+  CheckEquals(fExpect, fResult);
 end;
 
 procedure TTestIrcColorUnit.TestReplaceThemeMSG4;
@@ -67,7 +67,7 @@ begin
   fExpect := #3 + '07[' + #2 + 'NEW' + #2 + ']' + #3 + ' MP3 VA_-_2000er_Dance_Music_Vol._2-WEB-2019-MARiBOR @ ' + #2 + 'SITE' + #2 + ' (' + #3 + '07' + #2 + 'Not found in PreDB' + #2 + #3 + ')';
   fResult := ReplaceThemeMSG(fInput);
 
-  CheckEqualsString(fExpect, fResult);
+  CheckEquals(fExpect, fResult);
 end;
 
 procedure TTestIrcColorUnit.TestReplaceThemeMSG5;
@@ -78,7 +78,7 @@ begin
   fExpect := #3 + '10[' + #2 + 'TVInfo' + #2 + ']' + #3 + ' ' + #2 + 'Country' + #2 + ' USA - ' + #2 + 'Network' + #2 + ' NBC - ' + #2 + 'Language' + #2 + ' English - ' + #2 + 'Rating' + #2 + ' 62/100'; 
   fResult := ReplaceThemeMSG(fInput);
 
-  CheckEqualsString(fExpect, fResult);
+  CheckEquals(fExpect, fResult);
 end;
 
 initialization
