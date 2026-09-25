@@ -38,6 +38,10 @@ uses
     GUITestRunner,
   {$ENDIF}
   Classes, SysUtils,
+  {$IFDEF UNIX}
+  BaseUnix,
+  {$ENDIF}
+  TestFrameworkProxyIfaces,
   mrdohutils,
   slftpUnitTestsSetup,
   // add all test units below
@@ -71,14 +75,14 @@ uses
 
 var
   filecheck: String;
+  testresult: ITestResult;
 begin
   filecheck := CommonFileCheck;
   if filecheck <> '' then
   begin
     System.Write(filecheck);
-    System.Write('Done. press <Enter> key to quit.');
-    System.Readln;
-    exit;
+    System.WriteLn('Missing config files, tests will not work correctly!');
+    halt(2);
   end;
 
   {* setup needed internal variables, etc *}
@@ -98,9 +102,27 @@ begin
 
   // run all registered tests
 {$IFDEF TextRunner}
-  // halt on error, means exit code <> 0
-  RunRegisteredTests(rxbHaltOnFailures);
+  testresult := RunRegisteredTests(rxbContinue);
 {$ELSE}
-  RunRegisteredTests;
+  testresult := RunRegisteredTests;
+{$ENDIF}
+
+  // Exit without running unit finalization sections. The tested units keep
+  // global state that is never properly uninitialized, and there is a
+  // (not yet located) memory corruption which makes the RTL finalization
+  // (DoneLocalTime) free an invalid pointer: with mormot.core.fpcx64mm the
+  // memory manager then spins forever in LockMediumBlocks and the process
+  // never exits (this is the "test runner waits for <Enter>" hang).
+  // Everything finalization would clean up here is leaked anyway.
+  if (testresult <> nil) and (not testresult.WasSuccessful) then
+  begin
+  {$IFDEF UNIX}
+    BaseUnix.fpExit(testresult.ErrorCount + testresult.FailureCount);
+  {$ELSE}
+    halt(testresult.ErrorCount + testresult.FailureCount);
+  {$ENDIF}
+  end;
+{$IFDEF UNIX}
+  BaseUnix.fpExit(0);
 {$ENDIF}
 end.
