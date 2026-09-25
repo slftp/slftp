@@ -93,7 +93,8 @@ slftp_profile:	FORCE
 test:	FORCE
 	$(MAKE) clean
 	$(CC) $(CFLAGS) $(CINCLUDES) $(CTESTINCLUDES) tests/slftpUnitTests.lpr
-	./tests/slftpUnitTests
+	cp -f config/* tests/
+	timeout 300 ./tests/slftpUnitTests
 	$(MAKE) cleanuptestdir
 
 clean:
