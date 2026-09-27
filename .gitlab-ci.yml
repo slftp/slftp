@@ -80,11 +80,16 @@ testwin64:
     - move config\* tests
   script:
     - cmd.exe -/c ".\make.bat test_64"
+  after_script:
+    # convert the NUnit style DUnitX report to JUnit so GitLab can parse it
+    # (runs even when the test run failed, the script tolerates a missing input file)
+    - powershell -NoProfile -ExecutionPolicy Bypass -File tests\Convert-NUnitToJUnit.ps1
   artifacts:
+    when: always
     paths:
       - tests\dunitx-results.xml
     reports:
-      junit: tests\dunitx-results.xml
+      junit: tests\junit-results.xml
   tags:
     - windows
     - delphi 64bit
