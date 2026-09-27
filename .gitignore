@@ -40,6 +40,8 @@ Win64/*
 tests/openssl-*
 # von 'make test' nach tests/ kopierte Config-Dateien
 tests/slftp.*
+# von 'make test' erzeugter JUnit-Report
+tests/fpcunit-junit.xml
 
 # Visual Studio Code
 .vscode/*

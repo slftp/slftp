@@ -94,7 +94,7 @@ test:	FORCE
 	$(MAKE) clean
 	$(CC) $(CFLAGS) $(CINCLUDES) $(CTESTINCLUDES) tests/slftpUnitTests.lpr
 	@if ls config/* >/dev/null 2>&1; then cp -f config/* tests/; fi
-	timeout 300 ./tests/slftpUnitTests --all --format=plain
+	timeout 300 ./tests/slftpUnitTests --all --junit=tests/fpcunit-junit.xml
 	$(MAKE) cleanuptestdir
 
 clean:

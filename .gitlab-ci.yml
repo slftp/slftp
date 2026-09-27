@@ -102,6 +102,11 @@ testlinux64:
     - mv config/* tests/
   script:
     - make test
+  artifacts:
+    # keep the JUnit report even when tests fail, so failures are visible in the GitLab test report
+    when: always
+    reports:
+      junit: tests/fpcunit-junit.xml
   tags:
     - saas-linux-medium-amd64
 
