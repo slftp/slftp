@@ -841,8 +841,9 @@ begin
             dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
             ps.dirlist.dirlistadded := True;
-            AddTask(dlt, true);
+            // mark before AddTask: the queue thread can assign the task concurrently right after AddTask
             p.RacePerf.MarkDirlistCreated(ps.Name, KBEventTypeToString(event));
+            AddTask(dlt, true);
           end;
 
           // Source site is _not_ a PRE site for this group
@@ -851,8 +852,9 @@ begin
             dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
             ps.dirlist.dirlistadded := True;
-            AddTask(dlt, true);
+            // mark before AddTask: the queue thread can assign the task concurrently right after AddTask
             p.RacePerf.MarkDirlistCreated(ps.Name, KBEventTypeToString(event));
+            AddTask(dlt, true);
           end;
 
         except
@@ -1589,8 +1591,8 @@ begin
         if ssites_info.Count = 0 then
           Continue;
         pdt := TPazoDirlistTask.Create('', '', ps.Name, p, '', True);
-        AddTask(pdt);
         p.RacePerf.MarkDirlistCreated(ps.Name, 'incfiller');
+        AddTask(pdt);
       except
         on e: Exception do
         begin
@@ -1606,8 +1608,8 @@ begin
         if dsites_info.Count = 0 then
           Continue;
         pdt := TPazoDirlistTask.Create('', '', ps.Name, p, '', False);
-        AddTask(pdt);
         p.RacePerf.MarkDirlistCreated(ps.Name, 'incfiller');
+        AddTask(pdt);
         irc_Addstats(Format(
           '<c11>[<b>iNC</b> <b>%s</b>]</c> Trying to complete <b>%s</b> on <b>%s</b> from <b>%s</b>',
           [p.rls.section, p.rls.rlsname, ps.Name, dsites_info.CommaText]));

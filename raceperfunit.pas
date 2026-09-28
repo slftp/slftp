@@ -28,6 +28,7 @@ type
     DirlistTasksCreated: integer; //< number of created dirlist tasks
     DirlistErrors: integer; //< dirlist tasks which finished with an error
     MkdirCreatedUs: Int64; //< first mkdir task created for this site
+    MkdirStartedUs: Int64; //< first mkdir task started executing on a slot of this site
     MkdirDoneUs: Int64; //< first mkdir successfully done on this site
     MkdirErrors: integer; //< mkdir tasks which failed
     RaceTasksCreated: integer; //< race tasks created with this site as destination
@@ -74,6 +75,9 @@ type
     { A mkdir task was created for @link(aSiteName)
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
     procedure MarkMkdirCreated(const aSiteName: String; const aNowUs: Int64 = 0);
+    { A mkdir task started executing on a slot of @link(aSiteName)
+      @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
+    procedure MarkMkdirStarted(const aSiteName: String; const aNowUs: Int64 = 0);
     { A mkdir task finished successfully on @link(aSiteName)
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
     procedure MarkMkdirDone(const aSiteName: String; const aNowUs: Int64 = 0);
@@ -270,6 +274,28 @@ begin
   end;
 end;
 
+procedure TRacePerf.MarkMkdirStarted(const aSiteName: String; const aNowUs: Int64);
+var
+  fNow: Int64;
+begin
+  try
+    fNow := aNowUs;
+    if fNow = 0 then
+      fNow := NowMicroSeconds;
+    fLock.Enter('MarkMkdirStarted');
+    try
+      with GetSiteLocked(aSiteName) do
+        if MkdirStartedUs = 0 then
+          MkdirStartedUs := fNow;
+    finally
+      fLock.Leave;
+    end;
+  except
+    on E: Exception do
+      Debug(dpError, section, 'MarkMkdirStarted: %s', [E.Message]);
+  end;
+end;
+
 procedure TRacePerf.MarkMkdirDone(const aSiteName: String; const aNowUs: Int64);
 var
   fNow: Int64;
@@ -446,7 +472,7 @@ end;
 function TRacePerf.AsStrings: TStringList;
 var
   fSite: TRacePerfSiteInfo;
-  fLine, fMkdirWait, fRaceWait, fDirlistInfo: String;
+  fLine, fMkdirWait, fMkdirExec, fRaceWait, fDirlistInfo: String;
 begin
   Result := TStringList.Create;
   fLock.Enter('AsStrings');
@@ -465,14 +491,19 @@ begin
         FormatRelUs(fSite.FirstDirlistCreatedUs), fDirlistInfo, FormatRelUs(fSite.FirstDirlistParsedUs),
         fSite.DirlistTasksCreated, fSite.DirlistErrors]);
 
-      if ((fSite.MkdirCreatedUs <> 0) or (fSite.MkdirErrors > 0)) then
+      if ((fSite.MkdirCreatedUs <> 0) or (fSite.MkdirStartedUs <> 0) or (fSite.MkdirErrors > 0)) then
       begin
-        if ((fSite.MkdirCreatedUs <> 0) and (fSite.MkdirDoneUs <> 0)) then
-          fMkdirWait := _FormatUsAsMs(fSite.MkdirDoneUs - fSite.MkdirCreatedUs) + ' ms'
+        if ((fSite.MkdirCreatedUs <> 0) and (fSite.MkdirStartedUs <> 0) and (fSite.MkdirStartedUs >= fSite.MkdirCreatedUs)) then
+          fMkdirWait := _FormatUsAsMs(fSite.MkdirStartedUs - fSite.MkdirCreatedUs) + ' ms'
         else
           fMkdirWait := '-';
-        fLine := fLine + Format(' | mkdir %s -> done %s (waited %s, %d err)',
-          [FormatRelUs(fSite.MkdirCreatedUs), FormatRelUs(fSite.MkdirDoneUs), fMkdirWait, fSite.MkdirErrors]);
+        if ((fSite.MkdirStartedUs <> 0) and (fSite.MkdirDoneUs <> 0) and (fSite.MkdirDoneUs >= fSite.MkdirStartedUs)) then
+          fMkdirExec := _FormatUsAsMs(fSite.MkdirDoneUs - fSite.MkdirStartedUs) + ' ms'
+        else
+          fMkdirExec := '-';
+        fLine := fLine + Format(' | mkdir %s -> started %s -> done %s (queue %s, exec %s, %d err)',
+          [FormatRelUs(fSite.MkdirCreatedUs), FormatRelUs(fSite.MkdirStartedUs), FormatRelUs(fSite.MkdirDoneUs),
+           fMkdirWait, fMkdirExec, fSite.MkdirErrors]);
       end;
 
       if ((fSite.RaceTasksCreated > 0) or (fSite.RacesFinishedOk > 0) or (fSite.RaceErrors > 0)) then

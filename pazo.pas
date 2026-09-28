@@ -562,9 +562,12 @@ begin
             // Finally add mkdir task
           if pm <> nil then
           begin
+            // mark before AddTask: the queue thread can assign the task
+            // concurrently right after AddTask, so the creation timestamp
+            // must be recorded first to keep the marker ordering intact
+            pazo.RacePerf.MarkMkdirCreated(dst.Name);
             try
               AddTask(pm, True);
-              pazo.RacePerf.MarkMkdirCreated(dst.Name);
             except
               on e: Exception do
               begin
@@ -584,8 +587,9 @@ begin
             Debug(dpSpam, section, '%s %s :: Checking routes from %s to %s :: Dirlist added to %s (DEST SITE)', [fd, dir, Name, dst.Name, dst.Name]);
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO]</c> %s %s %s Dirlist added to : %s (DEST SITE)', [fd, pazo.rls.rlsname, dir, dst.Name]));
             dstdl.dirlistadded := True;
-            AddTask(pd, true);
+            // mark before AddTask: the queue thread can assign the task concurrently right after AddTask
             pazo.RacePerf.MarkDirlistCreated(dst.Name, 'tuzelj');
+            AddTask(pd, true);
           except
             on e: Exception do
             begin
@@ -648,9 +652,12 @@ begin
             end;
 
             // finally we can add the task
+            // mark before AddTask: the queue thread can assign the task
+            // concurrently right after AddTask, so the creation timestamp
+            // must be recorded first to keep the marker ordering intact
+            pazo.RacePerf.MarkRaceTaskCreated(dst.Name);
             try
               AddTask(pr);
-              pazo.RacePerf.MarkRaceTaskCreated(dst.Name);
               Result := True;
             except
               on e: Exception do

@@ -779,9 +779,11 @@ begin
   // pattern in TPazoSite.Tuzelj (pazo.pas) to avoid holding the lock over it
   Debug(dpMessage, c_section, 'DIRLIST: creating MKDIR from failed dirlist: ' + self.Name);
 
+  // mark before AddTask: the queue thread can assign the task concurrently
+  // right after AddTask, so the creation timestamp must be recorded first
+  mainpazo.RacePerf.MarkMkdirCreated(ps1.Name);
   try
     AddTask(pm, True);
-    mainpazo.RacePerf.MarkMkdirCreated(ps1.Name);
     Result := pm;
   except
     on e: Exception do

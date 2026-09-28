@@ -36,6 +36,7 @@ begin
     fPerf.MarkDirlistCreated('SiteA', 'UPDATE', 1200000);
     fPerf.MarkDirlistParsed('SiteA', 1500000);
     fPerf.MarkMkdirCreated('SiteA', 1600000);
+    fPerf.MarkMkdirStarted('SiteA', 1700000);
     fPerf.MarkMkdirDone('SiteA', 1800000);
     fPerf.MarkRaceTaskCreated('SiteA', 1750000);
     fPerf.MarkRaceTaskCreated('SiteA', 1900000);
@@ -59,7 +60,7 @@ begin
       CheckTrue(Pos('dirlist +100.000 ms via NEWDIR', fText) > 0, 'dirlist created missing: ' + fText);
       CheckTrue(Pos('parsed +500.000 ms', fText) > 0, 'dirlist parsed missing: ' + fText);
       CheckTrue(Pos('2 tasks, 0 err', fText) > 0, 'dirlist counts missing: ' + fText);
-      CheckTrue(Pos('mkdir +600.000 ms -> done +800.000 ms (waited 200.000 ms, 0 err)', fText) > 0, 'mkdir missing: ' + fText);
+      CheckTrue(Pos('mkdir +600.000 ms -> started +700.000 ms -> done +800.000 ms (queue 100.000 ms, exec 100.000 ms, 0 err)', fText) > 0, 'mkdir missing: ' + fText);
       CheckTrue(Pos('races 2 created (first +750.000 ms)', fText) > 0, 'race count missing: ' + fText);
       CheckTrue(Pos('queue wait 250.000 ms', fText) > 0, 'queue wait missing: ' + fText);
       CheckTrue(Pos('1 ok / 1 err', fText) > 0, 'race results missing: ' + fText);
