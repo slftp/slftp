@@ -23,6 +23,7 @@ type
   public
     SiteName: String; //< name of the site
     FirstDirlistCreatedUs: Int64; //< first dirlist task created for this site
+    FirstDirlistCreatedInfo: String; //< what triggered the first dirlist task (kb event, 'tuzelj', 'incfiller')
     FirstDirlistParsedUs: Int64; //< first dirlist answer successfully parsed from this site
     DirlistTasksCreated: integer; //< number of created dirlist tasks
     DirlistErrors: integer; //< dirlist tasks which finished with an error
@@ -30,8 +31,8 @@ type
     MkdirDoneUs: Int64; //< first mkdir successfully done on this site
     MkdirErrors: integer; //< mkdir tasks which failed
     RaceTasksCreated: integer; //< race tasks created with this site as destination
+    FirstRaceCreatedUs: Int64; //< first race task created with this site as destination
     FirstRaceAssignedUs: Int64; //< first race task got slots assigned by the queue thread
-    FirstRaceQueueWaitUs: Int64; //< queue wait (task created -> assigned) of the first assigned race task
     FirstRaceStartedUs: Int64; //< first race task started executing on its slots
     RacesFinishedOk: integer; //< race tasks which finished successfully
     RaceErrors: integer; //< race tasks which finished with an error
@@ -45,6 +46,7 @@ type
     fSites: TObjectDictionary<String, TRacePerfSiteInfo>; //< per-site markers, key is the uppercase sitename
     fDetectedUs: Int64; //< T0: release detected for trading (pazo created)
     fFirstDirlistCreatedUs: Int64; //< first dirlist task created on any site
+    fFirstRaceCreatedUs: Int64; //< first race task created on any site
     fFirstRaceAssignedUs: Int64; //< first race task assigned on any site
     fFirstRaceStartedUs: Int64; //< first race task started on any site
     fAllTasksIdleUs: Int64; //< queue of the pazo ran empty (queuenumber reached 0)
@@ -61,8 +63,9 @@ type
     class function NowMicroSeconds: Int64;
 
     { A dirlist task was created for @link(aSiteName)
+      @param(aInfo what triggered the creation, e.g. the kb event name, 'tuzelj' or 'incfiller')
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
-    procedure MarkDirlistCreated(const aSiteName: String; const aNowUs: Int64 = 0);
+    procedure MarkDirlistCreated(const aSiteName: String; const aInfo: String = ''; const aNowUs: Int64 = 0);
     { A dirlist answer from @link(aSiteName) was successfully parsed
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
     procedure MarkDirlistParsed(const aSiteName: String; const aNowUs: Int64 = 0);
@@ -76,13 +79,13 @@ type
     procedure MarkMkdirDone(const aSiteName: String; const aNowUs: Int64 = 0);
     { A mkdir task failed on @link(aSiteName) }
     procedure MarkMkdirError(const aSiteName: String);
-    { A race task was created with @link(aSiteName) as destination }
-    procedure MarkRaceTaskCreated(const aSiteName: String);
+    { A race task was created with @link(aSiteName) as destination
+      @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
+    procedure MarkRaceTaskCreated(const aSiteName: String; const aNowUs: Int64 = 0);
     { A race task got slots assigned by the queue thread
       @param(aSiteName destination site)
-      @param(aQueueWaitUs time between task creation and assignment)
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
-    procedure MarkRaceAssigned(const aSiteName: String; const aQueueWaitUs: Int64; const aNowUs: Int64 = 0);
+    procedure MarkRaceAssigned(const aSiteName: String; const aNowUs: Int64 = 0);
     { A race task started executing
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
     procedure MarkRaceStarted(const aSiteName: String; const aNowUs: Int64 = 0);
@@ -178,7 +181,7 @@ begin
     Result := '+' + _FormatUsAsMs(fDelta div 1000) + ' s';
 end;
 
-procedure TRacePerf.MarkDirlistCreated(const aSiteName: String; const aNowUs: Int64);
+procedure TRacePerf.MarkDirlistCreated(const aSiteName: String; const aInfo: String; const aNowUs: Int64);
 var
   fNow: Int64;
 begin
@@ -193,7 +196,10 @@ begin
       with GetSiteLocked(aSiteName) do
       begin
         if FirstDirlistCreatedUs = 0 then
+        begin
           FirstDirlistCreatedUs := fNow;
+          FirstDirlistCreatedInfo := aInfo;
+        end;
         Inc(DirlistTasksCreated);
       end;
     finally
@@ -301,12 +307,24 @@ begin
   end;
 end;
 
-procedure TRacePerf.MarkRaceTaskCreated(const aSiteName: String);
+procedure TRacePerf.MarkRaceTaskCreated(const aSiteName: String; const aNowUs: Int64);
+var
+  fNow: Int64;
 begin
   try
+    fNow := aNowUs;
+    if fNow = 0 then
+      fNow := NowMicroSeconds;
     fLock.Enter('MarkRaceTaskCreated');
     try
-      Inc(GetSiteLocked(aSiteName).RaceTasksCreated);
+      if fFirstRaceCreatedUs = 0 then
+        fFirstRaceCreatedUs := fNow;
+      with GetSiteLocked(aSiteName) do
+      begin
+        if FirstRaceCreatedUs = 0 then
+          FirstRaceCreatedUs := fNow;
+        Inc(RaceTasksCreated);
+      end;
     finally
       fLock.Leave;
     end;
@@ -316,7 +334,7 @@ begin
   end;
 end;
 
-procedure TRacePerf.MarkRaceAssigned(const aSiteName: String; const aQueueWaitUs: Int64; const aNowUs: Int64);
+procedure TRacePerf.MarkRaceAssigned(const aSiteName: String; const aNowUs: Int64);
 var
   fNow: Int64;
 begin
@@ -330,10 +348,7 @@ begin
         fFirstRaceAssignedUs := fNow;
       with GetSiteLocked(aSiteName) do
         if FirstRaceAssignedUs = 0 then
-        begin
           FirstRaceAssignedUs := fNow;
-          FirstRaceQueueWaitUs := aQueueWaitUs;
-        end;
     finally
       fLock.Leave;
     end;
@@ -431,19 +446,23 @@ end;
 function TRacePerf.AsStrings: TStringList;
 var
   fSite: TRacePerfSiteInfo;
-  fLine, fMkdirWait, fRaceWait: String;
+  fLine, fMkdirWait, fRaceWait, fDirlistInfo: String;
 begin
   Result := TStringList.Create;
   fLock.Enter('AsStrings');
   try
-    Result.Add(Format('Global: first dirlist task %s | first race assigned %s | first race started %s | all tasks done %s',
-      [FormatRelUs(fFirstDirlistCreatedUs), FormatRelUs(fFirstRaceAssignedUs),
+    Result.Add(Format('Global: first dirlist task %s | first race created %s | first race assigned %s | first race started %s | all tasks done %s',
+      [FormatRelUs(fFirstDirlistCreatedUs), FormatRelUs(fFirstRaceCreatedUs), FormatRelUs(fFirstRaceAssignedUs),
        FormatRelUs(fFirstRaceStartedUs), FormatRelUs(fAllTasksIdleUs)]));
 
     for fSite in fSites.Values do
     begin
-      fLine := Format('%s: dirlist %s (parsed %s, %d tasks, %d err)', [fSite.SiteName,
-        FormatRelUs(fSite.FirstDirlistCreatedUs), FormatRelUs(fSite.FirstDirlistParsedUs),
+      if fSite.FirstDirlistCreatedInfo <> '' then
+        fDirlistInfo := Format(' via %s', [fSite.FirstDirlistCreatedInfo])
+      else
+        fDirlistInfo := '';
+      fLine := Format('%s: dirlist %s%s (parsed %s, %d tasks, %d err)', [fSite.SiteName,
+        FormatRelUs(fSite.FirstDirlistCreatedUs), fDirlistInfo, FormatRelUs(fSite.FirstDirlistParsedUs),
         fSite.DirlistTasksCreated, fSite.DirlistErrors]);
 
       if ((fSite.MkdirCreatedUs <> 0) or (fSite.MkdirErrors > 0)) then
@@ -458,12 +477,12 @@ begin
 
       if ((fSite.RaceTasksCreated > 0) or (fSite.RacesFinishedOk > 0) or (fSite.RaceErrors > 0)) then
       begin
-        if fSite.FirstRaceQueueWaitUs <> 0 then
-          fRaceWait := _FormatUsAsMs(fSite.FirstRaceQueueWaitUs) + ' ms'
+        if ((fSite.FirstRaceCreatedUs <> 0) and (fSite.FirstRaceAssignedUs <> 0) and (fSite.FirstRaceAssignedUs >= fSite.FirstRaceCreatedUs)) then
+          fRaceWait := _FormatUsAsMs(fSite.FirstRaceAssignedUs - fSite.FirstRaceCreatedUs) + ' ms'
         else
           fRaceWait := '-';
-        fLine := fLine + Format(' | races %d created, assigned %s (queue wait %s), started %s, %d ok / %d err',
-          [fSite.RaceTasksCreated, FormatRelUs(fSite.FirstRaceAssignedUs), fRaceWait,
+        fLine := fLine + Format(' | races %d created (first %s), assigned %s (queue wait %s), started %s, %d ok / %d err',
+          [fSite.RaceTasksCreated, FormatRelUs(fSite.FirstRaceCreatedUs), FormatRelUs(fSite.FirstRaceAssignedUs), fRaceWait,
            FormatRelUs(fSite.FirstRaceStartedUs), fSite.RacesFinishedOk, fSite.RaceErrors]);
       end;
 

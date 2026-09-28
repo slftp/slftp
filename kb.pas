@@ -842,7 +842,7 @@ begin
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
             ps.dirlist.dirlistadded := True;
             AddTask(dlt, true);
-            p.RacePerf.MarkDirlistCreated(ps.Name);
+            p.RacePerf.MarkDirlistCreated(ps.Name, KBEventTypeToString(event));
           end;
 
           // Source site is _not_ a PRE site for this group
@@ -852,7 +852,7 @@ begin
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
             ps.dirlist.dirlistadded := True;
             AddTask(dlt, true);
-            p.RacePerf.MarkDirlistCreated(ps.Name);
+            p.RacePerf.MarkDirlistCreated(ps.Name, KBEventTypeToString(event));
           end;
 
         except
@@ -1590,7 +1590,7 @@ begin
           Continue;
         pdt := TPazoDirlistTask.Create('', '', ps.Name, p, '', True);
         AddTask(pdt);
-        p.RacePerf.MarkDirlistCreated(ps.Name);
+        p.RacePerf.MarkDirlistCreated(ps.Name, 'incfiller');
       except
         on e: Exception do
         begin
@@ -1607,7 +1607,7 @@ begin
           Continue;
         pdt := TPazoDirlistTask.Create('', '', ps.Name, p, '', False);
         AddTask(pdt);
-        p.RacePerf.MarkDirlistCreated(ps.Name);
+        p.RacePerf.MarkDirlistCreated(ps.Name, 'incfiller');
         irc_Addstats(Format(
           '<c11>[<b>iNC</b> <b>%s</b>]</c> Trying to complete <b>%s</b> on <b>%s</b> from <b>%s</b>',
           [p.rls.section, p.rls.rlsname, ps.Name, dsites_info.CommaText]));

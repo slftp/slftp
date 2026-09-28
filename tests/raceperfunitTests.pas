@@ -32,14 +32,14 @@ var
 begin
   fPerf := TRacePerf.Create(1000000);
   try
-    fPerf.MarkDirlistCreated('SiteA', 1100000);
-    fPerf.MarkDirlistCreated('SiteA', 1200000);
+    fPerf.MarkDirlistCreated('SiteA', 'NEWDIR', 1100000);
+    fPerf.MarkDirlistCreated('SiteA', 'UPDATE', 1200000);
     fPerf.MarkDirlistParsed('SiteA', 1500000);
     fPerf.MarkMkdirCreated('SiteA', 1600000);
     fPerf.MarkMkdirDone('SiteA', 1800000);
-    fPerf.MarkRaceTaskCreated('SiteA');
-    fPerf.MarkRaceTaskCreated('SiteA');
-    fPerf.MarkRaceAssigned('SiteA', 250000, 2000000);
+    fPerf.MarkRaceTaskCreated('SiteA', 1750000);
+    fPerf.MarkRaceTaskCreated('SiteA', 1900000);
+    fPerf.MarkRaceAssigned('SiteA', 2000000);
     fPerf.MarkRaceStarted('SiteA', 2100000);
     fPerf.MarkRaceFinished('SiteA', True);
     fPerf.MarkRaceFinished('SiteA', False);
@@ -52,14 +52,15 @@ begin
       fText := fLines.Text;
 
       CheckTrue(Pos('first dirlist task +100.000 ms', fText) > 0, 'global first dirlist missing: ' + fText);
+      CheckTrue(Pos('first race created +750.000 ms', fText) > 0, 'global first race created missing: ' + fText);
       CheckTrue(Pos('all tasks done +11.500 s', fText) > 0, 'global idle missing: ' + fText);
 
       CheckTrue(Pos('SiteA:', fText) > 0, 'site line missing: ' + fText);
-      CheckTrue(Pos('dirlist +100.000 ms', fText) > 0, 'dirlist created missing: ' + fText);
+      CheckTrue(Pos('dirlist +100.000 ms via NEWDIR', fText) > 0, 'dirlist created missing: ' + fText);
       CheckTrue(Pos('parsed +500.000 ms', fText) > 0, 'dirlist parsed missing: ' + fText);
       CheckTrue(Pos('2 tasks, 0 err', fText) > 0, 'dirlist counts missing: ' + fText);
       CheckTrue(Pos('mkdir +600.000 ms -> done +800.000 ms (waited 200.000 ms, 0 err)', fText) > 0, 'mkdir missing: ' + fText);
-      CheckTrue(Pos('races 2 created', fText) > 0, 'race count missing: ' + fText);
+      CheckTrue(Pos('races 2 created (first +750.000 ms)', fText) > 0, 'race count missing: ' + fText);
       CheckTrue(Pos('queue wait 250.000 ms', fText) > 0, 'queue wait missing: ' + fText);
       CheckTrue(Pos('1 ok / 1 err', fText) > 0, 'race results missing: ' + fText);
       CheckTrue(Pos('complete +11.000 s', fText) > 0, 'complete missing: ' + fText);
@@ -99,8 +100,8 @@ begin
   // one-shot markers must keep the first timestamp even when marked again
   fPerf := TRacePerf.Create(1000000);
   try
-    fPerf.MarkDirlistCreated('SiteA', 1100000);
-    fPerf.MarkDirlistCreated('SiteA', 9900000);
+    fPerf.MarkDirlistCreated('SiteA', '', 1100000);
+    fPerf.MarkDirlistCreated('SiteA', '', 9900000);
     fPerf.MarkComplete('SiteA', 2000000);
     fPerf.MarkComplete('SiteA', 9900000);
     fPerf.MarkAllTasksIdle(3000000);

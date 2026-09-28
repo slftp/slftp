@@ -585,6 +585,7 @@ begin
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO]</c> %s %s %s Dirlist added to : %s (DEST SITE)', [fd, pazo.rls.rlsname, dir, dst.Name]));
             dstdl.dirlistadded := True;
             AddTask(pd, true);
+            pazo.RacePerf.MarkDirlistCreated(dst.Name, 'tuzelj');
           except
             on e: Exception do
             begin

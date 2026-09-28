@@ -603,7 +603,7 @@ begin
       ss2.Fire;
       ss1.Fire;
 
-      t.mainpazo.RacePerf.MarkRaceAssigned(t.ps2.Name, Round((t.assigned - t.created) * SecsPerDay * 1000000));
+      t.mainpazo.RacePerf.MarkRaceAssigned(t.ps2.Name);
     finally
       s2.ReleaseSlotsAssignmentLock;
     end;
