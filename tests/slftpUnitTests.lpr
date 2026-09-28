@@ -67,7 +67,8 @@ uses
   precatcherTests,
   slcriticalsection2Tests,
   variantCacheTests,
-  sltimerTests;
+  sltimerTests,
+  raceperfunitTests;
 
 var
   filecheck: String;

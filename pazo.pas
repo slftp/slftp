@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, kb.releaseinfo, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections, IniFiles, sfv, slcriticalsection2,
-  routeconfig;
+  routeconfig, raceperfunit;
 
 type
   TQueueNotifyEvent = procedure(Sender: TObject; Value: integer) of object;
@@ -173,6 +173,7 @@ type
     FUniqueFileListOfRelease_cs: TSlCriticalSection2; //< Critical section for Add calls to @link(FUniqueFileListOfRelease)
     FUniqueFileListOfRelease: TDictionary<String, Int64>; //< Dictionary with files (including subdirs) and corresponding filesize (biggest value seen on any site) for this release, Key="dir + '/' + filename" and Value=filesize
     FPazoSFV: TPazoSFV;
+    FRacePerf: TRacePerf; //< in-memory performance timeline of this release (used by the releaseperf IRC command)
 
     { Creates/Updates the filesize for given subdir and filename combination
       @param(aDir Location of the file inside releasedir)
@@ -249,6 +250,7 @@ type
 
     property ExcludeFromIncfiller: Boolean read FExcludeFromIncfiller write FExcludeFromIncfiller;
     property PazoSFV: TPazoSFV read FPazoSFV;
+    property RacePerf: TRacePerf read FRacePerf; //< performance timeline, never nil after Create
   end;
 
 function PazoAdd(const rls: TRelease): TPazo;
@@ -562,6 +564,7 @@ begin
           begin
             try
               AddTask(pm, True);
+              pazo.RacePerf.MarkMkdirCreated(dst.Name);
             except
               on e: Exception do
               begin
@@ -646,6 +649,7 @@ begin
             // finally we can add the task
             try
               AddTask(pr);
+              pazo.RacePerf.MarkRaceTaskCreated(dst.Name);
               Result := True;
             except
               on e: Exception do
@@ -839,6 +843,8 @@ begin
   if rls.IsSFVRelease then
     FPazoSFV := TPazoSFV.Create;
 
+  FRacePerf := TRacePerf.Create(TRacePerf.NowMicroSeconds);
+
   inherited Create;
 end;
 
@@ -853,6 +859,7 @@ begin
   mkdirtasks.Free;
   FUniqueFileListOfRelease.Free;
   FUniqueFileListOfRelease_cs.Free;
+  FRacePerf.Free;
   FreeAndNil(rls);
   if FPazoSFV <> nil then FPazoSFV.Free;
 
@@ -897,6 +904,7 @@ begin
   else if Value = 0 then
   begin
     ready := True;
+    FRacePerf.MarkAllTasksIdle;
 
     if ((not slshutdown) and (rls <> nil)) then
     begin
@@ -1453,6 +1461,7 @@ begin
     end;
   end;
 
+  pazo.RacePerf.MarkMkdirDone(Name);
   Result := True;
 end;
 
@@ -1469,6 +1478,7 @@ begin
     irc_Addstats(Format('<c7>[MKDIR ERROR]</c> : %s %s/%s @ <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, dir, Name]));
     d.need_mkdir := True;
     d.error := True;
+    pazo.RacePerf.MarkMkdirError(Name);
   end;
 
   Result := True;
@@ -1582,6 +1592,7 @@ begin
   end;
 
   // Everything went fine
+  pazo.RacePerf.MarkDirlistParsed(Name);
   Result := True;
 end;
 
@@ -1883,6 +1894,7 @@ begin
       d.CachedCompleteResult := True;
 
     status := rssComplete;
+    pazo.RacePerf.MarkComplete(Name);
     exit;
   end;
 
@@ -1901,6 +1913,7 @@ begin
       exit;
 
   status := rssComplete;
+  pazo.RacePerf.MarkComplete(Name);
 end;
 
 function TPazoSite.Age: integer;

@@ -6,7 +6,7 @@ unit kb;
 interface
 
 uses
-  Classes, SyncObjs, slcriticalsection2, kb.releaseinfo, pazo;
+  Classes, SyncObjs, slcriticalsection2, kb.releaseinfo, pazo, Generics.Collections;
 
 type
   TKBThread = class(TThread)
@@ -29,6 +29,10 @@ function FindReleaseInKbList(const rls: String): String;
       @returns(The section name if the release has been found, an empty string otherwise) }
 function FindReleaseInLatestKBList(const aRls: String): String;
 function FindPazoByRls(const rlsname: String): TPazo;
+{ Finds all releases/pazos in the KB list with the given release name, regardless of the section
+      @param(aRlsName The release name to be searched for)
+      @returns(List with the found TPazo objects (empty if none), caller must free the list. The TPazo objects are still owned by the KB list.) }
+function FindPazosByRlsName(const aRlsName: String): TList<TPazo>;
 function FindPazoById(const id: integer): TPazo;
 function FindPazoByName(const section, rlsname: String): TPazo;
 { Finds a release/pazo in the KB list by the given key. The key must be in the format of the KB list keys which is 'section-releasename'
@@ -74,7 +78,7 @@ uses
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
-  globalskipunit, irccommandsunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  globalskipunit, irccommandsunit {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   rsections = 'kb';
@@ -838,6 +842,7 @@ begin
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
             ps.dirlist.dirlistadded := True;
             AddTask(dlt, true);
+            p.RacePerf.MarkDirlistCreated(ps.Name);
           end;
 
           // Source site is _not_ a PRE site for this group
@@ -847,6 +852,7 @@ begin
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
             ps.dirlist.dirlistadded := True;
             AddTask(dlt, true);
+            p.RacePerf.MarkDirlistCreated(ps.Name);
           end;
 
         except
@@ -969,6 +975,41 @@ begin
       begin
         Debug(dpError, 'kb', Format('[EXCEPTION] FindPazoByRls: %s', [e.Message]));
         Result := nil;
+      end;
+    end;
+  finally
+    kb_lock.Leave;
+  end;
+end;
+
+function FindPazosByRlsName(const aRlsName: String): TList<TPazo>;
+var
+  i: integer;
+  p: TPazo;
+begin
+  Result := TList<TPazo>.Create;
+  kb_lock.Enter('FindPazosByRlsName');
+  try
+    try
+      for i := kb_list.Count - 1 downto 0 do
+      begin
+        if i < 0 then
+          Break;
+
+        p := TPazo(kb_list.Objects[i]);
+        if p = nil then
+          Continue;
+
+        if p.rls = nil then
+          Continue;
+
+        if (CompareText(p.rls.rlsname, aRlsName) = 0) then
+          Result.Add(p);
+      end;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, 'kb', Format('[EXCEPTION] FindPazosByRlsName: %s', [e.Message]));
       end;
     end;
   finally
@@ -1549,6 +1590,7 @@ begin
           Continue;
         pdt := TPazoDirlistTask.Create('', '', ps.Name, p, '', True);
         AddTask(pdt);
+        p.RacePerf.MarkDirlistCreated(ps.Name);
       except
         on e: Exception do
         begin
@@ -1565,6 +1607,7 @@ begin
           Continue;
         pdt := TPazoDirlistTask.Create('', '', ps.Name, p, '', False);
         AddTask(pdt);
+        p.RacePerf.MarkDirlistCreated(ps.Name);
         irc_Addstats(Format(
           '<c11>[<b>iNC</b> <b>%s</b>]</c> Trying to complete <b>%s</b> on <b>%s</b> from <b>%s</b>',
           [p.rls.section, p.rls.rlsname, ps.Name, dsites_info.CommaText]));

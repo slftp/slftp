@@ -7,11 +7,12 @@ function IrcKbShow(const netname, channel, params: String): boolean;
 function IrcKbList(const netname, channel, params: String): boolean;
 function IrcKbExtra(const netname, channel, params: String): boolean;
 function IrcKbAdd(const netname, channel, params: String): boolean;
+function IrcReleasePerf(const netname, channel, params: String): boolean;
 
 implementation
 
 uses
-  SysUtils, Classes, kb, kb.releaseinfo, pazo, precatcher, irc, mystrings;
+  SysUtils, Classes, Generics.Collections, kb, kb.releaseinfo, pazo, precatcher, irc, mystrings;
 
 const
   section = 'irccommands.kb';
@@ -149,6 +150,49 @@ begin
         irc_addtext(Netname, Channel, format('<c4>-- [KB]</c> %s %s %s @ <b>%s</b>',
           [event, rls_section, rls, sitename]));
       end;
+  end;
+
+  Result := True;
+end;
+
+function IrcReleasePerf(const netname, channel, params: String): boolean;
+var
+  fRls: String;
+  fPazos: TList<TPazo>;
+  p: TPazo;
+  fLines: TStringList;
+  s: String;
+begin
+  Result := False;
+  fRls := SubString(params, ' ', 1);
+
+  fPazos := FindPazosByRlsName(fRls);
+  try
+    if fPazos.Count = 0 then
+    begin
+      irc_addtext(netname, channel, Format('Can not find any knowledge base entry for %s', [fRls]));
+      Result := True;
+      exit;
+    end;
+
+    for p in fPazos do
+    begin
+      if ((p = nil) or (p.rls = nil)) then
+        Continue;
+
+      irc_addtext(netname, channel, Format('<c10>[<b>RELEASEPERF</b>]</c> %s %s (pazo_id %d) detected %s:',
+        [p.rls.section, p.rls.rlsname, p.pazo_id, FormatDateTime('hh:nn:ss.zzz', p.added)]));
+
+      fLines := p.RacePerf.AsStrings;
+      try
+        for s in fLines do
+          irc_addtext(netname, channel, '%s', [s]);
+      finally
+        fLines.Free;
+      end;
+    end;
+  finally
+    fPazos.Free;
   end;
 
   Result := True;

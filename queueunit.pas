@@ -602,6 +602,8 @@ begin
       ss2.todotask := t.dst;
       ss2.Fire;
       ss1.Fire;
+
+      t.mainpazo.RacePerf.MarkRaceAssigned(t.ps2.Name, Round((t.assigned - t.created) * SecsPerDay * 1000000));
     finally
       s2.ReleaseSlotsAssignmentLock;
     end;

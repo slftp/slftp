@@ -1,0 +1,9 @@
+Shows the in-memory performance timeline of a raced release:
+when it was detected for trading, first dirlist per site, mkdir created/done
+per site, how many race tasks were created, first race assigned/started with
+queue wait time, per-site error counters and the complete time per site.
+All times are relative to the detection of the release.
+If the release name exists in more than one section, all matches are shown.
+The data is only kept in memory and is gone once the release is removed from
+the knowledge base.
+Usage: <cmd> rlsname

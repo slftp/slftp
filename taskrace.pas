@@ -513,6 +513,7 @@ begin
     else
     begin
       ps1.status := rssComplete;
+      mainpazo.RacePerf.MarkComplete(ps1.Name);
     end;
   end;
 
@@ -780,6 +781,7 @@ begin
 
   try
     AddTask(pm, True);
+    mainpazo.RacePerf.MarkMkdirCreated(ps1.Name);
     Result := pm;
   except
     on e: Exception do

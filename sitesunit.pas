@@ -1556,6 +1556,7 @@ var
   fPair: TDestinationRank;
   fSite: TSite;
   fCurrentTask: TTask;
+  fTaskExecuteOk: boolean;
 begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
   tname := 'nil';
@@ -1585,8 +1586,20 @@ begin
 
         Debug(dpSpam, section, Format('--> %s', [Name]));
 
+        // performance timeline: first started race task of the release
+        // (must never disturb task execution, so it is wrapped in try..except)
+        if fCurrentTask is TPazoRaceTask then
+        begin
+          try
+            TPazoRaceTask(fCurrentTask).mainpazo.RacePerf.MarkRaceStarted(TPazoRaceTask(fCurrentTask).ps2.Name);
+          except
+          end;
+        end;
+
+        fTaskExecuteOk := False;
         try
-          if fCurrentTask.Execute(self) then
+          fTaskExecuteOk := fCurrentTask.Execute(self);
+          if fTaskExecuteOk then
           begin
             LastTaskExecution := Now();
 
@@ -1620,6 +1633,17 @@ begin
         end;
 
         Debug(dpSpam, section, Format('<-- %s', [Name]));
+
+        // performance timeline: finished race tasks and failed dirlist tasks
+        // (fCurrentTask can already be freed here in the exception path above,
+        // so this is wrapped in try..except and must never disturb task handling)
+        try
+          if fCurrentTask is TPazoRaceTask then
+            TPazoRaceTask(fCurrentTask).mainpazo.RacePerf.MarkRaceFinished(TPazoRaceTask(fCurrentTask).ps2.Name, fTaskExecuteOk and (not fCurrentTask.readyerror))
+          else if ((fCurrentTask is TPazoDirlistTask) and (fCurrentTask.readyerror)) then
+            TPazoDirlistTask(fCurrentTask).mainpazo.RacePerf.MarkDirlistError(TPazoDirlistTask(fCurrentTask).ps1.Name);
+        except
+        end;
 
         uploadingto := False;
         downloadingfrom := False;
