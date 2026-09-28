@@ -119,7 +119,11 @@ function _FormatUsAsMs(const aUs: Int64; const aDigits: integer = 3): String;
 var
   fFormatSettings: TFormatSettings;
 begin
-  fFormatSettings := DefaultFormatSettings;
+  {$IFDEF FPC}
+    fFormatSettings := DefaultFormatSettings;
+  {$ELSE}
+    fFormatSettings := FormatSettings;
+  {$ENDIF}
   fFormatSettings.DecimalSeparator := '.';
   Result := FloatToStrF(aUs / 1000, ffFixed, 15, aDigits, fFormatSettings);
 end;
