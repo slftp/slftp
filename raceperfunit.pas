@@ -24,6 +24,7 @@ type
     SiteName: String; //< name of the site
     FirstDirlistCreatedUs: Int64; //< first dirlist task created for this site
     FirstDirlistCreatedInfo: String; //< what triggered the first dirlist task (kb event, 'tuzelj', 'incfiller')
+    FirstDirlistStartedUs: Int64; //< first dirlist task started executing on a slot of this site
     FirstDirlistParsedUs: Int64; //< first dirlist answer successfully parsed from this site
     DirlistTasksCreated: integer; //< number of created dirlist tasks
     DirlistErrors: integer; //< dirlist tasks which finished with an error
@@ -32,6 +33,7 @@ type
     MkdirDoneUs: Int64; //< first mkdir successfully done on this site
     MkdirErrors: integer; //< mkdir tasks which failed
     RaceTasksCreated: integer; //< race tasks created with this site as destination
+    RaceTasksDupDropped: integer; //< race tasks dropped as duplicates by AddTask (already in queue)
     FirstRaceCreatedUs: Int64; //< first race task created with this site as destination
     FirstRaceAssignedUs: Int64; //< first race task got slots assigned by the queue thread
     FirstRaceStartedUs: Int64; //< first race task started executing on its slots
@@ -46,17 +48,20 @@ type
     fLock: TSlCriticalSection2; //< protects all fields and @link(fSites)
     fSites: TObjectDictionary<String, TRacePerfSiteInfo>; //< per-site markers, key is the uppercase sitename
     fDetectedUs: Int64; //< T0: release detected for trading (pazo created)
+    fDetectedInfo: String; //< kb event which detected the release (e.g. 'NEWDIR', 'ADDPRE')
     fFirstDirlistCreatedUs: Int64; //< first dirlist task created on any site
     fFirstRaceCreatedUs: Int64; //< first race task created on any site
     fFirstRaceAssignedUs: Int64; //< first race task assigned on any site
     fFirstRaceStartedUs: Int64; //< first race task started on any site
     fAllTasksIdleUs: Int64; //< queue of the pazo ran empty (queuenumber reached 0)
+    fTuzeljCalls: integer; //< how often TPazoSite.Tuzelj ran for this pazo
+    fTuzeljTotalUs: Int64; //< total time spent in TPazoSite.Tuzelj for this pazo
     { @returns(the site info for @link(aSiteName), creating it on first use; caller must hold @link(fLock)) }
     function GetSiteLocked(const aSiteName: String): TRacePerfSiteInfo;
     { @returns(@link(aUs) formatted relative to @link(fDetectedUs), e.g. '+123.456 ms', or '-' if unset) }
     function FormatRelUs(const aUs: Int64): String;
   public
-    constructor Create(const aDetectedUs: Int64);
+    constructor Create(const aDetectedUs: Int64; const aDetectedInfo: String = '');
     destructor Destroy; override;
 
     { Current time in the same unit as the stored timestamps
@@ -70,6 +75,9 @@ type
     { A dirlist answer from @link(aSiteName) was successfully parsed
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
     procedure MarkDirlistParsed(const aSiteName: String; const aNowUs: Int64 = 0);
+    { A dirlist task started executing on a slot of @link(aSiteName)
+      @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
+    procedure MarkDirlistStarted(const aSiteName: String; const aNowUs: Int64 = 0);
     { A dirlist task for @link(aSiteName) finished with an error }
     procedure MarkDirlistError(const aSiteName: String);
     { A mkdir task was created for @link(aSiteName)
@@ -86,6 +94,9 @@ type
     { A race task was created with @link(aSiteName) as destination
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
     procedure MarkRaceTaskCreated(const aSiteName: String; const aNowUs: Int64 = 0);
+    { A race task with @link(aSiteName) as destination was dropped by AddTask
+      because an identical task was already in the queue (duplicate) }
+    procedure MarkRaceTaskDupDropped(const aSiteName: String);
     { A race task got slots assigned by the queue thread
       @param(aSiteName destination site)
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
@@ -102,12 +113,16 @@ type
     { The queue of the pazo ran empty (no open tasks left)
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
     procedure MarkAllTasksIdle(const aNowUs: Int64 = 0);
+    { One TPazoSite.Tuzelj run finished
+      @param(aDurationUs how long the Tuzelj run took in microseconds) }
+    procedure MarkTuzeljDone(const aDurationUs: Int64);
 
     { Formats the whole timeline as text lines (for the releaseperf IRC command)
       @returns(a string list with one entry per line, caller must free it) }
     function AsStrings: TStringList;
 
     property DetectedUs: Int64 read fDetectedUs; //< T0 timestamp, all formatted times are relative to it
+    property DetectedInfo: String read fDetectedInfo; //< kb event which detected the release
   end;
 
 implementation
@@ -140,9 +155,10 @@ begin
   QueryPerformanceMicroSeconds(Result);
 end;
 
-constructor TRacePerf.Create(const aDetectedUs: Int64);
+constructor TRacePerf.Create(const aDetectedUs: Int64; const aDetectedInfo: String);
 begin
   fDetectedUs := aDetectedUs;
+  fDetectedInfo := aDetectedInfo;
   fLock := TSlCriticalSection2.Create('raceperf');
   fSites := TObjectDictionary<String, TRacePerfSiteInfo>.Create([doOwnsValues]);
   inherited Create;
@@ -212,6 +228,28 @@ begin
   except
     on E: Exception do
       Debug(dpError, section, 'MarkDirlistCreated: %s', [E.Message]);
+  end;
+end;
+
+procedure TRacePerf.MarkDirlistStarted(const aSiteName: String; const aNowUs: Int64);
+var
+  fNow: Int64;
+begin
+  try
+    fNow := aNowUs;
+    if fNow = 0 then
+      fNow := NowMicroSeconds;
+    fLock.Enter('MarkDirlistStarted');
+    try
+      with GetSiteLocked(aSiteName) do
+        if FirstDirlistStartedUs = 0 then
+          FirstDirlistStartedUs := fNow;
+    finally
+      fLock.Leave;
+    end;
+  except
+    on E: Exception do
+      Debug(dpError, section, 'MarkDirlistStarted: %s', [E.Message]);
   end;
 end;
 
@@ -360,6 +398,21 @@ begin
   end;
 end;
 
+procedure TRacePerf.MarkRaceTaskDupDropped(const aSiteName: String);
+begin
+  try
+    fLock.Enter('MarkRaceTaskDupDropped');
+    try
+      Inc(GetSiteLocked(aSiteName).RaceTasksDupDropped);
+    finally
+      fLock.Leave;
+    end;
+  except
+    on E: Exception do
+      Debug(dpError, section, 'MarkRaceTaskDupDropped: %s', [E.Message]);
+  end;
+end;
+
 procedure TRacePerf.MarkRaceAssigned(const aSiteName: String; const aNowUs: Int64);
 var
   fNow: Int64;
@@ -469,17 +522,40 @@ begin
   end;
 end;
 
+procedure TRacePerf.MarkTuzeljDone(const aDurationUs: Int64);
+begin
+  try
+    fLock.Enter('MarkTuzeljDone');
+    try
+      Inc(fTuzeljCalls);
+      Inc(fTuzeljTotalUs, aDurationUs);
+    finally
+      fLock.Leave;
+    end;
+  except
+    on E: Exception do
+      Debug(dpError, section, 'MarkTuzeljDone: %s', [E.Message]);
+  end;
+end;
+
 function TRacePerf.AsStrings: TStringList;
 var
   fSite: TRacePerfSiteInfo;
-  fLine, fMkdirWait, fMkdirExec, fRaceWait, fDirlistInfo: String;
+  fLine, fMkdirWait, fMkdirExec, fRaceWait, fDirlistInfo, fGlobalLine: String;
+  fDupTotal: integer;
 begin
   Result := TStringList.Create;
   fLock.Enter('AsStrings');
   try
-    Result.Add(Format('Global: first dirlist task %s | first race created %s | first race assigned %s | first race started %s | all tasks done %s',
+    fGlobalLine := Format('Global: first dirlist task %s | first race created %s | first race assigned %s | first race started %s | all tasks done %s',
       [FormatRelUs(fFirstDirlistCreatedUs), FormatRelUs(fFirstRaceCreatedUs), FormatRelUs(fFirstRaceAssignedUs),
-       FormatRelUs(fFirstRaceStartedUs), FormatRelUs(fAllTasksIdleUs)]));
+       FormatRelUs(fFirstRaceStartedUs), FormatRelUs(fAllTasksIdleUs)]);
+
+    if fTuzeljCalls > 0 then
+      fGlobalLine := fGlobalLine + Format(' | tuzelj %d calls, total %s (avg %s)',
+        [fTuzeljCalls, _FormatUsAsMs(fTuzeljTotalUs) + ' ms', _FormatUsAsMs(fTuzeljTotalUs div fTuzeljCalls) + ' ms']);
+
+    Result.Add(fGlobalLine);
 
     for fSite in fSites.Values do
     begin
@@ -487,8 +563,9 @@ begin
         fDirlistInfo := Format(' via %s', [fSite.FirstDirlistCreatedInfo])
       else
         fDirlistInfo := '';
-      fLine := Format('%s: dirlist %s%s (parsed %s, %d tasks, %d err)', [fSite.SiteName,
-        FormatRelUs(fSite.FirstDirlistCreatedUs), fDirlistInfo, FormatRelUs(fSite.FirstDirlistParsedUs),
+      fLine := Format('%s: dirlist %s%s (started %s, parsed %s, %d tasks, %d err)', [fSite.SiteName,
+        FormatRelUs(fSite.FirstDirlistCreatedUs), fDirlistInfo, FormatRelUs(fSite.FirstDirlistStartedUs),
+        FormatRelUs(fSite.FirstDirlistParsedUs),
         fSite.DirlistTasksCreated, fSite.DirlistErrors]);
 
       if ((fSite.MkdirCreatedUs <> 0) or (fSite.MkdirStartedUs <> 0) or (fSite.MkdirErrors > 0)) then
@@ -506,7 +583,7 @@ begin
            fMkdirWait, fMkdirExec, fSite.MkdirErrors]);
       end;
 
-      if ((fSite.RaceTasksCreated > 0) or (fSite.RacesFinishedOk > 0) or (fSite.RaceErrors > 0)) then
+      if ((fSite.RaceTasksCreated > 0) or (fSite.RacesFinishedOk > 0) or (fSite.RaceErrors > 0) or (fSite.RaceTasksDupDropped > 0)) then
       begin
         if ((fSite.FirstRaceCreatedUs <> 0) and (fSite.FirstRaceAssignedUs <> 0) and (fSite.FirstRaceAssignedUs >= fSite.FirstRaceCreatedUs)) then
           fRaceWait := _FormatUsAsMs(fSite.FirstRaceAssignedUs - fSite.FirstRaceCreatedUs) + ' ms'
@@ -515,6 +592,8 @@ begin
         fLine := fLine + Format(' | races %d created (first %s), assigned %s (queue wait %s), started %s, %d ok / %d err',
           [fSite.RaceTasksCreated, FormatRelUs(fSite.FirstRaceCreatedUs), FormatRelUs(fSite.FirstRaceAssignedUs), fRaceWait,
            FormatRelUs(fSite.FirstRaceStartedUs), fSite.RacesFinishedOk, fSite.RaceErrors]);
+        if fSite.RaceTasksDupDropped > 0 then
+          fLine := fLine + Format(' | %d dup dropped', [fSite.RaceTasksDupDropped]);
       end;
 
       fLine := fLine + Format(' | complete %s', [FormatRelUs(fSite.CompleteUs)]);

@@ -180,8 +180,12 @@ begin
       if ((p = nil) or (p.rls = nil)) then
         Continue;
 
-      irc_addtext(netname, channel, Format('<c10>[<b>RELEASEPERF</b>]</c> %s %s (pazo_id %d) detected %s:',
-        [p.rls.section, p.rls.rlsname, p.pazo_id, FormatDateTime('hh:nn:ss.zzz', p.added)]));
+      if p.RacePerf.DetectedInfo <> '' then
+        irc_addtext(netname, channel, Format('<c10>[<b>RELEASEPERF</b>]</c> %s %s (pazo_id %d) detected %s via %s:',
+          [p.rls.section, p.rls.rlsname, p.pazo_id, FormatDateTime('hh:nn:ss.zzz', p.added), p.RacePerf.DetectedInfo]))
+      else
+        irc_addtext(netname, channel, Format('<c10>[<b>RELEASEPERF</b>]</c> %s %s (pazo_id %d) detected %s:',
+          [p.rls.section, p.rls.rlsname, p.pazo_id, FormatDateTime('hh:nn:ss.zzz', p.added)]));
 
       fLines := p.RacePerf.AsStrings;
       try

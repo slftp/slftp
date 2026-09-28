@@ -1231,10 +1231,20 @@ begin
     try
       if TaskAlreadyInQueue(t) then
       begin
+        // performance timeline: count duplicate race tasks dropped here
+        // (must never disturb task handling, so it is wrapped in try..except)
+        if t is TPazoRaceTask then
+        begin
+          try
+            TPazoRaceTask(t).mainpazo.RacePerf.MarkRaceTaskDupDropped(TPazoRaceTask(t).ps2.Name);
+          except
+          end;
+        end;
+
         // don't add the task to the queue, just notify and free right away if it's a duplicate
         if t.IsNotifyTask then
           TaskReady(t);
-          
+
         t.Free;
         exit;
       end;

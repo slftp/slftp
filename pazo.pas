@@ -437,8 +437,10 @@ var
   de, dde: TDirListEntry;
   s: TSite;
   fd: String;
+  fTuzeljStartUs: Int64;
 begin
   Result := False;
+  fTuzeljStartUs := TRacePerf.NowMicroSeconds;
   dst := nil;
   dstdl := nil;
   dde := nil;
@@ -677,6 +679,9 @@ begin
       end;
     end;
   end;
+
+  // record how long this Tuzelj run took (early exits on error paths skip this)
+  pazo.RacePerf.MarkTuzeljDone(TRacePerf.NowMicroSeconds - fTuzeljStartUs);
 end;
 
 { TPazo }
@@ -851,7 +856,10 @@ begin
   if rls.IsSFVRelease then
     FPazoSFV := TPazoSFV.Create;
 
-  FRacePerf := TRacePerf.Create(TRacePerf.NowMicroSeconds);
+  if rls <> nil then
+    FRacePerf := TRacePerf.Create(TRacePerf.NowMicroSeconds, KBEventTypeToString(rls.kb_event))
+  else
+    FRacePerf := TRacePerf.Create(TRacePerf.NowMicroSeconds);
 
   inherited Create;
 end;

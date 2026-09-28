@@ -1586,7 +1586,7 @@ begin
 
         Debug(dpSpam, section, Format('--> %s', [Name]));
 
-        // performance timeline: first started race/mkdir task of the release
+        // performance timeline: first started race/mkdir/dirlist task of the release
         // (must never disturb task execution, so it is wrapped in try..except)
         if fCurrentTask is TPazoRaceTask then
         begin
@@ -1599,6 +1599,13 @@ begin
         begin
           try
             TPazoMkdirTask(fCurrentTask).mainpazo.RacePerf.MarkMkdirStarted(TPazoMkdirTask(fCurrentTask).ps1.Name);
+          except
+          end;
+        end
+        else if fCurrentTask is TPazoDirlistTask then
+        begin
+          try
+            TPazoDirlistTask(fCurrentTask).mainpazo.RacePerf.MarkDirlistStarted(TPazoDirlistTask(fCurrentTask).ps1.Name);
           except
           end;
         end;

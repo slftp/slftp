@@ -34,12 +34,17 @@ begin
   try
     fPerf.MarkDirlistCreated('SiteA', 'NEWDIR', 1100000);
     fPerf.MarkDirlistCreated('SiteA', 'UPDATE', 1200000);
+    fPerf.MarkDirlistStarted('SiteA', 1300000);
     fPerf.MarkDirlistParsed('SiteA', 1500000);
     fPerf.MarkMkdirCreated('SiteA', 1600000);
     fPerf.MarkMkdirStarted('SiteA', 1700000);
     fPerf.MarkMkdirDone('SiteA', 1800000);
     fPerf.MarkRaceTaskCreated('SiteA', 1750000);
     fPerf.MarkRaceTaskCreated('SiteA', 1900000);
+    fPerf.MarkRaceTaskDupDropped('SiteA');
+    fPerf.MarkRaceTaskDupDropped('SiteA');
+    fPerf.MarkTuzeljDone(4000);
+    fPerf.MarkTuzeljDone(6000);
     fPerf.MarkRaceAssigned('SiteA', 2000000);
     fPerf.MarkRaceStarted('SiteA', 2100000);
     fPerf.MarkRaceFinished('SiteA', True);
@@ -55,15 +60,15 @@ begin
       CheckTrue(Pos('first dirlist task +100.000 ms', fText) > 0, 'global first dirlist missing: ' + fText);
       CheckTrue(Pos('first race created +750.000 ms', fText) > 0, 'global first race created missing: ' + fText);
       CheckTrue(Pos('all tasks done +11.500 s', fText) > 0, 'global idle missing: ' + fText);
+      CheckTrue(Pos('tuzelj 2 calls, total 10.000 ms (avg 5.000 ms)', fText) > 0, 'tuzelj stats missing: ' + fText);
 
       CheckTrue(Pos('SiteA:', fText) > 0, 'site line missing: ' + fText);
-      CheckTrue(Pos('dirlist +100.000 ms via NEWDIR', fText) > 0, 'dirlist created missing: ' + fText);
-      CheckTrue(Pos('parsed +500.000 ms', fText) > 0, 'dirlist parsed missing: ' + fText);
-      CheckTrue(Pos('2 tasks, 0 err', fText) > 0, 'dirlist counts missing: ' + fText);
+      CheckTrue(Pos('dirlist +100.000 ms via NEWDIR (started +300.000 ms, parsed +500.000 ms, 2 tasks, 0 err)', fText) > 0, 'dirlist line wrong: ' + fText);
       CheckTrue(Pos('mkdir +600.000 ms -> started +700.000 ms -> done +800.000 ms (queue 100.000 ms, exec 100.000 ms, 0 err)', fText) > 0, 'mkdir missing: ' + fText);
       CheckTrue(Pos('races 2 created (first +750.000 ms)', fText) > 0, 'race count missing: ' + fText);
       CheckTrue(Pos('queue wait 250.000 ms', fText) > 0, 'queue wait missing: ' + fText);
       CheckTrue(Pos('1 ok / 1 err', fText) > 0, 'race results missing: ' + fText);
+      CheckTrue(Pos('2 dup dropped', fText) > 0, 'dup dropped missing: ' + fText);
       CheckTrue(Pos('complete +11.000 s', fText) > 0, 'complete missing: ' + fText);
     finally
       fLines.Free;
