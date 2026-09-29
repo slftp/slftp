@@ -92,7 +92,7 @@ implementation
 
 uses
   SysUtils, Types, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils,
-  tasktvinfolookup, taskhttpnfo, tasksitenfo, tasksitesfv, sitesunit;
+  tasktvinfolookup, taskhttpnfo, tasksitenfo, tasksitesfv, sitesunit, raceperfunit;
 
 const
   section = 'queue';
@@ -484,7 +484,7 @@ begin
 
     if s2.MaxSimUpCooldownActive then
     begin
-      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s2.Name);
+      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s2.Name, rpbrMaxSimUp);
       if not fBusyDestinations.ContainsKey(s2) then
         fBusyDestinations.Add(s2, 0);
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Destination site %s is on MaxSim UP cooldown (%ds remaining), skipping %s',
@@ -494,7 +494,7 @@ begin
 
     if s1.MaxSimDownCooldownActive then
     begin
-      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s1.Name);
+      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s1.Name, rpbrMaxSimDown);
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Source site %s is on MaxSim DOWN cooldown (%ds remaining), skipping %s',
         [s1.Name, s1.MaxSimDownCooldownRemainingSeconds, t.FullName]);
       exit;
@@ -502,7 +502,7 @@ begin
 
     if fBusyDestinations.ContainsKey(s2) then
     begin
-      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s2.Name);
+      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s2.Name, rpbrBusyDestination);
       Debug(dpSpam, section, 'Destination site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
       exit;
     end;
@@ -510,7 +510,7 @@ begin
     // first watch if it is not already in process to upload the same file to the same place
     if t.ps2.HasActiveTransfer(t.dir + t.filename) then
     begin
-      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s2.Name);
+      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s2.Name, rpbrActiveTransfer);
       exit; // we are already sending this file to the same destination site
     end;
 
@@ -522,7 +522,7 @@ begin
 
     if t.ps1.HasActiveTransfer(t.dir + t.filename, s2.Name) then
     begin
-      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s1.Name);
+      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s1.Name, rpbrReverseTransfer);
       exit; // we are already sending this file the opposite route
     end;
 
@@ -577,7 +577,7 @@ begin
 
     if not s2.AcquireSlotsAssignmentLock(1, 'TryToAssignRaceSlots') then
     begin
-      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s2.Name);
+      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s2.Name, rpbrAssignmentLock);
       fBusyDestinations.Add(s2, 0);
       exit;
     end;
@@ -593,7 +593,7 @@ begin
       // again check if this file is already being sent to the destination now that we have the slot assignment lock
       if t.ps2.HasActiveTransfer(t.dir + t.filename) then
       begin
-        t.mainpazo.RacePerf.MarkAssignBlockedBusy(s2.Name);
+        t.mainpazo.RacePerf.MarkAssignBlockedBusy(s2.Name, rpbrActiveTransfer);
         exit; // we are already sending this file to the same destination site
       end;
 
@@ -765,6 +765,8 @@ begin
 
     if t.wanted_up and s.MaxSimUpCooldownActive then
     begin
+      if t is TPazoRaceTask then
+        TPazoRaceTask(t).mainpazo.RacePerf.MarkAssignBlockedBusy(s.Name, rpbrMaxSimUp);
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Site %s is on MaxSim UP cooldown (%ds remaining), skip task %s',
         [s.Name, s.MaxSimUpCooldownRemainingSeconds, t.FullName]);
       exit;
@@ -772,6 +774,8 @@ begin
 
     if t.wanted_dn and s.MaxSimDownCooldownActive then
     begin
+      if t is TPazoRaceTask then
+        TPazoRaceTask(t).mainpazo.RacePerf.MarkAssignBlockedBusy(s.Name, rpbrMaxSimDown);
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Site %s is on MaxSim DOWN cooldown (%ds remaining), skip task %s',
         [s.Name, s.MaxSimDownCooldownRemainingSeconds, t.FullName]);
       exit;
@@ -1276,6 +1280,11 @@ begin
             TPazoRaceTask(t).mainpazo.RacePerf.MarkRaceTaskDupDropped(TPazoRaceTask(t).ps2.Name);
           except
           end;
+        end
+        else if t is TPazoDirlistTask then
+        begin
+          TPazoDirlistTask(t).mainpazo.RacePerf.MarkDirlistDupDropped(
+            TPazoDirlistTask(t).site1, TPazoDirlistTask(t).dir);
         end;
 
         // don't add the task to the queue, just notify and free right away if it's a duplicate

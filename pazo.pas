@@ -154,7 +154,9 @@ type
 
     function SetFileError(const netname, channel, dir, filename: String): boolean; //< Sets error flag to true for filename if it cannot be transfered
     function Stats: String;
-    procedure SetComplete(const cdno: String);
+    { Marks completion from a directory listing or an IRC event.
+      @param(aSource origin recorded in the release performance timeline) }
+    procedure SetComplete(const cdno: String; const aSource: String);
     function StatusText: String;
     procedure Clear;
     procedure RemoveActiveTransfer(const aFilepath: String);
@@ -1899,7 +1901,7 @@ begin
   Result := (status = rssAllowed) or Complete;
 end;
 
-procedure TPazoSite.SetComplete(const cdno: String);
+procedure TPazoSite.SetComplete(const cdno: String; const aSource: String);
 var
   i: integer;
   d: TDirlist;
@@ -1911,7 +1913,7 @@ begin
       d.CachedCompleteResult := True;
 
     status := rssComplete;
-    pazo.RacePerf.MarkComplete(Name);
+    pazo.RacePerf.MarkComplete(Name, 0, aSource);
     exit;
   end;
 
@@ -1930,7 +1932,7 @@ begin
       exit;
 
   status := rssComplete;
-  pazo.RacePerf.MarkComplete(Name);
+  pazo.RacePerf.MarkComplete(Name, 0, aSource);
 end;
 
 function TPazoSite.Age: integer;

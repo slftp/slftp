@@ -687,7 +687,7 @@ begin
     else if ((event = kbeCOMPLETE) and (not psource.StatusRealPreOrShouldPre)) then
     begin
       psource.dirlist.SetCompleteInfo(FromIrc);
-      psource.SetComplete(cdno);
+      psource.SetComplete(cdno, 'IRC COMPLETE');
     end;
 
     if (event = kbeNUKE) then

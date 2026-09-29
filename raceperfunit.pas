@@ -17,6 +17,16 @@ uses
   Classes, SysUtils, Generics.Collections, slcriticalsection2;
 
 type
+  { Reason why a race slot assignment was rejected as busy. }
+  TRacePerfBusyReason = (
+    rpbrMaxSimUp, //< destination upload cooldown
+    rpbrMaxSimDown, //< source download cooldown
+    rpbrBusyDestination, //< destination was already marked busy in this queue
+    rpbrAssignmentLock, //< destination assignment lock could not be acquired
+    rpbrActiveTransfer, //< file is already being transferred to the destination
+    rpbrReverseTransfer //< file is already being transferred along the reverse route
+  );
+
   { Timing markers for the dirlist tasks of one dir of one site of a raced
     release. Instances are owned by @link(TRacePerfSiteInfo); do not access
     them from outside, use the marker methods of @link(TRacePerf) instead. }
@@ -28,6 +38,8 @@ type
     FStartedUs: Int64; //< first dirlist task for this dir started executing on a slot
     FParsedUs: Int64; //< first dirlist answer for this dir successfully parsed
     FTasksCreated: integer; //< number of created dirlist tasks for this dir
+    FTasksExecuted: integer; //< dirlist tasks which entered slot execution
+    FTasksDupDropped: integer; //< dirlist tasks rejected by the queue as duplicates
     FErrors: integer; //< dirlist tasks for this dir which finished with an error
   end;
 
@@ -36,6 +48,10 @@ type
     use the marker methods of @link(TRacePerf) instead. }
   TRacePerfSiteInfo = class
   private
+    FDirlistTasksExecuted: integer; //< dirlist tasks which entered slot execution
+    FDirlistTasksDupDropped: integer; //< dirlist tasks rejected by the queue as duplicates
+    FCompleteSource: String; //< origin of the first complete marker
+    FAssignBusyReasons: array[TRacePerfBusyReason] of integer; //< busy attempts by cause
     FDirInfos: TObjectDictionary<String, TRacePerfDirInfo>; //< per-dir dirlist markers, key is the uppercase dir ('' is the main dir)
     FMkdirCreatedInfo: String; //< what triggered the first mkdir task ('tuzelj', 'dirlist550')
     FAssignBlockedNoSlot: integer; //< task assignments rejected because this site had no free/online slot or a transfer limit (max_up/max_dn/maxupperrip) was reached
@@ -99,14 +115,17 @@ type
       @param(aInfo what triggered the creation, e.g. the kb event name, 'tuzelj', 'subdir', 'readd' or 'incfiller')
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
     procedure MarkDirlistCreated(const aSiteName: String; const aDir: String = ''; const aInfo: String = ''; const aNowUs: Int64 = 0);
-    { A dirlist answer from @link(aSiteName) was successfully parsed
+    { A nonempty dirlist for @link(aSiteName) finished parsing and follow-up processing
       @param(aDir dir inside the release, '' is the main dir)
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
     procedure MarkDirlistParsed(const aSiteName: String; const aDir: String = ''; const aNowUs: Int64 = 0);
-    { A dirlist task started executing on a slot of @link(aSiteName)
+    { A dirlist task entered execution on a slot of @link(aSiteName); increments the execution count
       @param(aDir dir inside the release, '' is the main dir)
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
     procedure MarkDirlistStarted(const aSiteName: String; const aDir: String = ''; const aNowUs: Int64 = 0);
+    { A dirlist task was discarded as a duplicate before slot execution
+      @param(aDir dir inside the release) }
+    procedure MarkDirlistDupDropped(const aSiteName: String; const aDir: String);
     { A dirlist task for @link(aSiteName) finished with an error
       @param(aDir dir inside the release, '' is the main dir) }
     procedure MarkDirlistError(const aSiteName: String; const aDir: String = '');
@@ -143,11 +162,13 @@ type
     procedure MarkAssignBlockedNoSlot(const aSiteName: String);
     { A task assignment was rejected because a site was busy: maxsim cooldown,
       busy destination, slots assignment lock contention or the file is already
-      being transferred }
-    procedure MarkAssignBlockedBusy(const aSiteName: String);
+      being transferred
+      @param(aReason cause of this rejected assignment attempt) }
+    procedure MarkAssignBlockedBusy(const aSiteName: String; const aReason: TRacePerfBusyReason);
     { The release was detected as complete on @link(aSiteName)
-      @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
-    procedure MarkComplete(const aSiteName: String; const aNowUs: Int64 = 0);
+      @param(aNowUs explicit timestamp for testing, 0 means "use current time")
+      @param(aSource origin of the event; stored with the first timestamp only) }
+    procedure MarkComplete(const aSiteName: String; const aNowUs: Int64 = 0; const aSource: String = 'unknown');
     { The queue of the pazo ran empty (no open tasks left)
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
     procedure MarkAllTasksIdle(const aNowUs: Int64 = 0);
@@ -320,11 +341,15 @@ begin
     fLock.Enter('MarkDirlistStarted');
     try
       fSite := GetSiteLocked(aSiteName);
+      Inc(fSite.FDirlistTasksExecuted);
       if fSite.FirstDirlistStartedUs = 0 then
         fSite.FirstDirlistStartedUs := fNow;
       with GetDirLocked(fSite, aDir) do
+      begin
+        Inc(FTasksExecuted);
         if FStartedUs = 0 then
           FStartedUs := fNow;
+      end;
     finally
       fLock.Leave;
     end;
@@ -357,6 +382,25 @@ begin
   except
     on E: Exception do
       Debug(dpError, section, 'MarkDirlistParsed: %s', [E.Message]);
+  end;
+end;
+
+procedure TRacePerf.MarkDirlistDupDropped(const aSiteName: String; const aDir: String);
+var
+  fSite: TRacePerfSiteInfo;
+begin
+  try
+    fLock.Enter('MarkDirlistDupDropped');
+    try
+      fSite := GetSiteLocked(aSiteName);
+      Inc(fSite.FDirlistTasksDupDropped);
+      Inc(GetDirLocked(fSite, aDir).FTasksDupDropped);
+    finally
+      fLock.Leave;
+    end;
+  except
+    on E: Exception do
+      Debug(dpError, section, 'MarkDirlistDupDropped: %s', [E.Message]);
   end;
 end;
 
@@ -586,12 +630,16 @@ begin
   end;
 end;
 
-procedure TRacePerf.MarkAssignBlockedBusy(const aSiteName: String);
+procedure TRacePerf.MarkAssignBlockedBusy(const aSiteName: String; const aReason: TRacePerfBusyReason);
 begin
   try
     fLock.Enter('MarkAssignBlockedBusy');
     try
-      Inc(GetSiteLocked(aSiteName).FAssignBlockedBusy);
+      with GetSiteLocked(aSiteName) do
+      begin
+        Inc(FAssignBlockedBusy);
+        Inc(FAssignBusyReasons[aReason]);
+      end;
     finally
       fLock.Leave;
     end;
@@ -601,7 +649,7 @@ begin
   end;
 end;
 
-procedure TRacePerf.MarkComplete(const aSiteName: String; const aNowUs: Int64);
+procedure TRacePerf.MarkComplete(const aSiteName: String; const aNowUs: Int64; const aSource: String);
 var
   fNow: Int64;
 begin
@@ -613,7 +661,10 @@ begin
     try
       with GetSiteLocked(aSiteName) do
         if CompleteUs = 0 then
+        begin
           CompleteUs := fNow;
+          FCompleteSource := aSource;
+        end;
     finally
       fLock.Leave;
     end;
@@ -686,10 +737,10 @@ begin
         fDirlistInfo := Format(' via %s', [fSite.FirstDirlistCreatedInfo])
       else
         fDirlistInfo := '';
-      fLine := Format('%s: dirlist %s%s (started %s, parsed %s, %d tasks, %d err)', [fSite.SiteName,
+      fLine := Format('%s: dirlist %s%s (started %s, parsed %s, %d created, %d executed, %d dup dropped, %d err)', [fSite.SiteName,
         FormatRelUs(fSite.FirstDirlistCreatedUs), fDirlistInfo, FormatRelUs(fSite.FirstDirlistStartedUs),
         FormatRelUs(fSite.FirstDirlistParsedUs),
-        fSite.DirlistTasksCreated, fSite.DirlistErrors]);
+        fSite.DirlistTasksCreated, fSite.FDirlistTasksExecuted, fSite.FDirlistTasksDupDropped, fSite.DirlistErrors]);
 
       if ((fSite.MkdirCreatedUs <> 0) or (fSite.MkdirStartedUs <> 0) or (fSite.MkdirErrors > 0)) then
       begin
@@ -726,7 +777,14 @@ begin
       if ((fSite.FAssignBlockedNoSlot > 0) or (fSite.FAssignBlockedBusy > 0)) then
         fLine := fLine + Format(' | assign blocked %dx no slot / %dx busy', [fSite.FAssignBlockedNoSlot, fSite.FAssignBlockedBusy]);
 
+      if fSite.FAssignBlockedBusy > 0 then
+        fLine := fLine + Format(' (cooldown up %d / down %d, destination %d, lock %d, active file %d, reverse file %d)',
+          [fSite.FAssignBusyReasons[rpbrMaxSimUp], fSite.FAssignBusyReasons[rpbrMaxSimDown],
+           fSite.FAssignBusyReasons[rpbrBusyDestination], fSite.FAssignBusyReasons[rpbrAssignmentLock],
+           fSite.FAssignBusyReasons[rpbrActiveTransfer], fSite.FAssignBusyReasons[rpbrReverseTransfer]]);
       fLine := fLine + Format(' | complete %s', [FormatRelUs(fSite.CompleteUs)]);
+      if fSite.CompleteUs <> 0 then
+        fLine := fLine + ' via ' + fSite.FCompleteSource;
 
       Result.Add(fLine);
 
@@ -747,9 +805,9 @@ begin
               fDirCreatedInfo := Format(' via %s', [fDirInfo.FCreatedInfo])
             else
               fDirCreatedInfo := '';
-            Result.Add(Format('  dir %s: created %s%s, started %s, parsed %s, %d tasks, %d err',
+            Result.Add(Format('  dir %s: created %s%s, started %s, parsed %s, %d created, %d executed, %d dup dropped, %d err',
               [fDirName, FormatRelUs(fDirInfo.FCreatedUs), fDirCreatedInfo, FormatRelUs(fDirInfo.FStartedUs),
-               FormatRelUs(fDirInfo.FParsedUs), fDirInfo.FTasksCreated, fDirInfo.FErrors]));
+               FormatRelUs(fDirInfo.FParsedUs), fDirInfo.FTasksCreated, fDirInfo.FTasksExecuted, fDirInfo.FTasksDupDropped, fDirInfo.FErrors]));
           end;
         finally
           fDirInfos.Free;

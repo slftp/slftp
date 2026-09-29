@@ -1,13 +1,22 @@
 Shows the in-memory performance timeline of a raced release:
 detection time and KB event, first dirlist per site and directory, mkdir
 created/started/done with trigger, race creation/assignment/start and results.
+Dirlist counters distinguish created tasks, executed tasks and duplicates
+discarded by the queue. "Executed" counts entry into slot execution, not FTP
+commands or successful listings: a task can retry or exit before sending.
+"Parsed" marks the first nonempty listing after its follow-up processing.
+First created, started and parsed timestamps can belong to different tasks.
 Includes Tuzelj call count and elapsed time, duplicate race drops and failed
 race assignment attempts, attributed to the blocking source or destination.
-"No slot" includes offline/unavailable slots and transfer limits; "busy"
-includes cooldowns, assignment lock contention and active transfers.
-Blocked counters count attempts, not unique tasks or elapsed time.
+"No slot" includes offline/unavailable slots and transfer limits; "busy" is
+split into upload/download cooldown, a destination already marked busy,
+assignment lock contention, an active file transfer and a reverse transfer.
+Blocked counters count observed attempts, not unique tasks or elapsed time;
+queue-level skips before a task assignment is attempted are not counted.
 Repeated dirlist tasks count toward totals; timestamps retain the first marker.
 Directory detail is shown when more than one directory has markers.
+"Complete" includes its first source: "IRC COMPLETE" or "dirlist".
+An IRC completion does not require a successful local listing or transfer.
 All times are relative to detection. "All tasks done" is the first empty queue,
 not necessarily the final completion if tasks are added later.
 If the release name exists in more than one section, all matches are shown.

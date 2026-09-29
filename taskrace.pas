@@ -509,12 +509,12 @@ begin
   begin
     if (dir <> '') then
     begin
-      ps1.SetComplete(dir);
+      ps1.SetComplete(dir, 'dirlist');
     end
     else
     begin
       ps1.status := rssComplete;
-      mainpazo.RacePerf.MarkComplete(ps1.Name);
+      mainpazo.RacePerf.MarkComplete(ps1.Name, 0, 'dirlist');
     end;
   end;
 
