@@ -469,6 +469,7 @@ begin
                 [mainpazo.rls.section, mainpazo.rls.rlsname, aktdir, site1]));
               try
                 fSubDirlistTasks.Add(TPazoDirlistTask.Create(netname, channel, site1, mainpazo, aktdir, is_pre));
+                mainpazo.RacePerf.MarkDirlistCreated(site1, aktdir, 'subdir');
                 if (de.subdirlist <> nil) then
                   de.subdirlist.dirlistadded := True;
               except
@@ -598,6 +599,7 @@ begin
     begin
       // do more dirlist
       r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
+      mainpazo.RacePerf.MarkDirlistCreated(ps1.Name, dir, 'readd');
       r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue(ps1, d));
 
       try
@@ -648,8 +650,10 @@ begin
           begin
             // do more dirlist
             r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
+            mainpazo.RacePerf.MarkDirlistCreated(ps1.Name, dir, 'readd');
             r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue(ps1, d));
             r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
+            mainpazo.RacePerf.MarkDirlistCreated(ps.Name, dir, 'readd');
             r_dst.startat := IncMilliSecond(Now(), r_dst.GetDirlistReaddValue(ps, dst_d));
 
             try
@@ -781,7 +785,7 @@ begin
 
   // mark before AddTask: the queue thread can assign the task concurrently
   // right after AddTask, so the creation timestamp must be recorded first
-  mainpazo.RacePerf.MarkMkdirCreated(ps1.Name);
+  mainpazo.RacePerf.MarkMkdirCreated(ps1.Name, 'dirlist550');
   try
     AddTask(pm, True);
     Result := pm;

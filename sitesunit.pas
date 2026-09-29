@@ -1605,7 +1605,7 @@ begin
         else if fCurrentTask is TPazoDirlistTask then
         begin
           try
-            TPazoDirlistTask(fCurrentTask).mainpazo.RacePerf.MarkDirlistStarted(TPazoDirlistTask(fCurrentTask).ps1.Name);
+            TPazoDirlistTask(fCurrentTask).mainpazo.RacePerf.MarkDirlistStarted(TPazoDirlistTask(fCurrentTask).ps1.Name, TPazoDirlistTask(fCurrentTask).dir);
           except
           end;
         end;
@@ -1655,7 +1655,7 @@ begin
           if fCurrentTask is TPazoRaceTask then
             TPazoRaceTask(fCurrentTask).mainpazo.RacePerf.MarkRaceFinished(TPazoRaceTask(fCurrentTask).ps2.Name, fTaskExecuteOk and (not fCurrentTask.readyerror))
           else if ((fCurrentTask is TPazoDirlistTask) and (fCurrentTask.readyerror)) then
-            TPazoDirlistTask(fCurrentTask).mainpazo.RacePerf.MarkDirlistError(TPazoDirlistTask(fCurrentTask).ps1.Name);
+            TPazoDirlistTask(fCurrentTask).mainpazo.RacePerf.MarkDirlistError(TPazoDirlistTask(fCurrentTask).ps1.Name, TPazoDirlistTask(fCurrentTask).dir);
         except
         end;
 

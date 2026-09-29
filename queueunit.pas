@@ -472,12 +472,19 @@ begin
     s1 := TSite(t.ssite1);
     s2 := TSite(t.ssite2);
     if s1.freeslots = 0 then
+    begin
+      t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s1.Name);
       exit;
+    end;
     if s2.freeslots = 0 then
+    begin
+      t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s2.Name);
       exit;
+    end;
 
     if s2.MaxSimUpCooldownActive then
     begin
+      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s2.Name);
       if not fBusyDestinations.ContainsKey(s2) then
         fBusyDestinations.Add(s2, 0);
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Destination site %s is on MaxSim UP cooldown (%ds remaining), skipping %s',
@@ -487,6 +494,7 @@ begin
 
     if s1.MaxSimDownCooldownActive then
     begin
+      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s1.Name);
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Source site %s is on MaxSim DOWN cooldown (%ds remaining), skipping %s',
         [s1.Name, s1.MaxSimDownCooldownRemainingSeconds, t.FullName]);
       exit;
@@ -494,31 +502,47 @@ begin
 
     if fBusyDestinations.ContainsKey(s2) then
     begin
+      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s2.Name);
       Debug(dpSpam, section, 'Destination site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
       exit;
     end;
 
     // first watch if it is not already in process to upload the same file to the same place
     if t.ps2.HasActiveTransfer(t.dir + t.filename) then
+    begin
+      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s2.Name);
       exit; // we are already sending this file to the same destination site
+    end;
 
     if s2.num_up >= s2.max_up then
+    begin
+      t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s2.Name);
       exit;
+    end;
 
     if t.ps1.HasActiveTransfer(t.dir + t.filename, s2.Name) then
+    begin
+      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s1.Name);
       exit; // we are already sending this file the opposite route
+    end;
 
     // or use 'if t.ps1.StatusRealPreOrShouldPre then' from pazo.pas but will also pre true when status = rssShouldPre
     //if t.ps1.status = rssRealPre then
     if t.ps1.StatusRealPreOrShouldPre then
     begin
       if s1.num_dn >= s1.max_pre_dn then
+      begin
+        t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s1.Name);
         exit;
+      end;
     end
     else
     begin
       if s1.num_dn >= s1.max_dn then
+      begin
+        t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s1.Name);
         exit;
+      end;
     end;
 
     ss1 := nil;
@@ -545,11 +569,15 @@ begin
       end;
     end;
     if ss1 = nil then
+    begin
+      t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s1.Name);
       exit;
+    end;
 
 
     if not s2.AcquireSlotsAssignmentLock(1, 'TryToAssignRaceSlots') then
     begin
+      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s2.Name);
       fBusyDestinations.Add(s2, 0);
       exit;
     end;
@@ -557,11 +585,17 @@ begin
     try
       // check again now that we have the lock at the destination
       if s2.num_up >= s2.max_up then
+      begin
+        t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s2.Name);
         exit;
+      end;
 
       // again check if this file is already being sent to the destination now that we have the slot assignment lock
       if t.ps2.HasActiveTransfer(t.dir + t.filename) then
+      begin
+        t.mainpazo.RacePerf.MarkAssignBlockedBusy(s2.Name);
         exit; // we are already sending this file to the same destination site
+      end;
 
       ss2 := nil;
       for fSiteSlotLoop in s2.slots do
@@ -574,12 +608,16 @@ begin
         end;
       end;
       if ss2 = nil then
+      begin
+        t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s2.Name);
         exit;
+      end;
 
       // now you can relax, just check if you don't abuse your max simultaneous uploads for a rip
       i := ss2.site.MaxUpPerRip;
       if ((i > 0) and (t.ps2.ActiveTransferCount >= i)) then
       begin
+        t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s2.Name);
         Debug(dpSpam, section, 'We shouldnt upload more than maxupperrip value [' + IntToStr(i) + '] for' + ss2.Name);
         exit;
       end;
@@ -600,10 +638,9 @@ begin
       ss2.uploadingto := True;
       ss1.todotask := t;
       ss2.todotask := t.dst;
+      t.mainpazo.RacePerf.MarkRaceAssigned(t.ps2.Name);
       ss2.Fire;
       ss1.Fire;
-
-      t.mainpazo.RacePerf.MarkRaceAssigned(t.ps2.Name);
     finally
       s2.ReleaseSlotsAssignmentLock;
     end;

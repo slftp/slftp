@@ -2,11 +2,12 @@
   @abstract(In-memory per-release performance timeline (race timings))
 
   Records timing markers for a raced release (TPazo): when it was detected,
-  first dirlist per site, mkdir created/done per site, race task counts,
-  queue wait and complete timestamps. Everything is kept in memory on the
-  TPazo instance and is gone with it; nothing is written to disk or database.
-  All timestamps are microseconds from QueryPerformanceMicroSeconds,
-  0 means "not set". All public methods are thread-safe and never raise.
+  first dirlist per site and per dir, mkdir created/done per site, race task
+  counts, queue wait and complete timestamps. Everything is kept in memory on
+  the TPazo instance and is gone with it; nothing is written to disk or
+  database. All timestamps are microseconds from QueryPerformanceMicroSeconds,
+  0 means "not set". Marker updates and snapshots are protected by a lock;
+  marker methods catch and log exceptions.
 }
 unit raceperfunit;
 
@@ -16,10 +17,29 @@ uses
   Classes, SysUtils, Generics.Collections, slcriticalsection2;
 
 type
+  { Timing markers for the dirlist tasks of one dir of one site of a raced
+    release. Instances are owned by @link(TRacePerfSiteInfo); do not access
+    them from outside, use the marker methods of @link(TRacePerf) instead. }
+  TRacePerfDirInfo = class
+  private
+    FDir: String; //< dir inside the release, '' is the main dir
+    FCreatedUs: Int64; //< first dirlist task created for this dir
+    FCreatedInfo: String; //< what triggered the first dirlist task for this dir (kb event, 'tuzelj', 'subdir', 'readd', 'incfiller')
+    FStartedUs: Int64; //< first dirlist task for this dir started executing on a slot
+    FParsedUs: Int64; //< first dirlist answer for this dir successfully parsed
+    FTasksCreated: integer; //< number of created dirlist tasks for this dir
+    FErrors: integer; //< dirlist tasks for this dir which finished with an error
+  end;
+
   { Timing markers and counters for one site of a raced release.
     Instances are owned by @link(TRacePerf); do not access them from outside,
     use the marker methods of @link(TRacePerf) instead. }
   TRacePerfSiteInfo = class
+  private
+    FDirInfos: TObjectDictionary<String, TRacePerfDirInfo>; //< per-dir dirlist markers, key is the uppercase dir ('' is the main dir)
+    FMkdirCreatedInfo: String; //< what triggered the first mkdir task ('tuzelj', 'dirlist550')
+    FAssignBlockedNoSlot: integer; //< task assignments rejected because this site had no free/online slot or a transfer limit (max_up/max_dn/maxupperrip) was reached
+    FAssignBlockedBusy: integer; //< task assignments rejected because the site was busy (maxsim cooldown, busy destination, assignment lock contention, file already being transferred)
   public
     SiteName: String; //< name of the site
     FirstDirlistCreatedUs: Int64; //< first dirlist task created for this site
@@ -40,6 +60,10 @@ type
     RacesFinishedOk: integer; //< race tasks which finished successfully
     RaceErrors: integer; //< race tasks which finished with an error
     CompleteUs: Int64; //< release detected as complete on this site
+    { Creates the owned directory marker dictionary. }
+    constructor Create;
+    { Frees the owned directory markers. }
+    destructor Destroy; override;
   end;
 
   { Thread-safe in-memory performance timeline of one raced release }
@@ -58,6 +82,8 @@ type
     fTuzeljTotalUs: Int64; //< total time spent in TPazoSite.Tuzelj for this pazo
     { @returns(the site info for @link(aSiteName), creating it on first use; caller must hold @link(fLock)) }
     function GetSiteLocked(const aSiteName: String): TRacePerfSiteInfo;
+    { @returns(the dir info of @link(aSite) for @link(aDir), creating it on first use; caller must hold @link(fLock)) }
+    function GetDirLocked(const aSite: TRacePerfSiteInfo; const aDir: String): TRacePerfDirInfo;
     { @returns(@link(aUs) formatted relative to @link(fDetectedUs), e.g. '+123.456 ms', or '-' if unset) }
     function FormatRelUs(const aUs: Int64): String;
   public
@@ -69,20 +95,25 @@ type
     class function NowMicroSeconds: Int64;
 
     { A dirlist task was created for @link(aSiteName)
-      @param(aInfo what triggered the creation, e.g. the kb event name, 'tuzelj' or 'incfiller')
+      @param(aDir dir inside the release, '' is the main dir)
+      @param(aInfo what triggered the creation, e.g. the kb event name, 'tuzelj', 'subdir', 'readd' or 'incfiller')
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
-    procedure MarkDirlistCreated(const aSiteName: String; const aInfo: String = ''; const aNowUs: Int64 = 0);
+    procedure MarkDirlistCreated(const aSiteName: String; const aDir: String = ''; const aInfo: String = ''; const aNowUs: Int64 = 0);
     { A dirlist answer from @link(aSiteName) was successfully parsed
+      @param(aDir dir inside the release, '' is the main dir)
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
-    procedure MarkDirlistParsed(const aSiteName: String; const aNowUs: Int64 = 0);
+    procedure MarkDirlistParsed(const aSiteName: String; const aDir: String = ''; const aNowUs: Int64 = 0);
     { A dirlist task started executing on a slot of @link(aSiteName)
+      @param(aDir dir inside the release, '' is the main dir)
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
-    procedure MarkDirlistStarted(const aSiteName: String; const aNowUs: Int64 = 0);
-    { A dirlist task for @link(aSiteName) finished with an error }
-    procedure MarkDirlistError(const aSiteName: String);
+    procedure MarkDirlistStarted(const aSiteName: String; const aDir: String = ''; const aNowUs: Int64 = 0);
+    { A dirlist task for @link(aSiteName) finished with an error
+      @param(aDir dir inside the release, '' is the main dir) }
+    procedure MarkDirlistError(const aSiteName: String; const aDir: String = '');
     { A mkdir task was created for @link(aSiteName)
+      @param(aInfo what triggered the creation, e.g. 'tuzelj' or 'dirlist550')
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
-    procedure MarkMkdirCreated(const aSiteName: String; const aNowUs: Int64 = 0);
+    procedure MarkMkdirCreated(const aSiteName: String; const aInfo: String = ''; const aNowUs: Int64 = 0);
     { A mkdir task started executing on a slot of @link(aSiteName)
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
     procedure MarkMkdirStarted(const aSiteName: String; const aNowUs: Int64 = 0);
@@ -107,6 +138,13 @@ type
     { A race task finished
       @param(aSuccess @true if the transfer worked, @false on error) }
     procedure MarkRaceFinished(const aSiteName: String; const aSuccess: boolean);
+    { A task assignment was rejected because @link(aSiteName) had no free or
+      online slot left or a transfer limit (max_up/max_dn/maxupperrip) was reached }
+    procedure MarkAssignBlockedNoSlot(const aSiteName: String);
+    { A task assignment was rejected because a site was busy: maxsim cooldown,
+      busy destination, slots assignment lock contention or the file is already
+      being transferred }
+    procedure MarkAssignBlockedBusy(const aSiteName: String);
     { The release was detected as complete on @link(aSiteName)
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
     procedure MarkComplete(const aSiteName: String; const aNowUs: Int64 = 0);
@@ -128,7 +166,7 @@ type
 implementation
 
 uses
-  debugunit, mormot.core.os;
+  debugunit, mormot.core.os, Generics.Defaults, Math;
 
 const
   section = 'raceperf';
@@ -150,16 +188,34 @@ begin
   Result := FloatToStrF(aUs / 1000, ffFixed, 15, aDigits, fFormatSettings);
 end;
 
+{ Compares two @link(TRacePerfDirInfo) by their creation timestamp (used to sort the per-dir output) }
+function _CompareDirInfos({$IFDEF FPC}constref{$ELSE}const{$ENDIF} aLeft, aRight: TRacePerfDirInfo): integer;
+begin
+  Result := CompareValue(aLeft.FCreatedUs, aRight.FCreatedUs);
+end;
+
 class function TRacePerf.NowMicroSeconds: Int64;
 begin
   QueryPerformanceMicroSeconds(Result);
+end;
+
+constructor TRacePerfSiteInfo.Create;
+begin
+  FDirInfos := TObjectDictionary<String, TRacePerfDirInfo>.Create([doOwnsValues]);
+  inherited Create;
+end;
+
+destructor TRacePerfSiteInfo.Destroy;
+begin
+  FDirInfos.Free;
+  inherited Destroy;
 end;
 
 constructor TRacePerf.Create(const aDetectedUs: Int64; const aDetectedInfo: String);
 begin
   fDetectedUs := aDetectedUs;
   fDetectedInfo := aDetectedInfo;
-  fLock := TSlCriticalSection2.Create('raceperf');
+  fLock := TSlCriticalSection2.Create('raceperf_' + IntToHex(NativeUInt(Self), SizeOf(Pointer) * 2));
   fSites := TObjectDictionary<String, TRacePerfSiteInfo>.Create([doOwnsValues]);
   inherited Create;
 end;
@@ -178,6 +234,16 @@ begin
     Result := TRacePerfSiteInfo.Create;
     Result.SiteName := aSiteName;
     fSites.Add(UpperCase(aSiteName), Result);
+  end;
+end;
+
+function TRacePerf.GetDirLocked(const aSite: TRacePerfSiteInfo; const aDir: String): TRacePerfDirInfo;
+begin
+  if not aSite.FDirInfos.TryGetValue(UpperCase(aDir), Result) then
+  begin
+    Result := TRacePerfDirInfo.Create;
+    Result.FDir := aDir;
+    aSite.FDirInfos.Add(UpperCase(aDir), Result);
   end;
 end;
 
@@ -201,9 +267,10 @@ begin
     Result := '+' + _FormatUsAsMs(fDelta div 1000) + ' s';
 end;
 
-procedure TRacePerf.MarkDirlistCreated(const aSiteName: String; const aInfo: String; const aNowUs: Int64);
+procedure TRacePerf.MarkDirlistCreated(const aSiteName: String; const aDir: String; const aInfo: String; const aNowUs: Int64);
 var
   fNow: Int64;
+  fSite: TRacePerfSiteInfo;
 begin
   try
     fNow := aNowUs;
@@ -213,7 +280,8 @@ begin
     try
       if fFirstDirlistCreatedUs = 0 then
         fFirstDirlistCreatedUs := fNow;
-      with GetSiteLocked(aSiteName) do
+      fSite := GetSiteLocked(aSiteName);
+      with fSite do
       begin
         if FirstDirlistCreatedUs = 0 then
         begin
@@ -221,6 +289,15 @@ begin
           FirstDirlistCreatedInfo := aInfo;
         end;
         Inc(DirlistTasksCreated);
+      end;
+      with GetDirLocked(fSite, aDir) do
+      begin
+        if FCreatedUs = 0 then
+        begin
+          FCreatedUs := fNow;
+          FCreatedInfo := aInfo;
+        end;
+        Inc(FTasksCreated);
       end;
     finally
       fLock.Leave;
@@ -231,9 +308,10 @@ begin
   end;
 end;
 
-procedure TRacePerf.MarkDirlistStarted(const aSiteName: String; const aNowUs: Int64);
+procedure TRacePerf.MarkDirlistStarted(const aSiteName: String; const aDir: String; const aNowUs: Int64);
 var
   fNow: Int64;
+  fSite: TRacePerfSiteInfo;
 begin
   try
     fNow := aNowUs;
@@ -241,9 +319,12 @@ begin
       fNow := NowMicroSeconds;
     fLock.Enter('MarkDirlistStarted');
     try
-      with GetSiteLocked(aSiteName) do
-        if FirstDirlistStartedUs = 0 then
-          FirstDirlistStartedUs := fNow;
+      fSite := GetSiteLocked(aSiteName);
+      if fSite.FirstDirlistStartedUs = 0 then
+        fSite.FirstDirlistStartedUs := fNow;
+      with GetDirLocked(fSite, aDir) do
+        if FStartedUs = 0 then
+          FStartedUs := fNow;
     finally
       fLock.Leave;
     end;
@@ -253,9 +334,10 @@ begin
   end;
 end;
 
-procedure TRacePerf.MarkDirlistParsed(const aSiteName: String; const aNowUs: Int64);
+procedure TRacePerf.MarkDirlistParsed(const aSiteName: String; const aDir: String; const aNowUs: Int64);
 var
   fNow: Int64;
+  fSite: TRacePerfSiteInfo;
 begin
   try
     fNow := aNowUs;
@@ -263,9 +345,12 @@ begin
       fNow := NowMicroSeconds;
     fLock.Enter('MarkDirlistParsed');
     try
-      with GetSiteLocked(aSiteName) do
-        if FirstDirlistParsedUs = 0 then
-          FirstDirlistParsedUs := fNow;
+      fSite := GetSiteLocked(aSiteName);
+      if fSite.FirstDirlistParsedUs = 0 then
+        fSite.FirstDirlistParsedUs := fNow;
+      with GetDirLocked(fSite, aDir) do
+        if FParsedUs = 0 then
+          FParsedUs := fNow;
     finally
       fLock.Leave;
     end;
@@ -275,12 +360,16 @@ begin
   end;
 end;
 
-procedure TRacePerf.MarkDirlistError(const aSiteName: String);
+procedure TRacePerf.MarkDirlistError(const aSiteName: String; const aDir: String);
+var
+  fSite: TRacePerfSiteInfo;
 begin
   try
     fLock.Enter('MarkDirlistError');
     try
-      Inc(GetSiteLocked(aSiteName).DirlistErrors);
+      fSite := GetSiteLocked(aSiteName);
+      Inc(fSite.DirlistErrors);
+      Inc(GetDirLocked(fSite, aDir).FErrors);
     finally
       fLock.Leave;
     end;
@@ -290,7 +379,7 @@ begin
   end;
 end;
 
-procedure TRacePerf.MarkMkdirCreated(const aSiteName: String; const aNowUs: Int64);
+procedure TRacePerf.MarkMkdirCreated(const aSiteName: String; const aInfo: String; const aNowUs: Int64);
 var
   fNow: Int64;
 begin
@@ -302,7 +391,10 @@ begin
     try
       with GetSiteLocked(aSiteName) do
         if MkdirCreatedUs = 0 then
+        begin
           MkdirCreatedUs := fNow;
+          FMkdirCreatedInfo := aInfo;
+        end;
     finally
       fLock.Leave;
     end;
@@ -479,6 +571,36 @@ begin
   end;
 end;
 
+procedure TRacePerf.MarkAssignBlockedNoSlot(const aSiteName: String);
+begin
+  try
+    fLock.Enter('MarkAssignBlockedNoSlot');
+    try
+      Inc(GetSiteLocked(aSiteName).FAssignBlockedNoSlot);
+    finally
+      fLock.Leave;
+    end;
+  except
+    on E: Exception do
+      Debug(dpError, section, 'MarkAssignBlockedNoSlot: %s', [E.Message]);
+  end;
+end;
+
+procedure TRacePerf.MarkAssignBlockedBusy(const aSiteName: String);
+begin
+  try
+    fLock.Enter('MarkAssignBlockedBusy');
+    try
+      Inc(GetSiteLocked(aSiteName).FAssignBlockedBusy);
+    finally
+      fLock.Leave;
+    end;
+  except
+    on E: Exception do
+      Debug(dpError, section, 'MarkAssignBlockedBusy: %s', [E.Message]);
+  end;
+end;
+
 procedure TRacePerf.MarkComplete(const aSiteName: String; const aNowUs: Int64);
 var
   fNow: Int64;
@@ -541,8 +663,9 @@ end;
 function TRacePerf.AsStrings: TStringList;
 var
   fSite: TRacePerfSiteInfo;
-  fLine, fMkdirWait, fMkdirExec, fRaceWait, fDirlistInfo, fGlobalLine: String;
-  fDupTotal: integer;
+  fDirInfo: TRacePerfDirInfo;
+  fDirInfos: TList<TRacePerfDirInfo>;
+  fLine, fMkdirWait, fMkdirExec, fMkdirInfo, fRaceWait, fDirlistInfo, fGlobalLine, fDirName, fDirCreatedInfo: String;
 begin
   Result := TStringList.Create;
   fLock.Enter('AsStrings');
@@ -570,6 +693,10 @@ begin
 
       if ((fSite.MkdirCreatedUs <> 0) or (fSite.MkdirStartedUs <> 0) or (fSite.MkdirErrors > 0)) then
       begin
+        if fSite.FMkdirCreatedInfo <> '' then
+          fMkdirInfo := Format(' via %s', [fSite.FMkdirCreatedInfo])
+        else
+          fMkdirInfo := '';
         if ((fSite.MkdirCreatedUs <> 0) and (fSite.MkdirStartedUs <> 0) and (fSite.MkdirStartedUs >= fSite.MkdirCreatedUs)) then
           fMkdirWait := _FormatUsAsMs(fSite.MkdirStartedUs - fSite.MkdirCreatedUs) + ' ms'
         else
@@ -578,8 +705,8 @@ begin
           fMkdirExec := _FormatUsAsMs(fSite.MkdirDoneUs - fSite.MkdirStartedUs) + ' ms'
         else
           fMkdirExec := '-';
-        fLine := fLine + Format(' | mkdir %s -> started %s -> done %s (queue %s, exec %s, %d err)',
-          [FormatRelUs(fSite.MkdirCreatedUs), FormatRelUs(fSite.MkdirStartedUs), FormatRelUs(fSite.MkdirDoneUs),
+        fLine := fLine + Format(' | mkdir %s%s -> started %s -> done %s (queue %s, exec %s, %d err)',
+          [FormatRelUs(fSite.MkdirCreatedUs), fMkdirInfo, FormatRelUs(fSite.MkdirStartedUs), FormatRelUs(fSite.MkdirDoneUs),
            fMkdirWait, fMkdirExec, fSite.MkdirErrors]);
       end;
 
@@ -596,9 +723,38 @@ begin
           fLine := fLine + Format(' | %d dup dropped', [fSite.RaceTasksDupDropped]);
       end;
 
+      if ((fSite.FAssignBlockedNoSlot > 0) or (fSite.FAssignBlockedBusy > 0)) then
+        fLine := fLine + Format(' | assign blocked %dx no slot / %dx busy', [fSite.FAssignBlockedNoSlot, fSite.FAssignBlockedBusy]);
+
       fLine := fLine + Format(' | complete %s', [FormatRelUs(fSite.CompleteUs)]);
 
       Result.Add(fLine);
+
+      // per-dir dirlist timings, only shown when more than the main dir was listed
+      if fSite.FDirInfos.Count > 1 then
+      begin
+        fDirInfos := TList<TRacePerfDirInfo>.Create;
+        try
+          for fDirInfo in fSite.FDirInfos.Values do
+            fDirInfos.Add(fDirInfo);
+          fDirInfos.Sort(TComparer<TRacePerfDirInfo>.Construct(_CompareDirInfos));
+          for fDirInfo in fDirInfos do
+          begin
+            fDirName := fDirInfo.FDir;
+            if fDirName = '' then
+              fDirName := '/';
+            if fDirInfo.FCreatedInfo <> '' then
+              fDirCreatedInfo := Format(' via %s', [fDirInfo.FCreatedInfo])
+            else
+              fDirCreatedInfo := '';
+            Result.Add(Format('  dir %s: created %s%s, started %s, parsed %s, %d tasks, %d err',
+              [fDirName, FormatRelUs(fDirInfo.FCreatedUs), fDirCreatedInfo, FormatRelUs(fDirInfo.FStartedUs),
+               FormatRelUs(fDirInfo.FParsedUs), fDirInfo.FTasksCreated, fDirInfo.FErrors]));
+          end;
+        finally
+          fDirInfos.Free;
+        end;
+      end;
     end;
   finally
     fLock.Leave;

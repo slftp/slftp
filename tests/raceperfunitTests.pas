@@ -15,6 +15,9 @@ type
     procedure TestMarkersAndOutput;
     procedure TestEmptyOutput;
     procedure TestOneShotMarkers;
+    procedure TestDirectoryMarkers;
+    procedure TestBlockedAssignmentsAndDetection;
+    procedure TestIndependentTimelines;
   end;
 
 implementation
@@ -32,11 +35,11 @@ var
 begin
   fPerf := TRacePerf.Create(1000000);
   try
-    fPerf.MarkDirlistCreated('SiteA', 'NEWDIR', 1100000);
-    fPerf.MarkDirlistCreated('SiteA', 'UPDATE', 1200000);
-    fPerf.MarkDirlistStarted('SiteA', 1300000);
-    fPerf.MarkDirlistParsed('SiteA', 1500000);
-    fPerf.MarkMkdirCreated('SiteA', 1600000);
+    fPerf.MarkDirlistCreated('SiteA', '', 'NEWDIR', 1100000);
+    fPerf.MarkDirlistCreated('SiteA', '', 'UPDATE', 1200000);
+    fPerf.MarkDirlistStarted('SiteA', '', 1300000);
+    fPerf.MarkDirlistParsed('SiteA', '', 1500000);
+    fPerf.MarkMkdirCreated('SiteA', 'tuzelj', 1600000);
     fPerf.MarkMkdirStarted('SiteA', 1700000);
     fPerf.MarkMkdirDone('SiteA', 1800000);
     fPerf.MarkRaceTaskCreated('SiteA', 1750000);
@@ -64,7 +67,7 @@ begin
 
       CheckTrue(Pos('SiteA:', fText) > 0, 'site line missing: ' + fText);
       CheckTrue(Pos('dirlist +100.000 ms via NEWDIR (started +300.000 ms, parsed +500.000 ms, 2 tasks, 0 err)', fText) > 0, 'dirlist line wrong: ' + fText);
-      CheckTrue(Pos('mkdir +600.000 ms -> started +700.000 ms -> done +800.000 ms (queue 100.000 ms, exec 100.000 ms, 0 err)', fText) > 0, 'mkdir missing: ' + fText);
+      CheckTrue(Pos('mkdir +600.000 ms via tuzelj -> started +700.000 ms -> done +800.000 ms (queue 100.000 ms, exec 100.000 ms, 0 err)', fText) > 0, 'mkdir missing: ' + fText);
       CheckTrue(Pos('races 2 created (first +750.000 ms)', fText) > 0, 'race count missing: ' + fText);
       CheckTrue(Pos('queue wait 250.000 ms', fText) > 0, 'queue wait missing: ' + fText);
       CheckTrue(Pos('1 ok / 1 err', fText) > 0, 'race results missing: ' + fText);
@@ -106,8 +109,8 @@ begin
   // one-shot markers must keep the first timestamp even when marked again
   fPerf := TRacePerf.Create(1000000);
   try
-    fPerf.MarkDirlistCreated('SiteA', '', 1100000);
-    fPerf.MarkDirlistCreated('SiteA', '', 9900000);
+    fPerf.MarkDirlistCreated('SiteA', '', '', 1100000);
+    fPerf.MarkDirlistCreated('SiteA', '', '', 9900000);
     fPerf.MarkComplete('SiteA', 2000000);
     fPerf.MarkComplete('SiteA', 9900000);
     fPerf.MarkAllTasksIdle(3000000);
@@ -124,6 +127,92 @@ begin
     end;
   finally
     fPerf.Free;
+  end;
+end;
+
+procedure TTestRacePerf.TestDirectoryMarkers;
+var
+  fPerf: TRacePerf;
+  fLines: TStringList;
+  fText: String;
+begin
+  fPerf := TRacePerf.Create(1000000);
+  try
+    { Insert out of order to verify sorting and keep readd markers one-shot. }
+    fPerf.MarkDirlistCreated('SiteA', 'Sample', 'subdir', 1300000);
+    fPerf.MarkDirlistCreated('SiteA', '', 'NEWDIR', 1100000);
+    fPerf.MarkDirlistCreated('sitea', 'Sample', 'readd', 1900000);
+    fPerf.MarkDirlistStarted('SiteA', 'Sample', 1400000);
+    fPerf.MarkDirlistParsed('SiteA', 'Sample', 1500000);
+    fPerf.MarkDirlistStarted('SiteA', 'Sample', 2000000);
+    fPerf.MarkDirlistParsed('SiteA', 'Sample', 2100000);
+    fPerf.MarkDirlistError('SiteA', 'Sample');
+    fLines := fPerf.AsStrings;
+    try
+      CheckEquals(4, fLines.Count, 'global, site and two directories');
+      CheckTrue(Pos('dir /: created +100.000 ms via NEWDIR', fLines[2]) > 0, fLines.Text);
+      CheckTrue(Pos('dir Sample: created +300.000 ms via subdir, started +400.000 ms, parsed +500.000 ms, 2 tasks, 1 err', fLines[3]) > 0, fLines.Text);
+      fText := fLines[1];
+      CheckTrue(Pos('3 tasks, 1 err', fText) > 0, fText);
+    finally
+      fLines.Free;
+    end;
+  finally
+    fPerf.Free;
+  end;
+end;
+
+procedure TTestRacePerf.TestBlockedAssignmentsAndDetection;
+var
+  fPerf: TRacePerf;
+  fLines: TStringList;
+begin
+  fPerf := TRacePerf.Create(1000000, 'ADDPRE');
+  try
+    CheckEquals('ADDPRE', fPerf.DetectedInfo);
+    CheckEquals(Int64(1000000), fPerf.DetectedUs);
+    fPerf.MarkAssignBlockedNoSlot('SiteA');
+    fPerf.MarkAssignBlockedNoSlot('sitea');
+    fPerf.MarkAssignBlockedBusy('SiteA');
+    fPerf.MarkMkdirCreated('SiteA', 'dirlist550', 1100000);
+    fPerf.MarkMkdirCreated('SiteA', 'tuzelj', 1200000);
+    fLines := fPerf.AsStrings;
+    try
+      CheckEquals(2, fLines.Count);
+      CheckTrue(Pos('assign blocked 2x no slot / 1x busy', fLines.Text) > 0, fLines.Text);
+      CheckTrue(Pos('mkdir +100.000 ms via dirlist550', fLines.Text) > 0, fLines.Text);
+    finally
+      fLines.Free;
+    end;
+  finally
+    fPerf.Free;
+  end;
+end;
+
+procedure TTestRacePerf.TestIndependentTimelines;
+var
+  fFirst, fSecond: TRacePerf;
+  fLines: TStringList;
+begin
+  { Timeout locks require distinct names for releases alive at the same time. }
+  fFirst := TRacePerf.Create(1000000);
+  try
+    fSecond := TRacePerf.Create(2000000);
+    try
+      fFirst.MarkDirlistCreated('SiteA', '', 'NEWDIR', 1100000);
+      fSecond.MarkDirlistCreated('SiteB', '', 'ADDPRE', 2200000);
+      fLines := fSecond.AsStrings;
+      try
+        CheckTrue(Pos('SiteB: dirlist +200.000 ms via ADDPRE', fLines.Text) > 0, fLines.Text);
+        CheckEquals(0, Pos('SiteA:', fLines.Text));
+      finally
+        fLines.Free;
+      end;
+    finally
+      fSecond.Free;
+    end;
+  finally
+    fFirst.Free;
   end;
 end;
 

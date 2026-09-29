@@ -1,8 +1,15 @@
 Shows the in-memory performance timeline of a raced release:
-when it was detected for trading, first dirlist per site, mkdir created/done
-per site, how many race tasks were created, first race assigned/started with
-queue wait time, per-site error counters and the complete time per site.
-All times are relative to the detection of the release.
+detection time and KB event, first dirlist per site and directory, mkdir
+created/started/done with trigger, race creation/assignment/start and results.
+Includes Tuzelj call count and elapsed time, duplicate race drops and failed
+race assignment attempts, attributed to the blocking source or destination.
+"No slot" includes offline/unavailable slots and transfer limits; "busy"
+includes cooldowns, assignment lock contention and active transfers.
+Blocked counters count attempts, not unique tasks or elapsed time.
+Repeated dirlist tasks count toward totals; timestamps retain the first marker.
+Directory detail is shown when more than one directory has markers.
+All times are relative to detection. "All tasks done" is the first empty queue,
+not necessarily the final completion if tasks are added later.
 If the release name exists in more than one section, all matches are shown.
 The data is only kept in memory and is gone once the release is removed from
 the knowledge base.
