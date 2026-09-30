@@ -14,7 +14,25 @@ assignment lock contention, an active file transfer and a reverse transfer.
 Blocked counters count observed attempts, not unique tasks or elapsed time;
 queue-level skips before a task assignment is attempted are not counted.
 Repeated dirlist tasks count toward totals; timestamps retain the first marker.
-Directory detail is shown when more than one directory has markers.
+Directory detail is always shown when that directory has markers.
+"Sent STAT/LIST" counts successfully sent commands, including retries.
+"Active" counts outstanding replies; "peak" is the maximum observed at once,
+per site (all release directories) and per directory. It excludes CWD and parsing.
+"Readd base" is the last configured base delay; "selected" is the observed
+minimum/maximum scheduled retry delay, not the measured interval between commands.
+No-slot detail separates source/destination roles. The six counts are:
+free = no free slot; online = no free online slot found; up = max_up;
+dn = max_dn; pre = max_pre_dn; rip = MaxUpPerRip.
+"Race allocations avoided" counts duplicates found before creating a task;
+these are separate from created tasks and duplicates discarded by AddTask.
+Per-directory mkdir timestamps distinguish "usable" (need_mkdir cleared by
+listing or mkdir handling) from "processing done" after queue housekeeping.
+Site-level first mkdir timestamps can belong to different directories/tasks;
+"exec" includes follow-up processing, not just FTP command latency.
+"Last FTP issue" records the latest non-success MKD/CWD/PWD reply or command
+send/read failure (code 0); text is sanitized and limited to 160 characters.
+It may have recovered later (for example MKD 550 File exists), and does not
+itself increment the terminal mkdir error counter.
 "Complete" includes its first source: "IRC COMPLETE" or "dirlist".
 An IRC completion does not require a successful local listing or transfer.
 All times are relative to detection. "All tasks done" is the first empty queue,

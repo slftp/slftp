@@ -20,6 +20,9 @@ type
     procedure TestIndependentTimelines;
     procedure TestDirlistTaskCounts;
     procedure TestCompleteSources;
+    procedure TestSlotReasons;
+    procedure TestListingCommandsAndReadd;
+    procedure TestDirectoryReadinessAndFtpIssue;
   end;
 
 implementation
@@ -59,7 +62,7 @@ begin
 
     fLines := fPerf.AsStrings;
     try
-      CheckEquals(2, fLines.Count, 'expected global line + one site line');
+      CheckEquals(3, fLines.Count, 'expected global, site and main directory');
       fText := fLines.Text;
 
       CheckTrue(Pos('first dirlist task +100.000 ms', fText) > 0, 'global first dirlist missing: ' + fText);
@@ -175,8 +178,8 @@ begin
   try
     CheckEquals('ADDPRE', fPerf.DetectedInfo);
     CheckEquals(Int64(1000000), fPerf.DetectedUs);
-    fPerf.MarkAssignBlockedNoSlot('SiteA');
-    fPerf.MarkAssignBlockedNoSlot('sitea');
+    fPerf.MarkAssignBlockedNoSlot('SiteA', rpsrNoFreeSlot, rprSource);
+    fPerf.MarkAssignBlockedNoSlot('sitea', rpsrMaxUp, rprDestination);
     for fReason := Low(TRacePerfBusyReason) to High(TRacePerfBusyReason) do
       for i := 0 to Ord(fReason) do
         fPerf.MarkAssignBlockedBusy('SiteA', fReason);
@@ -184,7 +187,7 @@ begin
     fPerf.MarkMkdirCreated('SiteA', 'tuzelj', 1200000);
     fLines := fPerf.AsStrings;
     try
-      CheckEquals(2, fLines.Count);
+      CheckEquals(3, fLines.Count);
       CheckTrue(Pos('assign blocked 2x no slot / 21x busy', fLines.Text) > 0, fLines.Text);
       CheckTrue(Pos('cooldown up 1 / down 2, destination 3, lock 4, active file 5, reverse file 6', fLines.Text) > 0, fLines.Text);
       CheckTrue(Pos('mkdir +100.000 ms via dirlist550', fLines.Text) > 0, fLines.Text);
@@ -275,6 +278,111 @@ begin
       CheckEquals(0, Pos('complete +4000.000 ms', fLines.Text));
       CheckTrue(Pos('complete -', fLines.Text) > 0, fLines.Text);
       CheckEquals(0, Pos('complete - via', fLines.Text));
+    finally
+      fLines.Free;
+    end;
+  finally
+    fPerf.Free;
+  end;
+end;
+
+procedure TTestRacePerf.TestSlotReasons;
+var
+  fPerf: TRacePerf;
+  fLines: TStringList;
+  fReason: TRacePerfSlotReason;
+  i: integer;
+begin
+  fPerf := TRacePerf.Create(1000000);
+  try
+    for fReason := Low(TRacePerfSlotReason) to High(TRacePerfSlotReason) do
+    begin
+      for i := 0 to Ord(fReason) do
+        fPerf.MarkAssignBlockedNoSlot('SiteA', fReason, rprSource);
+      for i := Ord(fReason) to 5 do
+        fPerf.MarkAssignBlockedNoSlot('sitea', fReason, rprDestination);
+    end;
+    fPerf.MarkRacePrecheckDrop('SiteA');
+    fPerf.MarkRacePrecheckDrop('sitea');
+    fLines := fPerf.AsStrings;
+    try
+      CheckTrue(Pos('42x no slot', fLines.Text) > 0, fLines.Text);
+      CheckTrue(Pos('source free/online/up/dn/pre/rip 1/2/3/4/5/6; destination 6/5/4/3/2/1', fLines.Text) > 0, fLines.Text);
+      CheckTrue(Pos('2 race allocations avoided', fLines.Text) > 0, fLines.Text);
+      CheckEquals(0, Pos('races 2 created', fLines.Text), 'precheck must not count an allocated task');
+    finally
+      fLines.Free;
+    end;
+  finally
+    fPerf.Free;
+  end;
+end;
+
+procedure TTestRacePerf.TestListingCommandsAndReadd;
+var
+  fPerf: TRacePerf;
+  fLines: TStringList;
+begin
+  fPerf := TRacePerf.Create(1000000);
+  try
+    fPerf.MarkDirlistCommandSent('SiteA', '', False);
+    fPerf.MarkDirlistCommandSent('sitea', '', False);
+    fPerf.MarkDirlistCommandSent('SiteA', 'Sample', True);
+    fPerf.MarkDirlistCommandDone('SiteA', '');
+    fPerf.MarkDirlistCommandDone('SiteA', '');
+    fPerf.MarkDirlistCommandDone('SiteA', 'Sample');
+    { A sequential retry increases commands, but must not increase the peak. }
+    fPerf.MarkDirlistCommandSent('SiteA', '', False);
+    fPerf.MarkDirlistCommandDone('SiteA', '');
+    fPerf.MarkDirlistReadd('SiteA', '', 0, 0);
+    fPerf.MarkDirlistReadd('SiteA', '', 0, 1000);
+    fPerf.MarkDirlistReadd('SiteA', '', 0, 0);
+    fPerf.MarkDirlistReadd('SiteA', 'Sample', 20, 2000);
+    fLines := fPerf.AsStrings;
+    try
+      CheckEquals(4, fLines.Count);
+      CheckTrue(Pos('sent STAT 3 / LIST 1, active 0, peak 3', fLines[1]) > 0, fLines.Text);
+      CheckTrue(Pos('sent STAT 3 / LIST 0, active 0, peak 2', fLines[2]) > 0, fLines.Text);
+      CheckTrue(Pos('readd base 0 ms, selected 0..1000 ms', fLines[2]) > 0, fLines.Text);
+      CheckTrue(Pos('sent STAT 0 / LIST 1, active 0, peak 1', fLines[3]) > 0, fLines.Text);
+      CheckTrue(Pos('readd base 20 ms, selected 2000..2000 ms', fLines[3]) > 0, fLines.Text);
+    finally
+      fLines.Free;
+    end;
+  finally
+    fPerf.Free;
+  end;
+end;
+
+procedure TTestRacePerf.TestDirectoryReadinessAndFtpIssue;
+var
+  fPerf: TRacePerf;
+  fLines: TStringList;
+begin
+  fPerf := TRacePerf.Create(1000000);
+  try
+    fPerf.MarkMkdirCreated('SiteA', 'tuzelj', 1100000, '');
+    fPerf.MarkMkdirStarted('SiteA', 1200000, '');
+    fPerf.MarkDirectoryUsable('SiteA', '', 1250000);
+    fPerf.MarkDirectoryUsable('SiteA', '', 1300000);
+    fPerf.MarkMkdirDone('SiteA', 1400000, '');
+    fPerf.MarkMkdirCreated('SiteA', 'tuzelj', 1500000, 'Sample');
+    fPerf.MarkMkdirStarted('SiteA', 1600000, 'Sample');
+    fPerf.MarkMkdirError('SiteA', 'Sample');
+    fPerf.MarkMkdirReply('SiteA', 'Sample', 'MKD', 550, 'old reply');
+    fPerf.MarkMkdirReply('SiteA', 'Sample', 'CWD', 550, 'Denied' + #13#10 + '<b>' + #3 + StringOfChar('x', 200));
+    fLines := fPerf.AsStrings;
+    try
+      CheckEquals(4, fLines.Count, 'FTP text cannot introduce extra lines');
+      CheckTrue(Pos('mkdir created +100.000 ms via tuzelj, started +200.000 ms, usable +250.000 ms, processing done +400.000 ms, 0 err', fLines[2]) > 0, fLines.Text);
+      CheckTrue(Pos('mkdir created +500.000 ms via tuzelj, started +600.000 ms, usable -, processing done -, 1 err', fLines[3]) > 0, fLines.Text);
+      CheckTrue(Pos('last FTP issue CWD 550: Denied  [b] ', fLines[3]) > 0, fLines.Text);
+      CheckEquals(0, Pos('old reply', fLines.Text));
+      CheckEquals(0, Pos('<b>', fLines.Text));
+      CheckEquals(0, Pos(#3, fLines.Text));
+      CheckEquals(0, Pos(#13, fLines[3]));
+      CheckEquals(0, Pos(#10, fLines[3]));
+      CheckEquals(0, Pos(StringOfChar('x', 161), fLines.Text));
     finally
       fLines.Free;
     end;

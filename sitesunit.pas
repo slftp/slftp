@@ -6,7 +6,7 @@ uses
   Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
   taskrules, taskrace, queueunit, Generics.Collections, pazo, slcriticalsection2,
-  variantcache, routeconfig, StrUtils;
+  variantcache, routeconfig, StrUtils, raceperfunit;
 
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
@@ -162,8 +162,10 @@ type
     function Send(const s: String; const Args: array of const): boolean; overload;
     function ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False; s_message: String = ''; const aShowDownMessageIfAlreadyDown: boolean = False): boolean;
     function bnc: String;
-    function Cwd(dir: String; force: boolean = False): boolean;
-    function Dirlist(const dir: String; forcecwd: boolean = False; fulldirlist: boolean = False; aIsForIndexing: boolean = False): boolean;
+    { Changes directory; optional release diagnostics record fresh CWD failures only. }
+    function Cwd(dir: String; force: boolean = False; aPerf: TRacePerf = nil; const aPerfDir: String = ''): boolean;
+    { Retrieves a listing; optional release diagnostics count sent commands and outstanding replies. }
+    function Dirlist(const dir: String; forcecwd: boolean = False; fulldirlist: boolean = False; aIsForIndexing: boolean = False; aPerf: TRacePerf = nil; const aPerfDir: String = ''): boolean;
     function Leechfile(dest: TStream; const filename: String; restFrom: Integer = 0; maxRead: Integer = 0): Integer;
     { Remove file from directory on ftp. Do not force CWD into the directory, only if required by legacydirlist
       @param(dir directory in which the file is located that needs to be deleted)
@@ -183,7 +185,8 @@ type
     function SendSSCNDisable: boolean;
     function Mkdir(const dirtocreate: String): boolean;
     function TranslateFilename(const filename: String): String;
-    function Pwd(var dir: String): boolean;
+    { Reads the working directory; optional release diagnostics record PWD failures. }
+    function Pwd(var dir: String; aPerf: TRacePerf = nil; const aPerfDir: String = ''): boolean;
     { Get the ident reply for an ident request
       @returns(Ident reply for the site) }
     function GetIdentReply: String;
@@ -434,6 +437,8 @@ type
     function RCDateTime(const Name: String; const def: TDateTime): TDateTime;
     procedure WCDateTime(const Name: String; const val: TDateTime);
 
+    { Checks for an unassigned matching race in this source site's queue. }
+    function HasPendingRace(const aPazoID: integer; const aDestination, aDir, aFilename: String): boolean;
     procedure AddTask(const t: TTask; const queueFire: boolean = false);
     procedure QueueFire;
     procedure QueueClean;
@@ -1065,6 +1070,13 @@ begin
   end;
 end;
 
+function TSite.HasPendingRace(const aPazoID: integer; const aDestination, aDir, aFilename: String): boolean;
+begin
+  Result := False;
+  if fQueue <> nil then
+    Result := fQueue.HasPendingRace(aPazoID, Name, aDestination, aDir, aFilename);
+end;
+
 procedure TSite.AddTask(const t: TTask; const queueFire: boolean = false);
 begin
   if fQueue = nil then
@@ -1598,7 +1610,7 @@ begin
         else if fCurrentTask is TPazoMkdirTask then
         begin
           try
-            TPazoMkdirTask(fCurrentTask).mainpazo.RacePerf.MarkMkdirStarted(TPazoMkdirTask(fCurrentTask).ps1.Name);
+            TPazoMkdirTask(fCurrentTask).mainpazo.RacePerf.MarkMkdirStarted(TPazoMkdirTask(fCurrentTask).ps1.Name, 0, TPazoMkdirTask(fCurrentTask).dir);
           except
           end;
         end
@@ -2016,7 +2028,7 @@ begin
   end;
 end;
 
-function TSiteSlot.Cwd(dir: String; force: boolean = False): boolean;
+function TSiteSlot.Cwd(dir: String; force: boolean = False; aPerf: TRacePerf = nil; const aPerfDir: String = ''): boolean;
 begin
   Result := False;
   dir := MyIncludeTrailingSlash(dir);
@@ -2026,9 +2038,17 @@ begin
     if ((site.legacydirlist) or (force)) then
     begin
       if not Send('CWD %s', [dir]) then
+      begin
+        if aPerf <> nil then
+          aPerf.MarkMkdirReply(site.Name, aPerfDir, 'CWD', 0, 'Command send failed');
         exit;
+      end;
       if not Read('CWD') then
+      begin
+        if aPerf <> nil then
+          aPerf.MarkMkdirReply(site.Name, aPerfDir, 'CWD', 0, 'Command read failed');
         exit;
+      end;
 
       if (lastResponseCode = 250) then
       begin
@@ -2055,6 +2075,8 @@ begin
       end
       else
       begin
+        if aPerf <> nil then
+          aPerf.MarkMkdirReply(site.Name, aPerfDir, 'CWD', lastResponseCode, lastResponse);
         //irc_addtext(todotask, '%s: %s', [name, trim(lastResponse)]);
         Result := False;
         exit;
@@ -2865,22 +2887,28 @@ begin
   end;
 end;
 
-function TSiteSlot.Pwd(var dir: String): boolean;
+function TSiteSlot.Pwd(var dir: String; aPerf: TRacePerf = nil; const aPerfDir: String = ''): boolean;
 begin
   Result := False;
   try
     if not Send('PWD') then
     begin
+      if aPerf <> nil then
+        aPerf.MarkMkdirReply(site.Name, aPerfDir, 'PWD', 0, 'Command send failed');
       Debug(dpError, section, '[PWD] Could not send command PWD to :%s', [site.Name]);
       exit;
     end;
     if not Read('PWD') then
     begin
+      if aPerf <> nil then
+        aPerf.MarkMkdirReply(site.Name, aPerfDir, 'PWD', 0, 'Command read failed');
       Debug(dpError, section, '[PWD] Could not read PWD answer from :%s', [site.Name]);
       exit;
     end;
     if lastResponseCode <> 257 then
     begin
+      if aPerf <> nil then
+        aPerf.MarkMkdirReply(site.Name, aPerfDir, 'PWD', lastResponseCode, lastResponse);
       Debug(dpError, section, '[PWD] Last response code not expected :%d', [lastResponseCode]);
       exit;
     end;
@@ -2904,7 +2932,7 @@ begin
   Result := site.Ident;
 end;
 
-function TSiteSlot.Dirlist(const dir: String; forcecwd: boolean = False; fulldirlist: boolean = False; aIsForIndexing: boolean = False): boolean;
+function TSiteSlot.Dirlist(const dir: String; forcecwd: boolean = False; fulldirlist: boolean = False; aIsForIndexing: boolean = False; aPerf: TRacePerf = nil; const aPerfDir: String = ''): boolean;
 var
   cmd, list_everything: String;
 begin
@@ -2973,21 +3001,28 @@ begin
       exit;
     end;
 
-    //allow up to 50000 items for dirlist (default is 500). i've seen releases with more that 500 files and
-    //autodirlist / autoindex might have more directories
-    if not Read('Dirlist', True, True, 0, 50000) then
-    begin
-      Debug(dpMessage, section, 'TSiteSlot.Dirlist ERROR: can not read answer of %s from %s', [cmd, site.Name]);
-      exit;
-    end;
+    if aPerf <> nil then
+      aPerf.MarkDirlistCommandSent(site.Name, aPerfDir, Pos('LIST', UpperCase(cmd)) = 1);
+    try
+      //allow up to 50000 items for dirlist (default is 500). i've seen releases with more that 500 files and
+      //autodirlist / autoindex might have more directories
+      if not Read('Dirlist', True, True, 0, 50000) then
+      begin
+        Debug(dpMessage, section, 'TSiteSlot.Dirlist ERROR: can not read answer of %s from %s', [cmd, site.Name]);
+        exit;
+      end;
 
-    if (lastResponseCode < 100) OR (lastResponseCode > 299) then
-    begin
-      // response code indicates an error
-      exit;
-    end;
+      if (lastResponseCode < 100) OR (lastResponseCode > 299) then
+      begin
+        // response code indicates an error
+        exit;
+      end;
 
-    Result := True;
+      Result := True;
+    finally
+      if aPerf <> nil then
+        aPerf.MarkDirlistCommandDone(site.Name, aPerfDir);
+    end;
   except
     on e: Exception do
     begin

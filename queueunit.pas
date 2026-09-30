@@ -46,6 +46,8 @@ type
 public
 
 
+{ Checks pending races under the queue lock; AddTask repeats this check atomically. }
+function HasPendingRace(const aPazoID: integer; const aSource, aDestination, aDir, aFilename: String): boolean;
 procedure QueueFire;
 procedure QueueStart;
 procedure AddTask(t: TTask);
@@ -473,12 +475,12 @@ begin
     s2 := TSite(t.ssite2);
     if s1.freeslots = 0 then
     begin
-      t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s1.Name);
+      t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s1.Name, rpsrNoFreeSlot, rprSource);
       exit;
     end;
     if s2.freeslots = 0 then
     begin
-      t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s2.Name);
+      t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s2.Name, rpsrNoFreeSlot, rprDestination);
       exit;
     end;
 
@@ -516,7 +518,7 @@ begin
 
     if s2.num_up >= s2.max_up then
     begin
-      t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s2.Name);
+      t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s2.Name, rpsrMaxUp, rprDestination);
       exit;
     end;
 
@@ -532,7 +534,7 @@ begin
     begin
       if s1.num_dn >= s1.max_pre_dn then
       begin
-        t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s1.Name);
+        t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s1.Name, rpsrMaxPreDn, rprSource);
         exit;
       end;
     end
@@ -540,7 +542,7 @@ begin
     begin
       if s1.num_dn >= s1.max_dn then
       begin
-        t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s1.Name);
+        t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s1.Name, rpsrMaxDn, rprSource);
         exit;
       end;
     end;
@@ -570,7 +572,7 @@ begin
     end;
     if ss1 = nil then
     begin
-      t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s1.Name);
+      t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s1.Name, rpsrNoOnlineSlot, rprSource);
       exit;
     end;
 
@@ -586,7 +588,7 @@ begin
       // check again now that we have the lock at the destination
       if s2.num_up >= s2.max_up then
       begin
-        t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s2.Name);
+        t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s2.Name, rpsrMaxUp, rprDestination);
         exit;
       end;
 
@@ -609,7 +611,7 @@ begin
       end;
       if ss2 = nil then
       begin
-        t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s2.Name);
+        t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s2.Name, rpsrNoOnlineSlot, rprDestination);
         exit;
       end;
 
@@ -617,7 +619,7 @@ begin
       i := ss2.site.MaxUpPerRip;
       if ((i > 0) and (t.ps2.ActiveTransferCount >= i)) then
       begin
-        t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s2.Name);
+        t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s2.Name, rpsrMaxUpPerRip, rprDestination);
         Debug(dpSpam, section, 'We shouldnt upload more than maxupperrip value [' + IntToStr(i) + '] for' + ss2.Name);
         exit;
       end;
@@ -1031,10 +1033,62 @@ begin
   Debug(dpSpam, section, 'QueueEmpty end: ' + sitename);
 end;
 
+function TQueueThread.HasPendingRace(const aPazoID: integer; const aSource, aDestination, aDir, aFilename: String): boolean;
+var
+  fTask: TTask;
+  fRaceTask: TPazoRaceTask;
+  fListIndex: integer;
+  fList: TObjectList;
+begin
+  Result := False;
+  { ponytail: reuse the linear queue scan; add an index only if profiling justifies it. }
+  try
+    main_lock.Enter('HasPendingRace');
+    try
+      for fListIndex := 0 to 1 do
+      begin
+        if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+        for fTask in fList do
+        begin
+          try
+            if (fTask is TPazoRaceTask) then
+            begin
+              fRaceTask := TPazoRaceTask(fTask);
+              if ((fRaceTask.ready = False) and (fRaceTask.readyerror = False) and
+                (fRaceTask.slot1 = nil) and (fRaceTask.pazo_id = aPazoID) and
+                (fRaceTask.site1 = aSource) and (fRaceTask.site2 = aDestination) and
+                (fRaceTask.dir = aDir) and (fRaceTask.filename = aFilename)) then
+              begin
+                Result := True;
+                exit;
+              end;
+            end;
+          except
+            on E: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] HasPendingRace (loop) : %s', [e.Message]));
+              continue;
+            end;
+          end;
+        end;
+      end;
+    finally
+      main_lock.Leave;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] HasPendingRace : %s', [e.Message]));
+      Result := False;
+      exit;
+    end;
+  end;
+end;
+
 function TQueueThread.TaskAlreadyInQueue(t: TTask): boolean;
 var
   fTask:    TTask;
-  tpr, i_tpr: TPazoRaceTask;
+  tpr: TPazoRaceTask;
   tpd, i_tpd: TPazoDirlistTask;
   tpm, i_tpm: TPazoMkdirTask;
   tpl, i_tpl: TLoginTask;
@@ -1045,48 +1099,8 @@ begin
 
   if (t is TPazoRaceTask) then
   begin
-    try
-      tpr := TPazoRaceTask(t);
-      main_lock.Enter('TaskAlreadyInQueue1');
-      try
-        for fListIndex := 0 to 1 do
-        begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for fTask in fList do
-          begin
-            try
-              if (fTask is TPazoRaceTask) then
-              begin
-                i_tpr := TPazoRaceTask(fTask);
-                if ((i_tpr.ready = False) and (i_tpr.readyerror = False) and
-                  (i_tpr.slot1 = nil) and (i_tpr.pazo_id = tpr.pazo_id) and
-                  (i_tpr.site1 = tpr.site1) and (i_tpr.site2 = tpr.site2) and
-                  (i_tpr.dir = tpr.dir) and (i_tpr.filename = tpr.filename)) then
-                begin
-                  Result := True;
-                  exit;
-                end;
-              end;
-            except
-              on E: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoRaceTask (loop) : %s', [e.Message]));
-                continue;
-              end;
-            end;
-          end;
-        end;
-      finally
-        main_lock.Leave;
-      end;
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoRaceTask : %s', [e.Message]));
-        Result := False;
-        exit;
-      end;
-    end;
+    tpr := TPazoRaceTask(t);
+    Result := HasPendingRace(tpr.pazo_id, tpr.site1, tpr.site2, tpr.dir, tpr.filename);
     exit;
   end;
 

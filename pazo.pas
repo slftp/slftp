@@ -437,7 +437,7 @@ var
   pr: TPazoRaceTask;
   pd: TPazoDirlistTask;
   de, dde: TDirListEntry;
-  s: TSite;
+  s, fSourceSite: TSite;
   fd: String;
   fTuzeljStartUs: Int64;
 begin
@@ -460,6 +460,7 @@ begin
 
     // ignore this site if you don't have setup download slots for it
     s := FindSiteByName('', Name);
+    fSourceSite := s;
     if ((status in [rssRealPre, rssShouldPre])) then
     begin
       if s.max_pre_dn = 0 then exit;
@@ -570,7 +571,7 @@ begin
               // mark before AddTask: the queue thread can assign the task
               // concurrently right after AddTask, so the creation timestamp
               // must be recorded first to keep the marker ordering intact
-              pazo.RacePerf.MarkMkdirCreated(dst.Name, 'tuzelj');
+              pazo.RacePerf.MarkMkdirCreated(dst.Name, 'tuzelj', 0, dir);
               try
                 AddTask(pm, True);
               except
@@ -615,6 +616,13 @@ begin
                 Continue;
               if ((dstdl.HasNFO) and (de.IsNFO)) then
                 Continue;
+
+              if fSourceSite.HasPendingRace(pazo.pazo_id, dst.Name, dir, de.filename) then
+              begin
+                pazo.RacePerf.MarkRacePrecheckDrop(dst.Name);
+                Result := True;
+                Continue;
+              end;
 
               // Create the race task
               Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding RACE task on %s %s', [fd, Name, dst.Name, dst.Name, de.filename]);
@@ -1441,6 +1449,8 @@ begin
       d.dirlist_lock.Leave;
     end;
 
+    pazo.RacePerf.MarkDirectoryUsable(Name, dir);
+
     //fire the queue for all source sites
     fSitesList := TList<String>.Create;
     try
@@ -1480,7 +1490,7 @@ begin
     end;
   end;
 
-  pazo.RacePerf.MarkMkdirDone(Name);
+  pazo.RacePerf.MarkMkdirDone(Name, 0, dir);
   Result := True;
 end;
 
@@ -1497,7 +1507,7 @@ begin
     irc_Addstats(Format('<c7>[MKDIR ERROR]</c> : %s %s/%s @ <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, dir, Name]));
     d.need_mkdir := True;
     d.error := True;
-    pazo.RacePerf.MarkMkdirError(Name);
+    pazo.RacePerf.MarkMkdirError(Name, dir);
   end;
 
   Result := True;
@@ -1542,6 +1552,9 @@ begin
       exit;
     end;
   end;
+
+  if not d.need_mkdir then
+    pazo.RacePerf.MarkDirectoryUsable(Name, dir);
 
   // exit if no entries added to the dirlist
   if d.entries = nil then
