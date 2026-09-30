@@ -78,8 +78,9 @@ type
   @value(sbuOnly0Byte Skip only 0 byte files - on most ftpd this means someone started to transfer it)
   @value(sbuBeingUploaded Skip being uploaded files including 0 byte files)
   @value(sbuNone Skip neither 0byte nor being uploaded files)
+  @value(sbuZeroByteUnlessBeingUploaded On the source site, skip 0byte files unless they are being uploaded)
   }
-  TSkipBeingUploaded = (sbuOnly0Byte = 0, sbuBeingUploaded = 1, sbuNone = 2);
+  TSkipBeingUploaded = (sbuOnly0Byte = 0, sbuBeingUploaded = 1, sbuNone = 2, sbuZeroByteUnlessBeingUploaded = 4);
 
   {
   @value(ufnDisabled NFO download disabled)

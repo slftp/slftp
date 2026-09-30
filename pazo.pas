@@ -433,7 +433,7 @@ var
   pr: TPazoRaceTask;
   pd: TPazoDirlistTask;
   de, dde: TDirListEntry;
-  s: TSite;
+  s, fSourceSite: TSite;
   fd: String;
 begin
   Result := False;
@@ -459,6 +459,7 @@ begin
   end
   else if s.max_dn = 0 then
     exit;
+  fSourceSite := s;
 
   pazo.lastTouch := Now();
 
@@ -507,10 +508,18 @@ begin
 
         if (not de.Directory) then
         begin
-          if ((de.IsBeingUploaded or (de.filesize < 1)) and (s.SkipBeingUploadedFiles = sbuBeingUploaded)) then
-            Continue;
-          if ((de.filesize < 1) and (s.SkipBeingUploadedFiles = sbuOnly0Byte)) then
-            Continue;
+          if (fSourceSite.SkipBeingUploadedFiles = sbuZeroByteUnlessBeingUploaded) then
+          begin
+            if ((de.filesize < 1) and (not de.IsBeingUploaded)) then
+              Continue;
+          end
+          else
+          begin
+            if ((de.IsBeingUploaded or (de.filesize < 1)) and (s.SkipBeingUploadedFiles = sbuBeingUploaded)) then
+              Continue;
+            if ((de.filesize < 1) and (s.SkipBeingUploadedFiles = sbuOnly0Byte)) then
+              Continue;
+          end;
         end;
 
         // find the dirlist entry
