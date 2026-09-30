@@ -819,7 +819,7 @@ end;
 
 function TPazoMkdirTask.Execute(slot: Pointer): boolean;
 label
-  TryAgain;
+  TryAgain, CompleteMkdir;
 var
   s: TSiteSlot;
   aktdir: String;
@@ -828,6 +828,8 @@ var
   rule_err: String;
   numerrors: integer;
   tname: String;
+  fDirlist: TDirList;
+  fDirectoryUsable: boolean;
 
   function checkForSiteFailure: boolean;
   var
@@ -872,6 +874,26 @@ begin
     mainpazo.errorreason := 'ERROR PS1 or PS2';
     Debug(dpSpam, c_section, '<-- ' + tname);
     exit;
+  end;
+
+  { The task may wait in the queue after a dirlist already found this directory. }
+  fDirlist := nil;
+  if ps1.dirlist <> nil then
+    fDirlist := ps1.dirlist.FindDirlist(dir);
+  if fDirlist <> nil then
+  begin
+    fDirlist.dirlist_lock.Enter('TPazoMkdirTask.Execute-Recheck');
+    try
+      fDirectoryUsable := (not fDirlist.need_mkdir) and (not fDirlist.error);
+    finally
+      fDirlist.dirlist_lock.Leave;
+    end;
+    if fDirectoryUsable then
+    begin
+      Debug(dpMessage, c_section, 'Skipping stale MKDIR; directory is already usable: %s', [tname]);
+      failure := False;
+      goto CompleteMkdir;
+    end;
   end;
 
   try
@@ -1192,6 +1214,7 @@ begin
 
   end;
 
+  CompleteMkdir:
   try
     if (failure) then
     begin
