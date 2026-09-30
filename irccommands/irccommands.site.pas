@@ -1477,7 +1477,7 @@ begin
   fValueInt := StrToIntDef(sValue, -1);
 
   //if svalue is empty that means the current setting should be displayed, so that is valid too
-  if ((svalue <> '') and ((fValueInt < Ord(Low(TSkipBeingUploaded))) or (fValueInt > Ord(High(TSkipBeingUploaded))))) then
+  if ((svalue <> '') and (not (fValueInt in [Ord(sbuOnly0Byte), Ord(sbuBeingUploaded), Ord(sbuNone), Ord(sbuZeroByteUnlessBeingUploaded)]))) then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</c></b>: %s is not valid.', [svalue]);
     Exit;

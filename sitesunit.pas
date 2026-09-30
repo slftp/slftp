@@ -78,9 +78,10 @@ type
   @value(sbuOnly0Byte Skip only 0 byte files - on most ftpd this means someone started to transfer it)
   @value(sbuBeingUploaded Skip being uploaded files including 0 byte files)
   @value(sbuNone Skip neither 0byte nor being uploaded files)
+  @value(sbuReserved3 Reserved to keep enum ordinals contiguous)
   @value(sbuZeroByteUnlessBeingUploaded On the source site, skip 0byte files unless they are being uploaded)
   }
-  TSkipBeingUploaded = (sbuOnly0Byte = 0, sbuBeingUploaded = 1, sbuNone = 2, sbuZeroByteUnlessBeingUploaded = 4);
+  TSkipBeingUploaded = (sbuOnly0Byte = 0, sbuBeingUploaded = 1, sbuNone = 2, sbuReserved3 = 3, sbuZeroByteUnlessBeingUploaded = 4);
 
   {
   @value(ufnDisabled NFO download disabled)
@@ -3213,6 +3214,8 @@ begin
   fReducedSpeedstatWeight := RCBool('reduced_speedstat_weight', config.ReadBool('speedstats', 'reduced_speedstat_weight', False));;
   fPermDownStatus := RCBool('permdown', False);
   fSkipBeingUploadedFiles := TSkipBeingUploaded(RCInteger('skip_being_uploaded_files', config.ReadInteger('dirlist', 'skip_being_uploaded_files', 0)));
+  if fSkipBeingUploadedFiles = sbuReserved3 then
+    fSkipBeingUploadedFiles := sbuOnly0Byte;
   fUseForNFOdownload := TUseForNfoDownload(RCInteger('usefornfodownload', 1));
   fNoannounce := RCBool('noannounce', False);
   flegacydirlist := RCBool('legacycwd', False);
