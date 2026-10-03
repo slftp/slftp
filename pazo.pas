@@ -511,7 +511,7 @@ begin
           if (fSourceSite.SkipBeingUploadedFiles = sbuZeroByteUnlessBeingUploaded) then
           begin
             if de.IsBeingUploaded then
-              Debug(dpSpam, section, 'Mode 4 skips active source upload %s/%s (%d bytes) on %s',
+              Debug(dpError, section, 'Mode 4 skips active source upload %s/%s (%d bytes) on %s',
                 [dir, de.filename, de.filesize, fSourceSite.Name]);
             if ((de.filesize < 1) or de.IsBeingUploaded) then
               Continue;
