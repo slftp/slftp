@@ -113,7 +113,7 @@ var
   StatsList: TObjectList<TQueueStat>;
   GlDefaultIterationWaitTimeout: Cardinal = 15 * 1000;
 
-function _QueueSortSnapshot(const aTasks: TObjectList): String;
+function _QueueSortSnapshot(const aTasks: Contnrs.TObjectList): String;
 const
   C_MAX_QUEUE_SORT_SNAPSHOT = 8;
 var
@@ -125,7 +125,7 @@ begin
   Result := '';
   for fIndex := 0 to Min(aTasks.Count, C_MAX_QUEUE_SORT_SNAPSHOT) - 1 do
   begin
-    fTask := TTask(aTasks[fIndex]);
+    fTask := TTask(aTasks.Items[fIndex]);
     if fTask = nil then
       fTaskInfo := Format('%d=<nil>', [fIndex])
     else
@@ -423,7 +423,7 @@ begin
   end;
 end;
 
-procedure _SortQueueAndLog(const aTasks: TObjectList; const aSiteName: String);
+procedure _SortQueueAndLog(const aTasks: Contnrs.TObjectList; const aSiteName: String);
 var
   fQueueSortBefore: String;
 begin
