@@ -45,6 +45,11 @@ function ReleaseOnlyConsistsOfNFO(const aFullPath: String): Boolean;
   @param(aItem extracted dirname or filename) }
 procedure ParseStatResponseLine(var aRespLine: String; out aDirMask, aUsername, aGroupname: String; out aFilesize: Int64; out aDatum, aItem: String);
 
+{ Returns true when a non-directory glFTPd permission mask carries the upload marker.
+  @param(aDirMask Unix-style permission mask from a directory-list entry)
+  @returns(@true when the upload marker is present, @false otherwise.) }
+function IsBeingUploadedByDirMask(const aDirMask: String): Boolean;
+
 { Checks if given input is valid for a file (e.g. doesn't start with dot or is skipped globally)
   @param(aInput File or Dirname)
   @returns(@true if input is valid, @false otherwise.) }
@@ -164,6 +169,16 @@ begin
   aRespLine := aRespLine.TrimLeft;
   aDatum := aDatum + ' ' + Fetch(aRespLine, ' ', True, False); // date and time
   aItem := aRespLine.Trim; // file or dirname
+end;
+
+function IsBeingUploadedByDirMask(const aDirMask: String): Boolean;
+begin
+  Result := False;
+  if Length(aDirMask) < 10 then
+    Exit;
+
+  Result := (aDirMask[1] <> 'd') and (aDirMask[7] = 'x') and
+    (aDirMask[10] = 'x');
 end;
 
 function GetSkiplistDirsRegexInstance: TRegExpr;

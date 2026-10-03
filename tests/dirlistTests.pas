@@ -14,6 +14,7 @@ type
   published
     procedure TestCompleteTag1;
     procedure TestCompleteTag2;
+    procedure TestBeingUploadedFlag;
   end;
 
 implementation
@@ -79,6 +80,30 @@ begin
       if fDirlist <> nil then
         fDirlist.Free;
     end;
+end;
+
+procedure TTestDirlist.TestBeingUploadedFlag;
+var
+  fResp: TArray<String>;
+  fDirlist: TDirlist;
+begin
+  fResp := TArray<String>.Create('total 1',
+    '-rw-r-xr-x   1 uploader group        0 Oct  4 12:00 active.bin',
+    '-rw-r--r--   1 uploader group      100 Oct  4 12:00 complete.bin',
+    'drwxrwxrwx   2 uploader group       10 Oct  4 12:00 Sample',
+    '213 End of Status');
+
+  fDirlist := TDirlist.Create('', nil, nil, String.Join(#13, fResp));
+  try
+    CheckTrue(TDirListEntry(fDirlist.entries['active.bin']).IsBeingUploaded,
+      'glFTPd upload marker should be preserved on the dirlist entry');
+    CheckFalse(TDirListEntry(fDirlist.entries['complete.bin']).IsBeingUploaded,
+      'ordinary files should not be marked as uploading');
+    CheckFalse(TDirListEntry(fDirlist.entries['Sample']).IsBeingUploaded,
+      'directories should not be marked as file uploads');
+  finally
+    fDirlist.Free;
+  end;
 end;
 
 

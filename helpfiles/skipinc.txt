@@ -11,6 +11,6 @@ Valid options are:
 0: Skip 0byte files
 1: Skip 0byte files and being uploaded files (This actually works only with GLFTPD sites at the moment, files will be considered complete on other FTPD softwares.)
 2: Neither skip being uploaded files nor 0byte files
-4: On the source site, skip 0byte files unless GLFTPD marks them as being uploaded
+4: On the source site, skip 0byte files and files GLFTPD marks as being uploaded. Only unmarked files with a positive size are eligible.
 
 If not set it will read global value skip_being_uploaded_files from slftp.ini.

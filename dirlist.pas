@@ -796,7 +796,7 @@ begin
       end;
 
       // entry is a file and is being uploaded (glftpd only?)
-      de.FIsBeingUploaded := (fParsedDirlistEntry.DirMask[1] <> 'd') and ((fParsedDirlistEntry.DirMask[7] = 'x') and (fParsedDirlistEntry.DirMask[10] = 'x'));
+      de.FIsBeingUploaded := IsBeingUploadedByDirMask(fParsedDirlistEntry.DirMask);
 
       de.IsOnSite := True;
     end;

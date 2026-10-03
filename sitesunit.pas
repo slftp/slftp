@@ -79,7 +79,7 @@ type
   @value(sbuBeingUploaded Skip being uploaded files including 0 byte files)
   @value(sbuNone Skip neither 0byte nor being uploaded files)
   @value(sbuReserved3 Reserved to keep enum ordinals contiguous)
-  @value(sbuZeroByteUnlessBeingUploaded On the source site, skip 0byte files unless they are being uploaded)
+  @value(sbuZeroByteUnlessBeingUploaded On the source site, skip 0byte and actively uploaded files)
   }
   TSkipBeingUploaded = (sbuOnly0Byte = 0, sbuBeingUploaded = 1, sbuNone = 2, sbuReserved3 = 3, sbuZeroByteUnlessBeingUploaded = 4);
 
