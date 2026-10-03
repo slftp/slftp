@@ -113,42 +113,6 @@ var
   StatsList: TObjectList<TQueueStat>;
   GlDefaultIterationWaitTimeout: Cardinal = 15 * 1000;
 
-function _QueueSortSnapshot(const aTasks: TObjectList): String;
-const
-  C_MAX_QUEUE_SORT_SNAPSHOT = 8;
-var
-  fIndex: Integer;
-  fTask: TTask;
-  fRaceTask: TPazoRaceTask;
-  fTaskInfo: String;
-begin
-  Result := '';
-  for fIndex := 0 to Min(aTasks.Count, C_MAX_QUEUE_SORT_SNAPSHOT) - 1 do
-  begin
-    fTask := TTask(aTasks[fIndex]);
-    if fTask = nil then
-      fTaskInfo := Format('%d=<nil>', [fIndex])
-    else
-    begin
-      fTaskInfo := Format('%d=%s %s', [fIndex, fTask.ClassName, fTask.Fullname]);
-      if fTask is TPazoRaceTask then
-      begin
-        fRaceTask := TPazoRaceTask(fTask);
-        fTaskInfo := fTaskInfo + Format(' {rank=%d sfv=%d nfo=%d sample=%d proof=%d covers=%d subs=%d size=%d}',
-          [fRaceTask.rank, Ord(fRaceTask.isSfv), Ord(fRaceTask.IsNfo), Ord(fRaceTask.isSample),
-           Ord(fRaceTask.isProof), Ord(fRaceTask.isCovers), Ord(fRaceTask.isSubs), fRaceTask.filesize]);
-      end;
-    end;
-
-    if Result <> '' then
-      Result := Result + ' | ';
-    Result := Result + fTaskInfo;
-  end;
-
-  if aTasks.Count > C_MAX_QUEUE_SORT_SNAPSHOT then
-    Result := Result + Format(' | ... %d more', [aTasks.Count - C_MAX_QUEUE_SORT_SNAPSHOT]);
-end;
-
 procedure TQueueThread.QueueFire;
 begin
   try
@@ -423,27 +387,13 @@ begin
   end;
 end;
 
-procedure _SortQueueAndLog(const aTasks: TObjectList; const aSiteName: String);
-var
-  fQueueSortBefore: String;
-begin
-  fQueueSortBefore := '';
-  if GetDebugVerbosity = dpSpam then
-    fQueueSortBefore := _QueueSortSnapshot(aTasks);
-  aTasks.Sort(@QueueSorter);
-  if fQueueSortBefore <> '' then
-    Debug(dpSpam, section, 'Queue sort site=%s count=%d priorities(sample=%d proof=%d subs=%d covers=%d) before=[%s] after=[%s]',
-      [aSiteName, aTasks.Count, sample_dirs_priority, proof_dirs_priority, subs_dirs_priority,
-       cover_dirs_priority, fQueueSortBefore, _QueueSortSnapshot(aTasks)]);
-end;
-
 procedure TQueueThread.QueueSort;
 begin
   try
     Debug(dpSpam, section, 'Sorting queue 1');
     main_lock.Enter('Queue_Sort');
     try
-      _SortQueueAndLog(tasks, fSiteName);
+      tasks.Sort(@QueueSorter);
     finally
       main_lock.Leave;
     end;
@@ -1713,7 +1663,7 @@ begin
         end;
 
         if bTasksMoved then
-          _SortQueueAndLog(tasks, ts.Name);
+          tasks.Sort(@QueueSorter);
 
         for fListIndex := 0 to 1 do
         begin
