@@ -265,6 +265,8 @@ begin
       tpr1 := TPazoRaceTask(Item1);
       tpr2 := TPazoRaceTask(Item2);
 
+      (* Previous RaceTask ordering, retained for easy restoration:
+
       Result := CompareValue(tpr2.rank, tpr1.rank);
       if (Result <> 0) then
         exit;
@@ -398,6 +400,21 @@ begin
       if (Result = 0) then
         Result := CompareValue(tpr2.filesize, tpr1.filesize);
 
+      *)
+
+      // Test ordering: larger files first, then older tasks, then UID for a total order.
+      Result := CompareValue(tpr2.filesize, tpr1.filesize);
+      if Result = 0 then
+      begin
+        if tpr1.created < tpr2.created then
+          Result := -1
+        else if tpr1.created > tpr2.created then
+          Result := 1
+        else if tpr1.uid < tpr2.uid then
+          Result := -1
+        else if tpr1.uid > tpr2.uid then
+          Result := 1;
+      end;
       exit;
     end;
 
@@ -432,9 +449,8 @@ begin
     fQueueSortBefore := _QueueSortSnapshot(aTasks);
   aTasks.Sort(@QueueSorter);
   if fQueueSortBefore <> '' then
-    Debug(dpError, section, 'Queue sort site=%s count=%d priorities(sample=%d proof=%d subs=%d covers=%d) before=[%s] after=[%s]',
-      [aSiteName, aTasks.Count, sample_dirs_priority, proof_dirs_priority, subs_dirs_priority,
-       cover_dirs_priority, fQueueSortBefore, _QueueSortSnapshot(aTasks)]);
+    Debug(dpError, section, 'Queue sort site=%s count=%d criteria=size-desc,created-asc,uid-asc before=[%s] after=[%s]',
+      [aSiteName, aTasks.Count, fQueueSortBefore, _QueueSortSnapshot(aTasks)]);
 end;
 
 procedure TQueueThread.QueueSort;
