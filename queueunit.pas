@@ -446,11 +446,11 @@ var
   fQueueSortBefore: String;
 begin
   fQueueSortBefore := '';
-  if GetDebugVerbosity <> dpNone then
+  if GetDebugVerbosity = dpSpam then
     fQueueSortBefore := _QueueSortSnapshot(aTasks);
   aTasks.Sort(@QueueSorter);
   if fQueueSortBefore <> '' then
-    Debug(dpError, section, 'Queue sort site=%s count=%d criteria=size-desc,created-asc,uid-asc before=[%s] after=[%s]',
+    Debug(dpSpam, section, 'Queue sort site=%s count=%d criteria=size-desc,created-asc,uid-asc before=[%s] after=[%s]',
       [aSiteName, aTasks.Count, fQueueSortBefore, _QueueSortSnapshot(aTasks)]);
 end;
 
