@@ -33,6 +33,7 @@ type
   fSiteName: String;
   fSite: TObject;
   fBusyDestinations: TDictionary<TObject, integer>;
+  fSortDirty: Boolean; //< Queue changes need a sort on the next queue iteration
 
   queue_last_run: TDateTime;
   queueclean_last_run: TDateTime;
@@ -456,14 +457,13 @@ end;
 procedure TQueueThread.QueueSort;
 begin
   try
-    Debug(dpSpam, section, 'Sorting queue 1');
+    // Defer sorting so repeated changes are coalesced into one sort per queue iteration.
     main_lock.Enter('Queue_Sort');
     try
-      _SortQueueAndLog(tasks, fSiteName);
+      fSortDirty := True;
     finally
       main_lock.Leave;
     end;
-    Debug(dpSpam, section, 'Sorting queue 2');
   except
     on e: Exception do
     begin
@@ -497,6 +497,7 @@ begin
     waiting_tasks := TObjectList.Create(True);
     queueevent := TEvent.Create(nil, False, False, 'SLFTP_queue_event_' + aSiteName);
     queue_last_run := Now;
+    fSortDirty := False;
     queueclean_last_run := Now;
     queue_last_stat_update := Now;
     FreeOnTerminate := True;
@@ -1728,8 +1729,11 @@ begin
           end;
         end;
 
-        if bTasksMoved then
+        if bTasksMoved or fSortDirty then
+        begin
+          fSortDirty := False;
           _SortQueueAndLog(tasks, ts.Name);
+        end;
 
         for fListIndex := 0 to 1 do
         begin
