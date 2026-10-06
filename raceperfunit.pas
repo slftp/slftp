@@ -122,6 +122,9 @@ type
     fStartupLockWaitMaxUs, fStartupLockHoldMaxUs: array[TRacePerfStartupLock] of Int64;
     fStartupLockCounts: array[TRacePerfStartupLock] of integer;
     fFirstRaceCreatedUs: Int64; //< first race task created on any site
+    fFirstRaceTuzeljStartUs, fFirstRaceDestinationReadyUs, fFirstRaceCandidateScanUs: Int64;
+    fFirstRaceCtorStartUs, fFirstRaceCtorDoneUs, fFirstRaceTaskReadyUs: Int64;
+    fFirstRaceDestinationsChecked, fFirstRaceCandidatesChecked: integer;
     fFirstRaceAssignedUs: Int64; //< first race task assigned on any site
     fFirstRaceStartedUs: Int64; //< first race task started on any site
     fAllTasksIdleUs: Int64; //< queue of the pazo ran empty (queuenumber reached 0)
@@ -189,7 +192,10 @@ type
     procedure MarkMkdirError(const aSiteName: String; const aDir: String = '');
     { A race task was created with @link(aSiteName) as destination
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
-    procedure MarkRaceTaskCreated(const aSiteName: String; const aNowUs: Int64 = 0);
+    procedure MarkRaceTaskCreated(const aSiteName: String; const aNowUs: Int64 = 0;
+      const aTuzeljStartUs: Int64 = 0; const aDestinationReadyUs: Int64 = 0;
+      const aCandidateScanUs: Int64 = 0; const aConstructorStartUs: Int64 = 0;
+      const aConstructorDoneUs: Int64 = 0; const aDestinationsChecked, aCandidatesChecked: integer = 0);
     { A race task with @link(aSiteName) as destination was dropped by AddTask
       because an identical task was already in the queue (duplicate) }
     procedure MarkRaceTaskDupDropped(const aSiteName: String);
@@ -751,7 +757,10 @@ begin
   end;
 end;
 
-procedure TRacePerf.MarkRaceTaskCreated(const aSiteName: String; const aNowUs: Int64);
+procedure TRacePerf.MarkRaceTaskCreated(const aSiteName: String; const aNowUs: Int64 = 0;
+  const aTuzeljStartUs: Int64 = 0; const aDestinationReadyUs: Int64 = 0;
+  const aCandidateScanUs: Int64 = 0; const aConstructorStartUs: Int64 = 0;
+  const aConstructorDoneUs: Int64 = 0; const aDestinationsChecked, aCandidatesChecked: integer = 0);
 var
   fNow: Int64;
 begin
@@ -762,7 +771,17 @@ begin
     fLock.Enter('MarkRaceTaskCreated');
     try
       if fFirstRaceCreatedUs = 0 then
+      begin
         fFirstRaceCreatedUs := fNow;
+        fFirstRaceTuzeljStartUs := aTuzeljStartUs;
+        fFirstRaceDestinationReadyUs := aDestinationReadyUs;
+        fFirstRaceCandidateScanUs := aCandidateScanUs;
+        fFirstRaceCtorStartUs := aConstructorStartUs;
+        fFirstRaceCtorDoneUs := aConstructorDoneUs;
+        fFirstRaceTaskReadyUs := fNow;
+        fFirstRaceDestinationsChecked := aDestinationsChecked;
+        fFirstRaceCandidatesChecked := aCandidatesChecked;
+      end;
       with GetSiteLocked(aSiteName) do
       begin
         if FirstRaceCreatedUs = 0 then
@@ -964,7 +983,7 @@ var
   fSite: TRacePerfSiteInfo;
   fDirInfo: TRacePerfDirInfo;
   fDirInfos: TList<TRacePerfDirInfo>;
-  fLine, fMkdirWait, fMkdirExec, fMkdirInfo, fRaceWait, fDirlistInfo, fGlobalLine, fDirName, fDirCreatedInfo, fStartupLine: String;
+  fLine, fMkdirWait, fMkdirExec, fMkdirInfo, fRaceWait, fDirlistInfo, fGlobalLine, fDirName, fDirCreatedInfo, fStartupLine, fFirstRacePathLine: String;
   fStage: TRacePerfStartupStage;
   fLockKind: TRacePerfStartupLock;
 begin
@@ -1010,6 +1029,18 @@ begin
            _FormatUsAsMs(fStartupLockHoldMaxUs[fLockKind]) + ' ms']);
       end;
     if fStartupLine <> '' then Result.Add('Startup path:' + fStartupLine);
+
+    if fFirstRaceTuzeljStartUs <> 0 then
+    begin
+      fFirstRacePathLine := Format('First race path: tuzelj %s -> destination %s (%s) -> candidate loop %s -> ctor %s (%s) -> ready %s (%s after scan), %d destinations / %d files',
+        [FormatRelUs(fFirstRaceTuzeljStartUs), FormatRelUs(fFirstRaceDestinationReadyUs),
+         _FormatUsAsMs(fFirstRaceDestinationReadyUs - fFirstRaceTuzeljStartUs) + ' ms',
+         FormatRelUs(fFirstRaceCandidateScanUs), FormatRelUs(fFirstRaceCtorStartUs),
+         _FormatUsAsMs(fFirstRaceCtorDoneUs - fFirstRaceCtorStartUs) + ' ms',
+         FormatRelUs(fFirstRaceTaskReadyUs), _FormatUsAsMs(fFirstRaceTaskReadyUs - fFirstRaceCandidateScanUs) + ' ms',
+         fFirstRaceDestinationsChecked, fFirstRaceCandidatesChecked]);
+      Result.Add(fFirstRacePathLine);
+    end;
 
     for fSite in fSites.Values do
     begin

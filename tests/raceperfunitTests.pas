@@ -50,7 +50,7 @@ begin
     fPerf.MarkMkdirCreated('SiteA', 'tuzelj', 1600000);
     fPerf.MarkMkdirStarted('SiteA', 1700000);
     fPerf.MarkMkdirDone('SiteA', 1800000);
-    fPerf.MarkRaceTaskCreated('SiteA', 1750000);
+    fPerf.MarkRaceTaskCreated('SiteA', 1750000, 1100000, 1200000, 1250000, 1300000, 1320000, 3, 25);
     fPerf.MarkRaceTaskCreated('SiteA', 1900000);
     fPerf.MarkRaceTaskDupDropped('SiteA');
     fPerf.MarkRaceTaskDupDropped('SiteA');
@@ -65,10 +65,11 @@ begin
 
     fLines := fPerf.AsStrings;
     try
-      CheckEquals(4, fLines.Count, 'expected global, startup, site and main directory');
+      CheckEquals(5, fLines.Count, 'expected global, startup, first-race path, site and main directory');
       fText := fLines.Text;
 
       CheckTrue(Pos('Startup path: task started +300.000 ms | parse started +100.000 ms | candidates sorted +200.000 ms | lock candidate-scan 1x wait 50.000 ms (max 50.000 ms), hold 30.000 ms (max 30.000 ms)', fText) > 0, 'startup lock path missing: ' + fText);
+      CheckTrue(Pos('First race path: tuzelj +100.000 ms -> destination +200.000 ms (100.000 ms) -> candidate loop +250.000 ms -> ctor +300.000 ms (20.000 ms) -> ready +750.000 ms (500.000 ms after scan), 3 destinations / 25 files', fText) > 0, 'correlated first-race path missing: ' + fText);
       CheckTrue(Pos('first dirlist task +100.000 ms', fText) > 0, 'global first dirlist missing: ' + fText);
       CheckTrue(Pos('first race created +750.000 ms', fText) > 0, 'global first race created missing: ' + fText);
       CheckTrue(Pos('all tasks done +11.500 s', fText) > 0, 'global idle missing: ' + fText);

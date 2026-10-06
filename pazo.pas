@@ -440,6 +440,8 @@ var
   s, fSourceSite: TSite;
   fd: String;
   fTuzeljStartUs, fDestLockWaitStartedUs, fDestLockAcquiredUs, fDestLockReleasedUs: Int64;
+  fDestinationReadyUs, fCandidateScanUs, fRaceCtorStartUs, fRaceCtorDoneUs: Int64;
+  fDestinationsChecked, fCandidatesChecked: integer;
 begin
   Result := False;
   fTuzeljStartUs := TRacePerf.NowMicroSeconds;
@@ -450,6 +452,12 @@ begin
     dde := nil;
     pm := nil;
     pr := nil;
+    fDestinationReadyUs := 0;
+    fCandidateScanUs := 0;
+    fRaceCtorStartUs := 0;
+    fRaceCtorDoneUs := 0;
+    fDestinationsChecked := 0;
+    fCandidatesChecked := 0;
 
     // something's fucked
     if error then exit;
@@ -474,6 +482,7 @@ begin
     // enumerate possible destinations
     for fDestination in destinations do
     begin
+      Inc(fDestinationsChecked);
       dst := fDestination.PazoSite;
       dstrank := fDestination.Rank;
       try
@@ -511,8 +520,12 @@ begin
         if dstdl = nil then Continue;
         if dstdl.error then Continue;
 
+        fDestinationReadyUs := TRacePerf.NowMicroSeconds;
+        if fCandidateScanUs = 0 then
+          fCandidateScanUs := TRacePerf.NowMicroSeconds;
         for de in aDirListEntries do
         begin
+          Inc(fCandidatesChecked);
 
           if (not de.Directory) then
           begin
@@ -631,7 +644,9 @@ begin
 
               // Create the race task
               Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding RACE task on %s %s', [fd, Name, dst.Name, dst.Name, de.filename]);
+              fRaceCtorStartUs := TRacePerf.NowMicroSeconds;
               pr := TPazoRaceTask.Create(netname, channel, Name, dst.Name, pazo, dstdl, dir, de.filename, de.filesize, dstrank);
+              fRaceCtorDoneUs := TRacePerf.NowMicroSeconds;
 
               // Set file type for subdirs
               if (dstdl.parent <> nil) then
@@ -673,7 +688,9 @@ begin
               // mark before AddTask: the queue thread can assign the task
               // concurrently right after AddTask, so the creation timestamp
               // must be recorded first to keep the marker ordering intact
-              pazo.RacePerf.MarkRaceTaskCreated(dst.Name);
+              pazo.RacePerf.MarkRaceTaskCreated(dst.Name, TRacePerf.NowMicroSeconds, fTuzeljStartUs,
+                fDestinationReadyUs, fCandidateScanUs, fRaceCtorStartUs, fRaceCtorDoneUs,
+                fDestinationsChecked, fCandidatesChecked);
               try
                 AddTask(pr);
                 Result := True;
