@@ -601,7 +601,7 @@ begin
 
 end;
 
-procedure TDirList.ParseDirlist(const s: String; const aParseTimestamp: Boolean = False; const aRacePerf: TRacePerf);
+procedure TDirList.ParseDirlist(const s: String; const aParseTimestamp: Boolean = False; const aRacePerf: TRacePerf = nil);
 var
   akttimestamp: TDateTime;
   de: TDirListEntry;
