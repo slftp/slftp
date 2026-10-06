@@ -1032,7 +1032,7 @@ begin
 
     if fFirstRaceTuzeljStartUs <> 0 then
     begin
-      fFirstRacePathLine := Format('First race path: tuzelj %s -> destination %s (%s) -> candidate loop %s -> ctor %s (%s) -> ready %s (%s after scan), %d destinations / %d files',
+      fFirstRacePathLine := Format('First race path: tuzelj %s -> destination %s (%s) -> candidate loop %s -> ctor %s (%s) -> ready %s (%s after scan), %d destinations / %d entries',
         [FormatRelUs(fFirstRaceTuzeljStartUs), FormatRelUs(fFirstRaceDestinationReadyUs),
          _FormatUsAsMs(fFirstRaceDestinationReadyUs - fFirstRaceTuzeljStartUs) + ' ms',
          FormatRelUs(fFirstRaceCandidateScanUs), FormatRelUs(fFirstRaceCtorStartUs),
