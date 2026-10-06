@@ -443,6 +443,7 @@ var
 begin
   Result := False;
   fTuzeljStartUs := TRacePerf.NowMicroSeconds;
+  pazo.RacePerf.MarkStartupStage(rpssTuzeljStarted, fTuzeljStartUs);
   try
     dst := nil;
     dstdl := nil;
@@ -1520,8 +1521,10 @@ var
   fFoundDirListEntries, fRemovePazoRaceEntries: TObjectList<TDirListEntry>;
   fTasksAdded: boolean;
   fSite: TSite;
+  fLockWaitStartedUs, fLockAcquiredUs, fLockReleasedUs: Int64;
 begin
   Result := False;
+  pazo.RacePerf.MarkStartupStage(rpssParseStarted);
 
   // exit if no access to dirlist object
   if dirlist = nil then
@@ -1544,7 +1547,7 @@ begin
 
   // parse the dirlist
   try
-    d.ParseDirlist(liststring);
+    d.ParseDirlist(liststring, False, pazo.RacePerf);
   except
     on e: Exception do
     begin
@@ -1553,6 +1556,7 @@ begin
     end;
   end;
 
+  pazo.RacePerf.MarkStartupStage(rpssEntriesParsed);
   if not d.need_mkdir then
     pazo.RacePerf.MarkDirectoryUsable(Name, dir);
 
@@ -1569,7 +1573,9 @@ begin
     fFoundDirListEntries := TObjectList<TDirListEntry>.Create(False);
     fRemovePazoRaceEntries := TObjectList<TDirListEntry>.Create(False);
     try
+      fLockWaitStartedUs := TRacePerf.NowMicroSeconds;
       d.dirlist_lock.Enter('TPazoSite.ParseDirlist');
+      fLockAcquiredUs := TRacePerf.NowMicroSeconds;
       try
         for de in d.entries.Values do
         begin
@@ -1588,10 +1594,13 @@ begin
           end;
         end;
       finally
+        fLockReleasedUs := TRacePerf.NowMicroSeconds;
         d.dirlist_lock.Leave;
+        pazo.RacePerf.MarkStartupLockTiming(rpslCandidateScan, fLockWaitStartedUs, fLockAcquiredUs, fLockReleasedUs);
       end;
 
       SortDirlistEntries(fFoundDirListEntries);
+      pazo.RacePerf.MarkStartupStage(rpssCandidatesSorted);
 
       //do this outside dirlist_lock to avoid deadlocks
       fTasksAdded := Tuzelj(netname, channel, dir, fFoundDirListEntries);

@@ -2,7 +2,7 @@ unit dirlist;
 
 interface
 
-uses Classes, Contnrs, SyncObjs, slcriticalsection2, skiplists, globals, Generics.Collections, IniFiles, sfv, tags;
+uses Classes, Contnrs, SyncObjs, slcriticalsection2, skiplists, globals, Generics.Collections, IniFiles, sfv, tags, raceperfunit;
 
 type
   {
@@ -152,7 +152,7 @@ type
       @param(s The dirlist response from the site.)
       @param(aParseTimestamp If set to true, the timestamp will be parsed as well and set to the dirlist entries. Disabled
         by default for performance reasons.) }
-    procedure ParseDirlist(const s: String; const aParseTimestamp: Boolean = False);
+    procedure ParseDirlist(const s: String; const aParseTimestamp: Boolean = False; const aRacePerf: TRacePerf = nil);
     { Does an investigation to determine if TDirlist is complete }
     function Complete: Boolean;
     procedure Usefulfiles(out files: Integer; out size: Int64);
@@ -601,7 +601,7 @@ begin
 
 end;
 
-procedure TDirList.ParseDirlist(const s: String; const aParseTimestamp: Boolean = False);
+procedure TDirList.ParseDirlist(const s: String; const aParseTimestamp: Boolean = False; const aRacePerf: TRacePerf);
 var
   akttimestamp: TDateTime;
   de: TDirListEntry;
@@ -609,6 +609,7 @@ var
   fTagCompleteType: TTagCompleteType;
   fParsedDirlistEntries: TObjectList<TParsedDirListEntry>;
   fParsedDirlistEntry: TParsedDirListEntry;
+  fLockWaitStartedUs, fLockAcquiredUs, fLockReleasedUs: Int64;
 begin
   added := False;
 
@@ -618,7 +619,9 @@ begin
   debugunit.Debug(dpSpam, section, Format('--> ParseDirlist %s (%s, %d entries)', [FFullPath, site_name, entries.Count]));
 
   fParsedDirlistEntries := ParseStatResponse(s);
+  fLockWaitStartedUs := TRacePerf.NowMicroSeconds;
   dirlist_lock.Enter('TDirList.ParseDirlist');
+  fLockAcquiredUs := TRacePerf.NowMicroSeconds;
   try
     for de in entries.Values do
     begin
@@ -815,7 +818,10 @@ begin
     end;
 
   finally
+    fLockReleasedUs := TRacePerf.NowMicroSeconds;
     dirlist_lock.Leave;
+    if aRacePerf <> nil then
+      aRacePerf.MarkStartupLockTiming(rpslDirlistParse, fLockWaitStartedUs, fLockAcquiredUs, fLockReleasedUs);
     fParsedDirlistEntries.Free;
   end;
 

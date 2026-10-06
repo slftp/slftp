@@ -3002,7 +3002,7 @@ begin
     end;
 
     if aPerf <> nil then
-      aPerf.MarkDirlistCommandSent(site.Name, aPerfDir, Pos('LIST', UpperCase(cmd)) = 1);
+      aPerf.MarkDirlistCommandSent(site.Name, aPerfDir, Pos('LIST', UpperCase(cmd)) = 1, TRacePerf.NowMicroSeconds);
     try
       //allow up to 50000 items for dirlist (default is 500). i've seen releases with more that 500 files and
       //autodirlist / autoindex might have more directories
@@ -3021,7 +3021,7 @@ begin
       Result := True;
     finally
       if aPerf <> nil then
-        aPerf.MarkDirlistCommandDone(site.Name, aPerfDir);
+        aPerf.MarkDirlistCommandDone(site.Name, aPerfDir, TRacePerf.NowMicroSeconds);
     end;
   except
     on e: Exception do

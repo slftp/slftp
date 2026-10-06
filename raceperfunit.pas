@@ -17,6 +17,9 @@ uses
   Classes, SysUtils, Generics.Collections, slcriticalsection2;
 
 type
+  TRacePerfStartupStage = (rpssTaskStarted, rpssFtpSent, rpssFtpReply, rpssParseStarted, rpssEntriesParsed, rpssCandidatesSorted, rpssTuzeljStarted);
+  TRacePerfStartupLock = (rpslDirlistParse, rpslCandidateScan);
+
   { Resource which prevented assigning a race task. }
   TRacePerfSlotReason = (rpsrNoFreeSlot, //< no free slot reported
     rpsrNoOnlineSlot, //< no free online slot found
@@ -114,6 +117,10 @@ type
     fDetectedUs: Int64; //< T0: release detected for trading (pazo created)
     fDetectedInfo: String; //< kb event which detected the release (e.g. 'NEWDIR', 'ADDPRE')
     fFirstDirlistCreatedUs: Int64; //< first dirlist task created on any site
+    fStartupStages: array[TRacePerfStartupStage] of Int64;
+    fStartupLockWaitUs, fStartupLockHoldUs: array[TRacePerfStartupLock] of Int64;
+    fStartupLockWaitMaxUs, fStartupLockHoldMaxUs: array[TRacePerfStartupLock] of Int64;
+    fStartupLockCounts: array[TRacePerfStartupLock] of integer;
     fFirstRaceCreatedUs: Int64; //< first race task created on any site
     fFirstRaceAssignedUs: Int64; //< first race task assigned on any site
     fFirstRaceStartedUs: Int64; //< first race task started on any site
@@ -139,6 +146,8 @@ type
       @param(aInfo what triggered the creation, e.g. the kb event name, 'tuzelj', 'subdir', 'readd' or 'incfiller')
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
     procedure MarkDirlistCreated(const aSiteName: String; const aDir: String = ''; const aInfo: String = ''; const aNowUs: Int64 = 0);
+    procedure MarkStartupStage(const aStage: TRacePerfStartupStage; const aNowUs: Int64 = 0);
+    procedure MarkStartupLockTiming(const aKind: TRacePerfStartupLock; const aWaitStartedUs, aAcquiredUs, aReleasedUs: Int64);
     { A nonempty dirlist for @link(aSiteName) finished parsing and follow-up processing
       @param(aDir dir inside the release, '' is the main dir)
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
@@ -154,9 +163,9 @@ type
       @param(aDir dir inside the release, '' is the main dir) }
     procedure MarkDirlistError(const aSiteName: String; const aDir: String = '');
     { A listing command was sent; track outstanding replies per site and directory. }
-    procedure MarkDirlistCommandSent(const aSiteName, aDir: String; const aIsList: boolean);
+    procedure MarkDirlistCommandSent(const aSiteName, aDir: String; const aIsList: boolean; const aNowUs: Int64 = 0);
     { A sent listing command finished waiting for its reply, including errors. }
-    procedure MarkDirlistCommandDone(const aSiteName, aDir: String);
+    procedure MarkDirlistCommandDone(const aSiteName, aDir: String; const aNowUs: Int64 = 0);
     { Record the configured base delay and the delay selected for a retry, in milliseconds. }
     procedure MarkDirlistReadd(const aSiteName, aDir: String; const aBaseMs, aDelayMs: integer);
     { Record the first observation that a directory is usable. }
@@ -327,6 +336,41 @@ begin
     Result := '+' + _FormatUsAsMs(fDelta div 1000) + ' s';
 end;
 
+procedure TRacePerf.MarkStartupStage(const aStage: TRacePerfStartupStage; const aNowUs: Int64);
+var fNowUs: Int64;
+begin
+  try
+    fNowUs := aNowUs;
+    if fNowUs = 0 then fNowUs := NowMicroSeconds;
+    fLock.Enter('MarkStartupStage');
+    try
+      if fStartupStages[aStage] = 0 then fStartupStages[aStage] := fNowUs;
+    finally fLock.Leave; end;
+  except on E: Exception do Debug(dpError, section, 'MarkStartupStage: %s', [E.Message]); end;
+end;
+
+procedure TRacePerf.MarkStartupLockTiming(const aKind: TRacePerfStartupLock; const aWaitStartedUs, aAcquiredUs, aReleasedUs: Int64);
+var fCutoffUs, fWaitUs, fHoldUs: Int64;
+begin
+  try
+    fLock.Enter('MarkStartupLockTiming');
+    try
+      fCutoffUs := fFirstRaceCreatedUs;
+      if fCutoffUs = 0 then fCutoffUs := NowMicroSeconds;
+      fWaitUs := Max(0, Min(aAcquiredUs, fCutoffUs) - aWaitStartedUs);
+      fHoldUs := Max(0, Min(aReleasedUs, fCutoffUs) - aAcquiredUs);
+      if (fWaitUs > 0) or (fHoldUs > 0) then
+      begin
+        Inc(fStartupLockCounts[aKind]);
+        Inc(fStartupLockWaitUs[aKind], fWaitUs);
+        Inc(fStartupLockHoldUs[aKind], fHoldUs);
+        fStartupLockWaitMaxUs[aKind] := Max(fStartupLockWaitMaxUs[aKind], fWaitUs);
+        fStartupLockHoldMaxUs[aKind] := Max(fStartupLockHoldMaxUs[aKind], fHoldUs);
+      end;
+    finally fLock.Leave; end;
+  except on E: Exception do Debug(dpError, section, 'MarkStartupLockTiming: %s', [E.Message]); end;
+end;
+
 procedure TRacePerf.MarkDirlistCreated(const aSiteName: String; const aDir: String; const aInfo: String; const aNowUs: Int64);
 var
   fNow: Int64;
@@ -380,6 +424,7 @@ begin
     fLock.Enter('MarkDirlistStarted');
     try
       fSite := GetSiteLocked(aSiteName);
+      if fStartupStages[rpssTaskStarted] = 0 then fStartupStages[rpssTaskStarted] := fNow;
       Inc(fSite.FDirlistTasksExecuted);
       if fSite.FirstDirlistStartedUs = 0 then
         fSite.FirstDirlistStartedUs := fNow;
@@ -462,13 +507,14 @@ begin
   end;
 end;
 
-procedure TRacePerf.MarkDirlistCommandSent(const aSiteName, aDir: String; const aIsList: boolean);
+procedure TRacePerf.MarkDirlistCommandSent(const aSiteName, aDir: String; const aIsList: boolean; const aNowUs: Int64);
 var
   fSite: TRacePerfSiteInfo;
 begin
   try
     fLock.Enter('MarkDirlistCommandSent');
     try
+      if (aNowUs <> 0) and (fStartupStages[rpssFtpSent] = 0) then fStartupStages[rpssFtpSent] := aNowUs;
       fSite := GetSiteLocked(aSiteName);
       if aIsList then Inc(fSite.FListSent) else Inc(fSite.FStatSent);
       Inc(fSite.FCommandsActive);
@@ -488,13 +534,14 @@ begin
   end;
 end;
 
-procedure TRacePerf.MarkDirlistCommandDone(const aSiteName, aDir: String);
+procedure TRacePerf.MarkDirlistCommandDone(const aSiteName, aDir: String; const aNowUs: Int64);
 var
   fSite: TRacePerfSiteInfo;
 begin
   try
     fLock.Enter('MarkDirlistCommandDone');
     try
+      if (aNowUs <> 0) and (fStartupStages[rpssFtpReply] = 0) then fStartupStages[rpssFtpReply] := aNowUs;
       fSite := GetSiteLocked(aSiteName);
       if fSite.FCommandsActive > 0 then Dec(fSite.FCommandsActive);
       with GetDirLocked(fSite, aDir) do
@@ -917,7 +964,9 @@ var
   fSite: TRacePerfSiteInfo;
   fDirInfo: TRacePerfDirInfo;
   fDirInfos: TList<TRacePerfDirInfo>;
-  fLine, fMkdirWait, fMkdirExec, fMkdirInfo, fRaceWait, fDirlistInfo, fGlobalLine, fDirName, fDirCreatedInfo: String;
+  fLine, fMkdirWait, fMkdirExec, fMkdirInfo, fRaceWait, fDirlistInfo, fGlobalLine, fDirName, fDirCreatedInfo, fStartupLine: String;
+  fStage: TRacePerfStartupStage;
+  fLockKind: TRacePerfStartupLock;
 begin
   Result := TStringList.Create;
   fLock.Enter('AsStrings');
@@ -931,6 +980,35 @@ begin
         [fTuzeljCalls, _FormatUsAsMs(fTuzeljTotalUs) + ' ms', _FormatUsAsMs(fTuzeljTotalUs div fTuzeljCalls) + ' ms']);
 
     Result.Add(fGlobalLine);
+
+    fStartupLine := '';
+    for fStage := Low(TRacePerfStartupStage) to High(TRacePerfStartupStage) do
+      if fStartupStages[fStage] <> 0 then
+      begin
+        if fStartupLine <> '' then fStartupLine := fStartupLine + ' |';
+        case fStage of
+          rpssTaskStarted: fStartupLine := fStartupLine + ' task started ' + FormatRelUs(fStartupStages[fStage]);
+          rpssFtpSent: fStartupLine := fStartupLine + ' FTP sent ' + FormatRelUs(fStartupStages[fStage]);
+          rpssFtpReply: fStartupLine := fStartupLine + ' reply read ' + FormatRelUs(fStartupStages[fStage]);
+          rpssParseStarted: fStartupLine := fStartupLine + ' parse started ' + FormatRelUs(fStartupStages[fStage]);
+          rpssEntriesParsed: fStartupLine := fStartupLine + ' entries parsed ' + FormatRelUs(fStartupStages[fStage]);
+          rpssCandidatesSorted: fStartupLine := fStartupLine + ' candidates sorted ' + FormatRelUs(fStartupStages[fStage]);
+          rpssTuzeljStarted: fStartupLine := fStartupLine + ' tuzelj started ' + FormatRelUs(fStartupStages[fStage]);
+        end;
+      end;
+    for fLockKind := Low(TRacePerfStartupLock) to High(TRacePerfStartupLock) do
+      if fStartupLockCounts[fLockKind] > 0 then
+      begin
+        case fLockKind of
+          rpslDirlistParse: fLine := 'dirlist-parse';
+          rpslCandidateScan: fLine := 'candidate-scan';
+        end;
+        fStartupLine := fStartupLine + Format(' | lock %s %dx wait %s (max %s), hold %s (max %s)',
+          [fLine, fStartupLockCounts[fLockKind], _FormatUsAsMs(fStartupLockWaitUs[fLockKind]) + ' ms',
+           _FormatUsAsMs(fStartupLockWaitMaxUs[fLockKind]) + ' ms', _FormatUsAsMs(fStartupLockHoldUs[fLockKind]) + ' ms',
+           _FormatUsAsMs(fStartupLockHoldMaxUs[fLockKind]) + ' ms']);
+      end;
+    if fStartupLine <> '' then Result.Add('Startup path:' + fStartupLine);
 
     for fSite in fSites.Values do
     begin

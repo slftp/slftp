@@ -40,6 +40,9 @@ var
 begin
   fPerf := TRacePerf.Create(1000000);
   try
+    fPerf.MarkStartupStage(rpssParseStarted, 1100000);
+    fPerf.MarkStartupStage(rpssCandidatesSorted, 1200000);
+    fPerf.MarkStartupLockTiming(rpslCandidateScan, 1100000, 1150000, 1180000);
     fPerf.MarkDirlistCreated('SiteA', '', 'NEWDIR', 1100000);
     fPerf.MarkDirlistCreated('SiteA', '', 'UPDATE', 1200000);
     fPerf.MarkDirlistStarted('SiteA', '', 1300000);
@@ -62,9 +65,10 @@ begin
 
     fLines := fPerf.AsStrings;
     try
-      CheckEquals(3, fLines.Count, 'expected global, site and main directory');
+      CheckEquals(4, fLines.Count, 'expected global, startup, site and main directory');
       fText := fLines.Text;
 
+      CheckTrue(Pos('Startup path: parse started +100.000 ms | candidates sorted +200.000 ms | lock candidate-scan 1x wait 0.050 ms (max 0.050 ms), hold 0.030 ms (max 0.030 ms)', fText) > 0, 'startup lock path missing: ' + fText);
       CheckTrue(Pos('first dirlist task +100.000 ms', fText) > 0, 'global first dirlist missing: ' + fText);
       CheckTrue(Pos('first race created +750.000 ms', fText) > 0, 'global first race created missing: ' + fText);
       CheckTrue(Pos('all tasks done +11.500 s', fText) > 0, 'global idle missing: ' + fText);
