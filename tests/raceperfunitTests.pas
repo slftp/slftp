@@ -128,7 +128,7 @@ begin
   fPerf := TRacePerf.Create(1000000);
   try
     fPerf.MarkRuleStage(rprsSource, 29, 0, 28, 1479190, 1);
-    fPerf.MarkRuleSourceContext('UPDATE', 'SiteA', 1479100, 1479161, 0, 2, 1, 30);
+    fPerf.MarkRuleContext(rprsSource, 'UPDATE', 'SiteA', 1479100, 1479161, 0, 2, 1, 30);
     fLines := fPerf.AsStrings;
     try
       fText := fLines.Text;

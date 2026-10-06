@@ -749,7 +749,7 @@ begin
       fRuleLockAcquiredUs - fRuleLockWaitStartUs,
       fRuleLockReleasedUs - fRuleLockAcquiredUs, fRuleStageEndUs, 1);
     if psource <> nil then
-      p.RacePerf.MarkRuleSourceContext(KBEventTypeToString(event), psource.Name,
+      p.RacePerf.MarkRuleContext(rprsSource, KBEventTypeToString(event), psource.Name,
         fKbAddBEntryUs, fRuleStageStartUs,
         fKbLock1AcquiredUs - fKbLock1WaitStartUs, fKbLock1ReleasedUs - fKbLock1AcquiredUs,
         fKbLock2AcquiredUs - fKbLock2WaitStartUs, fKbLock2ReleasedUs - fKbLock2AcquiredUs);
@@ -808,6 +808,10 @@ begin
     fRuleElapsedUs := fRuleStageEndUs - fRuleStageStartUs;
     p.RacePerf.MarkRuleStage(rprsSiteAllow, fRuleElapsedUs, fRuleLockWaitUs,
       fRuleLockHoldUs, fRuleStageEndUs, fRuleCallCount);
+    p.RacePerf.MarkRuleContext(rprsSiteAllow, KBEventTypeToString(event), sitename,
+      fKbAddBEntryUs, fRuleStageStartUs,
+      fKbLock1AcquiredUs - fKbLock1WaitStartUs, fKbLock1ReleasedUs - fKbLock1AcquiredUs,
+      fKbLock2AcquiredUs - fKbLock2WaitStartUs, fKbLock2ReleasedUs - fKbLock2AcquiredUs);
 
     // now add all dst
     fRuleStageStartUs := TRacePerf.NowMicroSeconds;
@@ -840,6 +844,10 @@ begin
     fRuleElapsedUs := fRuleStageEndUs - fRuleStageStartUs;
     p.RacePerf.MarkRuleStage(rprsDestinations, fRuleElapsedUs, fRuleLockWaitUs,
       fRuleLockHoldUs, fRuleStageEndUs, fRuleCallCount);
+    p.RacePerf.MarkRuleContext(rprsDestinations, KBEventTypeToString(event), sitename,
+      fKbAddBEntryUs, fRuleStageStartUs,
+      fKbLock1AcquiredUs - fKbLock1WaitStartUs, fKbLock1ReleasedUs - fKbLock1AcquiredUs,
+      fKbLock2AcquiredUs - fKbLock2WaitStartUs, fKbLock2ReleasedUs - fKbLock2AcquiredUs);
   except
     on e: Exception do
     begin
