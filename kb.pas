@@ -198,6 +198,8 @@ var
   l: TLoginTask;
   fPretimeLookupTask: TPazoPretimeLookupTask;
   fRuleStageStartUs, fRuleStageEndUs, fRuleLockWaitStartUs, fRuleLockAcquiredUs, fRuleLockReleasedUs: Int64;
+  fKbAddBEntryUs, fKbLock1WaitStartUs, fKbLock1AcquiredUs, fKbLock1ReleasedUs: Int64;
+  fKbLock2WaitStartUs, fKbLock2AcquiredUs, fKbLock2ReleasedUs: Int64;
   fRuleElapsedUs, fRuleLockWaitUs, fRuleLockHoldUs: Int64;
   fRuleCallCount: integer;
 
@@ -274,11 +276,14 @@ var
   end;
 
 begin
+  fKbAddBEntryUs := TRacePerf.NowMicroSeconds;
   debug(dpSpam, rsections, '--> %s %s %s %s %s %d %d', [sitename, section, KBEventTypeToString(event), rls, cdno, integer(dontFire), integer(forceFire)]);
 
   Result := -1;
 
+  fKbLock1WaitStartUs := TRacePerf.NowMicroSeconds;
   kb_lock.Enter('kb_AddB_1');
+  fKbLock1AcquiredUs := TRacePerf.NowMicroSeconds;
   psource := nil;
   try
     // deny adding of a release twice with different section
@@ -408,10 +413,13 @@ begin
     KbListsCleanUp; // TODO: maybe run it only every 60mins? not needed to run it every time...
 
   finally
+    fKbLock1ReleasedUs := TRacePerf.NowMicroSeconds;
     kb_lock.Leave;
   end;
 
+  fKbLock2WaitStartUs := TRacePerf.NowMicroSeconds;
   kb_lock.Enter('kb_AddB_2');
+  fKbLock2AcquiredUs := TRacePerf.NowMicroSeconds;
   try
     i := kb_list.IndexOf(section + '-' + rls);
     if i = -1 then
@@ -586,6 +594,7 @@ begin
       end;
     end;
   finally
+    fKbLock2ReleasedUs := TRacePerf.NowMicroSeconds;
     kb_lock.Leave;
   end;
 
@@ -739,6 +748,11 @@ begin
     p.RacePerf.MarkRuleStage(rprsSource, fRuleElapsedUs,
       fRuleLockAcquiredUs - fRuleLockWaitStartUs,
       fRuleLockReleasedUs - fRuleLockAcquiredUs, fRuleStageEndUs, 1);
+    if psource <> nil then
+      p.RacePerf.MarkRuleSourceContext(KBEventTypeToString(event), psource.Name,
+        fKbAddBEntryUs, fRuleStageStartUs,
+        fKbLock1AcquiredUs - fKbLock1WaitStartUs, fKbLock1ReleasedUs - fKbLock1AcquiredUs,
+        fKbLock2AcquiredUs - fKbLock2WaitStartUs, fKbLock2ReleasedUs - fKbLock2AcquiredUs);
 
     // announce SKIP and DONT MATCH only if the site is not a PRE site
     if (psource <> nil) and (psource.status <> rssRealPre) then

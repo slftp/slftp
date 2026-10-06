@@ -124,6 +124,9 @@ type
     fStartupLockCounts: array[TRacePerfStartupLock] of integer;
     fRuleElapsedUs, fRuleLockWaitUs, fRuleLockHoldUs, fRuleFinishedUs: array[TRacePerfRuleStage] of Int64;
     fRuleCalls: array[TRacePerfRuleStage] of integer;
+    fRuleSourceEvent, fRuleSourceSite: String;
+    fRuleSourceEntryUs, fRuleSourceStartedUs: Int64;
+    fRuleSourceLock1WaitUs, fRuleSourceLock1HoldUs, fRuleSourceLock2WaitUs, fRuleSourceLock2HoldUs: Int64;
     fFirstRaceCreatedUs: Int64; //< first race task created on any site
     fFirstRaceTuzeljStartUs, fFirstRaceDestinationReadyUs, fFirstRaceCandidateScanUs: Int64;
     fFirstRaceCtorStartUs, fFirstRaceCtorDoneUs, fFirstRaceTaskReadyUs: Int64;
@@ -155,6 +158,8 @@ type
     procedure MarkStartupStage(const aStage: TRacePerfStartupStage; const aNowUs: Int64 = 0);
     procedure MarkStartupLockTiming(const aKind: TRacePerfStartupLock; const aWaitStartedUs, aAcquiredUs, aReleasedUs: Int64);
     procedure MarkRuleStage(const aStage: TRacePerfRuleStage; const aElapsedUs, aLockWaitUs, aLockHoldUs, aFinishedUs: Int64; const aCalls: integer);
+    { Records the first source-rule invocation context and the preceding kb_AddB lock timings. }
+    procedure MarkRuleSourceContext(const aEvent, aSite: String; const aEntryUs, aStartedUs, aLock1WaitUs, aLock1HoldUs, aLock2WaitUs, aLock2HoldUs: Int64);
     { A nonempty dirlist for @link(aSiteName) finished parsing and follow-up processing
       @param(aDir dir inside the release, '' is the main dir)
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
@@ -403,6 +408,31 @@ begin
   end;
 end;
 
+
+procedure TRacePerf.MarkRuleSourceContext(const aEvent, aSite: String; const aEntryUs, aStartedUs, aLock1WaitUs, aLock1HoldUs, aLock2WaitUs, aLock2HoldUs: Int64);
+begin
+  try
+    fLock.Enter('MarkRuleSourceContext');
+    try
+      if fRuleSourceEvent = '' then
+      begin
+        fRuleSourceEvent := aEvent;
+        fRuleSourceSite := aSite;
+        fRuleSourceEntryUs := aEntryUs;
+        fRuleSourceStartedUs := aStartedUs;
+        fRuleSourceLock1WaitUs := aLock1WaitUs;
+        fRuleSourceLock1HoldUs := aLock1HoldUs;
+        fRuleSourceLock2WaitUs := aLock2WaitUs;
+        fRuleSourceLock2HoldUs := aLock2HoldUs;
+      end;
+    finally
+      fLock.Leave;
+    end;
+  except
+    on E: Exception do
+      Debug(dpError, section, 'MarkRuleSourceContext: %s', [E.Message]);
+  end;
+end;
 
 procedure TRacePerf.MarkDirlistCreated(const aSiteName: String; const aDir: String; const aInfo: String; const aNowUs: Int64);
 var
@@ -1074,6 +1104,14 @@ begin
            FormatRelUs(fRuleFinishedUs[fRuleStage]), fRuleCalls[fRuleStage],
            _FormatUsAsMs(fRuleLockWaitUs[fRuleStage]) + ' ms',
            _FormatUsAsMs(fRuleLockHoldUs[fRuleStage]) + ' ms']);
+        if (fRuleStage = rprsSource) and (fRuleSourceEvent <> '') then
+          fRulesLine := fRulesLine + Format(' [event %s @ %s; kb_AddB entry %s; before rules %s; kb_lock_1 wait %s, hold %s; kb_lock_2 wait %s, hold %s]',
+            [fRuleSourceEvent, fRuleSourceSite, FormatRelUs(fRuleSourceEntryUs),
+             _FormatUsAsMs(fRuleSourceStartedUs - fRuleSourceEntryUs) + ' ms',
+             _FormatUsAsMs(fRuleSourceLock1WaitUs) + ' ms',
+             _FormatUsAsMs(fRuleSourceLock1HoldUs) + ' ms',
+             _FormatUsAsMs(fRuleSourceLock2WaitUs) + ' ms',
+             _FormatUsAsMs(fRuleSourceLock2HoldUs) + ' ms']);
       end;
     if fRulesLine <> '' then Result.Add('Rules path: ' + fRulesLine);
 

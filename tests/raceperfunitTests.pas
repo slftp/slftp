@@ -14,6 +14,7 @@ type
   published
     procedure TestMarkersAndOutput;
     procedure TestRuleTimingFirstPass;
+    procedure TestRuleSourceContext;
     procedure TestEmptyOutput;
     procedure TestOneShotMarkers;
     procedure TestDirectoryMarkers;
@@ -109,6 +110,29 @@ begin
     try
       fText := fLines.Text;
       CheckTrue(Pos('Rules path: source 0.010 ms, done +10.000 ms (1 calls; kb_lock wait 0.002 ms, hold 0.003 ms) | site-allow 0.100 ms, done +20.000 ms (4 calls; kb_lock wait 0.010 ms, hold 0.060 ms) | destinations 0.200 ms, done +30.000 ms (5 calls; kb_lock wait 0.020 ms, hold 0.140 ms)', fText) > 0, fText);
+    finally
+      fLines.Free;
+    end;
+  finally
+    fPerf.Free;
+  end;
+end;
+
+
+procedure TTestRacePerf.TestRuleSourceContext;
+var
+  fPerf: TRacePerf;
+  fLines: TStringList;
+  fText: String;
+begin
+  fPerf := TRacePerf.Create(1000000);
+  try
+    fPerf.MarkRuleStage(rprsSource, 29, 0, 28, 1479190, 1);
+    fPerf.MarkRuleSourceContext('UPDATE', 'SiteA', 1479100, 1479161, 0, 2, 1, 30);
+    fLines := fPerf.AsStrings;
+    try
+      fText := fLines.Text;
+      CheckTrue(Pos('source 0.029 ms, done +479.190 ms (1 calls; kb_lock wait 0.000 ms, hold 0.028 ms) [event UPDATE @ SiteA; kb_AddB entry +479.100 ms; before rules 0.061 ms; kb_lock_1 wait 0.000 ms, hold 0.002 ms; kb_lock_2 wait 0.001 ms, hold 0.030 ms]', fText) > 0, fText);
     finally
       fLines.Free;
     end;
