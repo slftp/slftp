@@ -195,7 +195,7 @@ type
     procedure MarkRaceTaskCreated(const aSiteName: String; const aNowUs: Int64 = 0;
       const aTuzeljStartUs: Int64 = 0; const aDestinationReadyUs: Int64 = 0;
       const aCandidateScanUs: Int64 = 0; const aConstructorStartUs: Int64 = 0;
-      const aConstructorDoneUs: Int64 = 0; const aDestinationsChecked, aCandidatesChecked: integer = 0);
+      const aConstructorDoneUs: Int64 = 0; const aDestinationsChecked: integer = 0; const aCandidatesChecked: integer = 0);
     { A race task with @link(aSiteName) as destination was dropped by AddTask
       because an identical task was already in the queue (duplicate) }
     procedure MarkRaceTaskDupDropped(const aSiteName: String);
@@ -760,7 +760,7 @@ end;
 procedure TRacePerf.MarkRaceTaskCreated(const aSiteName: String; const aNowUs: Int64 = 0;
   const aTuzeljStartUs: Int64 = 0; const aDestinationReadyUs: Int64 = 0;
   const aCandidateScanUs: Int64 = 0; const aConstructorStartUs: Int64 = 0;
-  const aConstructorDoneUs: Int64 = 0; const aDestinationsChecked, aCandidatesChecked: integer = 0);
+  const aConstructorDoneUs: Int64 = 0; const aDestinationsChecked: integer = 0; const aCandidatesChecked: integer = 0);
 var
   fNow: Int64;
 begin
