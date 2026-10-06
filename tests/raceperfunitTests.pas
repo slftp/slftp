@@ -68,7 +68,7 @@ begin
       CheckEquals(4, fLines.Count, 'expected global, startup, site and main directory');
       fText := fLines.Text;
 
-      CheckTrue(Pos('Startup path: parse started +100.000 ms | candidates sorted +200.000 ms | lock candidate-scan 1x wait 0.050 ms (max 0.050 ms), hold 0.030 ms (max 0.030 ms)', fText) > 0, 'startup lock path missing: ' + fText);
+      CheckTrue(Pos('Startup path: task started +300.000 ms | parse started +100.000 ms | candidates sorted +200.000 ms | lock candidate-scan 1x wait 0.050 ms (max 0.050 ms), hold 0.030 ms (max 0.030 ms)', fText) > 0, 'startup lock path missing: ' + fText);
       CheckTrue(Pos('first dirlist task +100.000 ms', fText) > 0, 'global first dirlist missing: ' + fText);
       CheckTrue(Pos('first race created +750.000 ms', fText) > 0, 'global first race created missing: ' + fText);
       CheckTrue(Pos('all tasks done +11.500 s', fText) > 0, 'global idle missing: ' + fText);
@@ -158,10 +158,10 @@ begin
     fPerf.MarkDirlistError('SiteA', 'Sample');
     fLines := fPerf.AsStrings;
     try
-      CheckEquals(4, fLines.Count, 'global, site and two directories');
-      CheckTrue(Pos('dir /: created +100.000 ms via NEWDIR', fLines[2]) > 0, fLines.Text);
-      CheckTrue(Pos('dir Sample: created +300.000 ms via subdir, started +400.000 ms, parsed +500.000 ms, 2 created, 2 executed, 0 dup dropped, 1 err', fLines[3]) > 0, fLines.Text);
-      fText := fLines[1];
+      CheckEquals(5, fLines.Count, 'global, startup, site and two directories');
+      CheckTrue(Pos('dir /: created +100.000 ms via NEWDIR', fLines[3]) > 0, fLines.Text);
+      CheckTrue(Pos('dir Sample: created +300.000 ms via subdir, started +400.000 ms, parsed +500.000 ms, 2 created, 2 executed, 0 dup dropped, 1 err', fLines[4]) > 0, fLines.Text);
+      fText := fLines[2];
       CheckTrue(Pos('3 created, 2 executed, 0 dup dropped, 1 err', fText) > 0, fText);
     finally
       fLines.Free;
@@ -247,12 +247,12 @@ begin
     fPerf.MarkDirlistDupDropped('SiteA', 'Sample');
     fLines := fPerf.AsStrings;
     try
-      CheckEquals(4, fLines.Count);
-      CheckTrue(Pos('4 created, 2 executed, 2 dup dropped, 0 err', fLines[1]) > 0, fLines.Text);
-      CheckTrue(Pos('2 created, 1 executed, 1 dup dropped, 0 err', fLines[2]) > 0, fLines.Text);
+      CheckEquals(5, fLines.Count);
+      CheckTrue(Pos('4 created, 2 executed, 2 dup dropped, 0 err', fLines[2]) > 0, fLines.Text);
       CheckTrue(Pos('2 created, 1 executed, 1 dup dropped, 0 err', fLines[3]) > 0, fLines.Text);
+      CheckTrue(Pos('2 created, 1 executed, 1 dup dropped, 0 err', fLines[4]) > 0, fLines.Text);
       { Execution does not imply that a nonempty listing was processed. }
-      CheckTrue(Pos('parsed -', fLines[1]) > 0, fLines.Text);
+      CheckTrue(Pos('parsed -', fLines[2]) > 0, fLines.Text);
     finally
       fLines.Free;
     end;
