@@ -19,6 +19,7 @@ uses
 type
   TRacePerfStartupStage = (rpssTaskStarted, rpssFtpSent, rpssFtpReply, rpssParseStarted, rpssEntriesParsed, rpssCandidatesSorted, rpssTuzeljStarted);
   TRacePerfStartupLock = (rpslDirlistParse, rpslCandidateScan, rpslDestinationCheck);
+  TRacePerfRuleStage = (rprsSource, rprsSiteAllow, rprsDestinations);
 
   { Resource which prevented assigning a race task. }
   TRacePerfSlotReason = (rpsrNoFreeSlot, //< no free slot reported
@@ -121,6 +122,8 @@ type
     fStartupLockWaitUs, fStartupLockHoldUs: array[TRacePerfStartupLock] of Int64;
     fStartupLockWaitMaxUs, fStartupLockHoldMaxUs: array[TRacePerfStartupLock] of Int64;
     fStartupLockCounts: array[TRacePerfStartupLock] of integer;
+    fRuleElapsedUs, fRuleLockWaitUs, fRuleLockHoldUs, fRuleFinishedUs: array[TRacePerfRuleStage] of Int64;
+    fRuleCalls: array[TRacePerfRuleStage] of integer;
     fFirstRaceCreatedUs: Int64; //< first race task created on any site
     fFirstRaceTuzeljStartUs, fFirstRaceDestinationReadyUs, fFirstRaceCandidateScanUs: Int64;
     fFirstRaceCtorStartUs, fFirstRaceCtorDoneUs, fFirstRaceTaskReadyUs: Int64;
@@ -151,6 +154,7 @@ type
     procedure MarkDirlistCreated(const aSiteName: String; const aDir: String = ''; const aInfo: String = ''; const aNowUs: Int64 = 0);
     procedure MarkStartupStage(const aStage: TRacePerfStartupStage; const aNowUs: Int64 = 0);
     procedure MarkStartupLockTiming(const aKind: TRacePerfStartupLock; const aWaitStartedUs, aAcquiredUs, aReleasedUs: Int64);
+    procedure MarkRuleStage(const aStage: TRacePerfRuleStage; const aElapsedUs, aLockWaitUs, aLockHoldUs, aFinishedUs: Int64; const aCalls: integer);
     { A nonempty dirlist for @link(aSiteName) finished parsing and follow-up processing
       @param(aDir dir inside the release, '' is the main dir)
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
@@ -376,6 +380,29 @@ begin
     finally fLock.Leave; end;
   except on E: Exception do Debug(dpError, section, 'MarkStartupLockTiming: %s', [E.Message]); end;
 end;
+
+procedure TRacePerf.MarkRuleStage(const aStage: TRacePerfRuleStage; const aElapsedUs, aLockWaitUs, aLockHoldUs, aFinishedUs: Int64; const aCalls: integer);
+begin
+  try
+    fLock.Enter('MarkRuleStage');
+    try
+      if fRuleFinishedUs[aStage] = 0 then
+      begin
+        fRuleElapsedUs[aStage] := aElapsedUs;
+        fRuleLockWaitUs[aStage] := aLockWaitUs;
+        fRuleLockHoldUs[aStage] := aLockHoldUs;
+        fRuleFinishedUs[aStage] := aFinishedUs;
+        fRuleCalls[aStage] := aCalls;
+      end;
+    finally
+      fLock.Leave;
+    end;
+  except
+    on E: Exception do
+      Debug(dpError, section, 'MarkRuleStage: %s', [E.Message]);
+  end;
+end;
+
 
 procedure TRacePerf.MarkDirlistCreated(const aSiteName: String; const aDir: String; const aInfo: String; const aNowUs: Int64);
 var
@@ -986,6 +1013,8 @@ var
   fLine, fMkdirWait, fMkdirExec, fMkdirInfo, fRaceWait, fDirlistInfo, fGlobalLine, fDirName, fDirCreatedInfo, fStartupLine, fFirstRacePathLine: String;
   fStage: TRacePerfStartupStage;
   fLockKind: TRacePerfStartupLock;
+  fRuleStage: TRacePerfRuleStage;
+  fRulesLine: String;
 begin
   Result := TStringList.Create;
   fLock.Enter('AsStrings');
@@ -1029,6 +1058,24 @@ begin
            _FormatUsAsMs(fStartupLockHoldMaxUs[fLockKind]) + ' ms']);
       end;
     if fStartupLine <> '' then Result.Add('Startup path:' + fStartupLine);
+
+    fRulesLine := '';
+    for fRuleStage := Low(TRacePerfRuleStage) to High(TRacePerfRuleStage) do
+      if fRuleFinishedUs[fRuleStage] > 0 then
+      begin
+        case fRuleStage of
+          rprsSource: fLine := 'source';
+          rprsSiteAllow: fLine := 'site-allow';
+          rprsDestinations: fLine := 'destinations';
+        end;
+        if fRulesLine <> '' then fRulesLine := fRulesLine + ' | ';
+        fRulesLine := fRulesLine + Format('%s %s, done %s (%d calls; kb_lock wait %s, hold %s)',
+          [fLine, _FormatUsAsMs(fRuleElapsedUs[fRuleStage]) + ' ms',
+           FormatRelUs(fRuleFinishedUs[fRuleStage]), fRuleCalls[fRuleStage],
+           _FormatUsAsMs(fRuleLockWaitUs[fRuleStage]) + ' ms',
+           _FormatUsAsMs(fRuleLockHoldUs[fRuleStage]) + ' ms']);
+      end;
+    if fRulesLine <> '' then Result.Add('Rules path: ' + fRulesLine);
 
     if fFirstRaceTuzeljStartUs <> 0 then
     begin

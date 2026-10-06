@@ -13,6 +13,7 @@ type
   TTestRacePerf = class(TTestCase)
   published
     procedure TestMarkersAndOutput;
+    procedure TestRuleTimingFirstPass;
     procedure TestEmptyOutput;
     procedure TestOneShotMarkers;
     procedure TestDirectoryMarkers;
@@ -83,6 +84,31 @@ begin
       CheckTrue(Pos('1 ok / 1 err', fText) > 0, 'race results missing: ' + fText);
       CheckTrue(Pos('2 dup dropped', fText) > 0, 'dup dropped missing: ' + fText);
       CheckTrue(Pos('complete +11.000 s', fText) > 0, 'complete missing: ' + fText);
+    finally
+      fLines.Free;
+    end;
+  finally
+    fPerf.Free;
+  end;
+end;
+
+
+procedure TTestRacePerf.TestRuleTimingFirstPass;
+var
+  fPerf: TRacePerf;
+  fLines: TStringList;
+  fText: String;
+begin
+  fPerf := TRacePerf.Create(1000000);
+  try
+    fPerf.MarkRuleStage(rprsSource, 10, 2, 3, 1010000, 1);
+    fPerf.MarkRuleStage(rprsSiteAllow, 100, 10, 60, 1020000, 4);
+    fPerf.MarkRuleStage(rprsDestinations, 200, 20, 140, 1030000, 5);
+    fPerf.MarkRuleStage(rprsDestinations, 50, 5, 30, 1990000, 2);
+    fLines := fPerf.AsStrings;
+    try
+      fText := fLines.Text;
+      CheckTrue(Pos('Rules path: source 0.010 ms, done +10.000 ms (1 calls; kb_lock wait 0.002 ms, hold 0.003 ms) | site-allow 0.100 ms, done +20.000 ms (4 calls; kb_lock wait 0.010 ms, hold 0.060 ms) | destinations 0.200 ms, done +30.000 ms (5 calls; kb_lock wait 0.020 ms, hold 0.140 ms)', fText) > 0, fText);
     finally
       fLines.Free;
     end;

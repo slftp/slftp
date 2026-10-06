@@ -75,6 +75,7 @@ uses
   debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
   taskrace, sitesunit, queueunit, irc, SysUtils, fake, mystrings, tasksunit,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup, encinifile,
+  raceperfunit,
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
@@ -196,6 +197,9 @@ var
   dlt: TPazoDirlistTask;
   l: TLoginTask;
   fPretimeLookupTask: TPazoPretimeLookupTask;
+  fRuleStageStartUs, fRuleStageEndUs, fRuleLockWaitStartUs, fRuleLockAcquiredUs, fRuleLockReleasedUs: Int64;
+  fRuleElapsedUs, fRuleLockWaitUs, fRuleLockHoldUs: Int64;
+  fRuleCallCount: integer;
 
   { Removes the oldest knowledge base entries }
   procedure KbListsCleanUp;
@@ -719,13 +723,22 @@ begin
   // implement firerules, routes, stb. set rs.srcsite:= rss.sitename;
   if (not (event in [kbeNUKE, kbeADDPRE])) then
   begin
+    fRuleStageStartUs := TRacePerf.NowMicroSeconds;
+    fRuleLockWaitStartUs := TRacePerf.NowMicroSeconds;
     kb_lock.Enter('kb_AddB_3');
+    fRuleLockAcquiredUs := TRacePerf.NowMicroSeconds;
     try
       rule_result := raDrop;
       rule_result := FireRuleSet(p, psource);
     finally
+      fRuleLockReleasedUs := TRacePerf.NowMicroSeconds;
       kb_lock.Leave;
     end;
+    fRuleStageEndUs := TRacePerf.NowMicroSeconds;
+    fRuleElapsedUs := fRuleStageEndUs - fRuleStageStartUs;
+    p.RacePerf.MarkRuleStage(rprsSource, fRuleElapsedUs,
+      fRuleLockAcquiredUs - fRuleLockWaitStartUs,
+      fRuleLockReleasedUs - fRuleLockAcquiredUs, fRuleStageEndUs, 1);
 
     // announce SKIP and DONT MATCH only if the site is not a PRE site
     if (psource <> nil) and (psource.status <> rssRealPre) then
@@ -745,6 +758,10 @@ begin
 
   try
     // check rules for site only if needed
+    fRuleStageStartUs := TRacePerf.NowMicroSeconds;
+    fRuleLockWaitUs := 0;
+    fRuleLockHoldUs := 0;
+    fRuleCallCount := 0;
     for i := p.PazoSitesList.Count - 1 downto 0 do
     begin
       try
@@ -754,21 +771,35 @@ begin
         Break;
       end;
       ps := TPazoSite(p.PazoSitesList[i]);
+      fRuleLockWaitStartUs := TRacePerf.NowMicroSeconds;
       kb_lock.Enter('kb_AddB_4');
+      fRuleLockAcquiredUs := TRacePerf.NowMicroSeconds;
       try
         if (ps.status in [rssNotAllowed, rssNotAllowedButItsThere]) then
         begin
+          Inc(fRuleCallCount);
           if FireRuleSet(p, ps) = raAllow then
           begin
             ps.status := rssAllowed;
           end;
         end;
       finally
+        fRuleLockReleasedUs := TRacePerf.NowMicroSeconds;
+        Inc(fRuleLockWaitUs, fRuleLockAcquiredUs - fRuleLockWaitStartUs);
+        Inc(fRuleLockHoldUs, fRuleLockReleasedUs - fRuleLockAcquiredUs);
         kb_lock.Leave;
       end;
     end;
+    fRuleStageEndUs := TRacePerf.NowMicroSeconds;
+    fRuleElapsedUs := fRuleStageEndUs - fRuleStageStartUs;
+    p.RacePerf.MarkRuleStage(rprsSiteAllow, fRuleElapsedUs, fRuleLockWaitUs,
+      fRuleLockHoldUs, fRuleStageEndUs, fRuleCallCount);
 
     // now add all dst
+    fRuleStageStartUs := TRacePerf.NowMicroSeconds;
+    fRuleLockWaitUs := 0;
+    fRuleLockHoldUs := 0;
+    fRuleCallCount := 0;
     for i := p.PazoSitesList.Count - 1 downto 0 do
     begin
       try
@@ -778,13 +809,23 @@ begin
         Break;
       end;
       ps := TPazoSite(p.PazoSitesList[i]);
+      fRuleLockWaitStartUs := TRacePerf.NowMicroSeconds;
       kb_lock.Enter('kb_AddB_5');
+      fRuleLockAcquiredUs := TRacePerf.NowMicroSeconds;
       try
+        Inc(fRuleCallCount);
         FireRules(p, ps);
       finally
+        fRuleLockReleasedUs := TRacePerf.NowMicroSeconds;
+        Inc(fRuleLockWaitUs, fRuleLockAcquiredUs - fRuleLockWaitStartUs);
+        Inc(fRuleLockHoldUs, fRuleLockReleasedUs - fRuleLockAcquiredUs);
         kb_lock.Leave;
       end;
     end;
+    fRuleStageEndUs := TRacePerf.NowMicroSeconds;
+    fRuleElapsedUs := fRuleStageEndUs - fRuleStageStartUs;
+    p.RacePerf.MarkRuleStage(rprsDestinations, fRuleElapsedUs, fRuleLockWaitUs,
+      fRuleLockHoldUs, fRuleStageEndUs, fRuleCallCount);
   except
     on e: Exception do
     begin
