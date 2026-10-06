@@ -68,7 +68,7 @@ begin
       CheckEquals(4, fLines.Count, 'expected global, startup, site and main directory');
       fText := fLines.Text;
 
-      CheckTrue(Pos('Startup path: task started +300.000 ms | parse started +100.000 ms | candidates sorted +200.000 ms | lock candidate-scan 1x wait 0.050 ms (max 0.050 ms), hold 0.030 ms (max 0.030 ms)', fText) > 0, 'startup lock path missing: ' + fText);
+      CheckTrue(Pos('Startup path: task started +300.000 ms | parse started +100.000 ms | candidates sorted +200.000 ms | lock candidate-scan 1x wait 50.000 ms (max 50.000 ms), hold 30.000 ms (max 30.000 ms)', fText) > 0, 'startup lock path missing: ' + fText);
       CheckTrue(Pos('first dirlist task +100.000 ms', fText) > 0, 'global first dirlist missing: ' + fText);
       CheckTrue(Pos('first race created +750.000 ms', fText) > 0, 'global first race created missing: ' + fText);
       CheckTrue(Pos('all tasks done +11.500 s', fText) > 0, 'global idle missing: ' + fText);
