@@ -18,7 +18,7 @@ uses
 
 type
   TRacePerfStartupStage = (rpssTaskStarted, rpssFtpSent, rpssFtpReply, rpssParseStarted, rpssEntriesParsed, rpssCandidatesSorted, rpssTuzeljStarted);
-  TRacePerfStartupLock = (rpslDirlistParse, rpslCandidateScan);
+  TRacePerfStartupLock = (rpslDirlistParse, rpslCandidateScan, rpslDestinationCheck);
 
   { Resource which prevented assigning a race task. }
   TRacePerfSlotReason = (rpsrNoFreeSlot, //< no free slot reported
@@ -1002,6 +1002,7 @@ begin
         case fLockKind of
           rpslDirlistParse: fLine := 'dirlist-parse';
           rpslCandidateScan: fLine := 'candidate-scan';
+          rpslDestinationCheck: fLine := 'destination-check';
         end;
         fStartupLine := fStartupLine + Format(' | lock %s %dx wait %s (max %s), hold %s (max %s)',
           [fLine, fStartupLockCounts[fLockKind], _FormatUsAsMs(fStartupLockWaitUs[fLockKind]) + ' ms',

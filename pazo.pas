@@ -439,7 +439,7 @@ var
   de, dde: TDirListEntry;
   s, fSourceSite: TSite;
   fd: String;
-  fTuzeljStartUs: Int64;
+  fTuzeljStartUs, fDestLockWaitStartedUs, fDestLockAcquiredUs, fDestLockReleasedUs: Int64;
 begin
   Result := False;
   fTuzeljStartUs := TRacePerf.NowMicroSeconds;
@@ -545,7 +545,9 @@ begin
           Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Checking if mkdir is needed on %s', [fd, Name, dst.Name, dst.Name]);
           if ((dstdl.entries <> nil) and (dstdl.entries.Count = 0)) then
           begin
+            fDestLockWaitStartedUs := TRacePerf.NowMicroSeconds;
             dstdl.dirlist_lock.Enter('TPazoSite.Tuzelj');
+            fDestLockAcquiredUs := TRacePerf.NowMicroSeconds;
             try
               if ((dstdl.need_mkdir) and (dstdl.dependency_mkdir = '')) then
               begin
@@ -564,7 +566,9 @@ begin
                 dstdl.dependency_mkdir := pm.UidText;
               end;
             finally
+              fDestLockReleasedUs := TRacePerf.NowMicroSeconds;
               dstdl.dirlist_lock.Leave;
+              pazo.RacePerf.MarkStartupLockTiming(rpslDestinationCheck, fDestLockWaitStartedUs, fDestLockAcquiredUs, fDestLockReleasedUs);
             end;
               // Finally add mkdir task
             if pm <> nil then
