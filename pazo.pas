@@ -1740,7 +1740,6 @@ begin
       pazo.RacePerf.MarkStartupStage(rpssCandidatesSorted, fSortDoneUs);
 
       //do this outside dirlist_lock to avoid deadlocks
-      fTuzeljTraceStartedUs := TRacePerf.NowMicroSeconds;
       fTasksAdded := Tuzelj(netname, channel, dir, fFoundDirListEntries, fTraceId);
 
       if fTasksAdded then
