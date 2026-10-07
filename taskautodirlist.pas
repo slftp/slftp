@@ -316,6 +316,7 @@ begin
           else
             prestatus := True;
           pdt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', prestatus);
+          p.RacePerf.MarkDirlistCreated(ps.Name, '', 'autodirlist');
           AddTask(pdt);
         except
           on e: Exception do

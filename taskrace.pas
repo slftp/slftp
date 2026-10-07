@@ -296,7 +296,7 @@ begin
       exit;
     end;
 
-    if not s.Pwd(ps1.maindir) then
+    if not s.Pwd(ps1.maindir, mainpazo.RacePerf, dir) then
     begin
       if s.Status <> ssOnline then
         goto TryAgain;
@@ -320,7 +320,7 @@ begin
 
   fAbsoluteDir := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
   // Trying to get the dirlist
-  if not s.Dirlist(fAbsoluteDir) then
+  if not s.Dirlist(fAbsoluteDir, False, False, False, mainpazo.RacePerf, dir) then
   begin
     mainpazo.errorreason := Format('Cannot get the dirlist for source dir %s on %s.', [MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir, site1]);
 
@@ -469,6 +469,7 @@ begin
                 [mainpazo.rls.section, mainpazo.rls.rlsname, aktdir, site1]));
               try
                 fSubDirlistTasks.Add(TPazoDirlistTask.Create(netname, channel, site1, mainpazo, aktdir, is_pre));
+                mainpazo.RacePerf.MarkDirlistCreated(site1, aktdir, 'subdir');
                 if (de.subdirlist <> nil) then
                   de.subdirlist.dirlistadded := True;
               except
@@ -508,11 +509,12 @@ begin
   begin
     if (dir <> '') then
     begin
-      ps1.SetComplete(dir);
+      ps1.SetComplete(dir, 'dirlist');
     end
     else
     begin
       ps1.status := rssComplete;
+      mainpazo.RacePerf.MarkComplete(ps1.Name, 0, 'dirlist');
     end;
   end;
 
@@ -597,6 +599,7 @@ begin
     begin
       // do more dirlist
       r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
+      mainpazo.RacePerf.MarkDirlistCreated(ps1.Name, dir, 'readd');
       r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue(ps1, d));
 
       try
@@ -647,8 +650,10 @@ begin
           begin
             // do more dirlist
             r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
+            mainpazo.RacePerf.MarkDirlistCreated(ps1.Name, dir, 'readd');
             r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue(ps1, d));
             r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
+            mainpazo.RacePerf.MarkDirlistCreated(ps.Name, dir, 'readd');
             r_dst.startat := IncMilliSecond(Now(), r_dst.GetDirlistReaddValue(ps, dst_d));
 
             try
@@ -701,39 +706,44 @@ var
   secondsSinceLastChange: Int64;
 begin
   baseValue := GetNewdirDirlistReaddValue();
+  Result := baseValue;
+  try
 
-  if (aSite <> nil) and (aDirlist <> nil) then
-  begin
-    secondsSinceLastChange := SecondsBetween(Now, aDirlist.LastChanged);
+    if (aSite <> nil) and (aDirlist <> nil) then
+    begin
+      secondsSinceLastChange := SecondsBetween(Now, aDirlist.LastChanged);
 
-    // Intelligence Pack: Engine-Logic Polling
-    // If there are NO active transfers to this site for this release,
-    // we can safely slow down the polling, especially if nothing changed recently.
-    if (aSite.ActiveTransferCount = 0) then
-    begin
-      if (secondsSinceLastChange > 2) then
+      // Intelligence Pack: Engine-Logic Polling
+      // If there are NO active transfers to this site for this release,
+      // we can safely slow down the polling, especially if nothing changed recently.
+      if (aSite.ActiveTransferCount = 0) then
       begin
-        if dir = '' then
-          Result := Max(baseValue * 5, 1000)  // Main dir: throttle to 1s
-        else
-          Result := Max(baseValue * 10, 2000); // Subdirs: throttle to 2s
-        exit;
-      end;
-    end
-    else
-    begin
-      // Transfers ARE active on the site. But if THIS specific directory hasn't changed in 5 seconds,
-      // it might be a finished subdir (e.g. /Sample). We can throttle it slightly to focus
-      // the CPU on the active subdirs.
-      if (dir <> '') and (secondsSinceLastChange > 5) then
+        if (secondsSinceLastChange > 2) then
+        begin
+          if dir = '' then
+            Result := Max(baseValue * 5, 1000)  // Main dir: throttle to 1s
+          else
+            Result := Max(baseValue * 10, 2000); // Subdirs: throttle to 2s
+          exit;
+        end;
+      end
+      else
       begin
-        Result := Max(baseValue * 5, 1000);
-        exit;
+        // Transfers ARE active on the site. But if THIS specific directory hasn't changed in 5 seconds,
+        // it might be a finished subdir (e.g. /Sample). We can throttle it slightly to focus
+        // the CPU on the active subdirs.
+        if (dir <> '') and (secondsSinceLastChange > 5) then
+        begin
+          Result := Max(baseValue * 5, 1000);
+          exit;
+        end;
       end;
     end;
-  end;
 
-  Result := baseValue;
+  finally
+    if (mainpazo <> nil) and (aSite <> nil) then
+      mainpazo.RacePerf.MarkDirlistReadd(aSite.Name, dir, baseValue, Result);
+  end;
 end;
 
 function TPazoDirlistTask.TryCreateMkdirFromFailedDirlist(aDirlist: TDirList): TPazoMkdirTask;
@@ -778,6 +788,9 @@ begin
   // pattern in TPazoSite.Tuzelj (pazo.pas) to avoid holding the lock over it
   Debug(dpMessage, c_section, 'DIRLIST: creating MKDIR from failed dirlist: ' + self.Name);
 
+  // mark before AddTask: the queue thread can assign the task concurrently
+  // right after AddTask, so the creation timestamp must be recorded first
+  mainpazo.RacePerf.MarkMkdirCreated(ps1.Name, 'dirlist550', 0, dir);
   try
     AddTask(pm, True);
     Result := pm;
@@ -806,7 +819,7 @@ end;
 
 function TPazoMkdirTask.Execute(slot: Pointer): boolean;
 label
-  TryAgain;
+  TryAgain, CompleteMkdir;
 var
   s: TSiteSlot;
   aktdir: String;
@@ -815,6 +828,8 @@ var
   rule_err: String;
   numerrors: integer;
   tname: String;
+  fDirlist: TDirList;
+  fDirectoryUsable: boolean;
 
   function checkForSiteFailure: boolean;
   var
@@ -822,7 +837,7 @@ var
   begin
     Result := False;
     fulldir := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
-    if not s.Cwd(fulldir, True) then
+    if not s.Cwd(fulldir, True, mainpazo.RacePerf, dir) then
     begin
       irc_Adderror(Format('<c4>[ERROR]</c> %s %s', [tname, s.lastResponse]));
       ps1.MkdirError(dir);
@@ -861,6 +876,26 @@ begin
     exit;
   end;
 
+  { The task may wait in the queue after a dirlist already found this directory. }
+  fDirlist := nil;
+  if ps1.dirlist <> nil then
+    fDirlist := ps1.dirlist.FindDirlist(dir);
+  if fDirlist <> nil then
+  begin
+    fDirlist.dirlist_lock.Enter('TPazoMkdirTask.Execute-Recheck');
+    try
+      fDirectoryUsable := (not fDirlist.need_mkdir) and (not fDirlist.error);
+    finally
+      fDirlist.dirlist_lock.Leave;
+    end;
+    if fDirectoryUsable then
+    begin
+      Debug(dpMessage, c_section, 'Skipping stale MKDIR; directory is already usable: %s', [tname]);
+      failure := False;
+      goto CompleteMkdir;
+    end;
+  end;
+
   try
     Inc(numerrors);
     if numerrors > 3 then
@@ -895,7 +930,7 @@ begin
   //change working directory
   failure := False;
   try
-    failure := not s.Cwd(ps1.maindir, bIsMidnight);
+    failure := not s.Cwd(ps1.maindir, bIsMidnight, mainpazo.RacePerf, dir);
   except
     on e: Exception do
     begin
@@ -928,7 +963,7 @@ begin
   try
     if bIsMidnight then
     begin
-      if not s.Pwd(ps1.maindir) then
+      if not s.Pwd(ps1.maindir, mainpazo.RacePerf, dir) then
       begin
         ps1.MarkSiteAsFailed('cant PWD');
         mainpazo.errorreason := ps1.Name + ' marked as failed';
@@ -949,7 +984,10 @@ begin
 
   aktdir := MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
   if not s.Mkdir(aktdir) then
+  begin
+    mainpazo.RacePerf.MarkMkdirReply(site1, dir, 'MKD', 0, 'Command send/read failed');
     goto TryAgain;
+  end;
 
   failure := False;
 
@@ -962,6 +1000,7 @@ begin
 
     failure := True;
 
+    mainpazo.RacePerf.MarkMkdirReply(site1, dir, 'MKD', s.lastResponseCode, s.lastResponse);
     case s.lastResponseCode of
 
       400:
@@ -1175,6 +1214,7 @@ begin
 
   end;
 
+  CompleteMkdir:
   try
     if (failure) then
     begin

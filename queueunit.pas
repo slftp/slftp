@@ -46,6 +46,8 @@ type
 public
 
 
+{ Checks pending races under the queue lock; AddTask repeats this check atomically. }
+function HasPendingRace(const aPazoID: integer; const aSource, aDestination, aDir, aFilename: String): boolean;
 procedure QueueFire;
 procedure QueueStart;
 procedure AddTask(t: TTask);
@@ -92,7 +94,7 @@ implementation
 
 uses
   SysUtils, Types, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils,
-  tasktvinfolookup, taskhttpnfo, tasksitenfo, tasksitesfv, sitesunit;
+  tasktvinfolookup, taskhttpnfo, tasksitenfo, tasksitesfv, sitesunit, raceperfunit;
 
 const
   section = 'queue';
@@ -472,12 +474,19 @@ begin
     s1 := TSite(t.ssite1);
     s2 := TSite(t.ssite2);
     if s1.freeslots = 0 then
+    begin
+      t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s1.Name, rpsrNoFreeSlot, rprSource);
       exit;
+    end;
     if s2.freeslots = 0 then
+    begin
+      t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s2.Name, rpsrNoFreeSlot, rprDestination);
       exit;
+    end;
 
     if s2.MaxSimUpCooldownActive then
     begin
+      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s2.Name, rpbrMaxSimUp);
       if not fBusyDestinations.ContainsKey(s2) then
         fBusyDestinations.Add(s2, 0);
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Destination site %s is on MaxSim UP cooldown (%ds remaining), skipping %s',
@@ -487,6 +496,7 @@ begin
 
     if s1.MaxSimDownCooldownActive then
     begin
+      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s1.Name, rpbrMaxSimDown);
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Source site %s is on MaxSim DOWN cooldown (%ds remaining), skipping %s',
         [s1.Name, s1.MaxSimDownCooldownRemainingSeconds, t.FullName]);
       exit;
@@ -494,31 +504,47 @@ begin
 
     if fBusyDestinations.ContainsKey(s2) then
     begin
+      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s2.Name, rpbrBusyDestination);
       Debug(dpSpam, section, 'Destination site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
       exit;
     end;
 
     // first watch if it is not already in process to upload the same file to the same place
     if t.ps2.HasActiveTransfer(t.dir + t.filename) then
+    begin
+      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s2.Name, rpbrActiveTransfer);
       exit; // we are already sending this file to the same destination site
+    end;
 
     if s2.num_up >= s2.max_up then
+    begin
+      t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s2.Name, rpsrMaxUp, rprDestination);
       exit;
+    end;
 
     if t.ps1.HasActiveTransfer(t.dir + t.filename, s2.Name) then
+    begin
+      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s1.Name, rpbrReverseTransfer);
       exit; // we are already sending this file the opposite route
+    end;
 
     // or use 'if t.ps1.StatusRealPreOrShouldPre then' from pazo.pas but will also pre true when status = rssShouldPre
     //if t.ps1.status = rssRealPre then
     if t.ps1.StatusRealPreOrShouldPre then
     begin
       if s1.num_dn >= s1.max_pre_dn then
+      begin
+        t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s1.Name, rpsrMaxPreDn, rprSource);
         exit;
+      end;
     end
     else
     begin
       if s1.num_dn >= s1.max_dn then
+      begin
+        t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s1.Name, rpsrMaxDn, rprSource);
         exit;
+      end;
     end;
 
     ss1 := nil;
@@ -545,11 +571,15 @@ begin
       end;
     end;
     if ss1 = nil then
+    begin
+      t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s1.Name, rpsrNoOnlineSlot, rprSource);
       exit;
+    end;
 
 
     if not s2.AcquireSlotsAssignmentLock(1, 'TryToAssignRaceSlots') then
     begin
+      t.mainpazo.RacePerf.MarkAssignBlockedBusy(s2.Name, rpbrAssignmentLock);
       fBusyDestinations.Add(s2, 0);
       exit;
     end;
@@ -557,11 +587,17 @@ begin
     try
       // check again now that we have the lock at the destination
       if s2.num_up >= s2.max_up then
+      begin
+        t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s2.Name, rpsrMaxUp, rprDestination);
         exit;
+      end;
 
       // again check if this file is already being sent to the destination now that we have the slot assignment lock
       if t.ps2.HasActiveTransfer(t.dir + t.filename) then
+      begin
+        t.mainpazo.RacePerf.MarkAssignBlockedBusy(s2.Name, rpbrActiveTransfer);
         exit; // we are already sending this file to the same destination site
+      end;
 
       ss2 := nil;
       for fSiteSlotLoop in s2.slots do
@@ -574,12 +610,16 @@ begin
         end;
       end;
       if ss2 = nil then
+      begin
+        t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s2.Name, rpsrNoOnlineSlot, rprDestination);
         exit;
+      end;
 
       // now you can relax, just check if you don't abuse your max simultaneous uploads for a rip
       i := ss2.site.MaxUpPerRip;
       if ((i > 0) and (t.ps2.ActiveTransferCount >= i)) then
       begin
+        t.mainpazo.RacePerf.MarkAssignBlockedNoSlot(s2.Name, rpsrMaxUpPerRip, rprDestination);
         Debug(dpSpam, section, 'We shouldnt upload more than maxupperrip value [' + IntToStr(i) + '] for' + ss2.Name);
         exit;
       end;
@@ -600,6 +640,7 @@ begin
       ss2.uploadingto := True;
       ss1.todotask := t;
       ss2.todotask := t.dst;
+      t.mainpazo.RacePerf.MarkRaceAssigned(t.ps2.Name);
       ss2.Fire;
       ss1.Fire;
     finally
@@ -726,6 +767,8 @@ begin
 
     if t.wanted_up and s.MaxSimUpCooldownActive then
     begin
+      if t is TPazoRaceTask then
+        TPazoRaceTask(t).mainpazo.RacePerf.MarkAssignBlockedBusy(s.Name, rpbrMaxSimUp);
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Site %s is on MaxSim UP cooldown (%ds remaining), skip task %s',
         [s.Name, s.MaxSimUpCooldownRemainingSeconds, t.FullName]);
       exit;
@@ -733,6 +776,8 @@ begin
 
     if t.wanted_dn and s.MaxSimDownCooldownActive then
     begin
+      if t is TPazoRaceTask then
+        TPazoRaceTask(t).mainpazo.RacePerf.MarkAssignBlockedBusy(s.Name, rpbrMaxSimDown);
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Site %s is on MaxSim DOWN cooldown (%ds remaining), skip task %s',
         [s.Name, s.MaxSimDownCooldownRemainingSeconds, t.FullName]);
       exit;
@@ -988,10 +1033,62 @@ begin
   Debug(dpSpam, section, 'QueueEmpty end: ' + sitename);
 end;
 
+function TQueueThread.HasPendingRace(const aPazoID: integer; const aSource, aDestination, aDir, aFilename: String): boolean;
+var
+  fTask: TTask;
+  fRaceTask: TPazoRaceTask;
+  fListIndex: integer;
+  fList: TObjectList;
+begin
+  Result := False;
+  { ponytail: reuse the linear queue scan; add an index only if profiling justifies it. }
+  try
+    main_lock.Enter('HasPendingRace');
+    try
+      for fListIndex := 0 to 1 do
+      begin
+        if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+        for fTask in fList do
+        begin
+          try
+            if (fTask is TPazoRaceTask) then
+            begin
+              fRaceTask := TPazoRaceTask(fTask);
+              if ((fRaceTask.ready = False) and (fRaceTask.readyerror = False) and
+                (fRaceTask.slot1 = nil) and (fRaceTask.pazo_id = aPazoID) and
+                (fRaceTask.site1 = aSource) and (fRaceTask.site2 = aDestination) and
+                (fRaceTask.dir = aDir) and (fRaceTask.filename = aFilename)) then
+              begin
+                Result := True;
+                exit;
+              end;
+            end;
+          except
+            on E: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] HasPendingRace (loop) : %s', [e.Message]));
+              continue;
+            end;
+          end;
+        end;
+      end;
+    finally
+      main_lock.Leave;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] HasPendingRace : %s', [e.Message]));
+      Result := False;
+      exit;
+    end;
+  end;
+end;
+
 function TQueueThread.TaskAlreadyInQueue(t: TTask): boolean;
 var
   fTask:    TTask;
-  tpr, i_tpr: TPazoRaceTask;
+  tpr: TPazoRaceTask;
   tpd, i_tpd: TPazoDirlistTask;
   tpm, i_tpm: TPazoMkdirTask;
   tpl, i_tpl: TLoginTask;
@@ -1002,48 +1099,8 @@ begin
 
   if (t is TPazoRaceTask) then
   begin
-    try
-      tpr := TPazoRaceTask(t);
-      main_lock.Enter('TaskAlreadyInQueue1');
-      try
-        for fListIndex := 0 to 1 do
-        begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for fTask in fList do
-          begin
-            try
-              if (fTask is TPazoRaceTask) then
-              begin
-                i_tpr := TPazoRaceTask(fTask);
-                if ((i_tpr.ready = False) and (i_tpr.readyerror = False) and
-                  (i_tpr.slot1 = nil) and (i_tpr.pazo_id = tpr.pazo_id) and
-                  (i_tpr.site1 = tpr.site1) and (i_tpr.site2 = tpr.site2) and
-                  (i_tpr.dir = tpr.dir) and (i_tpr.filename = tpr.filename)) then
-                begin
-                  Result := True;
-                  exit;
-                end;
-              end;
-            except
-              on E: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoRaceTask (loop) : %s', [e.Message]));
-                continue;
-              end;
-            end;
-          end;
-        end;
-      finally
-        main_lock.Leave;
-      end;
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoRaceTask : %s', [e.Message]));
-        Result := False;
-        exit;
-      end;
-    end;
+    tpr := TPazoRaceTask(t);
+    Result := HasPendingRace(tpr.pazo_id, tpr.site1, tpr.site2, tpr.dir, tpr.filename);
     exit;
   end;
 
@@ -1229,10 +1286,25 @@ begin
     try
       if TaskAlreadyInQueue(t) then
       begin
+        // performance timeline: count duplicate race tasks dropped here
+        // (must never disturb task handling, so it is wrapped in try..except)
+        if t is TPazoRaceTask then
+        begin
+          try
+            TPazoRaceTask(t).mainpazo.RacePerf.MarkRaceTaskDupDropped(TPazoRaceTask(t).ps2.Name);
+          except
+          end;
+        end
+        else if t is TPazoDirlistTask then
+        begin
+          TPazoDirlistTask(t).mainpazo.RacePerf.MarkDirlistDupDropped(
+            TPazoDirlistTask(t).site1, TPazoDirlistTask(t).dir);
+        end;
+
         // don't add the task to the queue, just notify and free right away if it's a duplicate
         if t.IsNotifyTask then
           TaskReady(t);
-          
+
         t.Free;
         exit;
       end;

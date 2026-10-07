@@ -6,7 +6,7 @@ unit kb;
 interface
 
 uses
-  Classes, SyncObjs, slcriticalsection2, kb.releaseinfo, pazo;
+  Classes, SyncObjs, slcriticalsection2, kb.releaseinfo, pazo, Generics.Collections;
 
 type
   TKBThread = class(TThread)
@@ -29,6 +29,10 @@ function FindReleaseInKbList(const rls: String): String;
       @returns(The section name if the release has been found, an empty string otherwise) }
 function FindReleaseInLatestKBList(const aRls: String): String;
 function FindPazoByRls(const rlsname: String): TPazo;
+{ Finds all releases/pazos in the KB list with the given release name, regardless of the section
+      @param(aRlsName The release name to be searched for)
+      @returns(List with the found TPazo objects (empty if none), caller must free the list. The TPazo objects are still owned by the KB list.) }
+function FindPazosByRlsName(const aRlsName: String): TList<TPazo>;
 function FindPazoById(const id: integer): TPazo;
 function FindPazoByName(const section, rlsname: String): TPazo;
 { Finds a release/pazo in the KB list by the given key. The key must be in the format of the KB list keys which is 'section-releasename'
@@ -71,6 +75,7 @@ uses
   debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
   taskrace, sitesunit, queueunit, irc, SysUtils, fake, mystrings, tasksunit,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup, encinifile,
+  raceperfunit,
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
@@ -195,6 +200,11 @@ var
   fSourceRank: TSiteRank;
   fSourceSites: TList<TSiteRank>;
   fAdder: Integer;
+  fRuleStageStartUs, fRuleStageEndUs, fRuleLockWaitStartUs, fRuleLockAcquiredUs, fRuleLockReleasedUs: Int64;
+  fKbAddBEntryUs, fKbLock1WaitStartUs, fKbLock1AcquiredUs, fKbLock1ReleasedUs: Int64;
+  fKbLock2WaitStartUs, fKbLock2AcquiredUs, fKbLock2ReleasedUs: Int64;
+  fRuleElapsedUs, fRuleLockWaitUs, fRuleLockHoldUs: Int64;
+  fRuleCallCount: integer;
 
   { Removes the oldest knowledge base entries }
   procedure KbListsCleanUp;
@@ -269,11 +279,14 @@ var
   end;
 
 begin
+  fKbAddBEntryUs := TRacePerf.NowMicroSeconds;
   debug(dpSpam, rsections, '--> %s %s %s %s %s %d %d', [sitename, section, KBEventTypeToString(event), rls, cdno, integer(dontFire), integer(forceFire)]);
 
   Result := -1;
 
+  fKbLock1WaitStartUs := TRacePerf.NowMicroSeconds;
   kb_lock.Enter('kb_AddB_1');
+  fKbLock1AcquiredUs := TRacePerf.NowMicroSeconds;
   psource := nil;
   try
     // deny adding of a release twice with different section
@@ -403,10 +416,13 @@ begin
     KbListsCleanUp; // TODO: maybe run it only every 60mins? not needed to run it every time...
 
   finally
+    fKbLock1ReleasedUs := TRacePerf.NowMicroSeconds;
     kb_lock.Leave;
   end;
 
+  fKbLock2WaitStartUs := TRacePerf.NowMicroSeconds;
   kb_lock.Enter('kb_AddB_2');
+  fKbLock2AcquiredUs := TRacePerf.NowMicroSeconds;
   try
     i := kb_list.IndexOf(section + '-' + rls);
     if i = -1 then
@@ -581,6 +597,7 @@ begin
       end;
     end;
   finally
+    fKbLock2ReleasedUs := TRacePerf.NowMicroSeconds;
     kb_lock.Leave;
   end;
 
@@ -686,7 +703,7 @@ begin
     else if ((event = kbeCOMPLETE) and (not psource.StatusRealPreOrShouldPre)) then
     begin
       psource.dirlist.SetCompleteInfo(FromIrc);
-      psource.SetComplete(cdno);
+      psource.SetComplete(cdno, 'IRC COMPLETE');
     end;
 
     if (event = kbeNUKE) then
@@ -718,13 +735,25 @@ begin
   // implement firerules, routes, stb. set rs.srcsite:= rss.sitename;
   if (not (event in [kbeNUKE, kbeADDPRE])) then
   begin
+    fRuleStageStartUs := TRacePerf.NowMicroSeconds;
+    fRuleLockWaitStartUs := TRacePerf.NowMicroSeconds;
     kb_lock.Enter('kb_AddB_3');
+    fRuleLockAcquiredUs := TRacePerf.NowMicroSeconds;
     try
       rule_result := raDrop;
       rule_result := FireRuleSet(p, psource);
     finally
+      fRuleLockReleasedUs := TRacePerf.NowMicroSeconds;
       kb_lock.Leave;
     end;
+    fRuleStageEndUs := TRacePerf.NowMicroSeconds;
+    fRuleElapsedUs := fRuleStageEndUs - fRuleStageStartUs;
+    p.RacePerf.MarkRuleStage(rprsSource, fRuleElapsedUs,
+      fRuleLockAcquiredUs - fRuleLockWaitStartUs,
+      fRuleLockReleasedUs - fRuleLockAcquiredUs, fRuleStageEndUs, 1,
+      KBEventTypeToString(event), psource.Name, fKbAddBEntryUs, fRuleStageStartUs,
+      fKbLock1AcquiredUs - fKbLock1WaitStartUs, fKbLock1ReleasedUs - fKbLock1AcquiredUs,
+      fKbLock2AcquiredUs - fKbLock2WaitStartUs, fKbLock2ReleasedUs - fKbLock2AcquiredUs);
 
     // announce SKIP and DONT MATCH only if the site is not a PRE site
     if (psource <> nil) and (psource.status <> rssRealPre) then
@@ -744,6 +773,10 @@ begin
 
   try
     // check rules for site only if needed
+    fRuleStageStartUs := TRacePerf.NowMicroSeconds;
+    fRuleLockWaitUs := 0;
+    fRuleLockHoldUs := 0;
+    fRuleCallCount := 0;
     for i := p.PazoSitesList.Count - 1 downto 0 do
     begin
       try
@@ -753,21 +786,38 @@ begin
         Break;
       end;
       ps := TPazoSite(p.PazoSitesList[i]);
+      fRuleLockWaitStartUs := TRacePerf.NowMicroSeconds;
       kb_lock.Enter('kb_AddB_4');
+      fRuleLockAcquiredUs := TRacePerf.NowMicroSeconds;
       try
         if (ps.status in [rssNotAllowed, rssNotAllowedButItsThere]) then
         begin
+          Inc(fRuleCallCount);
           if FireRuleSet(p, ps) = raAllow then
           begin
             ps.status := rssAllowed;
           end;
         end;
       finally
+        fRuleLockReleasedUs := TRacePerf.NowMicroSeconds;
+        Inc(fRuleLockWaitUs, fRuleLockAcquiredUs - fRuleLockWaitStartUs);
+        Inc(fRuleLockHoldUs, fRuleLockReleasedUs - fRuleLockAcquiredUs);
         kb_lock.Leave;
       end;
     end;
+    fRuleStageEndUs := TRacePerf.NowMicroSeconds;
+    fRuleElapsedUs := fRuleStageEndUs - fRuleStageStartUs;
+    p.RacePerf.MarkRuleStage(rprsSiteAllow, fRuleElapsedUs, fRuleLockWaitUs,
+      fRuleLockHoldUs, fRuleStageEndUs, fRuleCallCount,
+      KBEventTypeToString(event), sitename, fKbAddBEntryUs, fRuleStageStartUs,
+      fKbLock1AcquiredUs - fKbLock1WaitStartUs, fKbLock1ReleasedUs - fKbLock1AcquiredUs,
+      fKbLock2AcquiredUs - fKbLock2WaitStartUs, fKbLock2ReleasedUs - fKbLock2AcquiredUs);
 
     // now add all dst
+    fRuleStageStartUs := TRacePerf.NowMicroSeconds;
+    fRuleLockWaitUs := 0;
+    fRuleLockHoldUs := 0;
+    fRuleCallCount := 0;
     for i := p.PazoSitesList.Count - 1 downto 0 do
     begin
       try
@@ -777,13 +827,26 @@ begin
         Break;
       end;
       ps := TPazoSite(p.PazoSitesList[i]);
+      fRuleLockWaitStartUs := TRacePerf.NowMicroSeconds;
       kb_lock.Enter('kb_AddB_5');
+      fRuleLockAcquiredUs := TRacePerf.NowMicroSeconds;
       try
+        Inc(fRuleCallCount);
         FireRules(p, ps);
       finally
+        fRuleLockReleasedUs := TRacePerf.NowMicroSeconds;
+        Inc(fRuleLockWaitUs, fRuleLockAcquiredUs - fRuleLockWaitStartUs);
+        Inc(fRuleLockHoldUs, fRuleLockReleasedUs - fRuleLockAcquiredUs);
         kb_lock.Leave;
       end;
     end;
+    fRuleStageEndUs := TRacePerf.NowMicroSeconds;
+    fRuleElapsedUs := fRuleStageEndUs - fRuleStageStartUs;
+    p.RacePerf.MarkRuleStage(rprsDestinations, fRuleElapsedUs, fRuleLockWaitUs,
+      fRuleLockHoldUs, fRuleStageEndUs, fRuleCallCount,
+      KBEventTypeToString(event), sitename, fKbAddBEntryUs, fRuleStageStartUs,
+      fKbLock1AcquiredUs - fKbLock1WaitStartUs, fKbLock1ReleasedUs - fKbLock1AcquiredUs,
+      fKbLock2AcquiredUs - fKbLock2WaitStartUs, fKbLock2ReleasedUs - fKbLock2AcquiredUs);
   except
     on e: Exception do
     begin
@@ -851,6 +914,8 @@ begin
               dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
               irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
               ps.dirlist.dirlistadded := True;
+              // Record creation before the queue can execute the task.
+              p.RacePerf.MarkDirlistCreated(ps.Name, '', KBEventTypeToString(event));
               AddTask(dlt, true);
             end;
 
@@ -860,6 +925,8 @@ begin
               dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
               irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
               ps.dirlist.dirlistadded := True;
+              // Record creation before the queue can execute the task.
+              p.RacePerf.MarkDirlistCreated(ps.Name, '', KBEventTypeToString(event));
               AddTask(dlt, true);
             end;
 
@@ -986,6 +1053,41 @@ begin
       begin
         Debug(dpError, 'kb', Format('[EXCEPTION] FindPazoByRls: %s', [e.Message]));
         Result := nil;
+      end;
+    end;
+  finally
+    kb_lock.Leave;
+  end;
+end;
+
+function FindPazosByRlsName(const aRlsName: String): TList<TPazo>;
+var
+  i: integer;
+  p: TPazo;
+begin
+  Result := TList<TPazo>.Create;
+  kb_lock.Enter('FindPazosByRlsName');
+  try
+    try
+      for i := kb_list.Count - 1 downto 0 do
+      begin
+        if i < 0 then
+          Break;
+
+        p := TPazo(kb_list.Objects[i]);
+        if p = nil then
+          Continue;
+
+        if p.rls = nil then
+          Continue;
+
+        if (CompareText(p.rls.rlsname, aRlsName) = 0) then
+          Result.Add(p);
+      end;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, 'kb', Format('[EXCEPTION] FindPazosByRlsName: %s', [e.Message]));
       end;
     end;
   finally
@@ -1565,6 +1667,7 @@ begin
         if ssites_info.Count = 0 then
           Continue;
         pdt := TPazoDirlistTask.Create('', '', ps.Name, p, '', True);
+        p.RacePerf.MarkDirlistCreated(ps.Name, '', 'incfiller');
         AddTask(pdt);
       except
         on e: Exception do
@@ -1581,6 +1684,7 @@ begin
         if dsites_info.Count = 0 then
           Continue;
         pdt := TPazoDirlistTask.Create('', '', ps.Name, p, '', False);
+        p.RacePerf.MarkDirlistCreated(ps.Name, '', 'incfiller');
         AddTask(pdt);
         irc_Addstats(Format(
           '<c11>[<b>iNC</b> <b>%s</b>]</c> Trying to complete <b>%s</b> on <b>%s</b> from <b>%s</b>',

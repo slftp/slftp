@@ -51,7 +51,7 @@ const
     'section' {, 'preurl', 'mysql'});
 
   { Declarations of all IRC commands as @link(TIrcCommand) records }
-  ircCommandsArray: array[1..224] of TIrcCommand = (
+  ircCommandsArray: array[1..225] of TIrcCommand = (
     (cmd: 'GENERAL'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$general'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'general'),
@@ -240,6 +240,7 @@ const
     (cmd: 'kblist'; hnd: IrcKbList; minparams: 0; maxparams: 2; hlpgrp: 'kb'),
     (cmd: 'kbextra'; hnd: IrcKbExtra; minparams: 3; maxparams: - 1; hlpgrp: 'kb'),
     (cmd: 'kbadd'; hnd: IrcKbAdd; minparams: 4; maxparams: - 1; hlpgrp: 'kb'),
+    (cmd: 'releaseperf'; hnd: IrcReleasePerf; minparams: 1; maxparams: 1; hlpgrp: 'kb'),
 
     (cmd: 'INDEXER'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$indexer'),
     (cmd: 'indexstat'; hnd: IrcIndexStat; minparams: 0; maxparams: 0; hlpgrp: 'indexer'),
