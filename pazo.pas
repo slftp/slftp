@@ -801,7 +801,6 @@ begin
               Inc(fRejectDestinationComplete);
             end;
           end;
-        end;
       except
         on e: Exception do
         begin
