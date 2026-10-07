@@ -21,6 +21,14 @@ type
   TRacePerfStartupLock = (rpslDirlistParse, rpslCandidateScan, rpslDestinationCheck);
   TRacePerfRuleStage = (rprsSource, rprsSiteAllow, rprsDestinations);
 
+  TRacePerfDirlistStartupTrace = record
+    Id: integer;
+    SiteName, Dir: String;
+    ParseStartedUs, EntriesParsedUs, ScanStartedUs, ScanDoneUs: Int64;
+    SortStartedUs, SortDoneUs, TuzeljStartedUs, TuzeljDoneUs: Int64;
+    EntryCount, CandidateCount: integer;
+  end;
+
   { Resource which prevented assigning a race task. }
   TRacePerfSlotReason = (rpsrNoFreeSlot, //< no free slot reported
     rpsrNoOnlineSlot, //< no free online slot found
@@ -119,6 +127,8 @@ type
     fDetectedInfo: String; //< kb event which detected the release (e.g. 'NEWDIR', 'ADDPRE')
     fFirstDirlistCreatedUs: Int64; //< first dirlist task created on any site
     fStartupStages: array[TRacePerfStartupStage] of Int64;
+    fStartupDirlistTraces: TList<TRacePerfDirlistStartupTrace>;
+    fNextStartupDirlistTraceId, fOmittedStartupDirlistTraces: integer;
     fStartupLockWaitUs, fStartupLockHoldUs: array[TRacePerfStartupLock] of Int64;
     fStartupLockWaitMaxUs, fStartupLockHoldMaxUs: array[TRacePerfStartupLock] of Int64;
     fStartupLockCounts: array[TRacePerfStartupLock] of integer;
@@ -140,6 +150,7 @@ type
     function GetSiteLocked(const aSiteName: String): TRacePerfSiteInfo;
     { @returns(the dir info of @link(aSite) for @link(aDir), creating it on first use; caller must hold @link(fLock)) }
     function GetDirLocked(const aSite: TRacePerfSiteInfo; const aDir: String): TRacePerfDirInfo;
+    function FindStartupDirlistTraceLocked(const aTraceId: integer): integer;
     { @returns(@link(aUs) formatted relative to @link(fDetectedUs), e.g. '+123.456 ms', or '-' if unset) }
     function FormatRelUs(const aUs: Int64): String;
   public
@@ -156,6 +167,17 @@ type
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
     procedure MarkDirlistCreated(const aSiteName: String; const aDir: String = ''; const aInfo: String = ''; const aNowUs: Int64 = 0);
     procedure MarkStartupStage(const aStage: TRacePerfStartupStage; const aNowUs: Int64 = 0);
+    { Starts a bounded per-call trace for a dirlist that begins before the first race task.
+      @returns(a trace ID, or 0 when the trace limit is reached or the first race already exists) }
+    function BeginDirlistStartupTrace(const aSiteName, aDir: String; const aNowUs: Int64 = 0): integer;
+    { Records parsed entry count and completion time for @link(aTraceId). }
+    procedure MarkDirlistStartupParsed(const aTraceId, aEntryCount: integer; const aNowUs: Int64 = 0);
+    { Records candidate scan count and timing for @link(aTraceId). }
+    procedure MarkDirlistStartupScan(const aTraceId, aCandidateCount: integer; const aStartedUs, aDoneUs: Int64);
+    { Records sort timing for @link(aTraceId). }
+    procedure MarkDirlistStartupSort(const aTraceId: integer; const aStartedUs, aDoneUs: Int64);
+    { Records the correlated Tuzelj call timing for @link(aTraceId). }
+    procedure MarkDirlistStartupTuzelj(const aTraceId: integer; const aStartedUs, aDoneUs: Int64);
     procedure MarkStartupLockTiming(const aKind: TRacePerfStartupLock; const aWaitStartedUs, aAcquiredUs, aReleasedUs: Int64);
     { Records the first timing and its matching KB event/lock context atomically. }
     procedure MarkRuleStage(const aStage: TRacePerfRuleStage; const aElapsedUs, aLockWaitUs, aLockHoldUs, aFinishedUs: Int64; const aCalls: integer;
@@ -252,6 +274,7 @@ uses
 
 const
   section = 'raceperf';
+  CMaxStartupDirlistTraces = 24;
 
 { Formats a microsecond duration with invariant decimal separator
   @param(aUs microseconds)
@@ -301,11 +324,13 @@ begin
   fDetectedInfo := aDetectedInfo;
   fLock := TSlCriticalSection2.Create('raceperf_' + IntToHex(NativeUInt(Self), SizeOf(Pointer) * 2));
   fSites := TObjectDictionary<String, TRacePerfSiteInfo>.Create([doOwnsValues]);
+  fStartupDirlistTraces := TList<TRacePerfDirlistStartupTrace>.Create;
   inherited Create;
 end;
 
 destructor TRacePerf.Destroy;
 begin
+  fStartupDirlistTraces.Free;
   fSites.Free;
   fLock.Free;
   inherited Destroy;
@@ -362,6 +387,148 @@ begin
       if fStartupStages[aStage] = 0 then fStartupStages[aStage] := fNowUs;
     finally fLock.Leave; end;
   except on E: Exception do Debug(dpError, section, 'MarkStartupStage: %s', [E.Message]); end;
+end;
+
+function TRacePerf.FindStartupDirlistTraceLocked(const aTraceId: integer): integer;
+var
+  fIndex: integer;
+begin
+  Result := -1;
+  for fIndex := 0 to fStartupDirlistTraces.Count - 1 do
+    if fStartupDirlistTraces[fIndex].Id = aTraceId then
+      Exit(fIndex);
+end;
+
+function TRacePerf.BeginDirlistStartupTrace(const aSiteName, aDir: String; const aNowUs: Int64): integer;
+var
+  fNowUs: Int64;
+  fTrace: TRacePerfDirlistStartupTrace;
+begin
+  Result := 0;
+  try
+    fNowUs := aNowUs;
+    if fNowUs = 0 then
+      fNowUs := NowMicroSeconds;
+    fLock.Enter('BeginDirlistStartupTrace');
+    try
+      if fFirstRaceCreatedUs <> 0 then
+        Exit;
+      if fStartupDirlistTraces.Count >= CMaxStartupDirlistTraces then
+      begin
+        Inc(fOmittedStartupDirlistTraces);
+        Exit;
+      end;
+      Inc(fNextStartupDirlistTraceId);
+      fTrace := Default(TRacePerfDirlistStartupTrace);
+      fTrace.Id := fNextStartupDirlistTraceId;
+      fTrace.SiteName := aSiteName;
+      fTrace.Dir := aDir;
+      fTrace.ParseStartedUs := fNowUs;
+      fStartupDirlistTraces.Add(fTrace);
+      Result := fTrace.Id;
+    finally
+      fLock.Leave;
+    end;
+  except
+    on E: Exception do
+      Debug(dpError, section, 'BeginDirlistStartupTrace: %s', [E.Message]);
+  end;
+end;
+
+procedure TRacePerf.MarkDirlistStartupParsed(const aTraceId, aEntryCount: integer; const aNowUs: Int64);
+var
+  fNowUs: Int64;
+  fIndex: integer;
+  fTrace: TRacePerfDirlistStartupTrace;
+begin
+  if aTraceId = 0 then Exit;
+  try
+    fNowUs := aNowUs;
+    if fNowUs = 0 then fNowUs := NowMicroSeconds;
+    fLock.Enter('MarkDirlistStartupParsed');
+    try
+      fIndex := FindStartupDirlistTraceLocked(aTraceId);
+      if fIndex < 0 then Exit;
+      fTrace := fStartupDirlistTraces[fIndex];
+      fTrace.EntryCount := aEntryCount;
+      fTrace.EntriesParsedUs := fNowUs;
+      fStartupDirlistTraces[fIndex] := fTrace;
+    finally
+      fLock.Leave;
+    end;
+  except
+    on E: Exception do Debug(dpError, section, 'MarkDirlistStartupParsed: %s', [E.Message]);
+  end;
+end;
+
+procedure TRacePerf.MarkDirlistStartupScan(const aTraceId, aCandidateCount: integer; const aStartedUs, aDoneUs: Int64);
+var
+  fIndex: integer;
+  fTrace: TRacePerfDirlistStartupTrace;
+begin
+  if aTraceId = 0 then Exit;
+  try
+    fLock.Enter('MarkDirlistStartupScan');
+    try
+      fIndex := FindStartupDirlistTraceLocked(aTraceId);
+      if fIndex < 0 then Exit;
+      fTrace := fStartupDirlistTraces[fIndex];
+      fTrace.CandidateCount := aCandidateCount;
+      fTrace.ScanStartedUs := aStartedUs;
+      fTrace.ScanDoneUs := aDoneUs;
+      fStartupDirlistTraces[fIndex] := fTrace;
+    finally
+      fLock.Leave;
+    end;
+  except
+    on E: Exception do Debug(dpError, section, 'MarkDirlistStartupScan: %s', [E.Message]);
+  end;
+end;
+
+procedure TRacePerf.MarkDirlistStartupSort(const aTraceId: integer; const aStartedUs, aDoneUs: Int64);
+var
+  fIndex: integer;
+  fTrace: TRacePerfDirlistStartupTrace;
+begin
+  if aTraceId = 0 then Exit;
+  try
+    fLock.Enter('MarkDirlistStartupSort');
+    try
+      fIndex := FindStartupDirlistTraceLocked(aTraceId);
+      if fIndex < 0 then Exit;
+      fTrace := fStartupDirlistTraces[fIndex];
+      fTrace.SortStartedUs := aStartedUs;
+      fTrace.SortDoneUs := aDoneUs;
+      fStartupDirlistTraces[fIndex] := fTrace;
+    finally
+      fLock.Leave;
+    end;
+  except
+    on E: Exception do Debug(dpError, section, 'MarkDirlistStartupSort: %s', [E.Message]);
+  end;
+end;
+
+procedure TRacePerf.MarkDirlistStartupTuzelj(const aTraceId: integer; const aStartedUs, aDoneUs: Int64);
+var
+  fIndex: integer;
+  fTrace: TRacePerfDirlistStartupTrace;
+begin
+  if aTraceId = 0 then Exit;
+  try
+    fLock.Enter('MarkDirlistStartupTuzelj');
+    try
+      fIndex := FindStartupDirlistTraceLocked(aTraceId);
+      if fIndex < 0 then Exit;
+      fTrace := fStartupDirlistTraces[fIndex];
+      fTrace.TuzeljStartedUs := aStartedUs;
+      fTrace.TuzeljDoneUs := aDoneUs;
+      fStartupDirlistTraces[fIndex] := fTrace;
+    finally
+      fLock.Leave;
+    end;
+  except
+    on E: Exception do Debug(dpError, section, 'MarkDirlistStartupTuzelj: %s', [E.Message]);
+  end;
 end;
 
 procedure TRacePerf.MarkStartupLockTiming(const aKind: TRacePerfStartupLock; const aWaitStartedUs, aAcquiredUs, aReleasedUs: Int64);
@@ -1028,7 +1195,18 @@ var
   fStage: TRacePerfStartupStage;
   fLockKind: TRacePerfStartupLock;
   fRuleStage: TRacePerfRuleStage;
-  fRulesLine: String;
+  fRulesLine, fTraceDir: String;
+  fTrace: TRacePerfDirlistStartupTrace;
+  fTraceIndex: integer;
+
+  function _FormatElapsedUs(const aStartUs, aDoneUs: Int64): String;
+  begin
+    if (aStartUs = 0) or (aDoneUs = 0) then
+      Result := '-'
+    else
+      Result := _FormatUsAsMs(Max(0, aDoneUs - aStartUs)) + ' ms';
+  end;
+
 begin
   Result := TStringList.Create;
   fLock.Enter('AsStrings');
@@ -1072,6 +1250,26 @@ begin
            _FormatUsAsMs(fStartupLockHoldMaxUs[fLockKind]) + ' ms']);
       end;
     if fStartupLine <> '' then Result.Add('Startup path:' + fStartupLine);
+
+    for fTraceIndex := 0 to fStartupDirlistTraces.Count - 1 do
+    begin
+      fTrace := fStartupDirlistTraces[fTraceIndex];
+      fTraceDir := fTrace.Dir;
+      if fTraceDir = '' then fTraceDir := '/';
+      fLine := Format('Dirlist trace #%d %s %s: entries %d, parse %s..%s (%s), candidates %d, scan %s, sort %s..%s (%s), Tuzelj %s..%s (%s)',
+        [fTrace.Id, fTrace.SiteName, fTraceDir, fTrace.EntryCount,
+         FormatRelUs(fTrace.ParseStartedUs), FormatRelUs(fTrace.EntriesParsedUs),
+         _FormatElapsedUs(fTrace.ParseStartedUs, fTrace.EntriesParsedUs),
+         fTrace.CandidateCount,
+         _FormatElapsedUs(fTrace.ScanStartedUs, fTrace.ScanDoneUs),
+         FormatRelUs(fTrace.SortStartedUs), FormatRelUs(fTrace.SortDoneUs),
+         _FormatElapsedUs(fTrace.SortStartedUs, fTrace.SortDoneUs),
+         FormatRelUs(fTrace.TuzeljStartedUs), FormatRelUs(fTrace.TuzeljDoneUs),
+         _FormatElapsedUs(fTrace.TuzeljStartedUs, fTrace.TuzeljDoneUs)]);
+      Result.Add(fLine);
+    end;
+    if fOmittedStartupDirlistTraces > 0 then
+      Result.Add(Format('Dirlist traces omitted: %d (limit %d)', [fOmittedStartupDirlistTraces, CMaxStartupDirlistTraces]));
 
     fRulesLine := '';
     for fRuleStage := Low(TRacePerfRuleStage) to High(TRacePerfRuleStage) do

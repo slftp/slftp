@@ -1543,9 +1543,14 @@ var
   fTasksAdded: boolean;
   fSite: TSite;
   fLockWaitStartedUs, fLockAcquiredUs, fLockReleasedUs: Int64;
+  fParseStartedUs, fEntriesParsedUs, fSortStartedUs, fSortDoneUs: Int64;
+  fTuzeljTraceStartedUs, fTuzeljTraceDoneUs: Int64;
+  fTraceId, fEntryCount: integer;
 begin
   Result := False;
-  pazo.RacePerf.MarkStartupStage(rpssParseStarted);
+  fParseStartedUs := TRacePerf.NowMicroSeconds;
+  fTraceId := pazo.RacePerf.BeginDirlistStartupTrace(Name, dir, fParseStartedUs);
+  pazo.RacePerf.MarkStartupStage(rpssParseStarted, fParseStartedUs);
 
   // exit if no access to dirlist object
   if dirlist = nil then
@@ -1577,7 +1582,12 @@ begin
     end;
   end;
 
-  pazo.RacePerf.MarkStartupStage(rpssEntriesParsed);
+  fEntriesParsedUs := TRacePerf.NowMicroSeconds;
+  fEntryCount := 0;
+  if d.entries <> nil then
+    fEntryCount := d.entries.Count;
+  pazo.RacePerf.MarkDirlistStartupParsed(fTraceId, fEntryCount, fEntriesParsedUs);
+  pazo.RacePerf.MarkStartupStage(rpssEntriesParsed, fEntriesParsedUs);
   if not d.need_mkdir then
     pazo.RacePerf.MarkDirectoryUsable(Name, dir);
 
@@ -1619,12 +1629,19 @@ begin
         d.dirlist_lock.Leave;
         pazo.RacePerf.MarkStartupLockTiming(rpslCandidateScan, fLockWaitStartedUs, fLockAcquiredUs, fLockReleasedUs);
       end;
+      pazo.RacePerf.MarkDirlistStartupScan(fTraceId, fFoundDirListEntries.Count, fLockWaitStartedUs, fLockReleasedUs);
 
+      fSortStartedUs := TRacePerf.NowMicroSeconds;
       SortDirlistEntries(fFoundDirListEntries);
-      pazo.RacePerf.MarkStartupStage(rpssCandidatesSorted);
+      fSortDoneUs := TRacePerf.NowMicroSeconds;
+      pazo.RacePerf.MarkDirlistStartupSort(fTraceId, fSortStartedUs, fSortDoneUs);
+      pazo.RacePerf.MarkStartupStage(rpssCandidatesSorted, fSortDoneUs);
 
       //do this outside dirlist_lock to avoid deadlocks
+      fTuzeljTraceStartedUs := TRacePerf.NowMicroSeconds;
       fTasksAdded := Tuzelj(netname, channel, dir, fFoundDirListEntries);
+      fTuzeljTraceDoneUs := TRacePerf.NowMicroSeconds;
+      pazo.RacePerf.MarkDirlistStartupTuzelj(fTraceId, fTuzeljTraceStartedUs, fTuzeljTraceDoneUs);
 
       if fTasksAdded then
       begin
