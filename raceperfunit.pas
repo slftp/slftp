@@ -157,9 +157,9 @@ type
     procedure MarkDirlistCreated(const aSiteName: String; const aDir: String = ''; const aInfo: String = ''; const aNowUs: Int64 = 0);
     procedure MarkStartupStage(const aStage: TRacePerfStartupStage; const aNowUs: Int64 = 0);
     procedure MarkStartupLockTiming(const aKind: TRacePerfStartupLock; const aWaitStartedUs, aAcquiredUs, aReleasedUs: Int64);
-    procedure MarkRuleStage(const aStage: TRacePerfRuleStage; const aElapsedUs, aLockWaitUs, aLockHoldUs, aFinishedUs: Int64; const aCalls: integer);
-    { Records the first kb_AddB event context and preceding lock timings for one rule stage. }
-    procedure MarkRuleContext(const aStage: TRacePerfRuleStage; const aEvent, aSite: String; const aEntryUs, aStartedUs, aLock1WaitUs, aLock1HoldUs, aLock2WaitUs, aLock2HoldUs: Int64);
+    { Records the first timing and its matching KB event/lock context atomically. }
+    procedure MarkRuleStage(const aStage: TRacePerfRuleStage; const aElapsedUs, aLockWaitUs, aLockHoldUs, aFinishedUs: Int64; const aCalls: integer;
+      const aEvent, aSite: String; const aEntryUs, aStartedUs, aLock1WaitUs, aLock1HoldUs, aLock2WaitUs, aLock2HoldUs: Int64);
     { A nonempty dirlist for @link(aSiteName) finished parsing and follow-up processing
       @param(aDir dir inside the release, '' is the main dir)
       @param(aNowUs explicit timestamp for testing, 0 means "use current time") }
@@ -386,7 +386,8 @@ begin
   except on E: Exception do Debug(dpError, section, 'MarkStartupLockTiming: %s', [E.Message]); end;
 end;
 
-procedure TRacePerf.MarkRuleStage(const aStage: TRacePerfRuleStage; const aElapsedUs, aLockWaitUs, aLockHoldUs, aFinishedUs: Int64; const aCalls: integer);
+procedure TRacePerf.MarkRuleStage(const aStage: TRacePerfRuleStage; const aElapsedUs, aLockWaitUs, aLockHoldUs, aFinishedUs: Int64; const aCalls: integer;
+  const aEvent, aSite: String; const aEntryUs, aStartedUs, aLock1WaitUs, aLock1HoldUs, aLock2WaitUs, aLock2HoldUs: Int64);
 begin
   try
     fLock.Enter('MarkRuleStage');
@@ -398,24 +399,6 @@ begin
         fRuleLockHoldUs[aStage] := aLockHoldUs;
         fRuleFinishedUs[aStage] := aFinishedUs;
         fRuleCalls[aStage] := aCalls;
-      end;
-    finally
-      fLock.Leave;
-    end;
-  except
-    on E: Exception do
-      Debug(dpError, section, 'MarkRuleStage: %s', [E.Message]);
-  end;
-end;
-
-
-procedure TRacePerf.MarkRuleContext(const aStage: TRacePerfRuleStage; const aEvent, aSite: String; const aEntryUs, aStartedUs, aLock1WaitUs, aLock1HoldUs, aLock2WaitUs, aLock2HoldUs: Int64);
-begin
-  try
-    fLock.Enter('MarkRuleContext');
-    try
-      if fRuleContextEvent[aStage] = '' then
-      begin
         fRuleContextEvent[aStage] := aEvent;
         fRuleContextSite[aStage] := aSite;
         fRuleContextEntryUs[aStage] := aEntryUs;
@@ -430,9 +413,10 @@ begin
     end;
   except
     on E: Exception do
-      Debug(dpError, section, 'MarkRuleContext: %s', [E.Message]);
+      Debug(dpError, section, 'MarkRuleStage: %s', [E.Message]);
   end;
 end;
+
 
 procedure TRacePerf.MarkDirlistCreated(const aSiteName: String; const aDir: String; const aInfo: String; const aNowUs: Int64);
 var

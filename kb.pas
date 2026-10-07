@@ -747,12 +747,10 @@ begin
     fRuleElapsedUs := fRuleStageEndUs - fRuleStageStartUs;
     p.RacePerf.MarkRuleStage(rprsSource, fRuleElapsedUs,
       fRuleLockAcquiredUs - fRuleLockWaitStartUs,
-      fRuleLockReleasedUs - fRuleLockAcquiredUs, fRuleStageEndUs, 1);
-    if psource <> nil then
-      p.RacePerf.MarkRuleContext(rprsSource, KBEventTypeToString(event), psource.Name,
-        fKbAddBEntryUs, fRuleStageStartUs,
-        fKbLock1AcquiredUs - fKbLock1WaitStartUs, fKbLock1ReleasedUs - fKbLock1AcquiredUs,
-        fKbLock2AcquiredUs - fKbLock2WaitStartUs, fKbLock2ReleasedUs - fKbLock2AcquiredUs);
+      fRuleLockReleasedUs - fRuleLockAcquiredUs, fRuleStageEndUs, 1,
+      KBEventTypeToString(event), psource.Name, fKbAddBEntryUs, fRuleStageStartUs,
+      fKbLock1AcquiredUs - fKbLock1WaitStartUs, fKbLock1ReleasedUs - fKbLock1AcquiredUs,
+      fKbLock2AcquiredUs - fKbLock2WaitStartUs, fKbLock2ReleasedUs - fKbLock2AcquiredUs);
 
     // announce SKIP and DONT MATCH only if the site is not a PRE site
     if (psource <> nil) and (psource.status <> rssRealPre) then
@@ -807,9 +805,8 @@ begin
     fRuleStageEndUs := TRacePerf.NowMicroSeconds;
     fRuleElapsedUs := fRuleStageEndUs - fRuleStageStartUs;
     p.RacePerf.MarkRuleStage(rprsSiteAllow, fRuleElapsedUs, fRuleLockWaitUs,
-      fRuleLockHoldUs, fRuleStageEndUs, fRuleCallCount);
-    p.RacePerf.MarkRuleContext(rprsSiteAllow, KBEventTypeToString(event), sitename,
-      fKbAddBEntryUs, fRuleStageStartUs,
+      fRuleLockHoldUs, fRuleStageEndUs, fRuleCallCount,
+      KBEventTypeToString(event), sitename, fKbAddBEntryUs, fRuleStageStartUs,
       fKbLock1AcquiredUs - fKbLock1WaitStartUs, fKbLock1ReleasedUs - fKbLock1AcquiredUs,
       fKbLock2AcquiredUs - fKbLock2WaitStartUs, fKbLock2ReleasedUs - fKbLock2AcquiredUs);
 
@@ -843,9 +840,8 @@ begin
     fRuleStageEndUs := TRacePerf.NowMicroSeconds;
     fRuleElapsedUs := fRuleStageEndUs - fRuleStageStartUs;
     p.RacePerf.MarkRuleStage(rprsDestinations, fRuleElapsedUs, fRuleLockWaitUs,
-      fRuleLockHoldUs, fRuleStageEndUs, fRuleCallCount);
-    p.RacePerf.MarkRuleContext(rprsDestinations, KBEventTypeToString(event), sitename,
-      fKbAddBEntryUs, fRuleStageStartUs,
+      fRuleLockHoldUs, fRuleStageEndUs, fRuleCallCount,
+      KBEventTypeToString(event), sitename, fKbAddBEntryUs, fRuleStageStartUs,
       fKbLock1AcquiredUs - fKbLock1WaitStartUs, fKbLock1ReleasedUs - fKbLock1AcquiredUs,
       fKbLock2AcquiredUs - fKbLock2WaitStartUs, fKbLock2ReleasedUs - fKbLock2AcquiredUs);
   except

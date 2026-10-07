@@ -102,10 +102,10 @@ var
 begin
   fPerf := TRacePerf.Create(1000000);
   try
-    fPerf.MarkRuleStage(rprsSource, 10, 2, 3, 1010000, 1);
-    fPerf.MarkRuleStage(rprsSiteAllow, 100, 10, 60, 1020000, 4);
-    fPerf.MarkRuleStage(rprsDestinations, 200, 20, 140, 1030000, 5);
-    fPerf.MarkRuleStage(rprsDestinations, 50, 5, 30, 1990000, 2);
+    fPerf.MarkRuleStage(rprsSource, 10, 2, 3, 1010000, 1, '', '', 0, 0, 0, 0, 0, 0);
+    fPerf.MarkRuleStage(rprsSiteAllow, 100, 10, 60, 1020000, 4, '', '', 0, 0, 0, 0, 0, 0);
+    fPerf.MarkRuleStage(rprsDestinations, 200, 20, 140, 1030000, 5, '', '', 0, 0, 0, 0, 0, 0);
+    fPerf.MarkRuleStage(rprsDestinations, 50, 5, 30, 1990000, 2, '', '', 0, 0, 0, 0, 0, 0);
     fLines := fPerf.AsStrings;
     try
       fText := fLines.Text;
@@ -127,8 +127,8 @@ var
 begin
   fPerf := TRacePerf.Create(1000000);
   try
-    fPerf.MarkRuleStage(rprsSource, 29, 0, 28, 1479190, 1);
-    fPerf.MarkRuleContext(rprsSource, 'UPDATE', 'SiteA', 1479100, 1479161, 0, 2, 1, 30);
+    fPerf.MarkRuleStage(rprsSource, 29, 0, 28, 1479190, 1, 'UPDATE', 'SiteA',
+      1479100, 1479161, 0, 2, 1, 30);
     fLines := fPerf.AsStrings;
     try
       fText := fLines.Text;
