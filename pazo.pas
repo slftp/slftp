@@ -442,7 +442,7 @@ var
   fTuzeljStartUs, fDestLockWaitStartedUs, fDestLockAcquiredUs, fDestLockReleasedUs: Int64;
   fDestinationReadyUs, fCandidateScanUs, fRaceCtorStartUs, fRaceCtorDoneUs: Int64;
   fDestinationsChecked, fCandidatesChecked: integer;
-  fRejectSourceSlots, fRejectDestinationError, fRejectDestinationNoUpload, fRejectDestinationDown: integer;
+  fRejectSourceError, fRejectSourceSlots, fRejectDestinationError, fRejectDestinationNoUpload, fRejectDestinationDown: integer;
   fRejectBadCrc, fRejectSourceDirlist, fRejectDestinationDirlist, fRejectUploadMode: integer;
   fRejectDestinationHasFile, fRejectDestinationEntryError, fRejectDestinationComplete: integer;
   fRejectHasSfvNfo, fRejectPendingRace, fRejectMissingSfv, fRaceTasksReady: integer;
@@ -450,6 +450,7 @@ var
 begin
   Result := False;
   fTuzeljStartUs := TRacePerf.NowMicroSeconds;
+  fRejectSourceError := 0;
   fRejectSourceSlots := 0;
   fRejectDestinationError := 0;
   fRejectDestinationNoUpload := 0;
@@ -482,7 +483,7 @@ begin
     // something's fucked
     if error then
     begin
-      Inc(fRejectDestinationError);
+      Inc(fRejectSourceError);
       exit;
     end;
 
@@ -520,7 +521,7 @@ begin
         try
           if error then
           begin
-            Inc(fRejectDestinationError);
+            Inc(fRejectSourceError);
             exit;
           end;
           if dst.error then
@@ -810,8 +811,8 @@ begin
       end;
     end;
   finally
-    fRejectSummary := Format('Tuzelj scan: destinations=%d, candidates=%d, race tasks=%d, rejected[source-slots=%d, dest-error=%d, no-upload=%d, down=%d, bad-crc=%d, source-dirlist=%d, dest-dirlist=%d, upload-mode=%d, dest-has-file=%d, dest-entry-error=%d, dest-complete=%d, has-sfv-nfo=%d, pending=%d, missing-sfv=%d]',
-      [fDestinationsChecked, fCandidatesChecked, fRaceTasksReady, fRejectSourceSlots, fRejectDestinationError,
+    fRejectSummary := Format('Tuzelj scan: destinations=%d, candidates=%d, race tasks=%d, rejected[source-error=%d, source-slots=%d, dest-error=%d, no-upload=%d, down=%d, bad-crc=%d, source-dirlist=%d, dest-dirlist=%d, upload-mode=%d, dest-has-file=%d, dest-entry-error=%d, dest-complete=%d, has-sfv-nfo=%d, pending=%d, missing-sfv=%d]',
+      [fDestinationsChecked, fCandidatesChecked, fRaceTasksReady, fRejectSourceError, fRejectSourceSlots, fRejectDestinationError,
        fRejectDestinationNoUpload, fRejectDestinationDown, fRejectBadCrc, fRejectSourceDirlist,
        fRejectDestinationDirlist, fRejectUploadMode, fRejectDestinationHasFile, fRejectDestinationEntryError,
        fRejectDestinationComplete, fRejectHasSfvNfo, fRejectPendingRace, fRejectMissingSfv]);
