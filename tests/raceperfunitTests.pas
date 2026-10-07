@@ -15,6 +15,7 @@ type
     procedure TestMarkersAndOutput;
     procedure TestRuleTimingFirstPass;
     procedure TestDirlistStartupTrace;
+    procedure TestDirlistStartupTraceRingBuffer;
     procedure TestRuleSourceContext;
     procedure TestEmptyOutput;
     procedure TestOneShotMarkers;
@@ -155,10 +156,10 @@ begin
     fPerf.MarkDirlistStartupParsed(fTraceId, 12, 1200000);
     fPerf.MarkDirlistStartupScan(fTraceId, 7, 1200000, 1210000);
     fPerf.MarkDirlistStartupSort(fTraceId, 1210000, 1310000);
-    fPerf.MarkDirlistStartupTuzelj(fTraceId, 1320000, 1340000);
+    fPerf.MarkDirlistStartupTuzelj(fTraceId, 1320000, 1340000, 'Tuzelj scan: destinations=2, candidates=7, race tasks=1, rejected[source-mode=2]');
     fLines := fPerf.AsStrings;
     try
-      CheckTrue(Pos('Dirlist trace #1 SiteA /: entries 12, parse +100.000 ms..+200.000 ms (100.000 ms), candidates 7, scan 10.000 ms, sort +210.000 ms..+310.000 ms (100.000 ms), Tuzelj +320.000 ms..+340.000 ms (20.000 ms)', fLines.Text) > 0, fLines.Text);
+      CheckTrue(Pos('Dirlist trace #1 SiteA /: entries 12, parse +100.000 ms..+200.000 ms (100.000 ms), candidates 7, scan 10.000 ms, sort +210.000 ms..+310.000 ms (100.000 ms), Tuzelj +320.000 ms..+340.000 ms (20.000 ms) | Tuzelj scan: destinations=2, candidates=7, race tasks=1, rejected[source-mode=2]', fLines.Text) > 0, fLines.Text);
     finally
       fLines.Free;
     end;
@@ -167,6 +168,33 @@ begin
   end;
 end;
 
+
+procedure TTestRacePerf.TestDirlistStartupTraceRingBuffer;
+var
+  fPerf: TRacePerf;
+  fLines: TStringList;
+  fTraceId, i: integer;
+begin
+  fPerf := TRacePerf.Create(1000000);
+  try
+    for i := 1 to 26 do
+    begin
+      fTraceId := fPerf.BeginDirlistStartupTrace('SiteA', '', 1000000 + i);
+      fPerf.MarkDirlistStartupParsed(fTraceId, i, 1000000 + i + 1);
+    end;
+    fLines := fPerf.AsStrings;
+    try
+      CheckTrue(Pos('Dirlist trace #3 SiteA', fLines.Text) > 0, fLines.Text);
+      CheckTrue(Pos('Dirlist trace #26 SiteA', fLines.Text) > 0, fLines.Text);
+      CheckEquals(0, Pos('Dirlist trace #1 SiteA', fLines.Text), fLines.Text);
+      CheckTrue(Pos('Older dirlist traces overwritten: 2 (showing last 24 before first race)', fLines.Text) > 0, fLines.Text);
+    finally
+      fLines.Free;
+    end;
+  finally
+    fPerf.Free;
+  end;
+end;
 
 procedure TTestRacePerf.TestEmptyOutput;
 var

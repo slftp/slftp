@@ -27,6 +27,7 @@ type
     ParseStartedUs, EntriesParsedUs, ScanStartedUs, ScanDoneUs: Int64;
     SortStartedUs, SortDoneUs, TuzeljStartedUs, TuzeljDoneUs: Int64;
     EntryCount, CandidateCount: integer;
+    TuzeljRejectSummary: String;
   end;
 
   { Resource which prevented assigning a race task. }
@@ -177,7 +178,7 @@ type
     { Records sort timing for @link(aTraceId). }
     procedure MarkDirlistStartupSort(const aTraceId: integer; const aStartedUs, aDoneUs: Int64);
     { Records the correlated Tuzelj call timing for @link(aTraceId). }
-    procedure MarkDirlistStartupTuzelj(const aTraceId: integer; const aStartedUs, aDoneUs: Int64);
+    procedure MarkDirlistStartupTuzelj(const aTraceId: integer; const aStartedUs, aDoneUs: Int64; const aRejectSummary: String = '');
     procedure MarkStartupLockTiming(const aKind: TRacePerfStartupLock; const aWaitStartedUs, aAcquiredUs, aReleasedUs: Int64);
     { Records the first timing and its matching KB event/lock context atomically. }
     procedure MarkRuleStage(const aStage: TRacePerfRuleStage; const aElapsedUs, aLockWaitUs, aLockHoldUs, aFinishedUs: Int64; const aCalls: integer;
@@ -415,8 +416,8 @@ begin
         Exit;
       if fStartupDirlistTraces.Count >= CMaxStartupDirlistTraces then
       begin
+        fStartupDirlistTraces.Delete(0);
         Inc(fOmittedStartupDirlistTraces);
-        Exit;
       end;
       Inc(fNextStartupDirlistTraceId);
       fTrace := Default(TRacePerfDirlistStartupTrace);
@@ -508,7 +509,7 @@ begin
   end;
 end;
 
-procedure TRacePerf.MarkDirlistStartupTuzelj(const aTraceId: integer; const aStartedUs, aDoneUs: Int64);
+procedure TRacePerf.MarkDirlistStartupTuzelj(const aTraceId: integer; const aStartedUs, aDoneUs: Int64; const aRejectSummary: String);
 var
   fIndex: integer;
   fTrace: TRacePerfDirlistStartupTrace;
@@ -522,6 +523,7 @@ begin
       fTrace := fStartupDirlistTraces[fIndex];
       fTrace.TuzeljStartedUs := aStartedUs;
       fTrace.TuzeljDoneUs := aDoneUs;
+      fTrace.TuzeljRejectSummary := aRejectSummary;
       fStartupDirlistTraces[fIndex] := fTrace;
     finally
       fLock.Leave;
@@ -1266,10 +1268,12 @@ begin
          _FormatElapsedUs(fTrace.SortStartedUs, fTrace.SortDoneUs),
          FormatRelUs(fTrace.TuzeljStartedUs), FormatRelUs(fTrace.TuzeljDoneUs),
          _FormatElapsedUs(fTrace.TuzeljStartedUs, fTrace.TuzeljDoneUs)]);
+      if fTrace.TuzeljRejectSummary <> '' then
+        fLine := fLine + ' | ' + fTrace.TuzeljRejectSummary;
       Result.Add(fLine);
     end;
     if fOmittedStartupDirlistTraces > 0 then
-      Result.Add(Format('Dirlist traces omitted: %d (limit %d)', [fOmittedStartupDirlistTraces, CMaxStartupDirlistTraces]));
+      Result.Add(Format('Older dirlist traces overwritten: %d (showing last %d before first race)', [fOmittedStartupDirlistTraces, CMaxStartupDirlistTraces]));
 
     fRulesLine := '';
     for fRuleStage := Low(TRacePerfRuleStage) to High(TRacePerfRuleStage) do
