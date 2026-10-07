@@ -20,6 +20,7 @@ type
     procedure TestEmptyOutput;
     procedure TestOneShotMarkers;
     procedure TestDirectoryMarkers;
+    procedure TestRaceSkipReasons;
     procedure TestBlockedAssignmentsAndDetection;
     procedure TestIndependentTimelines;
     procedure TestDirlistTaskCounts;
@@ -237,6 +238,27 @@ begin
       CheckTrue(Pos('dirlist +100.000 ms', fText) > 0, 'first dirlist timestamp overwritten: ' + fText);
       CheckTrue(Pos('complete +1000.000 ms', fText) > 0, 'first complete timestamp overwritten: ' + fText);
       CheckTrue(Pos('all tasks done +2000.000 ms', fText) > 0, 'first idle timestamp overwritten: ' + fText);
+    finally
+      fLines.Free;
+    end;
+  finally
+    fPerf.Free;
+  end;
+end;
+
+procedure TTestRacePerf.TestRaceSkipReasons;
+var
+  fPerf: TRacePerf;
+  fLines: TStringList;
+begin
+  fPerf := TRacePerf.Create(1000000);
+  try
+    fPerf.MarkRaceSkipped('SiteA', True, False);
+    fPerf.MarkRaceSkipped('SiteA', True, True);
+    fPerf.MarkRaceSkipped('SiteA', False, True);
+    fLines := fPerf.AsStrings;
+    try
+      CheckTrue(Pos('skipinc checks zero-byte 2 / upload marker 2 (may overlap)', fLines.Text) > 0, fLines.Text);
     finally
       fLines.Free;
     end;

@@ -604,11 +604,13 @@ begin
             if ((de.IsBeingUploaded or (de.filesize < 1)) and (s.SkipBeingUploadedFiles = sbuBeingUploaded)) then
             begin
               Inc(fRejectUploadMode);
+              pazo.RacePerf.MarkRaceSkipped(dst.Name, de.filesize < 1, de.IsBeingUploaded);
               Continue;
             end;
             if ((de.filesize < 1) and (s.SkipBeingUploadedFiles = sbuOnly0Byte)) then
             begin
               Inc(fRejectUploadMode);
+              pazo.RacePerf.MarkRaceSkipped(dst.Name, True, False);
               Continue;
             end;
           end;

@@ -84,6 +84,7 @@ type
     FStatSent, FListSent: integer; //< sent listing commands for all directories
     FCommandsActive, FCommandsPeak: integer; //< outstanding replies and their maximum
     FRacePrecheckDrops: integer; //< duplicate race allocations avoided
+    FRaceSkippedZeroByte, FRaceSkippedUploadMarker: integer; //< skipinc rejections (reason counts may overlap)
     FSlotReasons: array[TRacePerfRole, TRacePerfSlotReason] of integer; //< rejected attempts by role and resource
     FDirlistTasksExecuted: integer; //< dirlist tasks which entered slot execution
     FDirlistTasksDupDropped: integer; //< dirlist tasks rejected by the queue as duplicates
@@ -209,6 +210,11 @@ type
     procedure MarkMkdirReply(const aSiteName, aDir, aPhase: String; const aCode: integer; const aReply: String);
     { An already pending race prevented allocating another task. }
     procedure MarkRacePrecheckDrop(const aSiteName: String);
+    { A source file was skipped by skipinc.
+      @param(aSiteName destination site)
+      @param(aZeroByte @true when the source file size was below one byte)
+      @param(aBeingUploaded @true when the source dirlist had its upload marker) }
+    procedure MarkRaceSkipped(const aSiteName: String; const aZeroByte, aBeingUploaded: boolean);
 
     { A mkdir task was created for @link(aSiteName)
       @param(aInfo what triggered the creation, e.g. 'tuzelj' or 'dirlist550')
@@ -832,6 +838,27 @@ begin
   end;
 end;
 
+procedure TRacePerf.MarkRaceSkipped(const aSiteName: String; const aZeroByte, aBeingUploaded: boolean);
+var
+  fSite: TRacePerfSiteInfo;
+begin
+  try
+    fLock.Enter('MarkRaceSkipped');
+    try
+      fSite := GetSiteLocked(aSiteName);
+      if aZeroByte then
+        Inc(fSite.FRaceSkippedZeroByte);
+      if aBeingUploaded then
+        Inc(fSite.FRaceSkippedUploadMarker);
+    finally
+      fLock.Leave;
+    end;
+  except
+    on E: Exception do
+      Debug(dpError, section, 'MarkRaceSkipped: %s', [E.Message]);
+  end;
+end;
+
 procedure TRacePerf.MarkMkdirReply(const aSiteName, aDir, aPhase: String; const aCode: integer; const aReply: String);
 var
   i: integer;
@@ -1359,6 +1386,9 @@ begin
 
       if fSite.FRacePrecheckDrops > 0 then
         fLine := fLine + Format(' | %d race allocations avoided', [fSite.FRacePrecheckDrops]);
+      if ((fSite.FRaceSkippedZeroByte > 0) or (fSite.FRaceSkippedUploadMarker > 0)) then
+        fLine := fLine + Format(' | skipinc checks zero-byte %d / upload marker %d (may overlap)',
+          [fSite.FRaceSkippedZeroByte, fSite.FRaceSkippedUploadMarker]);
       if (fSite.FStatSent + fSite.FListSent) > 0 then
         fLine := fLine + Format(' | sent STAT %d / LIST %d, active %d, peak %d',
           [fSite.FStatSent, fSite.FListSent, fSite.FCommandsActive, fSite.FCommandsPeak]);
