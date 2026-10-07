@@ -57,6 +57,7 @@ uses
   slmasksTests,
   dirlist.helpersTests,
   dirlistTests,
+  pazo.rankTests,
   precatcher.helpersTests,
   kb.releaseinfo.MP3Tests,
   kb.releaseinfo.NullDayTests,

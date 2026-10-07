@@ -37,21 +37,22 @@ type
 
   TPazoSite = class;
 
-  //used to store destination site and rank
-  TDestinationRank = record
+  { Stores a source or destination site with its rank. }
+  TSiteRank = record
     private
-      FPazoSite: TPazoSite; //< destination site
+      FPazoSite: TPazoSite; //< source or destination site
       FRank: integer; //< rank
     public
       property PazoSite: TPazoSite read FPazoSite;
       property Rank: integer read FRank;
       constructor Create(const aPazoSite: TPazoSite; const aRank: integer);
    end;
+  TDestinationRank = TSiteRank; //< backwards-compatible name for ranked destinations
 
   TPazoSite = class
   private
     cds: String;
-    FDestinations: TList<TDestinationRank>; //< destination sites and ranks
+    FDestinations: TList<TSiteRank>; //< destination sites and ranks
     FActiveTransfers: TDictionary<string, string>; //< stores which files have an active tranfer to this destination site. Key: filepath, Value: source site
     FActiveTransfersCS: TCriticalSection;
     function Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>): boolean;
@@ -92,7 +93,7 @@ type
     speed_from: TList<TSpeedFromRouteInfo>;
 
     property dirlistgaveup: boolean read GetDirlistGaveUp write SetDirListGaveUp; //< gets or sets a value indicating whether dirlisting have been given up for this site
-    property Destinations: TList<TDestinationRank> read FDestinations; //< destination sites and ranks
+    property Destinations: TList<TSiteRank> read FDestinations; //< destination sites and ranks
     property ActiveTransferCount: Int32 read GetActiveTransferCount;
 
     function StatusRealPreOrShouldPre: boolean;  //< returns @true if its a pre or at least it should be one
@@ -251,6 +252,9 @@ type
     property PazoSFV: TPazoSFV read FPazoSFV;
   end;
 
+{ Compares site ranks in descending order for source and destination sorting. }
+function CompareSiteRanks({$IFDEF FPC}constref{$ELSE}const{$ENDIF} aLeft, aRight: TSiteRank): Integer;
+
 function PazoAdd(const rls: TRelease): TPazo;
 procedure PazoInit;
 
@@ -273,7 +277,7 @@ var
   glShowCompleteTimeStats: boolean;
 
 
-constructor TDestinationRank.Create(const aPazoSite: TPazoSite; const aRank: integer);
+constructor TSiteRank.Create(const aPazoSite: TPazoSite; const aRank: integer);
 begin
   FPazoSite := aPazoSite;
   FRank := aRank;
@@ -425,7 +429,7 @@ function TPazoSite.Tuzelj(const netname, channel, dir: String; aDirListEntries: 
 // dstdl is TDirList on destination site
 // dde is TDirListEntry on destination site
 var
-  fDestination: TDestinationRank;
+  fDestination: TSiteRank;
   dst: TPazoSite;
   dstrank: Integer;
   dstdl: TDirList;
@@ -1284,7 +1288,7 @@ end;
 
 function TPazoSite.AddDestination(const ps: TPazoSite; const rank: integer): boolean;
 var
-  fDestinationRank: TDestinationRank;
+  fDestinationRank: TSiteRank;
 begin
   Result := False;
   if error = True then
@@ -1304,7 +1308,7 @@ begin
             exit; //already have this destination
         end;
 
-        fDestinationRank := TDestinationRank.Create(ps, rank);
+        fDestinationRank := TSiteRank.Create(ps, rank);
         destinations.Add(fDestinationRank);
         destinations.Sort;
       finally
@@ -1324,9 +1328,9 @@ begin
 end;
 
 //compare function to sort by rank
-function _CompareDestinationRanks({$IFDEF FPC}constref{$ELSE}const{$ENDIF} Left, Right: TDestinationRank): Integer;
+function CompareSiteRanks({$IFDEF FPC}constref{$ELSE}const{$ENDIF} aLeft, aRight: TSiteRank): Integer;
 begin
-  Result := TComparer<Integer>.Default.Compare(Right.FRank, Left.FRank); //descending
+  Result := TComparer<Integer>.Default.Compare(aRight.Rank, aLeft.Rank); //descending
 end;
 
 constructor TPazoSite.Create(const aParentPazo: TPazo; const aName, aMaindir: String; const aSite: TObject = nil);
@@ -1350,7 +1354,7 @@ begin
   firesourcesinstead := False;
   badcrcevents := 0;
 
-  FDestinations := TList<TDestinationRank>.Create(TComparer<TDestinationRank>.Construct(_CompareDestinationRanks));
+  FDestinations := TList<TSiteRank>.Create(TComparer<TSiteRank>.Construct(CompareSiteRanks));
   destinations_cs := TCriticalSection.Create;
 
   dirlist := TDirlist.Create(Name, nil, pazo.sl, pazo.FPazoSFV);
@@ -1392,7 +1396,7 @@ var
   fSiteName: String;
   fPazoSite: TPazoSite;
   fSitesList: TList<String>;
-  fDestinationRank: TDestinationRank;
+  fDestinationRank: TSiteRank;
 begin
   Result := False;
 
@@ -1918,7 +1922,7 @@ end;
 
 function TPazoSite.AsText: String;
 var
-  fDestination: TDestinationRank;
+  fDestination: TSiteRank;
 begin
   Result := '<u><b>SITE: ' + Name + '</b></u>';
   Result := Result + Format(': %s (%d items)', [maindir, dirlist.entries.Count]);
@@ -1957,7 +1961,7 @@ end;
 
 function TPazoSite.RoutesText: String;
 var
-  fDestination: TDestinationRank;
+  fDestination: TSiteRank;
 begin
   Result := '<u>' + Name + '</u> -> ';
 
