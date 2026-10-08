@@ -187,7 +187,7 @@ begin
         irc_addtext(netname, channel, Format('<c10>[<b>RELEASEPERF</b>]</c> %s %s (pazo_id %d) detected %s:',
           [p.rls.section, p.rls.rlsname, p.pazo_id, FormatDateTime('hh:nn:ss.zzz', p.added)]));
 
-      fLines := p.RacePerf.AsStrings;
+      fLines := p.RacePerf.AsStrings(True);
       try
         for s in fLines do
           irc_addtext(netname, channel, '%s', [s]);

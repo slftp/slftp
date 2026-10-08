@@ -267,8 +267,9 @@ type
     procedure MarkTuzeljDone(const aDurationUs: Int64);
 
     { Formats the whole timeline as text lines (for the releaseperf IRC command)
+      @param(aReadable prepend a site overview and split diagnostic topics for IRC)
       @returns(a string list with one entry per line, caller must free it) }
-    function AsStrings: TStringList;
+    function AsStrings(const aReadable: boolean = False): TStringList;
 
     property DetectedUs: Int64 read fDetectedUs; //< T0 timestamp, all formatted times are relative to it
     property DetectedInfo: String read fDetectedInfo; //< kb event which detected the release
@@ -1228,7 +1229,7 @@ begin
   end;
 end;
 
-function TRacePerf.AsStrings: TStringList;
+function TRacePerf.AsStrings(const aReadable: boolean): TStringList;
 var
   fSite: TRacePerfSiteInfo;
   fSiteInfos: TList<TRacePerfSiteInfo>;
@@ -1242,6 +1243,30 @@ var
   fTrace: TRacePerfDirlistStartupTrace;
   fTraceIndex: integer;
 
+  { Keeps IRC lines focused on one diagnostic topic. }
+  procedure _AddLine(const aLine: String);
+  var
+    fRest, fPart: String;
+    fPos: integer;
+  begin
+    if not aReadable then
+    begin
+      Result.Add(aLine);
+      exit;
+    end;
+    fRest := aLine;
+    repeat
+      fPos := Pos(' | ', fRest);
+      if fPos = 0 then
+        fPart := fRest
+      else
+        fPart := Copy(fRest, 1, fPos - 1);
+      Result.Add(fPart);
+      if fPos = 0 then
+        Break;
+      fRest := '  ' + Copy(fRest, fPos + 3, MaxInt);
+    until False;
+  end;
   function _FormatElapsedUs(const aStartUs, aDoneUs: Int64): String;
   begin
     if (aStartUs = 0) or (aDoneUs = 0) then
@@ -1255,6 +1280,35 @@ begin
   fSiteInfos := nil;
   fLock.Enter('AsStrings');
   try
+    fSiteInfos := TList<TRacePerfSiteInfo>.Create;
+    for fSite in fSites.Values do
+      fSiteInfos.Add(fSite);
+    fSiteInfos.Sort(TComparer<TRacePerfSiteInfo>.Construct(_CompareSiteInfos));
+
+    if aReadable then
+    begin
+      _AddLine('Overview: +time = time since release detection; ms = milliseconds, s = seconds; - = not observed.');
+      _AddLine('Sites: earliest first nonempty listing processed first; this is readiness, not FTP response or transfer speed.');
+      _AddLine('Task queued, task started and listing processed can refer to different attempts/directories.');
+      for fSite in fSiteInfos do
+      begin
+        if fSite.FirstDirlistParsedUs = 0 then
+          fLine := 'no nonempty listing processed'
+        else
+          fLine := 'first nonempty listing processed ' + FormatRelUs(fSite.FirstDirlistParsedUs);
+        _AddLine(Format('Site %s: %s; first transfer task started %s; complete %s',
+          [fSite.SiteName, fLine, FormatRelUs(fSite.FirstRaceStartedUs), FormatRelUs(fSite.CompleteUs)]));
+        _AddLine(Format('  Progress: first listing task queued %s; first listing task started %s; transfer tasks finished %d OK / %d errors',
+          [FormatRelUs(fSite.FirstDirlistCreatedUs), FormatRelUs(fSite.FirstDirlistStartedUs),
+           fSite.RacesFinishedOk, fSite.RaceErrors]));
+        if (fSite.FAssignBlockedNoSlot > 0) or (fSite.FAssignBlockedBusy > 0) then
+          _AddLine(Format('  Transfer scheduling retries: %d blocked by slots/limits/offline; %d blocked by busy/cooldown (attempt counts, not wait duration)',
+            [fSite.FAssignBlockedNoSlot, fSite.FAssignBlockedBusy]));
+      end;
+      _AddLine('Diagnostics: raw timelines and counters follow. parsed = first nonempty listing after follow-up processing.');
+      _AddLine('Startup markers are independent first observations; traces below correlate individual parsing passes, including empty listings.');
+      _AddLine('all tasks done = first empty task queue; complete can come from IRC without a local transfer.');
+    end;
     fGlobalLine := Format('Global: first dirlist task %s | first race created %s | first race assigned %s | first race started %s | all tasks done %s',
       [FormatRelUs(fFirstDirlistCreatedUs), FormatRelUs(fFirstRaceCreatedUs), FormatRelUs(fFirstRaceAssignedUs),
        FormatRelUs(fFirstRaceStartedUs), FormatRelUs(fAllTasksIdleUs)]);
@@ -1263,7 +1317,7 @@ begin
       fGlobalLine := fGlobalLine + Format(' | tuzelj %d calls, total %s (avg %s)',
         [fTuzeljCalls, _FormatUsAsMs(fTuzeljTotalUs) + ' ms', _FormatUsAsMs(fTuzeljTotalUs div fTuzeljCalls) + ' ms']);
 
-    Result.Add(fGlobalLine);
+    _AddLine(fGlobalLine);
 
     fStartupLine := '';
     for fStage := Low(TRacePerfStartupStage) to High(TRacePerfStartupStage) do
@@ -1293,7 +1347,7 @@ begin
            _FormatUsAsMs(fStartupLockWaitMaxUs[fLockKind]) + ' ms', _FormatUsAsMs(fStartupLockHoldUs[fLockKind]) + ' ms',
            _FormatUsAsMs(fStartupLockHoldMaxUs[fLockKind]) + ' ms']);
       end;
-    if fStartupLine <> '' then Result.Add('Startup path:' + fStartupLine);
+    if fStartupLine <> '' then _AddLine('Startup path:' + fStartupLine);
 
     for fTraceIndex := 0 to fStartupDirlistTraces.Count - 1 do
     begin
@@ -1312,10 +1366,10 @@ begin
          _FormatElapsedUs(fTrace.TuzeljStartedUs, fTrace.TuzeljDoneUs)]);
       if fTrace.TuzeljRejectSummary <> '' then
         fLine := fLine + ' | ' + fTrace.TuzeljRejectSummary;
-      Result.Add(fLine);
+      _AddLine(fLine);
     end;
     if fOmittedStartupDirlistTraces > 0 then
-      Result.Add(Format('Older dirlist traces overwritten: %d (showing last %d before first race)', [fOmittedStartupDirlistTraces, CMaxStartupDirlistTraces]));
+      _AddLine(Format('Older dirlist traces overwritten: %d (showing last %d before first race)', [fOmittedStartupDirlistTraces, CMaxStartupDirlistTraces]));
 
     fRulesLine := '';
     for fRuleStage := Low(TRacePerfRuleStage) to High(TRacePerfRuleStage) do
@@ -1342,7 +1396,7 @@ begin
              _FormatUsAsMs(fRuleContextLock2WaitUs[fRuleStage]) + ' ms',
              _FormatUsAsMs(fRuleContextLock2HoldUs[fRuleStage]) + ' ms']);
       end;
-    if fRulesLine <> '' then Result.Add('Rules path: ' + fRulesLine);
+    if fRulesLine <> '' then _AddLine('Rules path: ' + fRulesLine);
 
     if fFirstRaceTuzeljStartUs <> 0 then
     begin
@@ -1353,13 +1407,10 @@ begin
          _FormatUsAsMs(fFirstRaceCtorDoneUs - fFirstRaceCtorStartUs) + ' ms',
          FormatRelUs(fFirstRaceTaskReadyUs), _FormatUsAsMs(fFirstRaceTaskReadyUs - fFirstRaceCandidateScanUs) + ' ms',
          fFirstRaceDestinationsChecked, fFirstRaceCandidatesChecked]);
-      Result.Add(fFirstRacePathLine);
+      _AddLine(fFirstRacePathLine);
     end;
 
-    fSiteInfos := TList<TRacePerfSiteInfo>.Create;
-    for fSite in fSites.Values do
-      fSiteInfos.Add(fSite);
-    fSiteInfos.Sort(TComparer<TRacePerfSiteInfo>.Construct(_CompareSiteInfos));
+
 
     for fSite in fSiteInfos do
     begin
@@ -1433,7 +1484,7 @@ begin
       if fSite.CompleteUs <> 0 then
         fLine := fLine + ' via ' + fSite.FCompleteSource;
 
-      Result.Add(fLine);
+      _AddLine(fLine);
 
       // Include the main directory so command and mkdir diagnostics are always visible.
       if fSite.FDirInfos.Count > 0 then
@@ -1477,7 +1528,7 @@ begin
             if fDirInfo.FReplyPhase <> '' then
               fLine := fLine + Format(' | last FTP issue %s %d: %s',
                 [fDirInfo.FReplyPhase, fDirInfo.FReplyCode, fDirInfo.FReplyText]);
-            Result.Add(fLine);
+            _AddLine(fLine);
           end;
         finally
           fDirInfos.Free;

@@ -1,3 +1,9 @@
+Starts with a site overview: first nonempty listing processed, first transfer
+task started, completion and scheduling retry counts. Detailed diagnostic
+topics follow on separate lines. +time means time since release detection;
+- means not observed. The order measures listing readiness, not FTP response
+duration or transfer speed. Empty parsing passes can appear earlier in traces.
+
 Shows the in-memory performance timeline of a raced release:
 detection time and KB event, first dirlist per site and directory, mkdir
 created/started/done with trigger, race creation/assignment/start and results.

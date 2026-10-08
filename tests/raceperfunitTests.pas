@@ -12,6 +12,7 @@ uses
 type
   TTestRacePerf = class(TTestCase)
   published
+    procedure TestReadableOverview;
     procedure TestMarkersAndOutput;
     procedure TestRuleTimingFirstPass;
     procedure TestDirlistStartupTrace;
@@ -38,6 +39,45 @@ uses
 
 { TTestRacePerf }
 
+procedure TTestRacePerf.TestReadableOverview;
+var
+  fPerf: TRacePerf;
+  fLines: TStringList;
+  fText: String;
+  i: integer;
+begin
+  fPerf := TRacePerf.Create(1000000);
+  try
+    fPerf.MarkDirlistCreated('Late', '', 'ADDPRE', 1100000);
+    fPerf.MarkDirlistStarted('Late', '', 1200000);
+    fPerf.MarkDirlistParsed('Late', '', 1600000);
+    fPerf.MarkDirlistParsed('Early', '', 1300000);
+    fPerf.MarkDirlistCreated('Missing', '', 'ADDPRE', 1050000);
+    fPerf.MarkRaceTaskCreated('Late', 1400000);
+    fPerf.MarkRaceStarted('Late', 1700000);
+    fPerf.MarkRaceFinished('Late', True);
+    fLines := fPerf.AsStrings(True);
+    try
+      fText := fLines.Text;
+      CheckTrue(Pos('Overview: +time = time since release detection', fLines[0]) = 1, fText);
+      CheckTrue(Pos('not FTP response or transfer speed', fText) > 0, fText);
+      CheckTrue(Pos('Site Early:', fText) < Pos('Site Late:', fText), fText);
+      CheckTrue(Pos('Site Late:', fText) < Pos('Site Missing:', fText), fText);
+      CheckTrue(Pos('Site Late: first nonempty listing processed +600.000 ms; first transfer task started +700.000 ms; complete -', fText) > 0, fText);
+      CheckTrue(Pos('Site Missing: no nonempty listing processed', fText) > 0, fText);
+      CheckTrue(Pos('first listing task queued +100.000 ms; first listing task started +200.000 ms; transfer tasks finished 1 OK / 0 errors', fText) > 0, fText);
+      CheckTrue(Pos('including empty listings', fText) > 0, fText);
+      CheckTrue(Pos('Late: dirlist +100.000 ms via ADDPRE', fText) > 0, fText);
+      CheckTrue(Pos('  races 1 created', fText) > 0, fText);
+      for i := 0 to fLines.Count - 1 do
+        CheckEquals(0, Pos(' | ', fLines[i]), 'diagnostic topics must use separate lines');
+    finally
+      fLines.Free;
+    end;
+  finally
+    fPerf.Free;
+  end;
+end;
 procedure TTestRacePerf.TestMarkersAndOutput;
 var
   fPerf: TRacePerf;
