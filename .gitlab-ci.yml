@@ -90,6 +90,8 @@ testwin64:
     - delphi 64bit
 
 testlinux64:
+  needs:
+    - buildlinux64-development
   stage: test
   image: $SLFTP_CI_IMAGE
   when: on_success
