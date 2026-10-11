@@ -1,5 +1,7 @@
 unit queueunitTests;
 
+{$I ../queuediagnostics.inc}
+
 interface
 
 uses
@@ -31,14 +33,29 @@ type
     procedure TestWaitTimeoutBounds;
     procedure TestShutdownInterruptsWait;
     procedure TestDestinationSubscriptions;
+    {$IFDEF QUEUE_DIAGNOSTICS}
+    procedure TestDiagnosticWindowAndReset;
+    procedure TestDiagnosticConcurrentSignals;
+    {$ENDIF}
   end;
 
 implementation
 
 uses
+  {$IFDEF QUEUE_DIAGNOSTICS}queuediagnostics,{$ENDIF}
   Classes, SysUtils, DateUtils, SyncObjs, queueunit, tasksunit, console;
 
 type
+  {$IFDEF QUEUE_DIAGNOSTICS}
+  TDiagnosticSignaler = class(TThread)
+  private
+    FDiagnostics: TQueueDiagnostics;
+  public
+    constructor Create(aDiagnostics: TQueueDiagnostics);
+    procedure Execute; override;
+  end;
+  {$ENDIF}
+
   TQueueProbe = class(TQueueThread)
   public
     function WaitForWork(const aMaxWait: Cardinal): TWaitResult;
@@ -332,6 +349,81 @@ begin
     fTargets.Free;
   end;
 end;
+
+{$IFDEF QUEUE_DIAGNOSTICS}
+constructor TDiagnosticSignaler.Create(aDiagnostics: TQueueDiagnostics);
+begin
+  inherited Create(True);
+  FDiagnostics := aDiagnostics;
+end;
+
+procedure TDiagnosticSignaler.Execute;
+var
+  i: Integer;
+begin
+  for i := 1 to 5000 do
+    FDiagnostics.Signal(qwSlot);
+end;
+
+procedure TTestQueueUnit.TestDiagnosticWindowAndReset;
+var
+  fDiagnostics: TQueueDiagnostics;
+  fReport: String;
+  fNowUs: Int64;
+begin
+  fDiagnostics := TQueueDiagnostics.Create;
+  try
+    fNowUs := QueueDiagnosticNow;
+    fDiagnostics.Count(qcSort, 3);
+    fDiagnostics.Count(qcCompletedBytes, 5368709120);
+    fDiagnostics.Signal(qwDestination);
+    fDiagnostics.Measure(qtSort, 20);
+    fDiagnostics.Measure(qtSort, 40);
+    fDiagnostics.Measure(qtSort, -1);
+    CheckEqualsString('', fDiagnostics.Snapshot('PROBE', fNowUs, 3, 0, 1, 2, 100));
+    fReport := fDiagnostics.Snapshot('PROBE', fNowUs + 10000000, 3, 0, 1, 2, 100);
+    CheckTrue(Pos('sorts=3 ', fReport) > 0, 'Early reads must not reset counters');
+    CheckTrue(Pos('completed_declared_bytes=5368709120 ', fReport) > 0, 'Bytes require 64-bit counters');
+    CheckTrue(Pos('signal_destination=1 ', fReport) > 0);
+    CheckTrue(Pos('sort_n=2 sort_sum_us=60 sort_max_us=40', fReport) > 0);
+    fReport := fDiagnostics.Snapshot('PROBE', fNowUs + 10000001, 0, 0, 0, 0, 0, True);
+    CheckTrue(Pos('sorts=0 ', fReport) > 0);
+    CheckTrue(Pos('signal_destination=0 ', fReport) > 0);
+    CheckTrue(Pos('sort_n=0 sort_sum_us=0 sort_max_us=0', fReport) > 0);
+  finally
+    fDiagnostics.Free;
+  end;
+end;
+
+procedure TTestQueueUnit.TestDiagnosticConcurrentSignals;
+var
+  fDiagnostics: TQueueDiagnostics;
+  fFirst, fSecond: TDiagnosticSignaler;
+  fReport: String;
+begin
+  fDiagnostics := TQueueDiagnostics.Create;
+  try
+    fFirst := TDiagnosticSignaler.Create(fDiagnostics);
+    try
+      fSecond := TDiagnosticSignaler.Create(fDiagnostics);
+      try
+        fFirst.Start;
+        fSecond.Start;
+        fFirst.WaitFor;
+        fSecond.WaitFor;
+        fReport := fDiagnostics.Snapshot('PROBE', QueueDiagnosticNow, 0, 0, 0, 0, 0, True);
+        CheckTrue(Pos('signal_slot=10000 ', fReport) > 0, 'Concurrent producers must not lose increments');
+      finally
+        fSecond.Free;
+      end;
+    finally
+      fFirst.Free;
+    end;
+  finally
+    fDiagnostics.Free;
+  end;
+end;
+{$ENDIF}
 
 initialization
   {$IFDEF FPC}

@@ -1,5 +1,7 @@
 unit sitesunit;
 
+{$I queuediagnostics.inc}
+
 interface
 
 uses
@@ -93,6 +95,7 @@ type
   { @abstract(Object which holds all the slot information for a single slot of a @link(TSite)) }
   TSiteSlot = class(TslTCPThread)
   private
+    {$IFDEF QUEUE_DIAGNOSTICS}FQueueDiagnosticFreedAt: Int64;{$ENDIF}
     FLastIO: TDateTime;
     FLastTaskExecution: TDateTime;
     FLastNonIdleTaskExecution: TDateTime;
@@ -189,6 +192,10 @@ type
     function GetIdentReply: String;
 
     property uploadingto: boolean read fUploadingTo write SetUploadingTo;
+    {$IFDEF QUEUE_DIAGNOSTICS}
+    { Monotonic release time; zero for an occupied or never-released slot. }
+    property QueueDiagnosticFreedAt: Int64 read FQueueDiagnosticFreedAt;
+    {$ENDIF}
     property downloadingfrom: boolean read fDownloadingFrom write SetDownloadingFrom;
     property todotask: TTask read fTodotask write SetTodotask; //< assigned task which should be executed by this siteslot
     property SSCNEnabled: boolean read fSSCNEnabled write fSSCNEnabled; //< @true if 'SSCN ON' was send to ftpd and is enabled, @false otherwise
@@ -753,6 +760,7 @@ var
 implementation
 
 uses
+  {$IFDEF QUEUE_DIAGNOSTICS}queuediagnostics,{$ENDIF}
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
   dirlist.helpers, tags, Generics.Defaults;
@@ -1168,7 +1176,7 @@ begin
   begin
     fSource := FindSiteByName('', fSiteName);
     if fSource <> nil then
-      fSource.QueueFire;
+      fSource.fQueue.QueueFire({$IFDEF QUEUE_DIAGNOSTICS}qwDestination{$ENDIF});
   end;
 end;
 
@@ -1706,7 +1714,7 @@ begin
 
         if ((not shouldquit) and (not slshutdown)) then
         begin
-          site.QueueFire;
+          site.fQueue.QueueFire({$IFDEF QUEUE_DIAGNOSTICS}qwSlot{$ENDIF});
           site.NotifyQueueWaiters;
         end;
       end
@@ -3158,6 +3166,12 @@ begin
   begin
     site.fFreeSlotsCS.Enter('SetTodotask');
     try
+      {$IFDEF QUEUE_DIAGNOSTICS}
+      if Value = nil then
+        FQueueDiagnosticFreedAt := QueueDiagnosticNow
+      else
+        FQueueDiagnosticFreedAt := 0;
+      {$ENDIF}
       fTodotask := Value;
       if fTodoTask <> nil then
       begin

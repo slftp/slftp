@@ -1,8 +1,11 @@
 unit queueunit;
 
+{$I queuediagnostics.inc}
+
 interface
 
 uses
+  {$IFDEF QUEUE_DIAGNOSTICS}queuediagnostics,{$ENDIF}
   Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection2, pazo, taskidle, taskquit, tasklogin, RegExpr, taskautoindex, taskrules, taskautodirlist, taskautonuke, Generics.Collections;
 
 
@@ -53,6 +56,9 @@ type
   FSortPending: Boolean;
   FNextTaskAt: TDateTime;
   FAssignmentRetryAt: TDateTime;
+  {$IFDEF QUEUE_DIAGNOSTICS}
+  FDiagnostics: TQueueDiagnostics;
+  {$ENDIF}
 
   queue_last_run: TDateTime;
   queueclean_last_run: TDateTime;
@@ -62,6 +68,7 @@ type
     procedure TryToAssignRaceSlots(t: TPazoRaceTask);
     function TaskAlreadyInQueue(t: TTask): boolean;
     procedure QueueStat;
+    {$IFDEF QUEUE_DIAGNOSTICS}procedure ReportDiagnostics;{$ENDIF}
 
 protected
 { Waits for a retained work signal, the earliest deadline, or housekeeping. }
@@ -74,7 +81,7 @@ function MoveWaitingTasks(const aNow: TDateTime): TDateTime;
 
 public
 
-procedure QueueFire;
+procedure QueueFire({$IFDEF QUEUE_DIAGNOSTICS}const aReason: TQueueWakeReason = qwExternal{$ENDIF});
 procedure QueueStart;
 { Stops and joins the worker before site/slot state is released. }
 procedure QueueStop;
@@ -181,10 +188,11 @@ begin
   end;
 end;
 
-procedure TQueueThread.QueueFire;
+procedure TQueueThread.QueueFire({$IFDEF QUEUE_DIAGNOSTICS}const aReason: TQueueWakeReason = qwExternal{$ENDIF});
 begin
   try
     //Debug(dpSpam, section, Format('QueueFire: %s', [(TSite(fSite).Name)]));
+    {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Signal(aReason);{$ENDIF}
     queueevent.SetEvent;
   except
     on e: Exception do
@@ -479,16 +487,49 @@ end;
 function TQueueThread.WaitForWake(const aMaxWait: Cardinal = High(Cardinal)): TWaitResult;
 var
   fTimeout: Cardinal;
+  {$IFDEF QUEUE_DIAGNOSTICS}
+  fFallbackWait: Boolean;
+  fTask: TTask;
+  {$ENDIF}
 begin
   main_lock.Enter('Queue wait deadline');
   try
     fTimeout := QueueWaitMilliseconds(Now, FNextTaskAt, glQueueFallbackMs);
     if fTimeout > aMaxWait then
       fTimeout := aMaxWait;
+    {$IFDEF QUEUE_DIAGNOSTICS}fFallbackWait := (fTimeout = glQueueFallbackMs) and (aMaxWait >= glQueueFallbackMs);{$ENDIF}
   finally
     main_lock.Leave;
   end;
   Result := queueevent.WaitFor(fTimeout);
+  {$IFDEF QUEUE_DIAGNOSTICS}
+  main_lock.Enter('Queue diagnostic wake');
+  try
+    if Result = wrSignaled then
+      FDiagnostics.Count(qcEvent)
+    else if Result = wrTimeout then
+    begin
+      if fFallbackWait then
+      begin
+        FDiagnostics.Count(qcFallback);
+        if (fSite <> nil) and (TSite(fSite).freeslots > 0) then
+          for fTask in tasks do
+            if (fTask.slot1 = nil) and (fTask.slot2 = nil) and
+              not (fTask.ready or fTask.readyerror) and (fTask.startat <= Now) then
+            begin
+              FDiagnostics.Count(qcFallbackWithWork);
+              Break;
+            end;
+      end
+      else if fTimeout = aMaxWait then
+        FDiagnostics.Count(qcCappedWait)
+      else
+        FDiagnostics.Count(qcDeadline);
+    end;
+  finally
+    main_lock.Leave;
+  end;
+  {$ENDIF}
 end;
 
 function TQueueThread.MoveWaitingTasks(const aNow: TDateTime): TDateTime;
@@ -505,6 +546,7 @@ begin
       waiting_tasks.Extract(fTask);
       tasks.Add(fTask);
       FSortPending := True;
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcPromoted);{$ENDIF}
     end
     else
       _ConsiderQueueDeadline(aNow, fTask.startat, Result);
@@ -516,6 +558,7 @@ procedure TQueueThread.QueueSort;
 begin
   main_lock.Enter('Queue sort request');
   try
+    {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcSortRequest);{$ENDIF}
     FSortPending := True;
   finally
     main_lock.Leave;
@@ -523,13 +566,19 @@ begin
 end;
 
 function TQueueThread.ApplyPendingSort: Boolean;
+{$IFDEF QUEUE_DIAGNOSTICS}
+var
+  fSortAt: Int64;
+  {$ENDIF}
 begin
   main_lock.Enter('Queue sort');
   try
     Result := FSortPending;
     if Result then
     begin
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcSort); fSortAt := QueueDiagnosticNow;{$ENDIF}
       tasks.Sort(@QueueSorter);
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Measure(qtSort, QueueDiagnosticNow - fSortAt);{$ENDIF}
       FSortPending := False;
     end;
   finally
@@ -563,6 +612,7 @@ begin
   waiting_tasks := TObjectList.Create(True);
   queueevent := TEvent.Create(nil, False, False, '');
   FNextTaskAt := MaxDateTime;
+  {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics := TQueueDiagnostics.Create;{$ENDIF}
   queue_last_run := Now;
   queueclean_last_run := Now;
   queue_last_stat_update := Now;
@@ -580,6 +630,7 @@ begin
     queueevent.SetEvent;
   { Join before releasing any state that Execute can still access. }
   inherited;
+  {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Free;{$ENDIF}
   fBusyDestinations.Free;
   waiting_tasks.Free;
   tasks.Free;
@@ -597,14 +648,21 @@ begin
     s1 := TSite(t.ssite1);
     s2 := TSite(t.ssite2);
     if s1.freeslots = 0 then
+    begin
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcSourceFull);{$ENDIF}
       exit;
+    end;
     { Subscribe BEFORE checking destination state so concurrent completion cannot be lost. }
     s2.RegisterQueueWaiter(fSiteName);
     if s2.freeslots = 0 then
+    begin
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcDestinationFull);{$ENDIF}
       exit;
+    end;
 
     if s2.MaxSimUpCooldownActive then
     begin
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcCooldown);{$ENDIF}
       if not fBusyDestinations.ContainsKey(s2) then
         fBusyDestinations.Add(s2, 0);
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Destination site %s is on MaxSim UP cooldown (%ds remaining), skipping %s',
@@ -614,6 +672,7 @@ begin
 
     if s1.MaxSimDownCooldownActive then
     begin
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcCooldown);{$ENDIF}
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Source site %s is on MaxSim DOWN cooldown (%ds remaining), skipping %s',
         [s1.Name, s1.MaxSimDownCooldownRemainingSeconds, t.FullName]);
       exit;
@@ -621,31 +680,47 @@ begin
 
     if fBusyDestinations.ContainsKey(s2) then
     begin
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcBusyCache);{$ENDIF}
       Debug(dpSpam, section, 'Destination site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
       exit;
     end;
 
     // first watch if it is not already in process to upload the same file to the same place
     if t.ps2.HasActiveTransfer(t.dir + t.filename) then
-      exit; // we are already sending this file to the same destination site
+    begin
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcActiveFile);{$ENDIF}
+      exit;
+    end; // we are already sending this file to the same destination site
 
     if s2.num_up >= s2.max_up then
+    begin
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcDestinationLimit);{$ENDIF}
       exit;
+    end;
 
     if t.ps1.HasActiveTransfer(t.dir + t.filename, s2.Name) then
-      exit; // we are already sending this file the opposite route
+    begin
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcActiveFile);{$ENDIF}
+      exit;
+    end; // we are already sending this file the opposite route
 
     // or use 'if t.ps1.StatusRealPreOrShouldPre then' from pazo.pas but will also pre true when status = rssShouldPre
     //if t.ps1.status = rssRealPre then
     if t.ps1.StatusRealPreOrShouldPre then
     begin
       if s1.num_dn >= s1.max_pre_dn then
+      begin
+        {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcSourceLimit);{$ENDIF}
         exit;
+      end;
     end
     else
     begin
       if s1.num_dn >= s1.max_dn then
+      begin
+        {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcSourceLimit);{$ENDIF}
         exit;
+      end;
     end;
 
     ss1 := nil;
@@ -677,6 +752,7 @@ begin
 
     if not s2.AcquireSlotsAssignmentLock(1, 'TryToAssignRaceSlots') then
     begin
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcDestinationLock);{$ENDIF}
       fBusyDestinations.Add(s2, 0);
       FAssignmentRetryAt := IncMilliSecond(Now, 25);
       exit;
@@ -685,7 +761,10 @@ begin
     try
       // check again now that we have the lock at the destination
       if s2.num_up >= s2.max_up then
+      begin
+        {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcDestinationLimit);{$ENDIF}
         exit;
+      end;
 
       // again check if this file is already being sent to the destination now that we have the slot assignment lock
       if t.ps2.HasActiveTransfer(t.dir + t.filename) then
@@ -708,6 +787,7 @@ begin
       i := ss2.site.MaxUpPerRip;
       if ((i > 0) and (t.ps2.ActiveTransferCount >= i)) then
       begin
+        {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcDestinationLimit);{$ENDIF}
         Debug(dpSpam, section, 'We shouldnt upload more than maxupperrip value [' + IntToStr(i) + '] for' + ss2.Name);
         exit;
       end;
@@ -726,6 +806,13 @@ begin
       t.slot2name  := ss2.Name;
       ss1.downloadingfrom := True;
       ss2.uploadingto := True;
+      {$IFDEF QUEUE_DIAGNOSTICS}
+      FDiagnostics.Count(qcAssignedRace);
+      if ss1.QueueDiagnosticFreedAt > 0 then
+        FDiagnostics.Measure(qtSourceRefill, QueueDiagnosticNow - ss1.QueueDiagnosticFreedAt);
+      if ss2.QueueDiagnosticFreedAt > 0 then
+        FDiagnostics.Measure(qtDestinationRefill, QueueDiagnosticNow - ss2.QueueDiagnosticFreedAt);
+        {$ENDIF}
       ss1.todotask := t;
       ss2.todotask := t.dst;
       ss2.Fire;
@@ -850,10 +937,14 @@ begin
     s.AcquireSlotsAssignmentLock('TryToAssignSlots');
     try
     if s.freeslots = 0 then
+    begin
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcSourceFull);{$ENDIF}
       exit;
+    end;
 
     if t.wanted_up and s.MaxSimUpCooldownActive then
     begin
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcCooldown);{$ENDIF}
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Site %s is on MaxSim UP cooldown (%ds remaining), skip task %s',
         [s.Name, s.MaxSimUpCooldownRemainingSeconds, t.FullName]);
       exit;
@@ -861,14 +952,17 @@ begin
 
     if t.wanted_dn and s.MaxSimDownCooldownActive then
     begin
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcCooldown);{$ENDIF}
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Site %s is on MaxSim DOWN cooldown (%ds remaining), skip task %s',
         [s.Name, s.MaxSimDownCooldownRemainingSeconds, t.FullName]);
       exit;
     end;
 
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcAttempt);{$ENDIF}
       Inc(t.TryToAssign);
       if ((maxassign <> 0) and (t.TryToAssign > maxassign)) then
       begin
+        {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcRetryDelay);{$ENDIF}
         t.TryToAssign := 0;
         if (maxassign_delay = 0) then
         begin
@@ -1330,11 +1424,17 @@ var
   fCheckSiteSlotsSite: TSite;
   fWake: Boolean;
   fNow: TDateTime;
+  {$IFDEF QUEUE_DIAGNOSTICS}
+  fDiagnosticAt: Int64;
+  fDiagnosticWake: TQueueWakeReason;
+  {$ENDIF}
 begin
   fCheckSiteSlotsSite := nil;
   fWake := False;
+  {$IFDEF QUEUE_DIAGNOSTICS}fDiagnosticAt := QueueDiagnosticNow;{$ENDIF}
   main_lock.Enter('AddTask');
   try
+    {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Measure(qtQueueLock, QueueDiagnosticNow - fDiagnosticAt);{$ENDIF}
     if TaskAlreadyInQueue(t) then
     begin
       if t.IsNotifyTask then
@@ -1360,10 +1460,19 @@ begin
       fCheckSiteSlotsSite := t.ssite1;
     end;
 
+    {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcInserted); fDiagnosticWake := qwTask;{$ENDIF}
     fNow := Now;
     if t.startat > fNow then
     begin
       waiting_tasks.Add(t);
+      {$IFDEF QUEUE_DIAGNOSTICS}
+      fDiagnosticWake := qwEarlierDeadline;
+      if t is TPazoRaceTask then
+      begin
+        FDiagnostics.Count(qcDelayedRace);
+        FDiagnostics.Count(qcInitialDelayMs, MilliSecondsBetween(t.startat, fNow));
+      end;
+      {$ENDIF}
       { A newly earlier deadline must interrupt an existing longer wait, even in a batch. }
       fWake := t.startat < FNextTaskAt;
       _ConsiderQueueDeadline(fNow, t.startat, FNextTaskAt);
@@ -1388,13 +1497,21 @@ begin
     { Directly assigned tasks already have a worker; completion will signal cleanup. }
     if (t.slot1 <> nil) and not (t.ready or t.readyerror) then
       fWake := False;
+    {$IFDEF QUEUE_DIAGNOSTICS}
+    if t.slot1 <> nil then
+      FDiagnostics.Count(qcInsertedAssigned);
+    if t is TWaitTask then
+      FDiagnostics.Count(qcInsertedWait);
+    fDiagnosticAt := QueueDiagnosticNow;
+    {$ENDIF}
     AddTaskToConsole(t);
+    {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Measure(qtConsole, QueueDiagnosticNow - fDiagnosticAt);{$ENDIF}
   finally
     main_lock.Leave;
   end;
   { No task reads after unlocking: a worker may have completed and freed it. }
   if fWake then
-    QueueFire;
+    QueueFire({$IFDEF QUEUE_DIAGNOSTICS}fDiagnosticWake{$ENDIF});
   if fCheckSiteSlotsSite <> nil then
     CheckSiteSlots(fCheckSiteSlotsSite);
 end;
@@ -1698,6 +1815,47 @@ begin
   end;
 end;
 
+{$IFDEF QUEUE_DIAGNOSTICS}
+procedure TQueueThread.ReportDiagnostics;
+var
+  fTask: TTask;
+  fDue, fFreeSlots: Integer;
+  fOldestDueMs, fAgeMs, fNowUs: Int64;
+  fNow: TDateTime;
+  fReport: String;
+begin
+  fNowUs := QueueDiagnosticNow;
+  if not FDiagnostics.ReportDue(fNowUs) then
+    Exit;
+  main_lock.Enter('Queue diagnostic snapshot');
+  try
+    if not FDiagnostics.ReportDue(fNowUs) then
+      Exit;
+    fDue := 0;
+    fOldestDueMs := 0;
+    fNow := Now;
+    for fTask in tasks do
+      if (fTask.slot1 = nil) and (fTask.slot2 = nil) and
+        not (fTask.ready or fTask.readyerror) and (fTask.startat <= fNow) then
+      begin
+        Inc(fDue);
+        fAgeMs := MilliSecondsBetween(fNow, fTask.created);
+        if fAgeMs > fOldestDueMs then
+          fOldestDueMs := fAgeMs;
+      end;
+    fFreeSlots := 0;
+    if fSite <> nil then
+      fFreeSlots := TSite(fSite).freeslots;
+    fReport := FDiagnostics.Snapshot(fSiteName, fNowUs, tasks.Count,
+      waiting_tasks.Count, fFreeSlots, fDue, fOldestDueMs);
+  finally
+    main_lock.Leave;
+  end;
+  if fReport <> '' then
+    Debug(dpMessage, 'queue-diag', fReport);
+end;
+{$ENDIF}
+
 procedure TQueueThread.Execute;
 var
   i: integer;
@@ -1709,9 +1867,13 @@ var
 
   fListIndex: Integer;
   fList: TObjectList;
+  {$IFDEF QUEUE_DIAGNOSTICS}
+  fDiagnosticPassAt, fDiagnosticLockAt, fDiagnosticCleanupAt: Int64;
+  {$ENDIF}
 begin
   while ((not slshutdown) and (not Terminated)) do
   begin
+    {$IFDEF QUEUE_DIAGNOSTICS}fDiagnosticPassAt := QueueDiagnosticNow;{$ENDIF}
     queue_last_run := Now();
 
     if fSite = nil then
@@ -1730,14 +1892,17 @@ begin
     fNextTaskStartAt := MaxDateTime;
     //Debug(dpSpam, section, 'Queue Iteration begin (%s) [%d tasks]', [ts.Name, tasks.Count]);
     try
+      {$IFDEF QUEUE_DIAGNOSTICS}fDiagnosticLockAt := QueueDiagnosticNow;{$ENDIF}
       main_lock.Enter('Execute');
       try
+        {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcPass); FDiagnostics.Measure(qtQueueLock, QueueDiagnosticNow - fDiagnosticLockAt);{$ENDIF}
         fBusyDestinations.Clear;
         FAssignmentRetryAt := MaxDateTime;
         fNextTaskStartAt := MoveWaitingTasks(queue_last_run);
 
         if ts.freeslots > 0 then
           ApplyPendingSort;
+        {$IFDEF QUEUE_DIAGNOSTICS}fDiagnosticCleanupAt := QueueDiagnosticNow;{$ENDIF}
 
         for fListIndex := 0 to 1 do
         begin
@@ -1755,6 +1920,13 @@ begin
           try
             if (((fTask.ready) or (fTask.readyerror)) and (fTask.slot1 = nil)) then
             begin
+              {$IFDEF QUEUE_DIAGNOSTICS}
+              if (fTask.ClassType = TPazoRaceTask) and TPazoRaceTask(fTask).QueueDiagnosticTransferred then
+              begin
+                FDiagnostics.Count(qcCompletedRace);
+                FDiagnostics.Count(qcCompletedBytes, TPazoRaceTask(fTask).filesize);
+              end;
+              {$ENDIF}
               ss := fTask.uidtext;
               if fTask.IsNotifyTask then
                 TaskReady(fTask);
@@ -1785,6 +1957,7 @@ begin
         end;
         end;
 
+        {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Measure(qtCleanup, QueueDiagnosticNow - fDiagnosticCleanupAt);{$ENDIF}
         ts.AcquireSlotsAssignmentLock('Queue iterate');
         try
           for fTask in tasks do
@@ -1821,11 +1994,21 @@ begin
                         _ConsiderQueueDeadline(queue_last_run, TSite(fTask.ssite2).MaxSimUpCooldownUntil, fNextTaskStartAt);
                       end;
                       if fTask.ready or fTask.readyerror then
-                        QueueFire;
+                        QueueFire({$IFDEF QUEUE_DIAGNOSTICS}qwCleanup{$ENDIF});
                     end;
                   end
-                  else if (fTask is TPazoRaceTask) and (fTask.ssite2 <> nil) then
-                    TSite(fTask.ssite2).RegisterQueueWaiter(fSiteName);
+                  else
+                  begin
+                    {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcDependency);{$ENDIF}
+                    if (fTask is TPazoRaceTask) and (fTask.ssite2 <> nil) then
+                    begin
+                      TSite(fTask.ssite2).RegisterQueueWaiter(fSiteName);
+                      {$IFDEF QUEUE_DIAGNOSTICS}
+                      if fTask.IsReadyToBeExecuted then
+                        FDiagnostics.Count(qcDependencyChanged);
+                      {$ENDIF}
+                    end;
+                  end;
                 end
                 else if (fTask.startat > 0) and (fTask.startat < fNextTaskStartAt) then
                 begin
@@ -1925,9 +2108,13 @@ begin
     try
       if fNextTaskStartAt < FNextTaskAt then
         FNextTaskAt := fNextTaskStartAt;
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Measure(qtPass, QueueDiagnosticNow - fDiagnosticPassAt);{$ENDIF}
     finally
       main_lock.Leave;
     end;
+    {$IFDEF QUEUE_DIAGNOSTICS}
+    ReportDiagnostics;
+    {$ENDIF}
     { Auto-reset signals persist across processing/wait transitions and coalesce bursts. }
     WaitForWake;
 
