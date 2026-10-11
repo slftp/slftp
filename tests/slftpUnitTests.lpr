@@ -65,6 +65,7 @@ uses
   slsslTests,
   sitesunitTests,
   queueunitTests,
+  {$IFDEF LINUX}slclockTests,{$ENDIF}
   precatcherTests,
   slcriticalsection2Tests,
   variantCacheTests,
