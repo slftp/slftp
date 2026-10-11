@@ -437,8 +437,8 @@ type
 
     procedure AddTask(const t: TTask; const queueFire: boolean = True);
     procedure QueueFire;
-    { Subscribes a source queue to the next destination slot/dependency change. }
-    procedure RegisterQueueWaiter(const aSiteName: String);
+    { Subscribes a source queue and returns the destination's capacity revision. }
+    function RegisterQueueWaiter(const aSiteName: String): Int64;
     { Wakes subscribed source queues after releasing the destination slot. }
     procedure NotifyQueueWaiters;
     procedure QueueClean;
@@ -1153,10 +1153,12 @@ begin
   fQueue.QueueClean;
 end;
 
-procedure TSite.RegisterQueueWaiter(const aSiteName: String);
+function TSite.RegisterQueueWaiter(const aSiteName: String): Int64;
 begin
   if aSiteName <> Name then
-    FQueueWakeTargets.RegisterSite(aSiteName);
+    Result := FQueueWakeTargets.RegisterSite(aSiteName)
+  else
+    Result := FQueueWakeTargets.Revision;
 end;
 
 procedure TSite.NotifyQueueWaiters;
@@ -3560,6 +3562,7 @@ procedure TSite.SetMaxUp(Value: integer);
 begin
   WCInteger('max_up', Value);
   fMaxUp := Value;
+  NotifyQueueWaiters;
 end;
 
 procedure TSite.Setconnect_timeout(const Value: integer);
