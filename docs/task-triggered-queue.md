@@ -18,6 +18,9 @@ longer fires all queues at the legacy `queue_fire` interval.
   repeatedly scheduling its expired deadline.
 - Future waits round up to at least one millisecond. While all source slots are
   occupied, task deadlines wait for a slot completion instead of waking the queue.
+- On Linux/x86_64, mORMot's FPC clock redirection preserves the requested clock
+  while retaining the libc/vDSO fast path. Substituting a coarse clock caused
+  positive event timeouts to expire early; no global RTL optimizations are disabled.
 - Site-wide destination blocks survive unrelated queue passes. Slot completion or
   an upload-limit change invalidates them immediately; cooldown/lock deadlines and
   the housekeeping cap provide bounded retries. Release-specific blocks are not
@@ -52,6 +55,8 @@ explicit batching, earlier deadlines interrupting waits, deadline maturity,
 coalesced sorts, fractional waits, capacity revision/expiry, exception backoff and
 stop signals. It uses the production insertion,
 wait, promotion and sort methods without opening FTP connections.
+`tests/slclockTests.pas` also checks Linux RTL monotonic/realtime precision against
+direct libc readings and the actual duration of positive event timeouts.
 
 Run `make test` on Linux or `make.bat test_64` on Windows. Also run a live race
 against the same sites/configuration on dev and this branch. Compare time to first

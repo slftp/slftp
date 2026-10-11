@@ -56,9 +56,12 @@ sources competing for one destination. Preserve both the diagnostic log and the
 usual race statistics. No filenames, release names or credentials are added to
 diagnostic records; site names are included.
 
-## Confirm the Linux clock hypothesis
+## Verify the Linux clock correction
 
-The ordinary CI binary retains the current scheduling and mORMot behavior.
+The ordinary CI binary now preserves the clock ID in mORMot's FPC clock redirect
+and retains the libc/vDSO fast path and other RTL optimizations. Earlier builds
+substituted a coarse clock: the CI probe returned early on all 500 waits of 1 ms,
+and live logs also showed positive timeout returns before their requested duration.
 The additional `buildlinux64-queue-clock-comparison` job runs a standalone probe
 twice and publishes its logs plus `slftp_x64-<commit>-nopatchrtl` as artifacts.
 Both binaries use this same commit and measurement code. The probe creates only
@@ -77,15 +80,16 @@ make queue_wait_probe CFLAGS="-MDelphi -O3 -Xs -Ct- -dNOPATCHRTL"
 
 Run the normal binary and then the `nopatchrtl` comparison binary with the same
 configuration and comparable releases, one process at a time. Preserve both
-logs. The hypothesis is supported if the default build shows positive clock lag
-and short actual timeout durations, while the comparison loses both the lag
-and early returns. Check whether the high `wake_deadline`/`passes` rates also
-fall during real work. A coarse-clock read need not make every timeout early.
+logs. After the clock correction, both builds should show no systematic clock lag
+or early timeout returns in the probe. Check whether the high
+`wake_deadline`/`passes` rates also fall during real work. If early timeouts remain,
+preserve the requested/elapsed timings and clock lag for further investigation.
 
 `NOPATCHRTL` disables other mORMot RTL optimizations too, so a throughput change
 alone does not isolate this clock problem. The clock/wait observations and the
-network-free probe are the relevant evidence. This is a diagnostic comparison,
-not the final production correction; no vendored source is changed.
+network-free probe are the relevant evidence. The default build contains the
+targeted production correction; the broad `NOPATCHRTL` flag remains a diagnostic
+comparison only. Permanent regression coverage is in `tests/slclockTests.pas`.
 
 ## Disable or remove
 
@@ -97,8 +101,9 @@ does add clock reads, atomic signal increments, one short queue-lock acquisition
 after waits, and bounded snapshots/logging. Do not treat its throughput as an
 uninstrumented benchmark or silently assume measurement overhead is zero.
 
-Use the original feature branch for the implementation, or revert the diagnostic
-commits if they were cherry-picked. The clock comparison additionally introduces
+Use the original feature branch for the implementation. Preserve the clock fix
+and its permanent regression tests when removing diagnostics. The clock comparison introduces
 one standalone probe, the `queue_wait_probe` Makefile target, and one CI job;
-remove these together with this diagnostic change. No sample-config or vendored
-source changes are required. The new clock reads run only in diagnostic builds.
+remove these together with the diagnostic hooks. The production clock fix in the
+vendored library must remain. No sample-config changes are required. Diagnostic
+clock reads run only in diagnostic builds.
