@@ -433,13 +433,13 @@ begin
     begin
       fQueue.AssignmentFailed(fTask);
       CheckEquals(1, fTask.TryToAssign);
-      CheckEquals(0, Integer(fTask.startat));
+      CheckTrue(fTask.startat = 0);
       Exit;
     end;
     for i := 1 to fMaxAssign do
       fQueue.AssignmentFailed(fTask);
     CheckEquals(fMaxAssign, fTask.TryToAssign);
-    CheckEquals(0, Integer(fTask.startat), 'Only reaching the limit does not delay the task');
+    CheckTrue(fTask.startat = 0, 'Only reaching the limit does not delay the task');
     fNow := Now;
     fQueue.AssignmentFailed(fTask);
     CheckEquals(0, fTask.TryToAssign);
