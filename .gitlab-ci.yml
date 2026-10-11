@@ -82,6 +82,8 @@ buildlinux64-queue-clock-comparison:
     - ./tests/queuewaitprobe | tee queue-wait-nopatchrtl.log
     - make slftp_64 CFLAGS="-MDelphi -O3 -Xs -Ct- -dNOPATCHRTL"
     - mv slftp slftp_x64-${CI_COMMIT_SHORT_SHA}-nopatchrtl
+    # Verify all temporary block diagnostics also compile out via the single switch.
+    - make slftp_64 CFLAGS="-MDelphi -O3 -Xs -Ct- -dDISABLE_QUEUE_DIAGNOSTICS"
   artifacts:
     name: "queue-clock-comparison-${CI_COMMIT_SHORT_SHA}"
     paths:

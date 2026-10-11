@@ -448,6 +448,10 @@ type
     function RegisterQueueWaiter(const aSiteName: String): Int64;
     { Wakes subscribed source queues after releasing the destination slot. }
     procedure NotifyQueueWaiters;
+    {$IFDEF QUEUE_DIAGNOSTICS}
+    { Monotonic time of the latest destination notification, not readiness proof. }
+    function QueueDiagnosticChangedAt: Int64;
+    {$ENDIF}
     procedure QueueClean;
     procedure QueueSort;
     function RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
@@ -1181,6 +1185,13 @@ begin
       fSource.fQueue.QueueFire({$IFDEF QUEUE_DIAGNOSTICS}qwDestination{$ENDIF});
   end;
 end;
+
+{$IFDEF QUEUE_DIAGNOSTICS}
+function TSite.QueueDiagnosticChangedAt: Int64;
+begin
+  Result := FQueueWakeTargets.DiagnosticChangedAt;
+end;
+{$ENDIF}
 
 procedure TSite.QueueFire;
 begin

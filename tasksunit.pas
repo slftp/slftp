@@ -1,14 +1,17 @@
 unit tasksunit;
 
+{$I queuediagnostics.inc}
+
 interface
 
-uses Classes;
+uses Classes{$IFDEF QUEUE_DIAGNOSTICS}, queuediagnostics{$ENDIF};
 
 type
   // this is all or part of the job
   TTask = class
   private
     FIsNotifyTask: Boolean;
+    {$IFDEF QUEUE_DIAGNOSTICS}FQueueBlockState: TQueueBlockState;{$ENDIF}
   public
     site1: String;
     ssite1: Pointer;
@@ -42,6 +45,10 @@ type
 
     TryToAssign : Integer;
 
+    {$IFDEF QUEUE_DIAGNOSTICS}
+    { Mutable inline diagnostic state; caller must hold the owning queue lock. }
+    function QueueBlockState: PQueueBlockState;
+    {$ENDIF}
     constructor Create(const netname, channel, site1: String); overload;
     constructor Create(const netname, channel, site1, site2: String); overload;
 
@@ -86,6 +93,13 @@ const
 var
   uidg: UInt64 = 1;
   uid_lock: TCriticalSection;
+
+{$IFDEF QUEUE_DIAGNOSTICS}
+function TTask.QueueBlockState: PQueueBlockState;
+begin
+  Result := @FQueueBlockState;
+end;
+{$ENDIF}
 
 constructor TTask.Create(const netname, channel, site1: String);
 begin

@@ -51,6 +51,60 @@ seconds, when calculating rates. A final partial window is not flushed on exit.
 Completed files/s = completed_races * 1000 / window_ms.
 Declared MiB/s = completed_declared_bytes * 1000 / window_ms / 1048576.
 
+## Diagnose individual pending tasks
+
+The existing report now adds `blocked_<reason>` snapshot counts for pending tasks,
+including delayed tasks separately as `blocked_planned_delay`. These are task
+counts, unlike repeated blocking-check counters such as `dependency`/`busy_cache`.
+The reason is the last observed first failed check, not every simultaneous blocker.
+`not_checked` means dispatch has not yet checked the task; `unclassified` marks
+an assignment exit without a more specific diagnostic result. `check_age_ms`
+shows how old the last observation is. Source saturation can stop iteration;
+the report then labels otherwise unchecked tasks `source_slots_full`.
+
+At most three longest examples (pending and terminal combined) are emitted per
+site/window, once at least two seconds of pending time have been observed.
+`block_samples_omitted` counts additional sample candidates, not distinct
+omitted tasks over the lifetime of the process. Short-lived or replaced examples
+may be absent. Existing reports/wakes drive logging; no timer is added.
+
+`[QUEUE-BLOCK]` identifies a pending task by UID, type, source and destination.
+Reasons distinguish MKDIR/dependency, source/destination capacity, absence of an
+online slot, transfer limits, cooldown, active transfer, destination lock/cache,
+dirlist concurrency, unavailable requested slot and planned delay.
+`[QUEUE-RESUME]` records `outcome=assigned` or `outcome=removed` before the task
+can be freed. Removal is not a successful transfer. Terminal samples are bounded,
+immutable and may be emitted at the next report, not at the moment of completion.
+`observed_at_us` is their monotonic sample time; no task pointer is retained.
+
+`blocked_ms` starts at observation/insertion and excludes recorded planned-delay
+segments. It is a lower-bound observation of pending time, not proof of runnable
+work. `task_age_ms` starts at creation, while `planned_remaining_ms` describes
+the current intentional delay. `reason_ms` is time in the current reason;
+`previous_reason` and `changes` show transitions. Reason changes retain the last
+relevant event so a subsequent different blocker does not erase release evidence.
+
+`cache_reason` preserves the cause remembered by the destination cache;
+`cache_retry_remaining_ms` and `destination_revision` describe its last observed
+expiry and revision. `limit_used`/`limit_max` describe the actual failing limit,
+or -1 if not applicable. Free-slot counts include offline slots; an online-slot
+reason is based on the actual slot search, not inferred from those counts.
+
+`event_kind=dependency_ready` is a producer timestamp from a dirlist's transition
+to the existing readiness predicate (`not need_mkdir or error`). Error readiness
+does not imply a successful MKDIR. `source_notification`/`destination_notification`
+are the latest site notification timestamps, not proof of capacity or all-task
+readiness. `event_reason` links an event to the reason it was observed against.
+`event_to_check_ms` measures its first subsequent task check; newer relevant
+notifications can replace the stored event. `check_to_assign_ms` spans from that
+check to assignment and may include additional legitimate blocking. -1 means
+no event measurement is available; it must not be treated as zero delay.
+
+The detail lines use the same `queue-diag` category and verbosity as the existing
+summary. There are no release/file names or credentials. Hooks, inline task state,
+dirlist timestamps and cache cause fields compile out with
+`DISABLE_QUEUE_DIAGNOSTICS`, using the existing single switch.
+
 Capture several comparable races, including small files, large files and multiple
 sources competing for one destination. Preserve both the diagnostic log and the
 usual race statistics. No filenames, release names or credentials are added to

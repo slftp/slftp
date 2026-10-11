@@ -41,6 +41,12 @@ type
     procedure TestDiagnosticWindowAndReset;
     procedure TestDiagnosticConcurrentSignals;
     procedure TestDiagnosticWaitClassification;
+    procedure TestDiagnosticBlockReasonsAndEvents;
+    procedure TestDiagnosticPlannedDelayExcluded;
+    procedure TestDiagnosticBoundedBlockSamples;
+    procedure TestDiagnosticTaskRemovalSnapshot;
+    procedure TestDiagnosticDirlistReadiness;
+    procedure TestDiagnosticDestinationTimestamp;
     {$ENDIF}
   end;
 
@@ -48,7 +54,7 @@ implementation
 
 uses
   {$IFDEF QUEUE_DIAGNOSTICS}queuediagnostics,{$ENDIF}
-  Classes, SysUtils, DateUtils, SyncObjs, queueunit, tasksunit, console, configunit;
+  Classes, SysUtils, DateUtils, SyncObjs, queueunit, tasksunit, console, configunit, dirlist;
 
 type
   {$IFDEF QUEUE_DIAGNOSTICS}
@@ -498,6 +504,154 @@ begin
 end;
 
 {$IFDEF QUEUE_DIAGNOSTICS}
+procedure TTestQueueUnit.TestDiagnosticBlockReasonsAndEvents;
+var
+  fState: TQueueBlockState;
+  fText: String;
+begin
+  fState := Default(TQueueBlockState);
+  fState.Observe(qbMkdir, 1000000);
+  fState.RecordEvent(900000, 3001000, 'dependency_ready');
+  fState.RecordEvent(3000000, 3001000, 'dependency_ready');
+  fState.RecordEvent(3000000, 3500000, 'dependency_ready');
+  fState.Observe(qbCachedDestination, 3001000, qbDestinationOffline, 15000, 42);
+  fState.BeginCheck(6000000);
+  CheckFalse(fState.Classified);
+  fState.Finish(6000000);
+  fText := fState.Detail(6000000, 5000, 0, 'assigned');
+  CheckTrue(Pos('reason=destination_cache previous_reason=mkdir_pending', fText) > 0);
+  CheckTrue(Pos('cache_reason=destination_no_online_slot', fText) > 0);
+  CheckTrue(Pos('destination_revision=42', fText) > 0);
+  CheckTrue(Pos('event_kind=dependency_ready event_reason=mkdir_pending event_to_check_ms=1', fText) > 0,
+    'A new blocking reason must preserve evidence of the previous readiness transition');
+  CheckTrue(Pos('check_to_assign_ms=2999', fText) > 0);
+  CheckEquals(Int64(5000000), fState.BlockedUs(9000000), 'Assignment freezes pending time');
+  fState.Finish(9000000);
+  CheckEquals(Int64(6000000), fState.FinishedAt);
+end;
+
+procedure TTestQueueUnit.TestDiagnosticPlannedDelayExcluded;
+var
+  fState: TQueueBlockState;
+begin
+  fState := Default(TQueueBlockState);
+  fState.Observe(qbDelayed, 1000000);
+  CheckEquals(Int64(0), fState.BlockedUs(10000000));
+  fState.Observe(qbMkdir, 10000000);
+  fState.Observe(qbMkdir, 11000000);
+  CheckEquals(Int64(2000000), fState.BlockedUs(12000000), 'Repeated checks do not restart the segment');
+  fState.Observe(qbDelayed, 12000000);
+  CheckEquals(Int64(2000000), fState.BlockedUs(20000000), 'Backoff is also a planned delay');
+  fState.Finish(20000000);
+  CheckEquals(Int64(2000000), fState.BlockedUs(30000000));
+end;
+
+procedure TTestQueueUnit.TestDiagnosticBoundedBlockSamples;
+var
+  fDiagnostics: TQueueDiagnostics;
+  fState: TQueueBlockState;
+  fReport: String;
+  i: Integer;
+begin
+  fDiagnostics := TQueueDiagnostics.Create;
+  try
+    fState := Default(TQueueBlockState);
+    fState.Observe(qbMkdir, 1000000);
+    fDiagnostics.SampleBlock(99, 'Probe', 'A', 'B', fState, 2999999, 2000, 0, 1, 1, 'pending');
+    for i := 1 to 4 do
+    begin
+      fState := Default(TQueueBlockState);
+      fState.Observe(qbMkdir, i * 1000000);
+      fDiagnostics.CountBlocked(qbMkdir);
+      fDiagnostics.SampleBlock(i, 'Probe', 'A', 'B', fState, 6000000, 5000, 0, 1, 1, 'pending');
+    end;
+    fReport := fDiagnostics.Snapshot('A', QueueDiagnosticNow, 4, 0, 1, 4, 5000, True);
+    CheckTrue(Pos('block_samples=3 block_samples_omitted=1', fReport) > 0);
+    CheckTrue(Pos('blocked_mkdir_pending=4', fReport) > 0, 'Reason summary covers omitted tasks');
+    CheckTrue(Pos('task=1 ', fReport) > 0);
+    CheckTrue(Pos('task=3 ', fReport) > 0);
+    CheckEquals(0, Pos('task=4 ', fReport));
+    CheckEquals(0, Pos('task=99 ', fReport), 'Short waits must not produce examples');
+    fReport := fDiagnostics.Snapshot('A', QueueDiagnosticNow, 0, 0, 0, 0, 0, True);
+    CheckTrue(Pos('block_samples=0 block_samples_omitted=0', fReport) > 0);
+    CheckEquals(0, Pos('[QUEUE-BLOCK]', fReport));
+  finally
+    fDiagnostics.Free;
+  end;
+end;
+
+procedure TTestQueueUnit.TestDiagnosticTaskRemovalSnapshot;
+var
+  fTask: TProbeTask;
+  fDiagnostics: TQueueDiagnostics;
+  fReport: String;
+begin
+  fDiagnostics := TQueueDiagnostics.Create;
+  try
+    fTask := TProbeTask.Create;
+    try
+      fTask.uid := 777;
+      fTask.QueueBlockState^.Observe(qbDestinationFull, 1000000);
+      fTask.QueueBlockState^.Finish(4000000);
+      fDiagnostics.SampleBlock(fTask.uid, fTask.ClassName, 'A', 'B', fTask.QueueBlockState^,
+        4000000, 3000, 0, 1, 0, 'removed');
+    finally
+      fTask.Free;
+    end;
+    fReport := fDiagnostics.Snapshot('A', QueueDiagnosticNow, 0, 0, 1, 0, 0, True);
+    CheckTrue(Pos('[QUEUE-RESUME] task=777 ', fReport) > 0);
+    CheckTrue(Pos('outcome=removed', fReport) > 0, 'Reports must survive actual task destruction');
+  finally
+    fDiagnostics.Free;
+  end;
+end;
+
+procedure TTestQueueUnit.TestDiagnosticDirlistReadiness;
+var
+  fDirlist: TDirList;
+  fAt: Int64;
+begin
+  fDirlist := TDirList.Create('QUEUE-DIAG-PROBE', nil, nil, '');
+  try
+    CheckTrue(fDirlist.need_mkdir);
+    CheckEquals(Int64(0), fDirlist.DiagnosticReadyAt);
+    fDirlist.need_mkdir := False;
+    fAt := fDirlist.DiagnosticReadyAt;
+    CheckTrue(fAt > 0);
+    fDirlist.need_mkdir := False;
+    CheckEquals(fAt, fDirlist.DiagnosticReadyAt, 'Repeated ready writes retain the original transition');
+    fDirlist.need_mkdir := True;
+    CheckEquals(Int64(0), fDirlist.DiagnosticReadyAt);
+    fDirlist.error := True;
+    CheckTrue(fDirlist.DiagnosticReadyAt > 0, 'Error also releases the existing dependency predicate');
+    fDirlist.error := False;
+    CheckEquals(Int64(0), fDirlist.DiagnosticReadyAt);
+  finally
+    fDirlist.Free;
+  end;
+end;
+
+procedure TTestQueueUnit.TestDiagnosticDestinationTimestamp;
+var
+  fTargets: TQueueWakeTargets;
+  fBefore, fAfter, fAt: Int64;
+begin
+  fTargets := TQueueWakeTargets.Create;
+  try
+    CheckEquals(Int64(0), fTargets.DiagnosticChangedAt);
+    fTargets.RegisterSite('A');
+    fBefore := QueueDiagnosticNow;
+    CheckEquals(1, Length(fTargets.TakeSites));
+    fAfter := QueueDiagnosticNow;
+    fAt := fTargets.DiagnosticChangedAt;
+    CheckTrue((fAt >= fBefore) and (fAt <= fAfter));
+    fTargets.RegisterSite('A');
+    CheckEquals(fAt, fTargets.DiagnosticChangedAt, 'Registration is not a capacity notification');
+  finally
+    fTargets.Free;
+  end;
+end;
+
 constructor TDiagnosticSignaler.Create(aDiagnostics: TQueueDiagnostics);
 begin
   inherited Create(True);

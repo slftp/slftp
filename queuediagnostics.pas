@@ -6,6 +6,42 @@ uses
   SyncObjs;
 
 type
+  { First failed scheduler check; not an exhaustive list of simultaneous blockers. }
+  TQueueBlockReason = (qbNone, qbNotChecked, qbDelayed, qbMkdir, qbDependency,
+    qbSourceFull, qbSourceOffline, qbDestinationFull, qbDestinationOffline,
+    qbSourceLimit, qbDestinationLimit, qbCooldown, qbActiveFile,
+    qbDestinationLock, qbCachedDestination, qbDirlistLimit, qbWantedSlot, qbUnknown);
+  { Inline, queue-owned state. Durations start at observation, never at task creation. }
+  TQueueBlockState = record
+  private
+    FReason, FPreviousReason, FCacheReason, FEventReason: TQueueBlockReason;
+    FReasonAt, FCheckedAt, FBlockedUs, FFinishedAt, FEventAt, FEventCheckedAt: Int64;
+    FRetryAt, FRevision: Int64;
+    FUsed, FLimit, FChanges: Integer;
+    FClassified: Boolean;
+    FEventKind: String;
+  public
+    { Begins an actual dispatch attempt, allowing uncovered exits to be labelled. }
+    procedure BeginCheck(const aNowUs: Int64);
+    { Records the existing check's result, without querying readiness again. }
+    procedure Observe(const aReason: TQueueBlockReason; const aNowUs: Int64;
+      const aCacheReason: TQueueBlockReason = qbNone; const aRetryMs: Int64 = 0;
+      const aRevision: Int64 = 0; const aUsed: Integer = -1; const aLimit: Integer = -1);
+    { Associates a relevant producer event with its first subsequent dispatch check.
+      A destination notification is not proof that all prerequisites became ready. }
+    procedure RecordEvent(const aEventUs, aCheckUs: Int64; const aKind: String);
+    { Freezes elapsed time on assignment or removal. Idempotent. }
+    procedure Finish(const aNowUs: Int64);
+    { Returns observed pending time, excluding planned delays and finished time. }
+    function BlockedUs(const aNowUs: Int64): Int64;
+    { Formats only an immutable sample; no task pointers or release/file names. }
+    function Detail(const aNowUs, aAgeMs, aPlannedMs: Int64; const aOutcome: String): String;
+    property Reason: TQueueBlockReason read FReason;
+    property Classified: Boolean read FClassified;
+    property FinishedAt: Int64 read FFinishedAt;
+  end;
+  PQueueBlockState = ^TQueueBlockState;
+
   { Signal requests, not individual wakes: auto-reset events coalesce requests. }
   TQueueWakeReason = (qwExternal, qwTask, qwEarlierDeadline, qwSlot, qwDestination, qwCleanup);
   { Per-window counters. Blocked counts describe checks, not unique tasks. }
@@ -30,6 +66,13 @@ type
       Count, SumUs, MaxUs: Int64;
     end;
     FWindowStartedUs: Int64;
+    FBlockedCounts: array[TQueueBlockReason] of Integer;
+    FBlockSamples: array[0..2] of record
+      Uid: UInt64;
+      DurationUs: Int64;
+      Text: String;
+    end;
+    FBlockSampleCount, FBlockCandidates: Integer;
   public
     { Starts a measurement window using a monotonic clock. }
     constructor Create;
@@ -46,6 +89,12 @@ type
       const aResult: TWaitResult; const aClockLagUs: Int64);
     { Returns true at most once per ten seconds, unless explicitly forced. }
     function ReportDue(const aNowUs: Int64): Boolean;
+    { Adds one task to the current snapshot's reason counts. }
+    procedure CountBlocked(const aReason: TQueueBlockReason);
+    { Keeps at most three longest pending/completed examples per window. }
+    procedure SampleBlock(const aUid: UInt64; const aType, aSource, aTarget: String;
+      const aState: TQueueBlockState; const aNowUs, aAgeMs, aPlannedMs: Int64;
+      const aSourceFree, aTargetFree: Integer; const aOutcome: String);
     { Takes and resets the window under the queue lock. Returns an empty string
       before ten seconds unless forced. Emit the result AFTER releasing locks.
       Due work includes tasks blocked on dependencies or destination capacity. }
@@ -59,6 +108,9 @@ function QueueDiagnosticNow: Int64;
 { Returns a conservative lower bound on RTL CLOCK_MONOTONIC lag behind libc's
   precise CLOCK_MONOTONIC in microseconds, or -1 outside Linux/FPC or on error. }
 function QueueDiagnosticClockLag: Int64;
+{ Atomically publish/read producer timestamps across site and queue threads. }
+procedure QueueDiagnosticPublish(var aTimestamp: Int64; const aValue: Int64);
+function QueueDiagnosticRead(var aTimestamp: Int64): Int64;
 
 implementation
 
@@ -67,6 +119,12 @@ uses
   {$IF Defined(FPC) and Defined(LINUX)}, UnixType, Linux{$IFEND};
 
 const
+  glBlockReasonNames: array[TQueueBlockReason] of String = (
+    'none', 'not_checked', 'planned_delay', 'mkdir_pending', 'dependency',
+    'source_slots_full', 'source_no_online_slot', 'destination_slots_full',
+    'destination_no_online_slot', 'source_limit', 'destination_limit', 'cooldown',
+    'active_file', 'destination_lock', 'destination_cache', 'dirlist_limit',
+    'wanted_slot_unavailable', 'unclassified');
   glCounterNames: array[TQueueDiagnosticCounter] of String = (
     'passes', 'wake_event', 'wake_deadline', 'wake_fallback', 'wake_capped',
     'fallback_with_free_slot_and_due_work', 'inserted', 'inserted_assigned',
@@ -145,6 +203,144 @@ begin
     FTimes[aTiming].MaxUs := aElapsedUs;
 end;
 
+procedure QueueDiagnosticPublish(var aTimestamp: Int64; const aValue: Int64);
+begin
+  {$IFDEF FPC}InterlockedExchange64{$ELSE}AtomicExchange{$ENDIF}(aTimestamp, aValue);
+end;
+
+function QueueDiagnosticRead(var aTimestamp: Int64): Int64;
+begin
+  Result := {$IFDEF FPC}InterlockedCompareExchange64{$ELSE}AtomicCmpExchange{$ENDIF}(aTimestamp, 0, 0);
+end;
+
+procedure TQueueBlockState.BeginCheck(const aNowUs: Int64);
+begin
+  FCheckedAt := aNowUs;
+  FClassified := False;
+end;
+
+procedure TQueueBlockState.Observe(const aReason: TQueueBlockReason;
+  const aNowUs: Int64; const aCacheReason: TQueueBlockReason; const aRetryMs,
+  aRevision: Int64; const aUsed, aLimit: Integer);
+begin
+  if FFinishedAt <> 0 then Exit;
+  FClassified := True;
+  FCheckedAt := aNowUs;
+  if aReason <> FReason then
+  begin
+    if (FReasonAt > 0) and not (FReason in [qbNone, qbDelayed]) and (aNowUs > FReasonAt) then
+      Inc(FBlockedUs, aNowUs - FReasonAt);
+    FPreviousReason := FReason;
+    FReason := aReason;
+    FReasonAt := aNowUs;
+    Inc(FChanges);
+  end;
+  FCacheReason := aCacheReason;
+  FRetryAt := aNowUs + aRetryMs * 1000;
+  FRevision := aRevision;
+  FUsed := aUsed;
+  FLimit := aLimit;
+end;
+
+procedure TQueueBlockState.RecordEvent(const aEventUs, aCheckUs: Int64; const aKind: String);
+begin
+  if (aEventUs > FEventAt) and (FReasonAt > 0) and (aEventUs >= FReasonAt) and
+    (aEventUs > 0) and (aCheckUs >= aEventUs) then
+  begin
+    FEventAt := aEventUs;
+    FEventCheckedAt := aCheckUs;
+    FEventKind := aKind;
+    FEventReason := FReason;
+  end;
+end;
+
+function TQueueBlockState.BlockedUs(const aNowUs: Int64): Int64;
+var
+  fEnd: Int64;
+begin
+  Result := FBlockedUs;
+  fEnd := aNowUs;
+  if FFinishedAt > 0 then fEnd := FFinishedAt;
+  if (FReasonAt > 0) and not (FReason in [qbNone, qbDelayed]) and (fEnd > FReasonAt) then
+    Inc(Result, fEnd - FReasonAt);
+end;
+
+procedure TQueueBlockState.Finish(const aNowUs: Int64);
+begin
+  if FFinishedAt = 0 then FFinishedAt := aNowUs;
+end;
+
+function TQueueBlockState.Detail(const aNowUs, aAgeMs, aPlannedMs: Int64;
+  const aOutcome: String): String;
+var
+  fEventToCheck, fCheckToAssign, fRetryMs, fReasonMs, fCheckAge: Int64;
+  fKind: String;
+begin
+  fEventToCheck := -1;
+  fCheckToAssign := -1;
+  fKind := 'none';
+  if FEventAt > 0 then
+  begin
+    fKind := FEventKind;
+    fEventToCheck := (FEventCheckedAt - FEventAt) div 1000;
+    if (aOutcome = 'assigned') and (FFinishedAt >= FEventCheckedAt) then
+      fCheckToAssign := (FFinishedAt - FEventCheckedAt) div 1000;
+  end;
+  fRetryMs := (FRetryAt - aNowUs) div 1000;
+  if fRetryMs < 0 then fRetryMs := 0;
+  fReasonMs := 0;
+  if FReasonAt > 0 then fReasonMs := (aNowUs - FReasonAt) div 1000;
+  fCheckAge := -1;
+  if FCheckedAt > 0 then fCheckAge := (aNowUs - FCheckedAt) div 1000;
+  Result := Format(' reason=%s previous_reason=%s blocked_ms=%d reason_ms=%d task_age_ms=%d planned_remaining_ms=%d check_age_ms=%d changes=%d cache_reason=%s cache_retry_remaining_ms=%d destination_revision=%d limit_used=%d limit_max=%d event_kind=%s event_reason=%s event_to_check_ms=%d check_to_assign_ms=%d outcome=%s',
+    [glBlockReasonNames[FReason], glBlockReasonNames[FPreviousReason], BlockedUs(aNowUs) div 1000,
+     fReasonMs, aAgeMs, aPlannedMs, fCheckAge, FChanges, glBlockReasonNames[FCacheReason],
+     fRetryMs, FRevision, FUsed, FLimit, fKind, glBlockReasonNames[FEventReason], fEventToCheck, fCheckToAssign, aOutcome]);
+end;
+
+procedure TQueueDiagnostics.CountBlocked(const aReason: TQueueBlockReason);
+begin
+  Inc(FBlockedCounts[aReason]);
+end;
+
+procedure TQueueDiagnostics.SampleBlock(const aUid: UInt64;
+  const aType, aSource, aTarget: String; const aState: TQueueBlockState;
+  const aNowUs, aAgeMs, aPlannedMs: Int64; const aSourceFree, aTargetFree: Integer;
+  const aOutcome: String);
+var
+  fDuration: Int64;
+  fIndex, i: Integer;
+  fPrefix: String;
+begin
+  fDuration := aState.BlockedUs(aNowUs);
+  if fDuration < 2000000 then Exit;
+  fIndex := -1;
+  for i := 0 to FBlockSampleCount - 1 do
+    if FBlockSamples[i].Uid = aUid then fIndex := i;
+  if fIndex < 0 then
+  begin
+    Inc(FBlockCandidates);
+    if FBlockSampleCount < Length(FBlockSamples) then
+    begin
+      fIndex := FBlockSampleCount;
+      Inc(FBlockSampleCount);
+    end
+    else
+    begin
+      fIndex := 0;
+      for i := 1 to High(FBlockSamples) do
+        if FBlockSamples[i].DurationUs < FBlockSamples[fIndex].DurationUs then fIndex := i;
+      if fDuration <= FBlockSamples[fIndex].DurationUs then Exit;
+    end;
+  end;
+  FBlockSamples[fIndex].Uid := aUid;
+  FBlockSamples[fIndex].DurationUs := fDuration;
+  if aOutcome = 'pending' then fPrefix := '[QUEUE-BLOCK]' else fPrefix := '[QUEUE-RESUME]';
+  FBlockSamples[fIndex].Text := Format('%s task=%d type=%s source=%s target=%s source_free_slots=%d destination_free_slots=%d observed_at_us=%d',
+    [fPrefix, aUid, aType, aSource, aTarget, aSourceFree, aTargetFree, aNowUs]) +
+    aState.Detail(aNowUs, aAgeMs, aPlannedMs, aOutcome);
+end;
+
 procedure TQueueDiagnostics.RecordWait(const aRequestedMs: Cardinal;
   const aElapsedUs: Int64; const aResult: TWaitResult; const aClockLagUs: Int64);
 var
@@ -185,6 +381,8 @@ var
   fReason: TQueueWakeReason;
   fTiming: TQueueDiagnosticTiming;
   fSignalCount: Integer;
+  fBlockReason: TQueueBlockReason;
+  i: Integer;
 begin
   Result := '';
   if not aForce and not ReportDue(aNowUs) then
@@ -204,6 +402,18 @@ begin
       [glTimingNames[fTiming], FTimes[fTiming].Count,
        glTimingNames[fTiming], FTimes[fTiming].SumUs,
        glTimingNames[fTiming], FTimes[fTiming].MaxUs]);
+  Result := Result + Format(' block_samples=%d block_samples_omitted=%d',
+    [FBlockSampleCount, FBlockCandidates - FBlockSampleCount]);
+  for fBlockReason := Low(fBlockReason) to High(fBlockReason) do
+    Result := Result + ' blocked_' + glBlockReasonNames[fBlockReason] + '=' + IntToStr(FBlockedCounts[fBlockReason]);
+  for i := 0 to FBlockSampleCount - 1 do
+  begin
+    Result := Result + #10 + FBlockSamples[i].Text;
+    FBlockSamples[i].Text := '';
+  end;
+  FBlockSampleCount := 0;
+  FBlockCandidates := 0;
+  FillChar(FBlockedCounts, SizeOf(FBlockedCounts), 0);
   FillChar(FCounters, SizeOf(FCounters), 0);
   FillChar(FTimes, SizeOf(FTimes), 0);
   FWindowStartedUs := aNowUs;

@@ -29,6 +29,7 @@ type
     FLock: TCriticalSection;
     FSites: TDictionary<String, Byte>;
     FRevision: Int64;
+    {$IFDEF QUEUE_DIAGNOSTICS}FChangedAt: Int64;{$ENDIF}
   public
     { Creates an empty subscription set. }
     constructor Create;
@@ -40,6 +41,10 @@ type
     function TakeSites: TArray<String>;
     { Returns the revision advanced before each destination notification. }
     function Revision: Int64;
+    {$IFDEF QUEUE_DIAGNOSTICS}
+    { Latest notification timestamp; not a guarantee of destination readiness. }
+    function DiagnosticChangedAt: Int64;
+    {$ENDIF}
   end;
 
   { Capacity blocks expire on a destination notification or a bounded safety retry. }
@@ -47,6 +52,7 @@ type
   private
     FRevision: Int64;
     FRetryAt: TDateTime;
+    {$IFDEF QUEUE_DIAGNOSTICS}FReason: TQueueBlockReason;{$ENDIF}
   end;
 
   TQueueThread = class(TThread)
@@ -78,7 +84,15 @@ type
     procedure TryToAssignRaceSlots(t: TPazoRaceTask);
     function TaskAlreadyInQueue(t: TTask): boolean;
     procedure QueueStat;
-    {$IFDEF QUEUE_DIAGNOSTICS}procedure ReportDiagnostics;{$ENDIF}
+    {$IFDEF QUEUE_DIAGNOSTICS}
+    procedure ReportDiagnostics;
+    procedure DiagnosticBlockTask(aTask: TTask; const aReason: TQueueBlockReason;
+      const aCacheReason: TQueueBlockReason = qbNone; const aRetryMs: Int64 = 0;
+      const aRevision: Int64 = 0; const aUsed: Integer = -1; const aLimit: Integer = -1);
+    procedure DiagnosticBeginTask(aTask: TTask);
+    procedure DiagnosticFinishTask(aTask: TTask; const aOutcome: String);
+    procedure DiagnosticSampleTask(aTask: TTask; const aNowUs: Int64; const aOutcome: String);
+    {$ENDIF}
 
 protected
 { Waits for a retained work signal, the earliest deadline, or housekeeping. }
@@ -92,7 +106,7 @@ function MoveWaitingTasks(const aNow: TDateTime): TDateTime;
 procedure RecordAssignmentFailure(const aTask: TTask);
 { Remembers a site-wide capacity block, not release-specific dependencies. }
 procedure RememberBlockedDestination(aDestination: TObject; const aRevision: Int64;
-  const aRetryAt: TDateTime);
+  const aRetryAt: TDateTime{$IFDEF QUEUE_DIAGNOSTICS}; const aReason: TQueueBlockReason = qbUnknown{$ENDIF});
 { Checks a retained block against the destination's current revision and retry deadline. }
 function DestinationBlocked(aDestination: TObject; const aRevision: Int64;
   const aNow: TDateTime): Boolean;
@@ -201,6 +215,7 @@ begin
   FLock.Enter;
   try
     Inc(FRevision);
+    {$IFDEF QUEUE_DIAGNOSTICS}FChangedAt := QueueDiagnosticNow;{$ENDIF}
     Result := FSites.Keys.ToArray;
     FSites.Clear;
   finally
@@ -217,6 +232,18 @@ begin
     FLock.Leave;
   end;
 end;
+
+{$IFDEF QUEUE_DIAGNOSTICS}
+function TQueueWakeTargets.DiagnosticChangedAt: Int64;
+begin
+  FLock.Enter;
+  try
+    Result := FChangedAt;
+  finally
+    FLock.Leave;
+  end;
+end;
+{$ENDIF}
 
 procedure TQueueThread.QueueFire({$IFDEF QUEUE_DIAGNOSTICS}const aReason: TQueueWakeReason = qwExternal{$ENDIF});
 begin
@@ -524,12 +551,13 @@ begin
 end;
 
 procedure TQueueThread.RememberBlockedDestination(aDestination: TObject;
-  const aRevision: Int64; const aRetryAt: TDateTime);
+  const aRevision: Int64; const aRetryAt: TDateTime{$IFDEF QUEUE_DIAGNOSTICS}; const aReason: TQueueBlockReason{$ENDIF});
 var
   fBlock: TQueueDestinationBlock;
 begin
   fBlock.FRevision := aRevision;
   fBlock.FRetryAt := aRetryAt;
+  {$IFDEF QUEUE_DIAGNOSTICS}fBlock.FReason := aReason;{$ENDIF}
   fBusyDestinations.AddOrSetValue(aDestination, fBlock);
   if aRetryAt < FAssignmentRetryAt then
     FAssignmentRetryAt := aRetryAt;
@@ -638,7 +666,7 @@ begin
       waiting_tasks.Extract(fTask);
       tasks.Add(fTask);
       FSortPending := True;
-      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcPromoted);{$ENDIF}
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcPromoted); DiagnosticBlockTask(fTask, qbNotChecked);{$ENDIF}
     end
     else
       _ConsiderQueueDeadline(aNow, fTask.startat, Result);
@@ -738,13 +766,14 @@ var
   ss1, ss2, fSiteSlotLoop: TSiteSlot;
   fDestinationRevision: Int64;
   fNow: TDateTime;
+  {$IFDEF QUEUE_DIAGNOSTICS}fDiagnosticBlock: TQueueDestinationBlock;{$ENDIF}
 begin
   try
     s1 := TSite(t.ssite1);
     s2 := TSite(t.ssite2);
     if s1.freeslots = 0 then
     begin
-      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcSourceFull);{$ENDIF}
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcSourceFull); DiagnosticBlockTask(t, qbSourceFull);{$ENDIF}
       exit;
     end;
     { Subscribe BEFORE checking destination state so concurrent completion cannot be lost. }
@@ -752,20 +781,23 @@ begin
     fNow := Now;
     if DestinationBlocked(s2, fDestinationRevision, fNow) then
     begin
-      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcBusyCache);{$ENDIF}
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcBusyCache);
+      if fBusyDestinations.TryGetValue(s2, fDiagnosticBlock) then
+        DiagnosticBlockTask(t, qbCachedDestination, fDiagnosticBlock.FReason,
+          Max(Int64(0), MilliSecondsBetween(fDiagnosticBlock.FRetryAt, fNow)), fDiagnosticBlock.FRevision);{$ENDIF}
       Exit;
     end;
     if s2.freeslots = 0 then
     begin
-      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcDestinationFull);{$ENDIF}
-      RememberBlockedDestination(s2, fDestinationRevision, IncMilliSecond(fNow, glQueueFallbackMs));
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcDestinationFull); DiagnosticBlockTask(t, qbDestinationFull);{$ENDIF}
+      RememberBlockedDestination(s2, fDestinationRevision, IncMilliSecond(fNow, glQueueFallbackMs){$IFDEF QUEUE_DIAGNOSTICS}, qbDestinationFull{$ENDIF});
       exit;
     end;
 
     if s2.MaxSimUpCooldownActive then
     begin
-      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcCooldown);{$ENDIF}
-      RememberBlockedDestination(s2, fDestinationRevision, s2.MaxSimUpCooldownUntil);
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcCooldown); DiagnosticBlockTask(t, qbCooldown, qbNone, s2.MaxSimUpCooldownRemainingSeconds * 1000);{$ENDIF}
+      RememberBlockedDestination(s2, fDestinationRevision, s2.MaxSimUpCooldownUntil{$IFDEF QUEUE_DIAGNOSTICS}, qbCooldown{$ENDIF});
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Destination site %s is on MaxSim UP cooldown (%ds remaining), skipping %s',
         [s2.Name, s2.MaxSimUpCooldownRemainingSeconds, t.FullName]);
       exit;
@@ -773,7 +805,7 @@ begin
 
     if s1.MaxSimDownCooldownActive then
     begin
-      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcCooldown);{$ENDIF}
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcCooldown); DiagnosticBlockTask(t, qbCooldown, qbNone, s1.MaxSimDownCooldownRemainingSeconds * 1000);{$ENDIF}
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Source site %s is on MaxSim DOWN cooldown (%ds remaining), skipping %s',
         [s1.Name, s1.MaxSimDownCooldownRemainingSeconds, t.FullName]);
       exit;
@@ -782,20 +814,20 @@ begin
     // first watch if it is not already in process to upload the same file to the same place
     if t.ps2.HasActiveTransfer(t.dir + t.filename) then
     begin
-      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcActiveFile);{$ENDIF}
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcActiveFile); DiagnosticBlockTask(t, qbActiveFile);{$ENDIF}
       exit;
     end; // we are already sending this file to the same destination site
 
     if s2.num_up >= s2.max_up then
     begin
-      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcDestinationLimit);{$ENDIF}
-      RememberBlockedDestination(s2, fDestinationRevision, IncMilliSecond(fNow, glQueueFallbackMs));
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcDestinationLimit); DiagnosticBlockTask(t, qbDestinationLimit, qbNone, 0, 0, s2.num_up, s2.max_up);{$ENDIF}
+      RememberBlockedDestination(s2, fDestinationRevision, IncMilliSecond(fNow, glQueueFallbackMs){$IFDEF QUEUE_DIAGNOSTICS}, qbDestinationLimit{$ENDIF});
       exit;
     end;
 
     if t.ps1.HasActiveTransfer(t.dir + t.filename, s2.Name) then
     begin
-      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcActiveFile);{$ENDIF}
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcActiveFile); DiagnosticBlockTask(t, qbActiveFile);{$ENDIF}
       exit;
     end; // we are already sending this file the opposite route
 
@@ -805,7 +837,7 @@ begin
     begin
       if s1.num_dn >= s1.max_pre_dn then
       begin
-        {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcSourceLimit);{$ENDIF}
+        {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcSourceLimit); DiagnosticBlockTask(t, qbSourceLimit, qbNone, 0, 0, s1.num_dn, s1.max_pre_dn);{$ENDIF}
         exit;
       end;
     end
@@ -813,7 +845,7 @@ begin
     begin
       if s1.num_dn >= s1.max_dn then
       begin
-        {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcSourceLimit);{$ENDIF}
+        {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcSourceLimit); DiagnosticBlockTask(t, qbSourceLimit, qbNone, 0, 0, s1.num_dn, s1.max_dn);{$ENDIF}
         exit;
       end;
     end;
@@ -842,13 +874,16 @@ begin
       end;
     end;
     if ss1 = nil then
+    begin
+      {$IFDEF QUEUE_DIAGNOSTICS}DiagnosticBlockTask(t, qbSourceOffline);{$ENDIF}
       exit;
+    end;
 
 
     if not s2.AcquireSlotsAssignmentLock(1, 'TryToAssignRaceSlots') then
     begin
-      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcDestinationLock);{$ENDIF}
-      RememberBlockedDestination(s2, fDestinationRevision, IncMilliSecond(Now, 25));
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcDestinationLock); DiagnosticBlockTask(t, qbDestinationLock);{$ENDIF}
+      RememberBlockedDestination(s2, fDestinationRevision, IncMilliSecond(Now, 25){$IFDEF QUEUE_DIAGNOSTICS}, qbDestinationLock{$ENDIF});
       exit;
     end;
 
@@ -856,14 +891,17 @@ begin
       // check again now that we have the lock at the destination
       if s2.num_up >= s2.max_up then
       begin
-        {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcDestinationLimit);{$ENDIF}
-        RememberBlockedDestination(s2, fDestinationRevision, IncMilliSecond(fNow, glQueueFallbackMs));
+        {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcDestinationLimit); DiagnosticBlockTask(t, qbDestinationLimit, qbNone, 0, 0, s2.num_up, s2.max_up);{$ENDIF}
+        RememberBlockedDestination(s2, fDestinationRevision, IncMilliSecond(fNow, glQueueFallbackMs){$IFDEF QUEUE_DIAGNOSTICS}, qbDestinationLimit{$ENDIF});
         exit;
       end;
 
       // again check if this file is already being sent to the destination now that we have the slot assignment lock
       if t.ps2.HasActiveTransfer(t.dir + t.filename) then
-        exit; // we are already sending this file to the same destination site
+      begin
+        {$IFDEF QUEUE_DIAGNOSTICS}DiagnosticBlockTask(t, qbActiveFile);{$ENDIF}
+        exit;
+      end; // we are already sending this file to the same destination site
 
       ss2 := nil;
       for fSiteSlotLoop in s2.slots do
@@ -877,7 +915,8 @@ begin
       end;
       if ss2 = nil then
       begin
-        RememberBlockedDestination(s2, fDestinationRevision, IncMilliSecond(fNow, glQueueFallbackMs));
+        {$IFDEF QUEUE_DIAGNOSTICS}DiagnosticBlockTask(t, qbDestinationOffline);{$ENDIF}
+        RememberBlockedDestination(s2, fDestinationRevision, IncMilliSecond(fNow, glQueueFallbackMs){$IFDEF QUEUE_DIAGNOSTICS}, qbDestinationOffline{$ENDIF});
         exit;
       end;
 
@@ -885,7 +924,7 @@ begin
       i := ss2.site.MaxUpPerRip;
       if ((i > 0) and (t.ps2.ActiveTransferCount >= i)) then
       begin
-        {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcDestinationLimit);{$ENDIF}
+        {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcDestinationLimit); DiagnosticBlockTask(t, qbDestinationLimit, qbNone, 0, 0, t.ps2.ActiveTransferCount, i);{$ENDIF}
         Debug(dpSpam, section, 'We shouldnt upload more than maxupperrip value [' + IntToStr(i) + '] for' + ss2.Name);
         exit;
       end;
@@ -1030,6 +1069,7 @@ var
   sst: TSiteSlot;
   actual_count: integer;
 begin
+  {$IFDEF QUEUE_DIAGNOSTICS}DiagnosticBeginTask(t); try{$ENDIF}
    // Debug(dpSpam, section, 'TryToAssignSlots profile '+t.Fullname);
 
   try
@@ -1038,13 +1078,13 @@ begin
     try
     if s.freeslots = 0 then
     begin
-      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcSourceFull);{$ENDIF}
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcSourceFull); DiagnosticBlockTask(t, qbSourceFull);{$ENDIF}
       exit;
     end;
 
     if t.wanted_up and s.MaxSimUpCooldownActive then
     begin
-      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcCooldown);{$ENDIF}
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcCooldown); DiagnosticBlockTask(t, qbCooldown);{$ENDIF}
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Site %s is on MaxSim UP cooldown (%ds remaining), skip task %s',
         [s.Name, s.MaxSimUpCooldownRemainingSeconds, t.FullName]);
       exit;
@@ -1052,7 +1092,7 @@ begin
 
     if t.wanted_dn and s.MaxSimDownCooldownActive then
     begin
-      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcCooldown);{$ENDIF}
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcCooldown); DiagnosticBlockTask(t, qbCooldown);{$ENDIF}
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Site %s is on MaxSim DOWN cooldown (%ds remaining), skip task %s',
         [s.Name, s.MaxSimDownCooldownRemainingSeconds, t.FullName]);
       exit;
@@ -1102,6 +1142,7 @@ begin
         // only half of the slots for dirlist
         if (actual_count >= Max(s.slots.Count div 2, 1)) then
         begin
+          {$IFDEF QUEUE_DIAGNOSTICS}DiagnosticBlockTask(t, qbDirlistLimit, qbNone, 0, 0, actual_count, Max(s.slots.Count div 2, 1));{$ENDIF}
           exit;
         end;
       end;
@@ -1116,7 +1157,10 @@ begin
           exit;
         end;
         if (ss.todotask <> nil) or (ss.status <> ssOnline) then
+        begin
+          {$IFDEF QUEUE_DIAGNOSTICS}DiagnosticBlockTask(t, qbWantedSlot);{$ENDIF}
           exit;
+        end;
       end;
 
       // try to find a free and online slot
@@ -1132,7 +1176,10 @@ begin
         end;
 
         if ss = nil then
+        begin
+          {$IFDEF QUEUE_DIAGNOSTICS}DiagnosticBlockTask(t, qbSourceOffline);{$ENDIF}
           exit;
+        end;
       end;
 
       if ((t.wanted_dn) or (t.wanted_up)) then
@@ -1161,7 +1208,10 @@ begin
 
         //OLD CODE before max_pre_dn was added
           if s.num_dn >= ss.site.max_dn then
+          begin
+            {$IFDEF QUEUE_DIAGNOSTICS}DiagnosticBlockTask(t, qbSourceLimit, qbNone, 0, 0, s.num_dn, ss.site.max_dn);{$ENDIF}
             exit;
+          end;
 
 
           ss.downloadingfrom := True;
@@ -1171,7 +1221,10 @@ begin
         if t.wanted_up then
         begin
           if s.num_up >= ss.site.max_up then
+          begin
+            {$IFDEF QUEUE_DIAGNOSTICS}DiagnosticBlockTask(t, qbSourceLimit, qbNone, 0, 0, s.num_up, ss.site.max_up);{$ENDIF}
             exit;
+          end;
           ss.uploadingto := True;
         end;
       end;
@@ -1192,6 +1245,13 @@ begin
       RecordAssignmentFailure(t);
     end;
   end;
+  {$IFDEF QUEUE_DIAGNOSTICS}
+  finally
+    if t.slot1 <> nil then DiagnosticFinishTask(t, 'assigned')
+    else if t.startat > Now then DiagnosticBlockTask(t, qbDelayed)
+    else if not t.QueueBlockState^.Classified then DiagnosticBlockTask(t, qbUnknown);
+  end;
+  {$ENDIF}
 end;
 
 procedure AddQuitTask(s: TSiteSlot);
@@ -1548,6 +1608,11 @@ begin
 
     {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcInserted); fDiagnosticWake := qwTask;{$ENDIF}
     fNow := Now;
+    {$IFDEF QUEUE_DIAGNOSTICS}
+    if (t.slot1 = nil) and (t.slot2 = nil) and not (t.ready or t.readyerror) then
+      if t.startat > fNow then DiagnosticBlockTask(t, qbDelayed)
+      else DiagnosticBlockTask(t, qbNotChecked);
+    {$ENDIF}
     if t.startat > fNow then
     begin
       waiting_tasks.Add(t);
@@ -1902,6 +1967,66 @@ begin
 end;
 
 {$IFDEF QUEUE_DIAGNOSTICS}
+procedure TQueueThread.DiagnosticBlockTask(aTask: TTask; const aReason: TQueueBlockReason;
+  const aCacheReason: TQueueBlockReason; const aRetryMs, aRevision: Int64;
+  const aUsed, aLimit: Integer);
+begin
+  aTask.QueueBlockState^.Observe(aReason, QueueDiagnosticNow, aCacheReason,
+    aRetryMs, aRevision, aUsed, aLimit);
+end;
+
+procedure TQueueThread.DiagnosticBeginTask(aTask: TTask);
+var
+  fState: PQueueBlockState;
+  fAt, fEventAt: Int64;
+begin
+  fState := aTask.QueueBlockState;
+  fAt := QueueDiagnosticNow;
+  fState^.BeginCheck(fAt);
+  if (fState^.Reason = qbMkdir) and (aTask is TPazoTask) and
+    (TPazoTask(aTask).FDependingOnDirlist <> nil) then
+  begin
+    fEventAt := TPazoTask(aTask).FDependingOnDirlist.DiagnosticReadyAt;
+    fState^.RecordEvent(fEventAt, fAt, 'dependency_ready');
+  end
+  else if (fState^.Reason in [qbDestinationFull, qbDestinationOffline,
+    qbDestinationLimit, qbDestinationLock, qbCachedDestination]) and (aTask.ssite2 <> nil) then
+    fState^.RecordEvent(TSite(aTask.ssite2).QueueDiagnosticChangedAt, fAt, 'destination_notification')
+  else if (fState^.Reason in [qbSourceFull, qbSourceOffline, qbSourceLimit]) and
+    (aTask.ssite1 <> nil) then
+    fState^.RecordEvent(TSite(aTask.ssite1).QueueDiagnosticChangedAt, fAt, 'source_notification');
+end;
+
+procedure TQueueThread.DiagnosticSampleTask(aTask: TTask; const aNowUs: Int64;
+  const aOutcome: String);
+var
+  fSourceFree, fTargetFree: Integer;
+  fPlannedMs: Int64;
+  fNow: TDateTime;
+begin
+  if aTask.QueueBlockState^.BlockedUs(aNowUs) < 2000000 then Exit;
+  fSourceFree := -1;
+  fTargetFree := -1;
+  if aTask.ssite1 <> nil then fSourceFree := TSite(aTask.ssite1).freeslots;
+  if aTask.ssite2 <> nil then fTargetFree := TSite(aTask.ssite2).freeslots;
+  fNow := Now;
+  fPlannedMs := 0;
+  if aTask.startat > fNow then fPlannedMs := MilliSecondsBetween(aTask.startat, fNow);
+  FDiagnostics.SampleBlock(aTask.uid, aTask.ClassName, aTask.site1, aTask.site2,
+    aTask.QueueBlockState^, aNowUs, MilliSecondsBetween(fNow, aTask.created),
+    fPlannedMs, fSourceFree, fTargetFree, aOutcome);
+end;
+
+procedure TQueueThread.DiagnosticFinishTask(aTask: TTask; const aOutcome: String);
+var
+  fNowUs: Int64;
+begin
+  if aTask.QueueBlockState^.FinishedAt <> 0 then Exit;
+  fNowUs := QueueDiagnosticNow;
+  aTask.QueueBlockState^.Finish(fNowUs);
+  DiagnosticSampleTask(aTask, fNowUs, aOutcome);
+end;
+
 procedure TQueueThread.ReportDiagnostics;
 var
   fTask: TTask;
@@ -1909,6 +2034,8 @@ var
   fOldestDueMs, fAgeMs, fNowUs: Int64;
   fNow: TDateTime;
   fReport: String;
+  fList: TObjectList;
+  fListIndex, fLineEnd: Integer;
 begin
   fNowUs := QueueDiagnosticNow;
   if not FDiagnostics.ReportDue(fNowUs) then
@@ -1920,15 +2047,30 @@ begin
     fDue := 0;
     fOldestDueMs := 0;
     fNow := Now;
-    for fTask in tasks do
+    for fListIndex := 0 to 1 do
+    begin
+    if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+    for fTask in fList do
       if (fTask.slot1 = nil) and (fTask.slot2 = nil) and
-        not (fTask.ready or fTask.readyerror) and (fTask.startat <= fNow) then
+        not (fTask.ready or fTask.readyerror) then
       begin
+        if fTask.startat > fNow then
+        begin
+          FDiagnostics.CountBlocked(qbDelayed);
+          DiagnosticSampleTask(fTask, fNowUs, 'pending');
+          Continue;
+        end;
         Inc(fDue);
         fAgeMs := MilliSecondsBetween(fNow, fTask.created);
         if fAgeMs > fOldestDueMs then
           fOldestDueMs := fAgeMs;
+        if (fSite <> nil) and (TSite(fSite).freeslots = 0) and
+          (fTask.QueueBlockState^.Reason in [qbNone, qbNotChecked, qbSourceFull]) then
+          DiagnosticBlockTask(fTask, qbSourceFull);
+        FDiagnostics.CountBlocked(fTask.QueueBlockState^.Reason);
+        DiagnosticSampleTask(fTask, fNowUs, 'pending');
       end;
+    end;
     fFreeSlots := 0;
     if fSite <> nil then
       fFreeSlots := TSite(fSite).freeslots;
@@ -1937,8 +2079,13 @@ begin
   finally
     main_lock.Leave;
   end;
-  if fReport <> '' then
-    Debug(dpMessage, 'queue-diag', fReport);
+  while fReport <> '' do
+  begin
+    fLineEnd := Pos(#10, fReport);
+    if fLineEnd = 0 then fLineEnd := Length(fReport) + 1;
+    Debug(dpMessage, 'queue-diag', Copy(fReport, 1, fLineEnd - 1));
+    Delete(fReport, 1, fLineEnd);
+  end;
 end;
 {$ENDIF}
 
@@ -2029,6 +2176,7 @@ begin
               end;
               ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
               try
+                {$IFDEF QUEUE_DIAGNOSTICS}DiagnosticFinishTask(fTask, 'removed');{$ENDIF}
                 fList.Remove(fTask);
               finally
                 ts.ReleaseSlotsAssignmentLock;
@@ -2065,6 +2213,7 @@ begin
               begin
                 if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
                 begin
+                  {$IFDEF QUEUE_DIAGNOSTICS}DiagnosticBeginTask(fTask);{$ENDIF}
                   if fTask.IsReadyToBeExecuted then
                   begin
                     TryToAssignSlots(fTask);
@@ -2087,7 +2236,11 @@ begin
                   end
                   else
                   begin
-                    {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcDependency);{$ENDIF}
+                    {$IFDEF QUEUE_DIAGNOSTICS}
+                    FDiagnostics.Count(qcDependency);
+                    if fTask is TPazoTask then DiagnosticBlockTask(fTask, qbMkdir)
+                    else DiagnosticBlockTask(fTask, qbDependency);
+                    {$ENDIF}
                     if (fTask is TPazoRaceTask) and (fTask.ssite2 <> nil) then
                     begin
                       TSite(fTask.ssite2).RegisterQueueWaiter(fSiteName);
@@ -2430,6 +2583,7 @@ begin
                 end;
               end;
 
+              {$IFDEF QUEUE_DIAGNOSTICS}DiagnosticFinishTask(t, 'removed');{$ENDIF}
               tasks.Remove(t);
             except
               on e: Exception do
@@ -2500,6 +2654,7 @@ begin
             ts.AcquireSlotsAssignmentLock('QueueClean other');
             try
               Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Fullname]));
+              {$IFDEF QUEUE_DIAGNOSTICS}DiagnosticFinishTask(t, 'removed');{$ENDIF}
               tasks.Remove(t);
             finally
               ts.ReleaseSlotsAssignmentLock;
@@ -2864,6 +3019,7 @@ begin
         try
           ts.AcquireSlotsAssignmentLock('killall');
             try
+              {$IFDEF QUEUE_DIAGNOSTICS}DiagnosticFinishTask(fTask, 'removed');{$ENDIF}
               fList.Remove(TPazoTask(fTask));
             finally
               ts.ReleaseSlotsAssignmentLock;

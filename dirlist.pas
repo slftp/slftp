@@ -1,5 +1,7 @@
 unit dirlist;
 
+{$I queuediagnostics.inc}
+
 interface
 
 uses Classes, Contnrs, SyncObjs, slcriticalsection2, skiplists, globals, Generics.Collections, IniFiles, sfv, tags;
@@ -85,6 +87,10 @@ type
   { @abstract(Information for a single release dirlist) }
   TDirList = class
   private
+    {$IFDEF QUEUE_DIAGNOSTICS}
+    FDiagnosticNeedMkdir, FDiagnosticError: Boolean;
+    FDiagnosticReadyAt: Int64;
+    {$ENDIF}
     FLastChanged: TDateTime;
     FLastUpdated: TDateTime;
     allcdshere: Boolean;
@@ -126,13 +132,20 @@ type
     procedure SetFullPath(const aFullPath: string);
     { Calculates the FMultiCD field based on the contained dirlist entries. }
     procedure CalculateMultiCD;
+    {$IFDEF QUEUE_DIAGNOSTICS}
+    procedure SetDiagnosticNeedMkdir(const aValue: Boolean);
+    procedure SetDiagnosticError(const aValue: Boolean);
+    function GetDiagnosticReadyAt: Int64;
+    {$ENDIF}
     class function Timestamp(ts: String): TDateTime;
   public
     dirlist_lock: TSlCriticalSection2;
     dirlistadded: Boolean;
     site_name: String; //< sitename
+    {$IFNDEF QUEUE_DIAGNOSTICS}
     error: Boolean;
     need_mkdir: Boolean; //< @true if MKDIR'ing is still needed (default), @false otherwise.
+    {$ENDIF}
     sfv_status: TdlSFV;
     biggestcd: Integer;
     parent: TDirListEntry;
@@ -209,6 +222,13 @@ type
     { True if this TDirlist already has a SFV file
       @returns(@true if SFV is there, @false otherwise) }
     property HasSFV: Boolean read FHasSFV;
+    {$IFDEF QUEUE_DIAGNOSTICS}
+    { Same readiness flags, with a producer timestamp only in diagnostic builds. }
+    property error: Boolean read FDiagnosticError write SetDiagnosticError;
+    property need_mkdir: Boolean read FDiagnosticNeedMkdir write SetDiagnosticNeedMkdir;
+    { Actual transition to dependency readiness, not its later queue observation. }
+    property DiagnosticReadyAt: Int64 read GetDiagnosticReadyAt;
+    {$ENDIF}
   end;
 
 { Just a helper function to initialize image_files_priority and video_files_priority }
@@ -228,7 +248,35 @@ var
 implementation
 
 uses
+  {$IFDEF QUEUE_DIAGNOSTICS}queuediagnostics,{$ENDIF}
   SysUtils, DateUtils, StrUtils, debugunit, mystrings, Math, RegExpr, irc, configunit, mrdohutils, console, IdGlobal, dirlist.helpers, Generics.Defaults;
+
+{$IFDEF QUEUE_DIAGNOSTICS}
+procedure TDirList.SetDiagnosticNeedMkdir(const aValue: Boolean);
+begin
+  if FDiagnosticNeedMkdir = aValue then Exit;
+  if FDiagnosticNeedMkdir and not FDiagnosticError and not aValue then
+    QueueDiagnosticPublish(FDiagnosticReadyAt, QueueDiagnosticNow)
+  else if aValue and not FDiagnosticError then
+    QueueDiagnosticPublish(FDiagnosticReadyAt, 0);
+  FDiagnosticNeedMkdir := aValue;
+end;
+
+procedure TDirList.SetDiagnosticError(const aValue: Boolean);
+begin
+  if FDiagnosticError = aValue then Exit;
+  if FDiagnosticNeedMkdir and aValue then
+    QueueDiagnosticPublish(FDiagnosticReadyAt, QueueDiagnosticNow)
+  else if FDiagnosticNeedMkdir and not aValue then
+    QueueDiagnosticPublish(FDiagnosticReadyAt, 0);
+  FDiagnosticError := aValue;
+end;
+
+function TDirList.GetDiagnosticReadyAt: Int64;
+begin
+  Result := QueueDiagnosticRead(FDiagnosticReadyAt);
+end;
+{$ENDIF}
 
 const
   section = 'dirlist';
