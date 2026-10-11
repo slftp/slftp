@@ -45,8 +45,8 @@ var
         l := TAutoNukeTask.Create(netname, channel, site1);
         l.startat := IncSecond(Now, fInterval);
         l.dontremove := True;
-        AddTask(l);
         s.site.NextAutoNukeDateTime := l.startat;
+        AddTask(l);
       except
         on e: Exception do
         begin

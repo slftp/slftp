@@ -1317,7 +1317,7 @@ begin
   except
     on e: Exception do
     begin
-      // it seems this could happen when the task has been freed already (because we are not inside queue lock here).
+      { The caller holds the queue lock while taking this console snapshot. }
       Debug(dpSpam, section, Format('[EXCEPTION] AddTaskToConsole task not available : %s', [e.Message]));
       exit;
     end;
@@ -1385,6 +1385,9 @@ begin
         (not t.readyerror) and t.IsReadyToBeExecuted and (TSite(fSite).freeslots > 0) then
         TryToAssignSlots(t);
     end;
+    { Directly assigned tasks already have a worker; completion will signal cleanup. }
+    if (t.slot1 <> nil) and not (t.ready or t.readyerror) then
+      fWake := False;
     AddTaskToConsole(t);
   finally
     main_lock.Leave;
@@ -1801,8 +1804,6 @@ begin
               begin
                 if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
                 begin
-                  if (fTask is TPazoRaceTask) and (fTask.ssite2 <> nil) then
-                    TSite(fTask.ssite2).RegisterQueueWaiter(fSiteName);
                   if fTask.IsReadyToBeExecuted then
                   begin
                     TryToAssignSlots(fTask);
@@ -1822,7 +1823,9 @@ begin
                       if fTask.ready or fTask.readyerror then
                         QueueFire;
                     end;
-                  end;
+                  end
+                  else if (fTask is TPazoRaceTask) and (fTask.ssite2 <> nil) then
+                    TSite(fTask.ssite2).RegisterQueueWaiter(fSiteName);
                 end
                 else if (fTask.startat > 0) and (fTask.startat < fNextTaskStartAt) then
                 begin

@@ -13,7 +13,8 @@ longer fires all queues at the legacy `queue_fire` interval.
 - A newly earlier delayed task interrupts an existing wait. The queue waits until
   the earliest future task/retry, relevant source/destination MAXSIM cooldown, or
   slot idle/quit deadline. A failed nonblocking destination-lock acquisition uses
-  a 25 ms retry deadline; slot/dependency-blocked tasks do not use that retry. Due but blocked work waits for a state change instead of
+  a 25 ms retry deadline; slot/dependency-blocked tasks do not use that retry.
+  Due but blocked work waits for a state change instead of
   repeatedly scheduling its expired deadline.
 - Slot completion wakes its own queue. Each destination has a small
   one-shot set of source queues that could not proceed. Sources subscribe before

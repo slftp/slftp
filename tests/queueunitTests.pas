@@ -54,6 +54,17 @@ type
     function Execute(aSlot: Pointer): Boolean; override;
   end;
 
+  TQueueWorkerProbe = class(TQueueProbe)
+  private
+    FEntered, FExited: TEvent;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    procedure Execute; override;
+    property Entered: TEvent read FEntered;
+    property Exited: TEvent read FExited;
+  end;
+
   TQueueWaiter = class(TThread)
   private
     FQueue: TQueueProbe;
@@ -102,6 +113,29 @@ end;
 function TProbeTask.Execute(aSlot: Pointer): Boolean;
 begin
   Result := True;
+end;
+
+constructor TQueueWorkerProbe.Create;
+begin
+  inherited Create('QueueWorkerStopTest');
+  FEntered := TEvent.Create(nil, True, False, '');
+  FExited := TEvent.Create(nil, True, False, '');
+  Start;
+end;
+
+destructor TQueueWorkerProbe.Destroy;
+begin
+  inherited;
+  FEntered.Free;
+  FExited.Free;
+end;
+
+procedure TQueueWorkerProbe.Execute;
+begin
+  FEntered.SetEvent;
+  while not Terminated do
+    WaitForWake;
+  FExited.SetEvent;
 end;
 
 constructor TQueueWaiter.Create(aQueue: TQueueProbe);
@@ -262,20 +296,14 @@ end;
 
 procedure TTestQueueUnit.TestShutdownInterruptsWait;
 var
-  fQueue: TQueueProbe;
-  fWaiter: TQueueWaiter;
+  fQueue: TQueueWorkerProbe;
 begin
-  fQueue := TQueueProbe.Create('QueueStopTest');
+  fQueue := TQueueWorkerProbe.Create;
   try
-    fWaiter := TQueueWaiter.Create(fQueue);
-    try
-      CheckTrue(fWaiter.Entered.WaitFor(2000) = wrSignaled);
-      fQueue.QueueStop;
-      CheckTrue(fWaiter.Done.WaitFor(2000) = wrSignaled, 'Stop must wake a sleeping queue');
-      CheckTrue(fWaiter.WaitResult = wrSignaled);
-    finally
-      fWaiter.Free;
-    end;
+    CheckTrue(fQueue.Entered.WaitFor(2000) = wrSignaled);
+    fQueue.QueueStop;
+    CheckTrue(fQueue.Exited.WaitFor(0) = wrSignaled, 'Stop must join the actual worker before returning');
+    fQueue.QueueStop; // repeated shutdown is safe
   finally
     fQueue.Free;
   end;
