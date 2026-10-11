@@ -434,13 +434,12 @@ type
     function RCDateTime(const Name: String; const def: TDateTime): TDateTime;
     procedure WCDateTime(const Name: String; const val: TDateTime);
 
-    procedure AddTask(const t: TTask; const queueFire: boolean = false);
+    procedure AddTask(const t: TTask; const queueFire: boolean = True);
     procedure QueueFire;
     procedure QueueClean;
     procedure QueueSort;
     function RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
     //procedure QueueEmpty(const sitename: String);
-    procedure QueueFireInverval(const interval: integer);
     procedure QueueCleanInverval(const interval: integer);
     procedure RemovePazoMKDIR(const pazo_id: integer; const dir: String);
     procedure RemovePazoRace(const aPazoID: integer; const aDstSite, aDir, aFilename: String);
@@ -496,6 +495,8 @@ type
     function isRouteableTo(const sitename: String): boolean;
 
     procedure RegisterMaxSimUpHit(const aSlotName: String);
+    property MaxSimUpCooldownUntil: TDateTime read fMaxSimUpCooldownUntil; //< absolute upload retry deadline
+    property MaxSimDownCooldownUntil: TDateTime read fMaxSimDownCooldownUntil; //< absolute download retry deadline
     procedure ResetMaxSimUpCooldown;
     function MaxSimUpCooldownActive: boolean;
     function MaxSimUpCooldownRemainingSeconds: integer;
@@ -638,8 +639,7 @@ type
 function ReadSites(): boolean;
 procedure SlotsFire;
 procedure SiteAutoStart;
-procedure AddTask(const t: TTask; const queueFire: boolean = false);
-procedure QueueFireInverval(const interval: integer);
+procedure AddTask(const t: TTask; const queueFire: boolean = True);
 procedure QueueCleanInverval(const interval: integer);
 function RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
 procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
@@ -778,6 +778,7 @@ procedure AddSite(const aSite: TSite);
 begin
   sites.Add(aSite);
   sitesDict.Add(aSite.Name, aSite);
+  aSite.fQueue.Start;
 end;
 
 procedure DeleteSite(const aSite: TSite);
@@ -1065,7 +1066,7 @@ begin
   end;
 end;
 
-procedure TSite.AddTask(const t: TTask; const queueFire: boolean = false);
+procedure TSite.AddTask(const t: TTask; const queueFire: boolean = True);
 begin
   if fQueue = nil then
   begin
@@ -1079,17 +1080,7 @@ begin
     exit;
   end;
 
-  fQueue.AddTask(t);
-  if queueFire then self.QueueFire;
-end;
-
-procedure QueueFireInverval(const interval: integer);
-var fSite: TSite;
-begin
-  for fSite in sites do
-  begin
-    fSite.QueueFireInverval(interval);
-  end;
+  fQueue.AddTask(t, queueFire);
 end;
 
 procedure QueueCleanInverval(const interval: integer);
@@ -1101,7 +1092,7 @@ begin
   end;
 end;
 
-procedure AddTask(const t: TTask; const queueFire: boolean = false);
+procedure AddTask(const t: TTask; const queueFire: boolean = True);
 var
   fAdminSite: TSite;
 begin
@@ -1137,19 +1128,6 @@ begin
   end;
 end;
 
-procedure TSite.QueueFireInverval(const interval: integer);
-begin
-  try
-    if (fQueue <> nil) and (MilliSecondsBetween(Now, fQueue.QueueLastRun) >= interval) then
-      self.QueueFire;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, '[EXCEPTION] TSite.QueueFireInverval (%s): %s', [self.Name, e.Message]);
-    end;
-  end;
-end;
-
 procedure TSite.QueueCleanInverval(const interval: integer);
 begin
   try
@@ -1180,7 +1158,8 @@ begin
   Debug(dpSpam, section, 'QueueEmpty start: ' + sitename);
   for site in sites do
   begin
-     site.fQueue.QueueEmpty(sitename);
+    if site.fQueue <> nil then
+      site.fQueue.QueueEmpty(sitename);
   end;
 end;
 
@@ -1433,11 +1412,21 @@ begin
 end;
 
 procedure SitesUninit;
+var
+  fSite: TSite;
 begin
   Debug(dpSpam, section, 'Uninit1');
 
   if sites <> nil then
   begin
+    { Stop every queue before destroying any referenced site. }
+    for fSite in sites do
+    begin
+      fSite.fQueue.Terminate;
+      fSite.QueueFire;
+    end;
+    for fSite in sites do
+      fSite.fQueue.QueueStop;
     sites.Free;
     sites := nil;
   end;
@@ -1556,8 +1545,12 @@ var
   fPair: TDestinationRank;
   fSite: TSite;
   fCurrentTask: TTask;
+  fWakeSources: TList<String>;
+  fSourceName: String;
 begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
+  fWakeSources := TList<String>.Create;
+  try
   tname := 'nil';
   console_add_sitewindow(Name);
   while ((not slshutdown) and (not shouldquit)) do
@@ -1573,6 +1566,7 @@ begin
         // outside while Execute below is still running, which would make the
         // cleanup block below skip slot1/slot2 cleanup. Using fCurrentTask
         // ensures cleanup always runs.
+        fWakeSources.Clear;
         fCurrentTask := todotask;
         try
           tname := fCurrentTask.Name;
@@ -1644,18 +1638,14 @@ begin
                   end;
                 end;
 
-                // prepare all possible destination sites for a possible new transfer by firing their queue
-                if ((not shouldquit) and (not slshutdown)) then
-                begin
-                  for fPazoSite in TPazoRaceTask(fCurrentTask).mainpazo.PazoSitesList do
-                  begin
-                    for fPair in fPazoSite.destinations do
-                    begin
-                      if fPair.PazoSite.Name = site.Name then
-                        FindSiteByName('', fPazoSite.Name).QueueFire;
-                    end;
-                  end;
-                end;
+              end;
+              { Transfer completion and directory dependencies can unblock other source queues. }
+              if (fCurrentTask is TPazoTask) and ((not shouldquit) and (not slshutdown)) then
+              begin
+                for fPazoSite in TPazoTask(fCurrentTask).mainpazo.PazoSitesList do
+                  for fPair in fPazoSite.destinations do
+                    if (fPair.PazoSite.Name = site.Name) and not fWakeSources.Contains(fPazoSite.Name) then
+                      fWakeSources.Add(fPazoSite.Name);
               end;
 
             finally
@@ -1706,6 +1696,12 @@ begin
         if ((not shouldquit) and (not slshutdown)) then
         begin
           site.QueueFire;
+          for fSourceName in fWakeSources do
+          begin
+            fSite := FindSiteByName('', fSourceName);
+            if fSite <> nil then
+              fSite.QueueFire;
+          end;
         end;
       end
       else
@@ -1764,6 +1760,9 @@ begin
 
   console_delwindow(Name);
   kilepve := True;
+  finally
+    fWakeSources.Free;
+  end;
 end;
 
 destructor TSiteSlot.Destroy;
@@ -3368,10 +3367,12 @@ var
   fSlot: TSiteSlot;
 begin
   Debug(dpSpam, section, 'Site %s destroy begin', [Name]);
-  fQueue.Free;
-  QueueEmpty(Name);
+  if fQueue <> nil then
+    fQueue.QueueStop;
   for fSlot in slots do
     fSlot.Free;
+  QueueEmpty(Name);
+  FreeAndNil(fQueue);
   slots.Free;
   fSlotsAssignmentLock.Free;
   fSpeedFromCS.Free;

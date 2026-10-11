@@ -66,7 +66,6 @@ const
   section = 'mainthread';
 
 var
-  queue_fire: integer;
   queueclean_interval: integer;
   queue_stat_interval: integer;
   ranks_save_interval: integer;
@@ -282,7 +281,6 @@ begin
   console_addline('Admin', 'Init Autodirlist', True);
   AutoDirlistInit;
 
-  queue_fire := config.readInteger('queue', 'queue_fire', 900);
   queueclean_interval := config.ReadInteger('queue', 'queueclean_interval', 1800);
   queue_stat_interval := 500;
   ranks_save_interval := config.readInteger('ranks', 'save_interval', 900);
@@ -321,19 +319,6 @@ begin
           AddTask(TLoginTask.Create('', '', fSite.Name, True, False));
           fSite.QueueFire;
         end;
-      end;
-    end;
-  end;
-
-  // fire queue scheduler
-  if ((queue_fire > 0)) then
-  begin
-    try
-      QueueFireInverval(queue_fire);
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, '[EXCEPTION] Main_Iter(QueueFire): %s', [e.Message]);
       end;
     end;
   end;

@@ -645,7 +645,7 @@ begin
 
             // finally we can add the task
             try
-              AddTask(pr);
+              AddTask(pr, False);
               Result := True;
             except
               on e: Exception do

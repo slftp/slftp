@@ -33,6 +33,8 @@ type
   fSiteName: String;
   fSite: TObject;
   fBusyDestinations: TDictionary<TObject, integer>;
+  FSortPending: Boolean;
+  FNextTaskAt: TDateTime;
 
   queue_last_run: TDateTime;
   queueclean_last_run: TDateTime;
@@ -43,12 +45,24 @@ type
     function TaskAlreadyInQueue(t: TTask): boolean;
     procedure QueueStat;
 
-public
+protected
+{ Waits for a retained work signal, the earliest deadline, or housekeeping. }
+function WaitForWake(const aMaxWait: Cardinal = High(Cardinal)): TWaitResult;
+{ Applies coalesced sort requests. The caller must have a slot available. }
+function ApplyPendingSort: Boolean;
+{ Moves due tasks into the dispatch list and records only future task deadlines.
+  Must be called while holding main_lock. }
+function MoveWaitingTasks(const aNow: TDateTime): TDateTime;
 
+public
 
 procedure QueueFire;
 procedure QueueStart;
-procedure AddTask(t: TTask);
+{ Stops and joins the worker before site/slot state is released. }
+procedure QueueStop;
+{ Takes ownership after insertion; due work signals by default, including metadata.
+  Batch producers may suppress the signal and fire once when the batch is complete. }
+procedure AddTask(t: TTask; const aQueueFire: Boolean = True);
 procedure QueueEmpty(const sitename: String);
 procedure RemovePazoMKDIR(const pazo_id: integer; const dir: String);
 procedure RemovePazoSfv(const aPazoID: integer; const aDir: String);
@@ -81,6 +95,8 @@ property QueueLastRun: TDateTime read queue_last_run;
 property QueueCleanLastRun: TDateTime read queueclean_last_run;
 
   end;
+{ Returns the bounded wait for an absolute deadline; MaxDateTime means no deadline. }
+function QueueWaitMilliseconds(const aNow, aDeadline: TDateTime; const aFallback: Cardinal): Cardinal;
 procedure QueueInit;
 procedure QueueUninit;
 procedure QueueStatAll;
@@ -108,10 +124,9 @@ var
   queueclean_unassigned: Integer;
   queueclean_maxrunning: Integer;
   enable_queueclean: boolean;
-  queue_recycle_post_to_irc: boolean;
 
   StatsList: TObjectList<TQueueStat>;
-  GlDefaultIterationWaitTimeout: Cardinal = 15 * 1000;
+  glQueueFallbackMs: Cardinal = 15 * 1000;
 
 procedure TQueueThread.QueueFire;
 begin
@@ -387,79 +402,136 @@ begin
   end;
 end;
 
+function QueueWaitMilliseconds(const aNow, aDeadline: TDateTime; const aFallback: Cardinal): Cardinal;
+var
+  fMilliseconds: Int64;
+begin
+  Result := aFallback;
+  if aDeadline = MaxDateTime then
+    Exit;
+  if aDeadline <= aNow then
+    Exit(0);
+  fMilliseconds := MilliSecondsBetween(aNow, aDeadline);
+  if fMilliseconds < aFallback then
+    Result := Cardinal(fMilliseconds);
+end;
+
+{ Only future deadlines are retained: already due but blocked tasks wait for a state change. }
+procedure _ConsiderQueueDeadline(const aNow, aDeadline: TDateTime; var aNext: TDateTime);
+begin
+  if (aDeadline > aNow) and (aDeadline < aNext) then
+    aNext := aDeadline;
+end;
+
+function TQueueThread.WaitForWake(const aMaxWait: Cardinal = High(Cardinal)): TWaitResult;
+var
+  fTimeout: Cardinal;
+begin
+  main_lock.Enter('Queue wait deadline');
+  try
+    fTimeout := QueueWaitMilliseconds(Now, FNextTaskAt, glQueueFallbackMs);
+    if fTimeout > aMaxWait then
+      fTimeout := aMaxWait;
+  finally
+    main_lock.Leave;
+  end;
+  Result := queueevent.WaitFor(fTimeout);
+end;
+
+function TQueueThread.MoveWaitingTasks(const aNow: TDateTime): TDateTime;
+var
+  i: Integer;
+  fTask: TTask;
+begin
+  Result := MaxDateTime;
+  for i := waiting_tasks.Count - 1 downto 0 do
+  begin
+    fTask := TTask(waiting_tasks[i]);
+    if fTask.startat <= aNow then
+    begin
+      waiting_tasks.Extract(fTask);
+      tasks.Add(fTask);
+      FSortPending := True;
+    end
+    else
+      _ConsiderQueueDeadline(aNow, fTask.startat, Result);
+  end;
+  FNextTaskAt := Result;
+end;
+
 procedure TQueueThread.QueueSort;
 begin
+  main_lock.Enter('Queue sort request');
   try
-    Debug(dpSpam, section, 'Sorting queue 1');
-    main_lock.Enter('Queue_Sort');
-    try
-      tasks.Sort(@QueueSorter);
-    finally
-      main_lock.Leave;
-    end;
-    Debug(dpSpam, section, 'Sorting queue 2');
-  except
-    on e: Exception do
+    FSortPending := True;
+  finally
+    main_lock.Leave;
+  end;
+end;
+
+function TQueueThread.ApplyPendingSort: Boolean;
+begin
+  main_lock.Enter('Queue sort');
+  try
+    Result := FSortPending;
+    if Result then
     begin
-      Debug(dpError, section, '[EXCEPTION] QueueSort : %s', [e.Message]);
+      tasks.Sort(@QueueSorter);
+      FSortPending := False;
     end;
+  finally
+    main_lock.Leave;
   end;
 end;
 
 procedure TQueueThread.QueueStart;
 begin
+  QueueFire;
   QueueStatAll;
+end;
+
+procedure TQueueThread.QueueStop;
+begin
+  Terminate;
+  QueueFire;
+  if not Suspended then
+    WaitFor;
 end;
 
 constructor TQueueThread.Create(const aSiteName: String);
 begin
-  main_lock := nil;
-  tasks := nil;
-  waiting_tasks := nil;
-  queueevent := nil;
-  fQueueStat := nil;
-  fBusyDestinations := nil;
-
-  inherited Create(False);
+  inherited Create(True);
+  FreeOnTerminate := False;
   {$IFDEF DEBUG}
     NameThreadForDebugging('Queue/' + aSiteName, self.ThreadID);
   {$ENDIF}
-
-  try
-    main_lock := TSLCriticalSection2.Create('Queue_' + aSiteName);
-    tasks := TObjectList.Create(True);
-    waiting_tasks := TObjectList.Create(True);
-    queueevent := TEvent.Create(nil, False, False, 'SLFTP_queue_event_' + aSiteName);
-    queue_last_run := Now;
-    queueclean_last_run := Now;
-    queue_last_stat_update := Now;
-    FreeOnTerminate := True;
-    fQueueStat := TQueueStat.Create();
-    StatsList.Add(fQueueStat);
-    fSiteName := aSiteName;
-    fBusyDestinations := TDictionary<TObject, integer>.Create;
-  except
-    FreeAndNil(fBusyDestinations);
-    if fQueueStat <> nil then
-    begin
-      StatsList.Remove(fQueueStat);
-      FreeAndNil(fQueueStat);
-    end;
-    FreeAndNil(queueevent);
-    FreeAndNil(waiting_tasks);
-    FreeAndNil(tasks);
-    FreeAndNil(main_lock);
-    raise;
-  end;
+  main_lock := TSLCriticalSection2.Create('Queue_' + aSiteName);
+  tasks := TObjectList.Create(True);
+  waiting_tasks := TObjectList.Create(True);
+  queueevent := TEvent.Create(nil, False, False, '');
+  FNextTaskAt := MaxDateTime;
+  queue_last_run := Now;
+  queueclean_last_run := Now;
+  queue_last_stat_update := Now;
+  fSiteName := aSiteName;
+  fBusyDestinations := TDictionary<TObject, integer>.Create;
+  fQueueStat := TQueueStat.Create;
+  StatsList.Add(fQueueStat);
+  { AddSite starts the thread only after the site has been fully initialized. }
 end;
 
 destructor TQueueThread.Destroy;
 begin
-  main_lock.Free;
-  tasks.Free;
-  waiting_tasks.Free;
-  queueevent.Free;
+  Terminate;
+  if queueevent <> nil then
+    queueevent.SetEvent;
+  { Join before releasing any state that Execute can still access. }
   inherited;
+  fBusyDestinations.Free;
+  waiting_tasks.Free;
+  tasks.Free;
+  queueevent.Free;
+  main_lock.Free;
 end;
 
 procedure TQueueThread.TryToAssignRaceSlots(t: TPazoRaceTask);
@@ -1197,14 +1269,23 @@ begin
   Console_QueueAdd(fTaskUid, Format('%s', [fTaskName]));
 end;
 
-procedure TQueueThread.AddTask(t: TTask);
+procedure TQueueThread.AddTask(t: TTask; const aQueueFire: Boolean = True);
 var
-  tname: String;
   fCheckSiteSlotsSite: TSite;
+  fWake: Boolean;
+  fNow: TDateTime;
 begin
+  fCheckSiteSlotsSite := nil;
+  fWake := False;
+  main_lock.Enter('AddTask');
   try
-    fCheckSiteSlotsSite := nil;
-    tname := t.Name;
+    if TaskAlreadyInQueue(t) then
+    begin
+      if t.IsNotifyTask then
+        TaskReady(t);
+      t.Free;
+      Exit;
+    end;
 
     //do this check before the task might have been freed already
     //for races (pazo tasks) the site slots are checked when the site is added to the race,
@@ -1223,86 +1304,40 @@ begin
       fCheckSiteSlotsSite := t.ssite1;
     end;
 
-    Debug(dpSpam, section, Format('[iNFO] adding : %s', [t.Name]));
-
-    main_lock.Enter('AddTask');
-    try
-      if TaskAlreadyInQueue(t) then
-      begin
-        // don't add the task to the queue, just notify and free right away if it's a duplicate
-        if t.IsNotifyTask then
-          TaskReady(t);
-          
-        t.Free;
-        exit;
-      end;
-
-      // Add to waiting_tasks if it starts in the future, else to main tasks queue
-      if (t.startat > Now) then
-        waiting_tasks.Add(t)
-      else
-        tasks.Add(t);
-
-
-      try
-        if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted and (TSite(fSite).freeslots > 0)) then
-        begin
-          TSite(fSite).AcquireSlotsAssignmentLock('AddTask-Slot');
-          try
-            if ((not t.ready) and t.IsReadyToBeExecuted) then
-            begin
-              self.TryToAssignSlots(t);
-            end;
-          finally
-            TSite(fSite).ReleaseSlotsAssignmentLock;
-          end;
-        end;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] AddTask TryToAssignSlots: %s', [e.Message]));
-        end;
-      end;
-
-    finally
-      main_lock.Leave;
-    end;
-
-  except
-    on e: Exception do
+    fNow := Now;
+    if t.startat > fNow then
     begin
-      Debug(dpError, section, Format('[EXCEPTION] AddTask tasks.Add: %s', [e.Message]));
-      exit;
+      waiting_tasks.Add(t);
+      { A newly earlier deadline must interrupt an existing longer wait, even in a batch. }
+      fWake := t.startat < FNextTaskAt;
+      _ConsiderQueueDeadline(fNow, t.startat, FNextTaskAt);
+    end
+    else
+    begin
+      tasks.Add(t);
+      FSortPending := True;
+      fWake := aQueueFire;
     end;
-  end;
 
-  // check if the race has failed on either source or destination site (in case of race tasks). This can happen when a dirlist task is running and
-  // adding new race tasks while the mkdir task on the destination fails at the same time and sets the site failed. This would lead to the
-  // dependencies of the race task never be resolved and it would remain and pollute the queue.
-  if t is TPazoRaceTask then
-  begin
-    try
-      if TPazoRaceTask(t).ps2.error or
-        ((TPazoRaceTask(t).dir <> '') and TPazoRaceTask(t).ps2.dirlist.FindDirList(TPazoRaceTask(t).dir).error) then
-      begin
-        t.readyerror := true;
-        Debug(dpSpam, section, Format('AddTask: race failed on source or destination site: %s', [t.Name]));
-        exit;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpSpam, section, Format('[EXCEPTION] AddTask check for failed pazo: %s', [e.Message]));
-        exit;
-      end;
+    if t is TPazoRaceTask then
+    begin
+      if (TPazoRaceTask(t).ps2 <> nil) and (TPazoRaceTask(t).ps2.error or
+        ((TPazoRaceTask(t).dir <> '') and
+         TPazoRaceTask(t).ps2.dirlist.FindDirList(TPazoRaceTask(t).dir).error)) then
+        t.readyerror := True;
+      if (fSite <> nil) and (t.startat <= fNow) and (not t.ready) and
+        (not t.readyerror) and t.IsReadyToBeExecuted and (TSite(fSite).freeslots > 0) then
+        TryToAssignSlots(t);
     end;
+    AddTaskToConsole(t);
+  finally
+    main_lock.Leave;
   end;
-
+  { No task reads after unlocking: a worker may have completed and freed it. }
+  if fWake then
+    QueueFire;
   if fCheckSiteSlotsSite <> nil then
-  begin
     CheckSiteSlots(fCheckSiteSlotsSite);
-  end;
-  AddTaskToConsole(t);
 end;
 
 procedure TQueueThread.RemoveRaceTasks(const pazo_id: integer; const sitename: String);
@@ -1611,10 +1646,8 @@ var
   s:    TSiteSlot;
   ss:   String;
   ts:   TSite;
-  fBusyDestinationsTmp: TDictionary<TObject, integer>;
   fNextTaskStartAt: TDateTime;
-  fWaitTimerTimeout: Cardinal;
-  bTasksMoved: Boolean;
+
   fListIndex: Integer;
   fList: TObjectList;
 begin
@@ -1629,41 +1662,22 @@ begin
     begin
       //happens on startup
       Debug(dpSpam, section, 'Queue Iteration: Wait for site]');
-      Sleep(1000);
+      WaitForWake(1000);
       continue;
     end;
 
     ss := '';
     ts := TSite(fSite);
-    fBusyDestinationsTmp := fBusyDestinations;
-    fBusyDestinations := TDictionary<TObject, integer>.Create;
     fNextTaskStartAt := MaxDateTime;
-    bTasksMoved := False;
     //Debug(dpSpam, section, 'Queue Iteration begin (%s) [%d tasks]', [ts.Name, tasks.Count]);
     try
       main_lock.Enter('Execute');
       try
-        // Move mature tasks from waiting_tasks to main tasks queue
-        for i := waiting_tasks.Count - 1 downto 0 do
-        begin
-          if i < 0 then Break;
-          fTask := TTask(waiting_tasks.items[i]);
-          if fTask = nil then Continue;
-          
-          if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
-          begin
-            waiting_tasks.Extract(fTask);
-            tasks.Add(fTask);
-            bTasksMoved := True;
-          end
-          else if (fTask.startat > 0) and (fTask.startat < fNextTaskStartAt) then
-          begin
-            fNextTaskStartAt := fTask.startat;
-          end;
-        end;
+        fBusyDestinations.Clear;
+        fNextTaskStartAt := MoveWaitingTasks(queue_last_run);
 
-        if bTasksMoved then
-          tasks.Sort(@QueueSorter);
+        if ts.freeslots > 0 then
+          ApplyPendingSort;
 
         for fListIndex := 0 to 1 do
         begin
@@ -1722,7 +1736,6 @@ begin
 
                 // no need to iterate the queue early if there are no free slots.
                 // when a slot becomes free, a queue fire is issued.
-                fNextTaskStartAt := MaxDateTime;
                 break;
               end;
 
@@ -1732,7 +1745,25 @@ begin
                 if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
                 begin
                   if fTask.IsReadyToBeExecuted then
+                  begin
                     TryToAssignSlots(fTask);
+                    { Failed assignment can set a later retry time. }
+                    _ConsiderQueueDeadline(queue_last_run, fTask.startat, fNextTaskStartAt);
+                    if fTask.slot1 = nil then
+                    begin
+                      if fTask.wanted_up then
+                        _ConsiderQueueDeadline(queue_last_run, ts.MaxSimUpCooldownUntil, fNextTaskStartAt);
+                      if fTask.wanted_dn then
+                        _ConsiderQueueDeadline(queue_last_run, ts.MaxSimDownCooldownUntil, fNextTaskStartAt);
+                      if fTask is TPazoRaceTask then
+                      begin
+                        _ConsiderQueueDeadline(queue_last_run, ts.MaxSimDownCooldownUntil, fNextTaskStartAt);
+                        _ConsiderQueueDeadline(queue_last_run, TSite(fTask.ssite2).MaxSimUpCooldownUntil, fNextTaskStartAt);
+                      end;
+                      if fTask.ready or fTask.readyerror then
+                        QueueFire;
+                    end;
+                  end;
                 end
                 else if (fTask.startat > 0) and (fTask.startat < fNextTaskStartAt) then
                 begin
@@ -1750,9 +1781,9 @@ begin
         finally
           ts.ReleaseSlotsAssignmentLock;
         end;
+        FNextTaskAt := fNextTaskStartAt;
       finally
         main_lock.Leave;
-        fBusyDestinationsTmp.Free;
       end;
 
       QueueStat;
@@ -1801,6 +1832,14 @@ begin
                   main_lock.Leave;
                 end;
               end;
+              if s.todotask = nil then
+              begin
+                if (s.status = ssOnline) and (ts.maxidle > 0) then
+                  _ConsiderQueueDeadline(queue_last_run, IncSecond(s.LastNonIdleTaskExecution, ts.maxidle), fNextTaskStartAt);
+                if (s.status = ssOnline) or ((ts.WorkingStatus = sstUp) and
+                  ((ts.maxidle = 0) or (queue_last_run < IncSecond(s.LastNonIdleTaskExecution, ts.maxidle)))) then
+                  _ConsiderQueueDeadline(queue_last_run, IncMilliSecond(s.LastIO, Int64(ts.idleinterval) * 1000 + 1), fNextTaskStartAt);
+              end;
             end;
           except
             on e: Exception do
@@ -1819,54 +1858,22 @@ begin
       end;
     end;
 
-    // if there is a task with a delayed start time, we will wait exactly that long
-    if fNextTaskStartAt = MaxDateTime then
-      fWaitTimerTimeout := GlDefaultIterationWaitTimeout
-    else
-    begin
-      if fNextTaskStartAt <= Now then  // can happen ...
-      begin
-        if ts.freeslots = 0 then
-        begin
-          // no free slots, so we have to wait for a slot to become free and trigger a queue fire
-          fWaitTimerTimeout := GlDefaultIterationWaitTimeout;
-        end
-        else
-        begin
-          // don't wait at all if the next task should already be assigned now
-          Debug(dpSpam, section, Format('TQueueThread.Execute: skip sleep %s', [ts.Name]));
-          continue;
-        end;
-      end;
-
-      fWaitTimerTimeout := MilliSecondsBetween(Now, fNextTaskStartAt);
-
-      // don't wait longer than the default wait time if that task is supposed to start later than that
-      if fWaitTimerTimeout > GlDefaultIterationWaitTimeout then
-        fWaitTimerTimeout := GlDefaultIterationWaitTimeout;
+    main_lock.Enter('Queue next deadline');
+    try
+      if fNextTaskStartAt < FNextTaskAt then
+        FNextTaskAt := fNextTaskStartAt;
+    finally
+      main_lock.Leave;
     end;
+    { Auto-reset signals persist across processing/wait transitions and coalesce bursts. }
+    WaitForWake;
 
-    //queueevent.WaitFor($FFFFFFFF);
-    case queueevent.WaitFor(fWaitTimerTimeout) of
-      wrSignaled: { Event fired. Normal exit. }
-      begin
-        //Debug(dpSpam, section, Format('[QUEUEFIRE received : %s', [ts.Name]));
-      end;
-      else { Timeout reach }
-      begin
-        if fWaitTimerTimeout = GlDefaultIterationWaitTimeout then
-        begin
-          if queue_recycle_post_to_irc then
-            irc_Adderror(Format('TQueueThread.Execute: <c2>Force Leave</c>: TQueueThread Recycle 15s (%s)', [self.fSiteName]));
-          Debug(dpMessage, section,
-            Format('TQueueThread.Execute: Force Leave: TQueueThread Recycle 15s (%s)', [self.fSiteName]));
-        end;
-      end;
-    end;
   end;
 end;
 
 procedure QueueInit;
+var
+  fFallbackMs: Integer;
 begin
 
   // config
@@ -1891,7 +1898,10 @@ begin
   queueclean_maxrunning := config.ReadInteger('queue', 'queueclean_maxrunning', 900);
   queueclean_unassigned := config.ReadInteger('queue', 'queueclean_unassigned', 600);
   enable_queueclean := config.ReadBool(section, 'enable_queueclean', False);
-  queue_recycle_post_to_irc := spamcfg.readbool(section, 'queue_recycle', True);
+  fFallbackMs := config.ReadInteger(section, 'queue_fallback_ms', 15000);
+  if (fFallbackMs < 10000) or (fFallbackMs > 15000) then
+    fFallbackMs := 15000;
+  glQueueFallbackMs := Cardinal(fFallbackMs);
 
   StatsList := TObjectList<TQueueStat>.Create(True);
 end;
