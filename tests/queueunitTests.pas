@@ -120,7 +120,6 @@ begin
   inherited Create('QueueWorkerStopTest');
   FEntered := TEvent.Create(nil, True, False, '');
   FExited := TEvent.Create(nil, True, False, '');
-  Start;
 end;
 
 destructor TQueueWorkerProbe.Destroy;
@@ -144,7 +143,6 @@ begin
   FQueue := aQueue;
   FEntered := TEvent.Create(nil, True, False, '');
   FDone := TEvent.Create(nil, True, False, '');
-  Start;
 end;
 
 destructor TQueueWaiter.Destroy;
@@ -224,6 +222,7 @@ begin
     CheckTrue(fQueue.WaitForWork(0) = wrSignaled);
     fWaiter := TQueueWaiter.Create(fQueue);
     try
+      fWaiter.Start;
       CheckTrue(fWaiter.Entered.WaitFor(2000) = wrSignaled);
       fQueue.AddTask(TProbeTask.Create(IncSecond(fNow, 10)), False);
       CheckTrue(fWaiter.Done.WaitFor(2000) = wrSignaled, 'Earlier task must interrupt the existing wait');
@@ -300,6 +299,7 @@ var
 begin
   fQueue := TQueueWorkerProbe.Create;
   try
+    fQueue.Start;
     CheckTrue(fQueue.Entered.WaitFor(2000) = wrSignaled);
     fQueue.QueueStop;
     CheckTrue(fQueue.Exited.WaitFor(0) = wrSignaled, 'Stop must join the actual worker before returning');
