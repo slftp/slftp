@@ -2044,6 +2044,7 @@ begin
   try
     if not FDiagnostics.ReportDue(fNowUs) then
       Exit;
+    fNowUs := QueueDiagnosticNow;
     fDue := 0;
     fOldestDueMs := 0;
     fNow := Now;
@@ -2066,7 +2067,7 @@ begin
           fOldestDueMs := fAgeMs;
         if (fSite <> nil) and (TSite(fSite).freeslots = 0) and
           (fTask.QueueBlockState^.Reason in [qbNone, qbNotChecked, qbSourceFull]) then
-          DiagnosticBlockTask(fTask, qbSourceFull);
+          fTask.QueueBlockState^.Observe(qbSourceFull, fNowUs);
         FDiagnostics.CountBlocked(fTask.QueueBlockState^.Reason);
         DiagnosticSampleTask(fTask, fNowUs, 'pending');
       end;

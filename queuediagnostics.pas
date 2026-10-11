@@ -40,6 +40,7 @@ type
     property Classified: Boolean read FClassified;
     property FinishedAt: Int64 read FFinishedAt;
   end;
+  { Borrowed pointer to inline state, valid only while its task remains owned. }
   PQueueBlockState = ^TQueueBlockState;
 
   { Signal requests, not individual wakes: auto-reset events coalesce requests. }
@@ -68,9 +69,9 @@ type
     FWindowStartedUs: Int64;
     FBlockedCounts: array[TQueueBlockReason] of Integer;
     FBlockSamples: array[0..2] of record
-      Uid: UInt64;
-      DurationUs: Int64;
-      Text: String;
+      FUid: UInt64;
+      FDurationUs: Int64;
+      FText: String;
     end;
     FBlockSampleCount, FBlockCandidates: Integer;
   public
@@ -110,6 +111,7 @@ function QueueDiagnosticNow: Int64;
 function QueueDiagnosticClockLag: Int64;
 { Atomically publish/read producer timestamps across site and queue threads. }
 procedure QueueDiagnosticPublish(var aTimestamp: Int64; const aValue: Int64);
+{ Reads a producer timestamp without a new scheduler lock. }
 function QueueDiagnosticRead(var aTimestamp: Int64): Int64;
 
 implementation
@@ -290,8 +292,13 @@ begin
   if fRetryMs < 0 then fRetryMs := 0;
   fReasonMs := 0;
   if FReasonAt > 0 then fReasonMs := (aNowUs - FReasonAt) div 1000;
+  if fReasonMs < 0 then fReasonMs := 0;
   fCheckAge := -1;
-  if FCheckedAt > 0 then fCheckAge := (aNowUs - FCheckedAt) div 1000;
+  if FCheckedAt > 0 then
+  begin
+    fCheckAge := (aNowUs - FCheckedAt) div 1000;
+    if fCheckAge < 0 then fCheckAge := 0;
+  end;
   Result := Format(' reason=%s previous_reason=%s blocked_ms=%d reason_ms=%d task_age_ms=%d planned_remaining_ms=%d check_age_ms=%d changes=%d cache_reason=%s cache_retry_remaining_ms=%d destination_revision=%d limit_used=%d limit_max=%d event_kind=%s event_reason=%s event_to_check_ms=%d check_to_assign_ms=%d outcome=%s',
     [glBlockReasonNames[FReason], glBlockReasonNames[FPreviousReason], BlockedUs(aNowUs) div 1000,
      fReasonMs, aAgeMs, aPlannedMs, fCheckAge, FChanges, glBlockReasonNames[FCacheReason],
@@ -316,7 +323,7 @@ begin
   if fDuration < 2000000 then Exit;
   fIndex := -1;
   for i := 0 to FBlockSampleCount - 1 do
-    if FBlockSamples[i].Uid = aUid then fIndex := i;
+    if FBlockSamples[i].FUid = aUid then fIndex := i;
   if fIndex < 0 then
   begin
     Inc(FBlockCandidates);
@@ -329,14 +336,14 @@ begin
     begin
       fIndex := 0;
       for i := 1 to High(FBlockSamples) do
-        if FBlockSamples[i].DurationUs < FBlockSamples[fIndex].DurationUs then fIndex := i;
-      if fDuration <= FBlockSamples[fIndex].DurationUs then Exit;
+        if FBlockSamples[i].FDurationUs < FBlockSamples[fIndex].FDurationUs then fIndex := i;
+      if fDuration <= FBlockSamples[fIndex].FDurationUs then Exit;
     end;
   end;
-  FBlockSamples[fIndex].Uid := aUid;
-  FBlockSamples[fIndex].DurationUs := fDuration;
+  FBlockSamples[fIndex].FUid := aUid;
+  FBlockSamples[fIndex].FDurationUs := fDuration;
   if aOutcome = 'pending' then fPrefix := '[QUEUE-BLOCK]' else fPrefix := '[QUEUE-RESUME]';
-  FBlockSamples[fIndex].Text := Format('%s task=%d type=%s source=%s target=%s source_free_slots=%d destination_free_slots=%d observed_at_us=%d',
+  FBlockSamples[fIndex].FText := Format('%s task=%d type=%s source=%s target=%s source_free_slots=%d destination_free_slots=%d observed_at_us=%d',
     [fPrefix, aUid, aType, aSource, aTarget, aSourceFree, aTargetFree, aNowUs]) +
     aState.Detail(aNowUs, aAgeMs, aPlannedMs, aOutcome);
 end;
@@ -408,8 +415,8 @@ begin
     Result := Result + ' blocked_' + glBlockReasonNames[fBlockReason] + '=' + IntToStr(FBlockedCounts[fBlockReason]);
   for i := 0 to FBlockSampleCount - 1 do
   begin
-    Result := Result + #10 + FBlockSamples[i].Text;
-    FBlockSamples[i].Text := '';
+    Result := Result + #10 + FBlockSamples[i].FText;
+    FBlockSamples[i].FText := '';
   end;
   FBlockSampleCount := 0;
   FBlockCandidates := 0;
