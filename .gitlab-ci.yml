@@ -71,6 +71,28 @@ buildlinux64-development:
   except:
     - tags
 
+# Temporary A/B proof and comparison binary for the diagnostic branch only.
+buildlinux64-queue-clock-comparison:
+  stage: build
+  image: $SLFTP_CI_IMAGE
+  script:
+    - make queue_wait_probe
+    - ./tests/queuewaitprobe | tee queue-wait-default.log
+    - make queue_wait_probe CFLAGS="-MDelphi -O3 -Xs -Ct- -dNOPATCHRTL"
+    - ./tests/queuewaitprobe | tee queue-wait-nopatchrtl.log
+    - make slftp_64 CFLAGS="-MDelphi -O3 -Xs -Ct- -dNOPATCHRTL"
+    - mv slftp slftp_x64-${CI_COMMIT_SHORT_SHA}-nopatchrtl
+  artifacts:
+    name: "queue-clock-comparison-${CI_COMMIT_SHORT_SHA}"
+    paths:
+      - queue-wait-default.log
+      - queue-wait-nopatchrtl.log
+      - slftp_x64-${CI_COMMIT_SHORT_SHA}-nopatchrtl
+  only:
+    - codex/task-triggered-queue-diagnostics
+  tags:
+    - saas-linux-medium-amd64
+
 ### test stage ###
 
 testwin64:

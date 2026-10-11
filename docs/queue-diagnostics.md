@@ -36,6 +36,10 @@ seconds, when calculating rates. A final partial window is not flushed on exit.
 | `sorts`, `sort_requests`, `inserted`, `inserted_assigned`, `inserted_wait`, `promoted` | Sort runs versus explicit requests and insertions. Already assigned tasks and internal wait tasks still dirty the current queue; many sorts per transferred file identify this overhead. |
 | `assign_attempts`, `assigned_races`, `retry_delay` | Assignment attempts, successful race assignments and hits of the maxassign threshold. Capacity/dependency waits no longer consume this threshold: only assignment exceptions count. `retry_delay` includes the remove/finish action when maxassign_delay is zero. |
 | `zero_waits`, `future_zero_waits` | Uncapped waits calculated as zero milliseconds. A deadline crossed during processing can legitimately cause one zero wait. A future deadline must never produce one; `future_zero_waits` must stay zero. |
+| `clock_mode` | `default_rtl` is the normal Linux/FPC build; `nopatchrtl` disables mORMot RTL patches globally. Other platforms report `native`. The label describes the build, not a measured clock resolution. |
+| `early_timeouts`, `early_timeout_missing_sum_us`, `wait_errors` | A positive timeout returned before its requested duration, allowing 100 us or 0.1 percent tolerance, whichever is larger. Signals and zero waits are excluded. Missing time is accumulated only for these early returns. Errors include abandoned and other unexpected wait results. |
+| `wait_*`, `timeout_requested_*`, `timeout_elapsed_*` | `wait` measures every event wait, excluding the diagnostic lock afterwards. Requested and elapsed timeout samples cover the same positive `wrTimeout` returns, after the wait cap was applied. Compare their averages; signaled waits may legitimately be shorter. |
+| `clock_lag_*` | Linux/FPC only: lower bound on how far the RTL's `CLOCK_MONOTONIC` reading trails a direct libc reading of that same clock. A coarse-clock redirect can produce a positive lag. Zero can mean no lag or elapsed measurement overhead; unavailable/error samples are excluded. |
 | `source_full`, `destination_full`, `destination_lock`, `busy_cache`, `source_limit`, `destination_limit`, `active_file`, `cooldown`, `dependency` | Counts at selected blocking checks, across both direct assignment and scheduler execution. These are repeated checks, not distinct tasks or an exhaustive partition of all attempts. |
 | `dependency_changed_during_registration` | Readiness was false before subscription and true immediately afterwards. Shows the check/subscribe race; another pending signal may still cover it. The diagnostic read does not retry or wake the task. |
 | `delayed_race_insertions`, `initial_race_delay_sum_ms` | Race tasks inserted with future startat, and total initial delay. Divide sum by count for the mean configured initial delay observed. |
@@ -52,6 +56,37 @@ sources competing for one destination. Preserve both the diagnostic log and the
 usual race statistics. No filenames, release names or credentials are added to
 diagnostic records; site names are included.
 
+## Confirm the Linux clock hypothesis
+
+The ordinary CI binary retains the current scheduling and mORMot behavior.
+The additional `buildlinux64-queue-clock-comparison` job runs a standalone probe
+twice and publishes its logs plus `slftp_x64-<commit>-nopatchrtl` as artifacts.
+Both binaries use this same commit and measurement code. The probe creates only
+an unsignaled event: 500 waits of 1 ms, then 100 waits of 5 ms, without FTP, site
+configuration or credentials. Early returns are observations, not assertion
+failures; unexpected event results make the probe fail.
+
+For a local probe (rebuilds all units to avoid mixed compiler flags):
+
+```sh
+make queue_wait_probe
+./tests/queuewaitprobe
+make queue_wait_probe CFLAGS="-MDelphi -O3 -Xs -Ct- -dNOPATCHRTL"
+./tests/queuewaitprobe
+```
+
+Run the normal binary and then the `nopatchrtl` comparison binary with the same
+configuration and comparable releases, one process at a time. Preserve both
+logs. The hypothesis is supported if the default build shows positive clock lag
+and short actual timeout durations, while the comparison loses both the lag
+and early returns. Check whether the high `wake_deadline`/`passes` rates also
+fall during real work. A coarse-clock read need not make every timeout early.
+
+`NOPATCHRTL` disables other mORMot RTL optimizations too, so a throughput change
+alone does not isolate this clock problem. The clock/wait observations and the
+network-free probe are the relevant evidence. This is a diagnostic comparison,
+not the final production correction; no vendored source is changed.
+
 ## Disable or remove
 
 For a comparison without measurement overhead, comment out the single
@@ -62,7 +97,8 @@ does add clock reads, atomic signal increments, one short queue-lock acquisition
 after waits, and bounded snapshots/logging. Do not treat its throughput as an
 uninstrumented benchmark or silently assume measurement overhead is zero.
 
-All instrumentation, tests and this document are kept in a dedicated diagnostic
-commit. Use the original feature branch for the implementation, or revert the
-diagnostic commit if it was cherry-picked. No Makefile, CI, sample-config or
-vendored-library changes are required.
+Use the original feature branch for the implementation, or revert the diagnostic
+commits if they were cherry-picked. The clock comparison additionally introduces
+one standalone probe, the `queue_wait_probe` Makefile target, and one CI job;
+remove these together with this diagnostic change. No sample-config or vendored
+source changes are required. The new clock reads run only in diagnostic builds.

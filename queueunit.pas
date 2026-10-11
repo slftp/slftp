@@ -566,6 +566,7 @@ var
   {$IFDEF QUEUE_DIAGNOSTICS}
   fFallbackWait: Boolean;
   fTask: TTask;
+  fDiagnosticWaitAt, fDiagnosticWaitUs, fDiagnosticClockLagUs: Int64;
   {$ENDIF}
 begin
   main_lock.Enter('Queue wait deadline');
@@ -586,10 +587,16 @@ begin
   finally
     main_lock.Leave;
   end;
+  {$IFDEF QUEUE_DIAGNOSTICS}
+  fDiagnosticClockLagUs := QueueDiagnosticClockLag;
+  fDiagnosticWaitAt := QueueDiagnosticNow;
+  {$ENDIF}
   Result := queueevent.WaitFor(fTimeout);
   {$IFDEF QUEUE_DIAGNOSTICS}
+  fDiagnosticWaitUs := QueueDiagnosticNow - fDiagnosticWaitAt;
   main_lock.Enter('Queue diagnostic wake');
   try
+    FDiagnostics.RecordWait(fTimeout, fDiagnosticWaitUs, Result, fDiagnosticClockLagUs);
     if Result = wrSignaled then
       FDiagnostics.Count(qcEvent)
     else if Result = wrTimeout then

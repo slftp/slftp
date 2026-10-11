@@ -40,6 +40,7 @@ type
     {$IFDEF QUEUE_DIAGNOSTICS}
     procedure TestDiagnosticWindowAndReset;
     procedure TestDiagnosticConcurrentSignals;
+    procedure TestDiagnosticWaitClassification;
     {$ENDIF}
   end;
 
@@ -536,6 +537,37 @@ begin
     CheckTrue(Pos('sorts=0 ', fReport) > 0);
     CheckTrue(Pos('signal_destination=0 ', fReport) > 0);
     CheckTrue(Pos('sort_n=0 sort_sum_us=0 sort_max_us=0', fReport) > 0);
+  finally
+    fDiagnostics.Free;
+  end;
+end;
+
+procedure TTestQueueUnit.TestDiagnosticWaitClassification;
+var
+  fDiagnostics: TQueueDiagnostics;
+  fReport: String;
+begin
+  fDiagnostics := TQueueDiagnostics.Create;
+  try
+    fDiagnostics.RecordWait(1, 100, wrSignaled, 4000);
+    fDiagnostics.RecordWait(0, 0, wrTimeout, 4000);
+    fDiagnostics.RecordWait(1, 50, wrTimeout, 4000);
+    fDiagnostics.RecordWait(1, 950, wrTimeout, -1);
+    fDiagnostics.RecordWait(2, 2500, wrTimeout, 0);
+    fDiagnostics.RecordWait(15000, 14995000, wrTimeout, 0);
+    fDiagnostics.RecordWait(1, -1, wrTimeout, -1);
+    fDiagnostics.RecordWait(5, 10, wrError, -1);
+    fReport := fDiagnostics.Snapshot('WAIT', QueueDiagnosticNow, 0, 0, 0, 0, 0, True);
+    CheckTrue(Pos('early_timeouts=1 ', fReport) > 0,
+      'Signals, zero waits, tolerance and invalid samples must not be counted as early timeouts');
+    CheckTrue(Pos('early_timeout_missing_sum_us=950 ', fReport) > 0);
+    CheckTrue(Pos('wait_errors=1 ', fReport) > 0);
+    CheckTrue(Pos('timeout_requested_n=4 timeout_requested_sum_us=15004000 ', fReport) > 0);
+    CheckTrue(Pos('timeout_elapsed_n=4 timeout_elapsed_sum_us=14998500 ', fReport) > 0);
+    CheckTrue(Pos('clock_lag_n=5 clock_lag_sum_us=12000 clock_lag_max_us=4000', fReport) > 0);
+    fReport := fDiagnostics.Snapshot('WAIT', QueueDiagnosticNow, 0, 0, 0, 0, 0, True);
+    CheckTrue(Pos('early_timeouts=0 ', fReport) > 0);
+    CheckTrue(Pos('timeout_elapsed_n=0 timeout_elapsed_sum_us=0 ', fReport) > 0);
   finally
     fDiagnostics.Free;
   end;
