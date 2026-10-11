@@ -1100,6 +1100,7 @@ end;
 procedure AddTask(const t: TTask; const queueFire: boolean = True);
 var
   fAdminSite: TSite;
+  fTaskName: String;
 begin
   if t = nil then
   begin
@@ -1107,6 +1108,7 @@ begin
     exit;
   end;
 
+  fTaskName := t.Name;
   try
     if not (t.ssite1 = nil) then
     begin
@@ -1128,7 +1130,7 @@ begin
     except
     on e: Exception do
     begin
-      Debug(dpError, section, '[EXCEPTION] TSite.AddTask (%s): %s', [t.Name, e.Message]);
+      Debug(dpError, section, '[EXCEPTION] TSite.AddTask (%s): %s', [fTaskName, e.Message]);
     end;
   end;
 end;

@@ -352,8 +352,8 @@ var
         l := TAutoDirlistTask.Create(netname, channel, site1, FSpecificRlsName);
         l.startat := IncSecond(Now, i);
         l.dontremove := True;
-        AddTask(l);
         s.site.WCDateTime('nextautodirlist', l.startat);
+        AddTask(l);
       except
         on e: Exception do
         begin
