@@ -11,7 +11,8 @@ type
     qcPromoted, qcSortRequest, qcSort, qcAttempt, qcAssignedRace,
     qcCompletedRace, qcCompletedBytes, qcRetryDelay, qcSourceFull,
     qcDestinationFull, qcDestinationLock, qcBusyCache, qcSourceLimit,
-    qcDestinationLimit, qcActiveFile, qcCooldown, qcDependency, qcDependencyChanged, qcDelayedRace, qcInitialDelayMs);
+    qcDestinationLimit, qcActiveFile, qcCooldown, qcDependency, qcDependencyChanged, qcDelayedRace, qcInitialDelayMs,
+    qcZeroWait, qcFutureZeroWait);
   { Durations in microseconds, with count/sum/max. Refill starts at slot release. }
   TQueueDiagnosticTiming = (qtPass, qtQueueLock, qtSort, qtCleanup, qtConsole,
     qtSourceRefill, qtDestinationRefill);
@@ -61,7 +62,8 @@ const
     'retry_delay', 'source_full', 'destination_full', 'destination_lock',
     'busy_cache', 'source_limit', 'destination_limit', 'active_file',
     'cooldown', 'dependency', 'dependency_changed_during_registration',
-    'delayed_race_insertions', 'initial_race_delay_sum_ms');
+    'delayed_race_insertions', 'initial_race_delay_sum_ms',
+    'zero_waits', 'future_zero_waits');
   glWakeNames: array[TQueueWakeReason] of String = (
     'external', 'task', 'earlier_deadline', 'slot', 'destination', 'cleanup');
   glTimingNames: array[TQueueDiagnosticTiming] of String = (

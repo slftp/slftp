@@ -16,6 +16,14 @@ longer fires all queues at the legacy `queue_fire` interval.
   a 25 ms retry deadline; slot/dependency-blocked tasks do not use that retry.
   Due but blocked work waits for a state change instead of
   repeatedly scheduling its expired deadline.
+- Future waits round up to at least one millisecond. While all source slots are
+  occupied, task deadlines wait for a slot completion instead of waking the queue.
+- Site-wide destination blocks survive unrelated queue passes. Slot completion or
+  an upload-limit change invalidates them immediately; cooldown/lock deadlines and
+  the housekeeping cap provide bounded retries. Release-specific blocks are not
+  cached for the entire destination.
+- `maxassign` counts assignment exceptions only. A full/offline slot, upload/download
+  limit or dependency wait cannot consume retries or impose `maxassign_delay`.
 - Slot completion wakes its own queue. Each destination has a small
   one-shot set of source queues that could not proceed. Sources subscribe before
   checking availability; every slot completion takes and wakes this set after
@@ -41,7 +49,8 @@ Site slots finish before the owning queue's task lists are freed.
 
 `tests/queueunitTests.pas` covers retained/coalesced events, default insertion and
 explicit batching, earlier deadlines interrupting waits, deadline maturity,
-coalesced sorts, bounded waits and stop signals. It uses the production insertion,
+coalesced sorts, fractional waits, capacity revision/expiry, exception backoff and
+stop signals. It uses the production insertion,
 wait, promotion and sort methods without opening FTP connections.
 
 Run `make test` on Linux or `make.bat test_64` on Windows. Also run a live race

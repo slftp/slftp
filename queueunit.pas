@@ -28,15 +28,25 @@ type
   private
     FLock: TCriticalSection;
     FSites: TDictionary<String, Byte>;
+    FRevision: Int64;
   public
     { Creates an empty subscription set. }
     constructor Create;
     { Releases the subscription set. }
     destructor Destroy; override;
-    { Registers a source once until the next notification. }
-    procedure RegisterSite(const aSiteName: String);
+    { Registers a source once and returns the capacity revision under the same lock. }
+    function RegisterSite(const aSiteName: String): Int64;
     { Atomically takes and clears the sources to notify, without holding the lock during callbacks. }
     function TakeSites: TArray<String>;
+    { Returns the revision advanced before each destination notification. }
+    function Revision: Int64;
+  end;
+
+  { Capacity blocks expire on a destination notification or a bounded safety retry. }
+  TQueueDestinationBlock = record
+  private
+    FRevision: Int64;
+    FRetryAt: TDateTime;
   end;
 
   TQueueThread = class(TThread)
@@ -52,7 +62,7 @@ type
   queueevent: TEvent;
   fSiteName: String;
   fSite: TObject;
-  fBusyDestinations: TDictionary<TObject, integer>;
+  fBusyDestinations: TDictionary<TObject, TQueueDestinationBlock>;
   FSortPending: Boolean;
   FNextTaskAt: TDateTime;
   FAssignmentRetryAt: TDateTime;
@@ -78,6 +88,14 @@ function ApplyPendingSort: Boolean;
 { Moves due tasks into the dispatch list and records only future task deadlines.
   Must be called while holding main_lock. }
 function MoveWaitingTasks(const aNow: TDateTime): TDateTime;
+{ Records actual assignment exceptions; normal capacity waits do not consume retries. }
+procedure RecordAssignmentFailure(const aTask: TTask);
+{ Remembers a site-wide capacity block, not release-specific dependencies. }
+procedure RememberBlockedDestination(aDestination: TObject; const aRevision: Int64;
+  const aRetryAt: TDateTime);
+{ Checks a retained block against the destination's current revision and retry deadline. }
+function DestinationBlocked(aDestination: TObject; const aRevision: Int64;
+  const aNow: TDateTime): Boolean;
 
 public
 
@@ -167,11 +185,12 @@ begin
   inherited;
 end;
 
-procedure TQueueWakeTargets.RegisterSite(const aSiteName: String);
+function TQueueWakeTargets.RegisterSite(const aSiteName: String): Int64;
 begin
   FLock.Enter;
   try
     FSites.AddOrSetValue(aSiteName, 0);
+    Result := FRevision;
   finally
     FLock.Leave;
   end;
@@ -181,8 +200,19 @@ function TQueueWakeTargets.TakeSites: TArray<String>;
 begin
   FLock.Enter;
   try
+    Inc(FRevision);
     Result := FSites.Keys.ToArray;
     FSites.Clear;
+  finally
+    FLock.Leave;
+  end;
+end;
+
+function TQueueWakeTargets.Revision: Int64;
+begin
+  FLock.Enter;
+  try
+    Result := FRevision;
   finally
     FLock.Leave;
   end;
@@ -472,9 +502,54 @@ begin
     Exit;
   if aDeadline <= aNow then
     Exit(0);
-  fMilliseconds := MilliSecondsBetween(aNow, aDeadline);
+  { Round the remaining span UP: timestamp rounding can turn a future deadline
+    into zero milliseconds and make WaitFor spin until the wall clock advances. }
+  fMilliseconds := Max(Int64(1), Ceil((aDeadline - aNow) * MSecsPerDay));
   if fMilliseconds < aFallback then
     Result := Cardinal(fMilliseconds);
+end;
+
+procedure TQueueThread.RecordAssignmentFailure(const aTask: TTask);
+begin
+  Inc(aTask.TryToAssign);
+  if (maxassign <> 0) and (aTask.TryToAssign > maxassign) then
+  begin
+    {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcRetryDelay);{$ENDIF}
+    aTask.TryToAssign := 0;
+    if maxassign_delay = 0 then
+      aTask.ready := True
+    else
+      aTask.startat := IncSecond(Now, maxassign_delay);
+  end;
+end;
+
+procedure TQueueThread.RememberBlockedDestination(aDestination: TObject;
+  const aRevision: Int64; const aRetryAt: TDateTime);
+var
+  fBlock: TQueueDestinationBlock;
+begin
+  fBlock.FRevision := aRevision;
+  fBlock.FRetryAt := aRetryAt;
+  fBusyDestinations.AddOrSetValue(aDestination, fBlock);
+  if aRetryAt < FAssignmentRetryAt then
+    FAssignmentRetryAt := aRetryAt;
+end;
+
+function TQueueThread.DestinationBlocked(aDestination: TObject;
+  const aRevision: Int64; const aNow: TDateTime): Boolean;
+var
+  fBlock: TQueueDestinationBlock;
+begin
+  Result := fBusyDestinations.TryGetValue(aDestination, fBlock) and
+    (fBlock.FRevision = aRevision) and (aNow < fBlock.FRetryAt);
+  if Result then
+  begin
+    { Other work may wake this queue before the block expires. Retain its retry. }
+    if fBlock.FRetryAt < FAssignmentRetryAt then
+      FAssignmentRetryAt := fBlock.FRetryAt;
+  end
+  else
+    fBusyDestinations.Remove(aDestination);
 end;
 
 { Only future deadlines are retained: already due but blocked tasks wait for a state change. }
@@ -487,6 +562,7 @@ end;
 function TQueueThread.WaitForWake(const aMaxWait: Cardinal = High(Cardinal)): TWaitResult;
 var
   fTimeout: Cardinal;
+  fNow: TDateTime;
   {$IFDEF QUEUE_DIAGNOSTICS}
   fFallbackWait: Boolean;
   fTask: TTask;
@@ -494,7 +570,16 @@ var
 begin
   main_lock.Enter('Queue wait deadline');
   try
-    fTimeout := QueueWaitMilliseconds(Now, FNextTaskAt, glQueueFallbackMs);
+    fNow := Now;
+    fTimeout := QueueWaitMilliseconds(fNow, FNextTaskAt, glQueueFallbackMs);
+    {$IFDEF QUEUE_DIAGNOSTICS}
+    if fTimeout = 0 then
+    begin
+      FDiagnostics.Count(qcZeroWait);
+      if FNextTaskAt > fNow then
+        FDiagnostics.Count(qcFutureZeroWait);
+    end;
+    {$ENDIF}
     if fTimeout > aMaxWait then
       fTimeout := aMaxWait;
     {$IFDEF QUEUE_DIAGNOSTICS}fFallbackWait := (fTimeout = glQueueFallbackMs) and (aMaxWait >= glQueueFallbackMs);{$ENDIF}
@@ -612,12 +697,13 @@ begin
   waiting_tasks := TObjectList.Create(True);
   queueevent := TEvent.Create(nil, False, False, '');
   FNextTaskAt := MaxDateTime;
+  FAssignmentRetryAt := MaxDateTime;
   {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics := TQueueDiagnostics.Create;{$ENDIF}
   queue_last_run := Now;
   queueclean_last_run := Now;
   queue_last_stat_update := Now;
   fSiteName := aSiteName;
-  fBusyDestinations := TDictionary<TObject, integer>.Create;
+  fBusyDestinations := TDictionary<TObject, TQueueDestinationBlock>.Create;
   fQueueStat := TQueueStat.Create;
   StatsList.Add(fQueueStat);
   { AddSite starts the thread only after the site has been fully initialized. }
@@ -643,6 +729,8 @@ var
   s1, s2: TSite;
   i: integer;
   ss1, ss2, fSiteSlotLoop: TSiteSlot;
+  fDestinationRevision: Int64;
+  fNow: TDateTime;
 begin
   try
     s1 := TSite(t.ssite1);
@@ -653,18 +741,24 @@ begin
       exit;
     end;
     { Subscribe BEFORE checking destination state so concurrent completion cannot be lost. }
-    s2.RegisterQueueWaiter(fSiteName);
+    fDestinationRevision := s2.RegisterQueueWaiter(fSiteName);
+    fNow := Now;
+    if DestinationBlocked(s2, fDestinationRevision, fNow) then
+    begin
+      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcBusyCache);{$ENDIF}
+      Exit;
+    end;
     if s2.freeslots = 0 then
     begin
       {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcDestinationFull);{$ENDIF}
+      RememberBlockedDestination(s2, fDestinationRevision, IncMilliSecond(fNow, glQueueFallbackMs));
       exit;
     end;
 
     if s2.MaxSimUpCooldownActive then
     begin
       {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcCooldown);{$ENDIF}
-      if not fBusyDestinations.ContainsKey(s2) then
-        fBusyDestinations.Add(s2, 0);
+      RememberBlockedDestination(s2, fDestinationRevision, s2.MaxSimUpCooldownUntil);
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Destination site %s is on MaxSim UP cooldown (%ds remaining), skipping %s',
         [s2.Name, s2.MaxSimUpCooldownRemainingSeconds, t.FullName]);
       exit;
@@ -678,13 +772,6 @@ begin
       exit;
     end;
 
-    if fBusyDestinations.ContainsKey(s2) then
-    begin
-      {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcBusyCache);{$ENDIF}
-      Debug(dpSpam, section, 'Destination site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
-      exit;
-    end;
-
     // first watch if it is not already in process to upload the same file to the same place
     if t.ps2.HasActiveTransfer(t.dir + t.filename) then
     begin
@@ -695,6 +782,7 @@ begin
     if s2.num_up >= s2.max_up then
     begin
       {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcDestinationLimit);{$ENDIF}
+      RememberBlockedDestination(s2, fDestinationRevision, IncMilliSecond(fNow, glQueueFallbackMs));
       exit;
     end;
 
@@ -753,8 +841,7 @@ begin
     if not s2.AcquireSlotsAssignmentLock(1, 'TryToAssignRaceSlots') then
     begin
       {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcDestinationLock);{$ENDIF}
-      fBusyDestinations.Add(s2, 0);
-      FAssignmentRetryAt := IncMilliSecond(Now, 25);
+      RememberBlockedDestination(s2, fDestinationRevision, IncMilliSecond(Now, 25));
       exit;
     end;
 
@@ -763,6 +850,7 @@ begin
       if s2.num_up >= s2.max_up then
       begin
         {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcDestinationLimit);{$ENDIF}
+        RememberBlockedDestination(s2, fDestinationRevision, IncMilliSecond(fNow, glQueueFallbackMs));
         exit;
       end;
 
@@ -781,7 +869,10 @@ begin
         end;
       end;
       if ss2 = nil then
+      begin
+        RememberBlockedDestination(s2, fDestinationRevision, IncMilliSecond(fNow, glQueueFallbackMs));
         exit;
+      end;
 
       // now you can relax, just check if you don't abuse your max simultaneous uploads for a rip
       i := ss2.site.MaxUpPerRip;
@@ -824,6 +915,7 @@ begin
   on e: Exception do
     begin
       Debug(dpError, section, '[EXCEPTION] TQueueThread.TryToAssignRaceSlots : %s', [e.Message]);
+      RecordAssignmentFailure(t);
       exit;
     end;
   end;
@@ -917,6 +1009,7 @@ begin
   on e: Exception do
     begin
       Debug(dpError, section, '[EXCEPTION] TQueueThread.TryToAssignLoginSlot : %s', [e.Message]);
+      RecordAssignmentFailure(t);
       exit;
     end;
   end;
@@ -959,21 +1052,6 @@ begin
     end;
 
       {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcAttempt);{$ENDIF}
-      Inc(t.TryToAssign);
-      if ((maxassign <> 0) and (t.TryToAssign > maxassign)) then
-      begin
-        {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcRetryDelay);{$ENDIF}
-        t.TryToAssign := 0;
-        if (maxassign_delay = 0) then
-        begin
-          t.ready := True;
-        end
-        else
-        begin
-          t.startat := IncSecond(Now(), maxassign_delay);
-        end;
-        exit;
-      end;
 
       if t.ClassType = TPazoRaceTask then
       begin
@@ -1104,6 +1182,7 @@ begin
   on e: Exception do
     begin
       Debug(dpError, section, '[EXCEPTION] TQueueThread.TryToAssignSlots : %s', [e.Message]);
+      RecordAssignmentFailure(t);
     end;
   end;
 end;
@@ -1896,12 +1975,14 @@ begin
       main_lock.Enter('Execute');
       try
         {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcPass); FDiagnostics.Measure(qtQueueLock, QueueDiagnosticNow - fDiagnosticLockAt);{$ENDIF}
-        fBusyDestinations.Clear;
         FAssignmentRetryAt := MaxDateTime;
         fNextTaskStartAt := MoveWaitingTasks(queue_last_run);
 
         if ts.freeslots > 0 then
-          ApplyPendingSort;
+          ApplyPendingSort
+        else
+          { A slot completion will signal us; task deadlines cannot dispatch work now. }
+          fNextTaskStartAt := MaxDateTime;
         {$IFDEF QUEUE_DIAGNOSTICS}fDiagnosticCleanupAt := QueueDiagnosticNow;{$ENDIF}
 
         for fListIndex := 0 to 1 do

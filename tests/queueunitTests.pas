@@ -31,6 +31,10 @@ type
     procedure TestDelayedTaskMaturesWithoutPolling;
     procedure TestSortRequestsCoalesce;
     procedure TestWaitTimeoutBounds;
+    procedure TestFutureDeadlinesNeverPoll;
+    procedure TestDestinationBlockSurvivesUnrelatedWork;
+    procedure TestDestinationBlockExpires;
+    procedure TestAssignmentExceptionBackoff;
     procedure TestShutdownInterruptsWait;
     procedure TestDestinationSubscriptions;
     {$IFDEF QUEUE_DIAGNOSTICS}
@@ -43,7 +47,7 @@ implementation
 
 uses
   {$IFDEF QUEUE_DIAGNOSTICS}queuediagnostics,{$ENDIF}
-  Classes, SysUtils, DateUtils, SyncObjs, queueunit, tasksunit, console;
+  Classes, SysUtils, DateUtils, SyncObjs, queueunit, tasksunit, console, configunit;
 
 type
   {$IFDEF QUEUE_DIAGNOSTICS}
@@ -61,6 +65,9 @@ type
     function WaitForWork(const aMaxWait: Cardinal): TWaitResult;
     function SortNow: Boolean;
     function Promote(const aNow: TDateTime): TDateTime;
+    procedure RememberBlock(aDestination: TObject; const aRevision: Int64; const aRetryAt: TDateTime);
+    function IsBlocked(aDestination: TObject; const aRevision: Int64; const aNow: TDateTime): Boolean;
+    procedure AssignmentFailed(const aTask: TTask);
   end;
 
   { Synthetic task: no site lookup, credentials, network or global task-ID generator. }
@@ -114,6 +121,23 @@ begin
   finally
     main_lock.Leave;
   end;
+end;
+
+procedure TQueueProbe.RememberBlock(aDestination: TObject; const aRevision: Int64;
+  const aRetryAt: TDateTime);
+begin
+  RememberBlockedDestination(aDestination, aRevision, aRetryAt);
+end;
+
+function TQueueProbe.IsBlocked(aDestination: TObject; const aRevision: Int64;
+  const aNow: TDateTime): Boolean;
+begin
+  Result := DestinationBlocked(aDestination, aRevision, aNow);
+end;
+
+procedure TQueueProbe.AssignmentFailed(const aTask: TTask);
+begin
+  RecordAssignmentFailure(aTask);
 end;
 
 constructor TProbeTask.Create(const aStartAt: TDateTime = 0);
@@ -308,6 +332,128 @@ begin
   CheckEquals(0, Integer(QueueWaitMilliseconds(fNow, IncSecond(fNow, -1), 15000)), 'A deadline crossed during processing cannot become an absolute backward delay');
   fWait := QueueWaitMilliseconds(fNow, IncSecond(fNow, 5), 15000);
   CheckTrue((fWait >= 4999) and (fWait <= 5001), 'Cooldown and task deadlines must cap the fallback');
+end;
+
+procedure TTestQueueUnit.TestFutureDeadlinesNeverPoll;
+var
+  fNow, fDeadline: TDateTime;
+  i: Integer;
+begin
+  fNow := EncodeDate(2026, 10, 11);
+  for i := 1 to 100 do
+  begin
+    fDeadline := fNow + (i / 100.0) / MSecsPerDay;
+    CheckTrue(QueueWaitMilliseconds(fNow, fDeadline, 15000) >= 1,
+      'Every future deadline must wait at least one millisecond');
+  end;
+  fDeadline := fNow + 1.25 / MSecsPerDay;
+  CheckEquals(2, Integer(QueueWaitMilliseconds(fNow, fDeadline, 15000)),
+    'Fractional waits must round up rather than wake before the deadline');
+  CheckEquals(1, Integer(QueueWaitMilliseconds(fNow, fDeadline, 1)),
+    'Rounding must preserve the fallback cap');
+  CheckEquals(0, Integer(QueueWaitMilliseconds(fDeadline, fDeadline, 15000)),
+    'A due task still runs immediately');
+end;
+
+procedure TTestQueueUnit.TestDestinationBlockSurvivesUnrelatedWork;
+var
+  fQueue: TQueueProbe;
+  fTargets: TQueueWakeTargets;
+  fDestination: TObject;
+  fNow: TDateTime;
+  fRevision: Int64;
+  i: Integer;
+begin
+  fQueue := TQueueProbe.Create('QueueBlockedDestinationTest');
+  fTargets := TQueueWakeTargets.Create;
+  fDestination := TObject.Create;
+  try
+    fNow := Now;
+    fRevision := fTargets.Revision;
+    fQueue.RememberBlock(fDestination, fRevision, IncSecond(fNow, 15));
+    for i := 1 to 250 do
+    begin
+      fQueue.AddTask(TProbeTask.Create, False);
+      fQueue.QueueFire;
+      CheckTrue(fQueue.WaitForWork(0) = wrSignaled);
+      CheckTrue(fQueue.IsBlocked(fDestination, fTargets.Revision, fNow),
+        'Unrelated task signals must not discard a known destination block');
+    end;
+    fTargets.RegisterSite('SOURCE');
+    CheckEquals(1, Length(fTargets.TakeSites));
+    CheckTrue(fTargets.Revision <> fRevision, 'Slot completion advances the capacity revision');
+    CheckFalse(fQueue.IsBlocked(fDestination, fTargets.Revision, fNow),
+      'Released destination capacity must be reconsidered immediately, without backoff');
+  finally
+    fQueue.Free;
+    fTargets.Free;
+    fDestination.Free;
+  end;
+end;
+
+procedure TTestQueueUnit.TestDestinationBlockExpires;
+var
+  fQueue: TQueueProbe;
+  fDestination: TObject;
+  fNow, fRetryAt: TDateTime;
+begin
+  fQueue := TQueueProbe.Create('QueueDestinationRetryTest');
+  fDestination := TObject.Create;
+  try
+    fNow := Now;
+    fRetryAt := IncMilliSecond(fNow, 25);
+    fQueue.RememberBlock(fDestination, 0, fRetryAt);
+    CheckTrue(fQueue.IsBlocked(fDestination, 0, IncMilliSecond(fNow, 10)),
+      'Lock contention waits for the short retry deadline');
+    CheckFalse(fQueue.IsBlocked(fDestination, 0, fRetryAt),
+      'Retry must expire even without a slot notification');
+    fQueue.RememberBlock(fDestination, 0, IncSecond(fNow, 15));
+    CheckFalse(fQueue.IsBlocked(fDestination, 0, IncSecond(fNow, 15)),
+      'Housekeeping must eventually recheck capacity even if a notification was missed');
+  finally
+    fQueue.Free;
+    fDestination.Free;
+  end;
+end;
+
+procedure TTestQueueUnit.TestAssignmentExceptionBackoff;
+var
+  fQueue: TQueueProbe;
+  fTask: TProbeTask;
+  fMaxAssign, fDelay: Integer;
+  fNow: TDateTime;
+  i: Integer;
+begin
+  fQueue := TQueueProbe.Create('QueueAssignmentFailureTest');
+  fTask := TProbeTask.Create;
+  try
+    fMaxAssign := config.ReadInteger('queue', 'maxassign', 200);
+    fDelay := config.ReadInteger('queue', 'maxassign_delay', 15);
+    if fMaxAssign = 0 then
+    begin
+      fQueue.AssignmentFailed(fTask);
+      CheckEquals(1, fTask.TryToAssign);
+      CheckEquals(0, Integer(fTask.startat));
+      Exit;
+    end;
+    for i := 1 to fMaxAssign do
+      fQueue.AssignmentFailed(fTask);
+    CheckEquals(fMaxAssign, fTask.TryToAssign);
+    CheckEquals(0, Integer(fTask.startat), 'Only reaching the limit does not delay the task');
+    fNow := Now;
+    fQueue.AssignmentFailed(fTask);
+    CheckEquals(0, fTask.TryToAssign);
+    if fDelay = 0 then
+      CheckTrue(fTask.ready, 'Zero configured backoff retains the existing finish action')
+    else
+    begin
+      CheckTrue(fTask.startat >= IncSecond(fNow, fDelay));
+      CheckFalse(fTask.ready, 'A real assignment error backs off instead of discarding the task');
+    end;
+  finally
+    fTask.Free;
+    fQueue.Free;
+  end;
 end;
 
 procedure TTestQueueUnit.TestShutdownInterruptsWait;
