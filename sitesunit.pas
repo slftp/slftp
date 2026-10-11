@@ -210,6 +210,7 @@ type
     fNumDn: integer;
     fNumUp: integer;
     fQueue: TQueueThread;
+    FQueueWakeTargets: TQueueWakeTargets;
     fMaxUp: integer;
     fMaxDn: integer;
     fMaxPreDn: integer;
@@ -436,6 +437,10 @@ type
 
     procedure AddTask(const t: TTask; const queueFire: boolean = True);
     procedure QueueFire;
+    { Subscribes a source queue to the next destination slot/dependency change. }
+    procedure RegisterQueueWaiter(const aSiteName: String);
+    { Wakes subscribed source queues after releasing the destination slot. }
+    procedure NotifyQueueWaiters;
     procedure QueueClean;
     procedure QueueSort;
     function RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
@@ -1146,6 +1151,25 @@ begin
   fQueue.QueueClean;
 end;
 
+procedure TSite.RegisterQueueWaiter(const aSiteName: String);
+begin
+  if aSiteName <> Name then
+    FQueueWakeTargets.RegisterSite(aSiteName);
+end;
+
+procedure TSite.NotifyQueueWaiters;
+var
+  fSiteName: String;
+  fSource: TSite;
+begin
+  for fSiteName in FQueueWakeTargets.TakeSites do
+  begin
+    fSource := FindSiteByName('', fSiteName);
+    if fSource <> nil then
+      fSource.QueueFire;
+  end;
+end;
+
 procedure TSite.QueueFire;
 begin
   fQueue.QueueFire;
@@ -1541,16 +1565,10 @@ end;
 procedure TSiteSlot.Execute;
 var
   tname: String;
-  fPazoSite: TPazoSite;
-  fPair: TDestinationRank;
   fSite: TSite;
   fCurrentTask: TTask;
-  fWakeSources: TList<String>;
-  fSourceName: String;
 begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
-  fWakeSources := TList<String>.Create;
-  try
   tname := 'nil';
   console_add_sitewindow(Name);
   while ((not slshutdown) and (not shouldquit)) do
@@ -1566,7 +1584,6 @@ begin
         // outside while Execute below is still running, which would make the
         // cleanup block below skip slot1/slot2 cleanup. Using fCurrentTask
         // ensures cleanup always runs.
-        fWakeSources.Clear;
         fCurrentTask := todotask;
         try
           tname := fCurrentTask.Name;
@@ -1639,14 +1656,6 @@ begin
                 end;
 
               end;
-              { Transfer completion and directory dependencies can unblock other source queues. }
-              if (fCurrentTask is TPazoTask) and ((not shouldquit) and (not slshutdown)) then
-              begin
-                for fPazoSite in TPazoTask(fCurrentTask).mainpazo.PazoSitesList do
-                  for fPair in fPazoSite.destinations do
-                    if (fPair.PazoSite.Name = site.Name) and not fWakeSources.Contains(fPazoSite.Name) then
-                      fWakeSources.Add(fPazoSite.Name);
-              end;
 
             finally
               // IMPORTANT: Set todotask := nil BEFORE clearing slot1.
@@ -1696,12 +1705,7 @@ begin
         if ((not shouldquit) and (not slshutdown)) then
         begin
           site.QueueFire;
-          for fSourceName in fWakeSources do
-          begin
-            fSite := FindSiteByName('', fSourceName);
-            if fSite <> nil then
-              fSite.QueueFire;
-          end;
+          site.NotifyQueueWaiters;
         end;
       end
       else
@@ -1760,9 +1764,6 @@ begin
 
   console_delwindow(Name);
   kilepve := True;
-  finally
-    fWakeSources.Free;
-  end;
 end;
 
 destructor TSiteSlot.Destroy;
@@ -3185,6 +3186,7 @@ begin
   self.Name := Name;
   features := [];
   fSlotsAssignmentLock := TSlCriticalSection2.Create('SLFTP_SlotsAssignmentMutex_' + Name, True);
+  FQueueWakeTargets := TQueueWakeTargets.Create;
   fQueue := TQueueThread.Create(Name);
   self.fSpeedFromCS := TSlCriticalSection2.Create('SpeedFromCS_' + Name);
   self.fSpeedFromCache := nil;
@@ -3373,6 +3375,7 @@ begin
     fSlot.Free;
   QueueEmpty(Name);
   FreeAndNil(fQueue);
+  FQueueWakeTargets.Free;
   slots.Free;
   fSlotsAssignmentLock.Free;
   fSpeedFromCS.Free;

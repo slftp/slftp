@@ -12,10 +12,13 @@ longer fires all queues at the legacy `queue_fire` interval.
   before insertion.
 - A newly earlier delayed task interrupts an existing wait. The queue waits until
   the earliest future task/retry, relevant source/destination MAXSIM cooldown, or
-  slot idle/quit deadline. Due but blocked work waits for a state change instead of
+  slot idle/quit deadline. A failed nonblocking destination-lock acquisition uses
+  a 25 ms retry deadline; slot/dependency-blocked tasks do not use that retry. Due but blocked work waits for a state change instead of
   repeatedly scheduling its expired deadline.
-- Slot completion wakes its own queue. Completion of race/directory tasks also
-  wakes the existing dependent source routes, after slot release.
+- Slot completion wakes its own queue. Each destination has a small
+  one-shot set of source queues that could not proceed. Sources subscribe before
+  checking availability; every slot completion takes and wakes this set after
+  slot release, including sources trading other releases. No global scan is needed.
 - QueueSort marks sorting pending. Insertions and promoted delayed tasks also mark
   it pending. The original priority comparator runs once before dispatch when a
   slot is available, and does not run on unchanged housekeeping passes.

@@ -30,6 +30,7 @@ type
     procedure TestSortRequestsCoalesce;
     procedure TestWaitTimeoutBounds;
     procedure TestShutdownInterruptsWait;
+    procedure TestDestinationSubscriptions;
   end;
 
 implementation
@@ -277,6 +278,30 @@ begin
     end;
   finally
     fQueue.Free;
+  end;
+end;
+
+procedure TTestQueueUnit.TestDestinationSubscriptions;
+var
+  fTargets: TQueueWakeTargets;
+  fSites: TArray<String>;
+  i: Integer;
+begin
+  fTargets := TQueueWakeTargets.Create;
+  try
+    for i := 1 to 100 do
+      fTargets.RegisterSite('SOURCE-A');
+    fTargets.RegisterSite('SOURCE-B');
+    fSites := fTargets.TakeSites;
+    CheckEquals(2, Length(fSites), 'All waiting sources must wake, across different releases');
+    CheckTrue(fSites[0] <> fSites[1], 'Repeated attempts must not multiply subscriptions');
+    CheckEquals(0, Length(fTargets.TakeSites), 'Notifications consume subscriptions');
+    fTargets.RegisterSite('SOURCE-C');
+    fSites := fTargets.TakeSites;
+    CheckEquals(1, Length(fSites), 'Registration after a notification must survive for the next completion');
+    CheckEqualsString('SOURCE-C', fSites[0]);
+  finally
+    fTargets.Free;
   end;
 end;
 

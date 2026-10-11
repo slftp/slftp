@@ -19,6 +19,23 @@ type TQueueTask = class
 end;
 
 type
+  { One-shot, site-local subscriptions for queues waiting on destination state.
+    Stores names instead of queue pointers so deleted sources are not dereferenced. }
+  TQueueWakeTargets = class
+  private
+    FLock: TCriticalSection;
+    FSites: TDictionary<String, Byte>;
+  public
+    { Creates an empty subscription set. }
+    constructor Create;
+    { Releases the subscription set. }
+    destructor Destroy; override;
+    { Registers a source once until the next notification. }
+    procedure RegisterSite(const aSiteName: String);
+    { Atomically takes and clears the sources to notify, without holding the lock during callbacks. }
+    function TakeSites: TArray<String>;
+  end;
+
   TQueueThread = class(TThread)
     main_lock: TSlCriticalSection2;
     fQueueStat: TQueueStat;
@@ -35,6 +52,7 @@ type
   fBusyDestinations: TDictionary<TObject, integer>;
   FSortPending: Boolean;
   FNextTaskAt: TDateTime;
+  FAssignmentRetryAt: TDateTime;
 
   queue_last_run: TDateTime;
   queueclean_last_run: TDateTime;
@@ -127,6 +145,41 @@ var
 
   StatsList: TObjectList<TQueueStat>;
   glQueueFallbackMs: Cardinal = 15 * 1000;
+
+constructor TQueueWakeTargets.Create;
+begin
+  inherited;
+  FLock := TCriticalSection.Create;
+  FSites := TDictionary<String, Byte>.Create;
+end;
+
+destructor TQueueWakeTargets.Destroy;
+begin
+  FSites.Free;
+  FLock.Free;
+  inherited;
+end;
+
+procedure TQueueWakeTargets.RegisterSite(const aSiteName: String);
+begin
+  FLock.Enter;
+  try
+    FSites.AddOrSetValue(aSiteName, 0);
+  finally
+    FLock.Leave;
+  end;
+end;
+
+function TQueueWakeTargets.TakeSites: TArray<String>;
+begin
+  FLock.Enter;
+  try
+    Result := FSites.Keys.ToArray;
+    FSites.Clear;
+  finally
+    FLock.Leave;
+  end;
+end;
 
 procedure TQueueThread.QueueFire;
 begin
@@ -545,6 +598,8 @@ begin
     s2 := TSite(t.ssite2);
     if s1.freeslots = 0 then
       exit;
+    { Subscribe BEFORE checking destination state so concurrent completion cannot be lost. }
+    s2.RegisterQueueWaiter(fSiteName);
     if s2.freeslots = 0 then
       exit;
 
@@ -623,6 +678,7 @@ begin
     if not s2.AcquireSlotsAssignmentLock(1, 'TryToAssignRaceSlots') then
     begin
       fBusyDestinations.Add(s2, 0);
+      FAssignmentRetryAt := IncMilliSecond(Now, 25);
       exit;
     end;
 
@@ -1674,6 +1730,7 @@ begin
       main_lock.Enter('Execute');
       try
         fBusyDestinations.Clear;
+        FAssignmentRetryAt := MaxDateTime;
         fNextTaskStartAt := MoveWaitingTasks(queue_last_run);
 
         if ts.freeslots > 0 then
@@ -1744,6 +1801,8 @@ begin
               begin
                 if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
                 begin
+                  if (fTask is TPazoRaceTask) and (fTask.ssite2 <> nil) then
+                    TSite(fTask.ssite2).RegisterQueueWaiter(fSiteName);
                   if fTask.IsReadyToBeExecuted then
                   begin
                     TryToAssignSlots(fTask);
@@ -1781,6 +1840,7 @@ begin
         finally
           ts.ReleaseSlotsAssignmentLock;
         end;
+        _ConsiderQueueDeadline(queue_last_run, FAssignmentRetryAt, fNextTaskStartAt);
         FNextTaskAt := fNextTaskStartAt;
       finally
         main_lock.Leave;
