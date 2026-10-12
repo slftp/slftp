@@ -83,6 +83,7 @@ uses
   kb.releaseinfo.MVIDTests,
   taskhttpimdbTests,
   sitesunitTests,
+  tasksunitTests,
   precatcherTests,
   slcriticalsection2Tests,
   variantCacheTests,

@@ -555,6 +555,7 @@ begin
     end;
 
     try
+      if t.CancelIfSiteDown then Exit;
       // check again now that we have the lock at the destination
       if s2.num_up >= s2.max_up then
         exit;
@@ -715,12 +716,14 @@ var
   sst: TSiteSlot;
   actual_count: integer;
 begin
+  if t.CancelIfSiteDown then Exit;
    // Debug(dpSpam, section, 'TryToAssignSlots profile '+t.Fullname);
 
   try
     s := TSite(self.fSite);
     s.AcquireSlotsAssignmentLock('TryToAssignSlots');
     try
+    if t.CancelIfSiteDown then Exit;
     if s.freeslots = 0 then
       exit;
 
@@ -1203,6 +1206,12 @@ var
   fCheckSiteSlotsSite: TSite;
 begin
   try
+    if t.CancelIfSiteDown then
+    begin
+      if t.IsNotifyTask then TaskReady(t);
+      t.Free;
+      Exit;
+    end;
     fCheckSiteSlotsSite := nil;
     tname := t.Name;
 
@@ -1679,6 +1688,7 @@ begin
             Continue;
 
           try
+            fTask.CancelIfSiteDown;
             if (((fTask.ready) or (fTask.readyerror)) and (fTask.slot1 = nil)) then
             begin
               ss := fTask.uidtext;
@@ -1716,6 +1726,7 @@ begin
           for fTask in tasks do
           begin
             try
+              if fTask.CancelIfSiteDown then Continue;
               if ts.freeslots = 0 then
               begin
                 //Debug(dpSpam, section, Format('No free slots on %s', [ts.Name]));

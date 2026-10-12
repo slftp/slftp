@@ -13,6 +13,8 @@ type
     constructor Create(const netname, channel, site: String; kill: Boolean; readd: Boolean);
     function Execute(slot: Pointer): Boolean; override;
     function Name: String; override;
+    { Automatic BNC tests stop on Setdown; explicit login commands remain permitted. }
+    function RequiresAvailableSite: Boolean; override;
   end;
 
 implementation
@@ -30,6 +32,11 @@ begin
   inherited Create(netname, channel, site);
   self.kill := kill;
   self.readd := readd;
+end;
+
+function TLoginTask.RequiresAvailableSite: Boolean;
+begin
+  Result := readd;
 end;
 
 function TLoginTask.Execute(slot: Pointer): Boolean;
@@ -109,7 +116,7 @@ begin
     end;
   end;
 
-  if readd then
+  if readd and (s.site.AutomaticTaskDownReason = '') then
   begin
     try
       l := TLoginTask.Create(netname, channel, site1, kill, readd);

@@ -818,6 +818,8 @@ begin
         end;
         try
           ps := TPazoSite(p.PazoSitesList[i]);
+          if not SiteAllowsAutomaticTasks(ps.Name) then
+            Continue;
 
           // dirlist not available
           if ps.dirlist = nil then

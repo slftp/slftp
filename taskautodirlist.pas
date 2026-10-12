@@ -13,6 +13,8 @@ type
     constructor Create(const netname, channel, site, aSpecificRlsName: String);
     function Execute(slot: Pointer): Boolean; override;
     function Name: String; override;
+    { Periodic automatic work must respect explicit site disablement. }
+    function RequiresAvailableSite: Boolean; override;
   end;
 
   procedure AutoDirlistInit;
@@ -315,6 +317,8 @@ begin
             prestatus := False
           else
             prestatus := True;
+          if not SiteAllowsAutomaticTasks(ps.Name) then
+            Continue;
           pdt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', prestatus);
           AddTask(pdt);
         except
@@ -332,6 +336,11 @@ begin
   end;
 end;
 
+function TAutoDirlistTask.RequiresAvailableSite: Boolean;
+begin
+  Result := True;
+end;
+
 function TAutoDirlistTask.Execute(slot: Pointer): Boolean;
 var
   s: TSiteSlot;
@@ -346,14 +355,15 @@ var
   begin
     // Check autodirlist interval
     i := s.RCInteger('autodirlist', 0);
-    if (i > 0) and (FSpecificRlsName = '') then //no reschedule if we're searching for a specific request because of a precatcher event
+    if (s.site.AutomaticTaskDownReason = '') and
+      (i > 0) and (FSpecificRlsName = '') then //no reschedule if we're searching for a specific request because of a precatcher event
     begin
       try
         l := TAutoDirlistTask.Create(netname, channel, site1, FSpecificRlsName);
         l.startat := IncSecond(Now, i);
         l.dontremove := True;
-        AddTask(l);
         s.site.WCDateTime('nextautodirlist', l.startat);
+        AddTask(l);
       except
         on e: Exception do
         begin
@@ -367,6 +377,12 @@ begin
   Result := False;
   s := slot;
   debugunit.Debug(dpMessage, rsections, Name);
+
+  if s.site.AutomaticTaskDownReason <> '' then
+  begin
+    ready := True;
+    Exit;
+  end;
 
   // Check autodirlist interval, whether autodirlist is still enabled
   if (FSpecificRlsName = '') and (s.RCInteger('autodirlist', 0) = 0) then
