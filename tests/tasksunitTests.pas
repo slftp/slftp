@@ -23,7 +23,7 @@ type
 implementation
 
 uses SysUtils, sitesunit, tasksunit, queueunit, taskrace, tasklogin, taskquit, taskidle, taskautodirlist,
-  taskautoindex, taskautonuke, taskrules;
+  taskautoindex, taskautonuke, taskrules, slcriticalsection2;
 
 type
   { Synthetic site: no inherited constructor, slots, threads or configuration writes. }
@@ -114,10 +114,12 @@ end;
 
 constructor TAssignmentProbe.Create;
 begin
+  main_lock := TSlCriticalSection2.Create('SitePolicyTestQueue');
 end;
 
 destructor TAssignmentProbe.Destroy;
 begin
+  main_lock.Free;
 end;
 
 procedure TTestTaskSiteDown.TestSitePolicyKeepsTemporaryRecovery;
