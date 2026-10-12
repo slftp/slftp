@@ -170,21 +170,18 @@ end;
 procedure TTestTaskSiteDown.TestInsertionRejectsDisabledTask;
 var
   fSite: TPolicySite;
-  fQueue: TAssignmentProbe;
   fTask: TPolicyTask;
   fDestroyed: Boolean;
 begin
   fDestroyed := False;
   fSite := TPolicySite.Create(sstMarkedAsDownByUser);
-  fQueue := TAssignmentProbe.Create;
   fTask := TPolicyTask.Create(fSite, nil, True, @fDestroyed);
   try
-    { No queue storage exists: insertion must reject and release before using it. }
-    fQueue.AddTask(fTask);
+    { No queue exists: the enqueue boundary must reject before dispatching to it. }
+    fSite.AddTask(fTask);
     CheckTrue(fDestroyed, 'Rejected work must not be stored or leaked');
   finally
     if not fDestroyed then fTask.Free;
-    fQueue.Free;
     fSite.Free;
   end;
 end;

@@ -759,7 +759,7 @@ implementation
 uses
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
-  dirlist.helpers, tags, Generics.Defaults;
+  dirlist.helpers, tags, Generics.Defaults, notify;
 
 const
   section = 'sites';
@@ -1076,6 +1076,12 @@ end;
 
 procedure TSite.AddTask(const t: TTask; const queueFire: boolean = false);
 begin
+  if (t <> nil) and t.CancelIfSiteDown then
+  begin
+    if t.IsNotifyTask then TaskReady(t);
+    t.Free;
+    Exit;
+  end;
   if fQueue = nil then
   begin
     Debug(dpError, section, Format('CRITICAL LOG: fQueue is nil in TSite.AddTask for site %s', [Name]));

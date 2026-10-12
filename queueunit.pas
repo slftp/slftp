@@ -716,8 +716,8 @@ var
   sst: TSiteSlot;
   actual_count: integer;
 begin
-  if t.CancelIfSiteDown then Exit;
    // Debug(dpSpam, section, 'TryToAssignSlots profile '+t.Fullname);
+  if t.CancelIfSiteDown then Exit;
 
   try
     s := TSite(self.fSite);
@@ -1230,9 +1230,9 @@ begin
 
     main_lock.Enter('AddTask');
     try
-      if t.CancelIfSiteDown or TaskAlreadyInQueue(t) then
+      if TaskAlreadyInQueue(t) then
       begin
-        // Rejected or duplicate tasks are not stored; complete notifications before freeing.
+        // don't add the task to the queue, just notify and free right away if it's a duplicate
         if t.IsNotifyTask then
           TaskReady(t);
           
