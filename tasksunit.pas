@@ -60,6 +60,12 @@ type
     function UidText: String;
     function ScheduleText: String;
     function IsReadyToBeExecuted: boolean; virtual;
+    { Automatic trading/work tasks require a site that has not been disabled. }
+    function RequiresAvailableSite: Boolean; virtual;
+    { Cancels unassigned automatic work on a disabled source or target.
+      Caller must own the task or hold its queue lock. Only the executing worker may
+      pass aWorkerOwnsTask=True; cancellation never clears worker-owned slots. }
+    function CancelIfSiteDown(const aWorkerOwnsTask: Boolean = False): Boolean;
     procedure DebugTask;
     procedure EnableNotify;
     property IsNotifyTask: Boolean read FIsNotifyTask;
@@ -180,6 +186,34 @@ end;
 
 function TTask.IsReadyToBeExecuted: boolean;
 begin
+  Result := True;
+end;
+
+function TTask.RequiresAvailableSite: Boolean;
+begin
+  Result := False;
+end;
+
+function TTask.CancelIfSiteDown(const aWorkerOwnsTask: Boolean): Boolean;
+var
+  fReason, fSiteName: String;
+begin
+  Result := False;
+  if not RequiresAvailableSite or ready or readyerror or
+    (not aWorkerOwnsTask and ((slot1 <> nil) or (slot2 <> nil))) then Exit;
+  fReason := '';
+  fSiteName := site1;
+  if ssite1 <> nil then fReason := TSite(ssite1).AutomaticTaskDownReason;
+  if (fReason = '') and (ssite2 <> nil) then
+  begin
+    fReason := TSite(ssite2).AutomaticTaskDownReason;
+    fSiteName := site2;
+  end;
+  if fReason = '' then Exit;
+  ready := True;
+  { Administrative cancellation must not mark the entire release as failed. }
+  Debug(dpMessage, section, '[TASK-CANCEL] task=%d type=%s site=%s reason=%s',
+    [uid, ClassName, fSiteName, fReason]);
   Result := True;
 end;
 

@@ -427,6 +427,8 @@ type
     Name: String; //< sitename
     slots: TObjectList;
 
+    { Empty when automatic work is permitted; otherwise a stable cancellation reason. }
+    function AutomaticTaskDownReason: String; virtual;
     constructor Create(const Name: String);
     destructor Destroy; override;
 
@@ -677,6 +679,13 @@ function FindSiteByName(const aNetname, aSitename: String): TSite;
   @param(aSlotname slotname which is used for searching)
   @returns(@link(TSiteSlot) class of slot, @nil otherwise) }
 function FindSlotByName(const aSlotname: String): TSiteSlot;
+{ True if the named site exists and permits automatic work. }
+function SiteAllowsAutomaticTasks(const aSiteName: String): Boolean;
+
+{ Returns the automatic-task cancellation reason for a site state.
+  Temporary failures remain eligible for the existing reconnect/backoff behavior. }
+function GetAutomaticTaskDownReason(const aStatus: TSiteStatus; const aPermDown: Boolean): String;
+
 procedure SitesInit;
 procedure SitesStart;
 procedure SitesUninit;
@@ -767,7 +776,7 @@ uses
   {$IFDEF QUEUE_DIAGNOSTICS}queuediagnostics,{$ENDIF}
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
-  dirlist.helpers, tags, Generics.Defaults;
+  dirlist.helpers, tags, Generics.Defaults, notify;
 
 const
   section = 'sites';
@@ -1085,6 +1094,12 @@ end;
 
 procedure TSite.AddTask(const t: TTask; const queueFire: boolean = True);
 begin
+  if (t <> nil) and t.CancelIfSiteDown then
+  begin
+    if t.IsNotifyTask then TaskReady(t);
+    t.Free;
+    Exit;
+  end;
   if fQueue = nil then
   begin
     Debug(dpError, section, Format('CRITICAL LOG: fQueue is nil in TSite.AddTask for site %s', [Name]));
@@ -1620,7 +1635,7 @@ begin
         Debug(dpSpam, section, Format('--> %s', [Name]));
 
         try
-          if fCurrentTask.Execute(self) then
+          if not fCurrentTask.CancelIfSiteDown(True) and fCurrentTask.Execute(self) then
           begin
             LastTaskExecution := Now();
 
@@ -3468,6 +3483,27 @@ begin
   end;
 end;
 
+function GetAutomaticTaskDownReason(const aStatus: TSiteStatus; const aPermDown: Boolean): String;
+begin
+  if aPermDown then Result := 'site_permdown'
+  else if aStatus = sstMarkedAsDownByUser then Result := 'site_marked_down'
+  else if aStatus = sstDown then Result := 'site_down'
+  else Result := '';
+end;
+
+function SiteAllowsAutomaticTasks(const aSiteName: String): Boolean;
+var
+  fSite: TSite;
+begin
+  fSite := FindSiteByName('', aSiteName);
+  Result := (fSite <> nil) and (fSite.AutomaticTaskDownReason = '');
+end;
+
+function TSite.AutomaticTaskDownReason: String;
+begin
+  Result := GetAutomaticTaskDownReason(FWorkingStatus, fPermDownStatus);
+end;
+
 procedure TSite.SetWorking(const Value: TSiteStatus);
 begin
   if Value <> FWorkingStatus then
@@ -3478,7 +3514,12 @@ begin
     if (Value = sstTempDown) and (FWorkingStatus in [sstDown, sstMarkedAsDownByUser]) then
       exit;
 
-    FWorkingStatus := Value;
+    AcquireSlotsAssignmentLock('SetWorking');
+    try
+      FWorkingStatus := Value;
+    finally
+      ReleaseSlotsAssignmentLock;
+    end;
 
     if Name = getAdminSiteName then
     begin
@@ -4537,7 +4578,7 @@ begin
   fWantedSlot := '';
 
   // check if the destination site and its slots are ready
-  if aSite <> nil then
+  if (aSite <> nil) and (aSite.AutomaticTaskDownReason = '') then
   begin
     begin
 
@@ -4910,7 +4951,12 @@ end;
 
 procedure TSite.SetPermDownStatus(Value: boolean);
 begin
-  fPermDownStatus := Value;
+  AcquireSlotsAssignmentLock('SetPermDownStatus');
+  try
+    fPermDownStatus := Value;
+  finally
+    ReleaseSlotsAssignmentLock;
+  end;
   WCBool('permdown', Value);
 end;
 

@@ -888,6 +888,7 @@ begin
     end;
 
     try
+      if t.CancelIfSiteDown then Exit;
       // check again now that we have the lock at the destination
       if s2.num_up >= s2.max_up then
       begin
@@ -1071,11 +1072,13 @@ var
 begin
   {$IFDEF QUEUE_DIAGNOSTICS}DiagnosticBeginTask(t); try{$ENDIF}
    // Debug(dpSpam, section, 'TryToAssignSlots profile '+t.Fullname);
+  if t.CancelIfSiteDown then Exit;
 
   try
     s := TSite(self.fSite);
     s.AcquireSlotsAssignmentLock('TryToAssignSlots');
     try
+    if t.CancelIfSiteDown then Exit;
     if s.freeslots = 0 then
     begin
       {$IFDEF QUEUE_DIAGNOSTICS}FDiagnostics.Count(qcSourceFull); DiagnosticBlockTask(t, qbSourceFull);{$ENDIF}
@@ -2154,6 +2157,7 @@ begin
             Continue;
 
           try
+            fTask.CancelIfSiteDown;
             if (((fTask.ready) or (fTask.readyerror)) and (fTask.slot1 = nil)) then
             begin
               {$IFDEF QUEUE_DIAGNOSTICS}
@@ -2200,6 +2204,7 @@ begin
           for fTask in tasks do
           begin
             try
+              if fTask.CancelIfSiteDown then Continue;
               if ts.freeslots = 0 then
               begin
                 //Debug(dpSpam, section, Format('No free slots on %s', [ts.Name]));

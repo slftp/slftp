@@ -69,7 +69,8 @@ uses
   precatcherTests,
   slcriticalsection2Tests,
   variantCacheTests,
-  sltimerTests;
+  sltimerTests,
+  tasksunitTests;
 
 var
   filecheck: String;
