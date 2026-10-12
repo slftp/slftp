@@ -1206,12 +1206,6 @@ var
   fCheckSiteSlotsSite: TSite;
 begin
   try
-    if t.CancelIfSiteDown then
-    begin
-      if t.IsNotifyTask then TaskReady(t);
-      t.Free;
-      Exit;
-    end;
     fCheckSiteSlotsSite := nil;
     tname := t.Name;
 
@@ -1236,9 +1230,9 @@ begin
 
     main_lock.Enter('AddTask');
     try
-      if TaskAlreadyInQueue(t) then
+      if t.CancelIfSiteDown or TaskAlreadyInQueue(t) then
       begin
-        // don't add the task to the queue, just notify and free right away if it's a duplicate
+        // Rejected or duplicate tasks are not stored; complete notifications before freeing.
         if t.IsNotifyTask then
           TaskReady(t);
           
