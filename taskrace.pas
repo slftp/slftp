@@ -11,6 +11,8 @@ type
     ps1, ps2: TPazoSite; //< ps1 is sourcesite, ps2 is dstsite for TPazoRaceTask
     constructor Create(const netname, channel, site1, site2: String; pazo: TPazo);
     destructor Destroy; override;
+    { Includes race, dirlist, mkdir and release metadata tasks. }
+    function RequiresAvailableSite: Boolean; override;
   end;
 
   TPazoTask = class(TPazoPlainTask) // announce
@@ -107,6 +109,11 @@ begin
   end;
 
   inherited Create(netname, channel, site1, site2);
+end;
+
+function TPazoPlainTask.RequiresAvailableSite: Boolean;
+begin
+  Result := True;
 end;
 
 destructor TPazoPlainTask.Destroy;
@@ -590,7 +597,8 @@ begin
 
   // check if need more dirlist
   itwasadded := False;
-  if (d <> nil) and not d.dirlistgaveup and not d.error then
+  if (s.site.AutomaticTaskDownReason = '') and
+    (d <> nil) and not d.dirlistgaveup and not d.error then
   begin
     // check if still incomplete
     if ((d <> nil) and (not is_pre) and (not d.Complete)) then
@@ -621,6 +629,8 @@ begin
 
         try
           ps := fDestination.PazoSite;
+          if not SiteAllowsAutomaticTasks(ps.Name) then
+            Continue;
 
           if (ps.error) then
             Continue;
