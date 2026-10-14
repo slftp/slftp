@@ -711,14 +711,14 @@ end;
 
 procedure TQueueThread.QueueStart;
 begin
-  QueueFire;
+  QueueFire({$IFDEF QUEUE_DIAGNOSTICS}qwQueueStart{$ENDIF});
   QueueStatAll;
 end;
 
 procedure TQueueThread.QueueStop;
 begin
   Terminate;
-  QueueFire;
+  QueueFire({$IFDEF QUEUE_DIAGNOSTICS}qwQueueStop{$ENDIF});
   if not Suspended then
     WaitFor;
 end;

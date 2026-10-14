@@ -5,6 +5,7 @@ unit sitesunit;
 interface
 
 uses
+  {$IFDEF QUEUE_DIAGNOSTICS}queuediagnostics,{$ENDIF}
   Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
   taskrules, taskrace, queueunit, Generics.Collections, pazo, slcriticalsection2,
@@ -450,7 +451,7 @@ type
     { Checks for an unassigned matching race in this source site's queue. }
     function HasPendingRace(const aPazoID: integer; const aDestination, aDir, aFilename: String): boolean;
     procedure AddTask(const t: TTask; const queueFire: boolean = True);
-    procedure QueueFire;
+    procedure QueueFire({$IFDEF QUEUE_DIAGNOSTICS}const aReason: TQueueWakeReason = qwExternal{$ENDIF});
     { Subscribes a source queue and returns the destination's capacity revision. }
     function RegisterQueueWaiter(const aSiteName: String): Int64;
     { Wakes subscribed source queues after releasing the destination slot. }
@@ -1220,9 +1221,9 @@ begin
 end;
 {$ENDIF}
 
-procedure TSite.QueueFire;
+procedure TSite.QueueFire({$IFDEF QUEUE_DIAGNOSTICS}const aReason: TQueueWakeReason = qwExternal{$ENDIF});
 begin
-  fQueue.QueueFire;
+  fQueue.QueueFire({$IFDEF QUEUE_DIAGNOSTICS}aReason{$ENDIF});
 end;
 
 procedure QueueEmpty(const sitename: String);
@@ -1497,7 +1498,7 @@ begin
     for fSite in sites do
     begin
       fSite.fQueue.Terminate;
-      fSite.QueueFire;
+      fSite.QueueFire({$IFDEF QUEUE_DIAGNOSTICS}qwShutdown{$ENDIF});
     end;
     for fSite in sites do
       fSite.fQueue.QueueStop;

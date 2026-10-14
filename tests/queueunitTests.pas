@@ -39,6 +39,7 @@ type
     procedure TestDestinationSubscriptions;
     {$IFDEF QUEUE_DIAGNOSTICS}
     procedure TestDiagnosticWindowAndReset;
+    procedure TestDiagnosticWakeOrigins;
     procedure TestDiagnosticConcurrentSignals;
     procedure TestDiagnosticWaitClassification;
     procedure TestDiagnosticBlockReasonsAndEvents;
@@ -691,6 +692,27 @@ begin
     CheckTrue(Pos('sorts=0 ', fReport) > 0);
     CheckTrue(Pos('signal_destination=0 ', fReport) > 0);
     CheckTrue(Pos('sort_n=0 sort_sum_us=0 sort_max_us=0', fReport) > 0);
+  finally
+    fDiagnostics.Free;
+  end;
+end;
+
+procedure TTestQueueUnit.TestDiagnosticWakeOrigins;
+var
+  fDiagnostics: TQueueDiagnostics;
+  fReport: String;
+begin
+  fDiagnostics := TQueueDiagnostics.Create;
+  try
+    fDiagnostics.Signal(qwAdminLogin);
+    fDiagnostics.Signal(qwMkdirReady);
+    fDiagnostics.Signal(qwTaskBatch);
+    fReport := fDiagnostics.Snapshot('ORIGIN', QueueDiagnosticNow, 0, 0, 0, 0, 0, True);
+    CheckTrue(Pos('signal_external=0 ', fReport) > 0,
+      'Classified runtime origins must not be counted as external');
+    CheckTrue(Pos('signal_admin_login=1 ', fReport) > 0);
+    CheckTrue(Pos('signal_mkdir_ready=1 ', fReport) > 0);
+    CheckTrue(Pos('signal_task_batch=1 ', fReport) > 0);
   finally
     fDiagnostics.Free;
   end;

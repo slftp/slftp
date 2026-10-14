@@ -30,7 +30,7 @@ seconds, when calculating rates. A final partial window is not flushed on exit.
 | Fields | Interpretation |
 | --- | --- |
 | `passes`, `wake_event`, `wake_deadline`, `wake_fallback` | Actual queue activity and why waits returned. Fallback means the 15-second wait cap expired; a distant deadline may also be capped this way. |
-| `signal_*` | Signal requests by origin. Several requests can produce one actual event wake. `external` includes existing batch, start/stop and MKDIR calls. |
+| `signal_*` | Signal requests by origin. Several requests can produce one actual event wake. `external` means an unclassified caller remains. Named origins separate task insertion, destination/slot notifications, queue lifecycle, shutdown, startup, admin actions, MKDIR readiness and batched task insertion. |
 | `tasks`, `waiting`, `free_slots`, `due_unassigned`, `oldest_due_ms` | Snapshot at report time. Due tasks may still be blocked; free slots can be offline or limited by upload/download caps. Age starts at task creation, including intentional delays. |
 | `fallback_with_free_slot_and_due_work` | Number of fallback returns where free slots and due unassigned work coexist. Investigate missing wakes or readiness changes; this alone does not prove runnable work was ignored. |
 | `sorts`, `sort_requests`, `inserted`, `inserted_assigned`, `inserted_wait`, `promoted` | Sort runs versus explicit requests and insertions. Already assigned tasks and internal wait tasks still dirty the current queue; many sorts per transferred file identify this overhead. |

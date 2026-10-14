@@ -36,6 +36,7 @@ var
 implementation
 
 uses
+  {$IFDEF QUEUE_DIAGNOSTICS}queuediagnostics,{$ENDIF}
   slvision, slconsole, mystrings, queueunit, debugunit, configunit, sitesunit,
   Contnrs, versioninfo, SysUtils, mainthread, Classes, irc, taskraw, slhelper,
   kb, StrUtils, encinifile, dateutils, mrdohutils, SyncObjs, Generics.Collections
@@ -435,7 +436,7 @@ begin
           Debug(dpError, section, 'slFtp exiting');
           for fSite in sites do
           begin
-            fSite.QueueFire;
+            fSite.QueueFire({$IFDEF QUEUE_DIAGNOSTICS}qwShutdown{$ENDIF});
           end;
           SlotsFire;
         end;

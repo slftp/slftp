@@ -5,6 +5,7 @@ unit pazo;
 interface
 
 uses
+  {$IFDEF QUEUE_DIAGNOSTICS}queuediagnostics,{$ENDIF}
   Classes, kb.releaseinfo, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections, IniFiles, sfv, slcriticalsection2,
   routeconfig, raceperfunit;
 
@@ -1603,7 +1604,7 @@ begin
 
       for fSiteName in fSitesList do
       begin
-        FindSiteByName('', fSiteName).QueueFire;
+        FindSiteByName('', fSiteName).QueueFire({$IFDEF QUEUE_DIAGNOSTICS}qwMkdirReady{$ENDIF});
       end;
     finally
       fSitesList.Free;
@@ -1752,7 +1753,7 @@ begin
       begin
         fSite := FindSiteByName('', Name);
         fSite.QueueSort;
-        fSite.QueueFire;
+        fSite.QueueFire({$IFDEF QUEUE_DIAGNOSTICS}qwTaskBatch{$ENDIF});
       end;
 
       for de in fRemovePazoRaceEntries do

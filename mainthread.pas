@@ -53,6 +53,7 @@ var
 implementation
 
 uses
+  {$IFDEF QUEUE_DIAGNOSTICS}queuediagnostics,{$ENDIF}
   identserver, tasksunit, dirlist, ircchansettings, sltcp, slssl, kb, fake, console, sllanguagebase, irc, mycrypto, queueunit,
   sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
   mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
@@ -317,7 +318,7 @@ begin
         begin
           Debug(dpSpam, section, 'Startup: Adding ghost kill task for site %s', [fSite.Name]);
           AddTask(TLoginTask.Create('', '', fSite.Name, True, False));
-          fSite.QueueFire;
+          fSite.QueueFire({$IFDEF QUEUE_DIAGNOSTICS}qwStartupTask{$ENDIF});
         end;
       end;
     end;
@@ -531,7 +532,7 @@ begin
   kb_Stop;
   kb_FreeList;
   for fSite in sites do
-    fSite.QueueFire();
+    fSite.QueueFire({$IFDEF QUEUE_DIAGNOSTICS}qwShutdown{$ENDIF});
   Debug(dpSpam, section, 'Main_Stop end');
 end;
 

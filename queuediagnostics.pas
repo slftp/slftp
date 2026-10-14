@@ -44,7 +44,9 @@ type
   PQueueBlockState = ^TQueueBlockState;
 
   { Signal requests, not individual wakes: auto-reset events coalesce requests. }
-  TQueueWakeReason = (qwExternal, qwTask, qwEarlierDeadline, qwSlot, qwDestination, qwCleanup);
+  TQueueWakeReason = (qwExternal, qwTask, qwEarlierDeadline, qwSlot, qwDestination,
+    qwCleanup, qwQueueStart, qwQueueStop, qwShutdown, qwStartupTask,
+    qwAdminSiteState, qwAdminLogin, qwMkdirReady, qwTaskBatch);
   { Per-window counters. Blocked counts describe checks, not unique tasks. }
   TQueueDiagnosticCounter = (qcPass, qcEvent, qcDeadline, qcFallback, qcCappedWait,
     qcFallbackWithWork, qcInserted, qcInsertedAssigned, qcInsertedWait,
@@ -139,7 +141,9 @@ const
     'zero_waits', 'future_zero_waits', 'early_timeouts',
     'early_timeout_missing_sum_us', 'wait_errors');
   glWakeNames: array[TQueueWakeReason] of String = (
-    'external', 'task', 'earlier_deadline', 'slot', 'destination', 'cleanup');
+    'external', 'task', 'earlier_deadline', 'slot', 'destination', 'cleanup',
+    'queue_start', 'queue_stop', 'shutdown', 'startup_task', 'admin_site_state',
+    'admin_login', 'mkdir_ready', 'task_batch');
   glTimingNames: array[TQueueDiagnosticTiming] of String = (
     'pass', 'queue_lock_wait', 'sort', 'cleanup', 'console_add',
     'source_refill', 'destination_refill', 'wait', 'timeout_requested',
