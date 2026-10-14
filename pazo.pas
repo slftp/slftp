@@ -793,7 +793,7 @@ begin
                 fDestinationReadyUs, fCandidateScanUs, fRaceCtorStartUs, fRaceCtorDoneUs,
                 fDestinationsChecked, fCandidatesChecked);
               try
-                AddTask(pr);
+                AddTask(pr, False);
                 Result := True;
               except
                 on e: Exception do
@@ -1592,9 +1592,9 @@ begin
         begin
           if (fDestinationRank.FPazoSite.Name = self.Name) then
           begin
-            if not fSitesList.Contains(fDestinationRank.PazoSite.Name) then
+            if not fSitesList.Contains(fPazoSite.Name) then
             begin
-              fSitesList.Add(fDestinationRank.PazoSite.Name);
+              fSitesList.Add(fPazoSite.Name);
             end;
             break;
           end;
@@ -1690,15 +1690,15 @@ begin
     end;
   end;
 
+  // A successful FTP dirlist confirms that the directory exists, even if it is empty.
+  MkdirReady(dir);
+
   fEntriesParsedUs := TRacePerf.NowMicroSeconds;
   fEntryCount := 0;
   if d.entries <> nil then
     fEntryCount := d.entries.Count;
   pazo.RacePerf.MarkDirlistStartupParsed(fTraceId, fEntryCount, fEntriesParsedUs);
   pazo.RacePerf.MarkStartupStage(rpssEntriesParsed, fEntriesParsedUs);
-  if not d.need_mkdir then
-    pazo.RacePerf.MarkDirectoryUsable(Name, dir);
-
   // exit if no entries added to the dirlist
   if d.entries = nil then
     exit;

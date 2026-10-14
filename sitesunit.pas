@@ -1,5 +1,7 @@
 unit sitesunit;
 
+{$I queuediagnostics.inc}
+
 interface
 
 uses
@@ -93,6 +95,7 @@ type
   { @abstract(Object which holds all the slot information for a single slot of a @link(TSite)) }
   TSiteSlot = class(TslTCPThread)
   private
+    {$IFDEF QUEUE_DIAGNOSTICS}FQueueDiagnosticFreedAt: Int64;{$ENDIF}
     FLastIO: TDateTime;
     FLastTaskExecution: TDateTime;
     FLastNonIdleTaskExecution: TDateTime;
@@ -192,6 +195,10 @@ type
     function GetIdentReply: String;
 
     property uploadingto: boolean read fUploadingTo write SetUploadingTo;
+    {$IFDEF QUEUE_DIAGNOSTICS}
+    { Monotonic release time; zero for an occupied or never-released slot. }
+    property QueueDiagnosticFreedAt: Int64 read FQueueDiagnosticFreedAt;
+    {$ENDIF}
     property downloadingfrom: boolean read fDownloadingFrom write SetDownloadingFrom;
     property todotask: TTask read fTodotask write SetTodotask; //< assigned task which should be executed by this siteslot
     property SSCNEnabled: boolean read fSSCNEnabled write fSSCNEnabled; //< @true if 'SSCN ON' was send to ftpd and is enabled, @false otherwise
@@ -213,6 +220,7 @@ type
     fNumDn: integer;
     fNumUp: integer;
     fQueue: TQueueThread;
+    FQueueWakeTargets: TQueueWakeTargets;
     fMaxUp: integer;
     fMaxDn: integer;
     fMaxPreDn: integer;
@@ -422,6 +430,8 @@ type
     Name: String; //< sitename
     slots: TObjectList;
 
+    { Empty when automatic work is permitted; otherwise a stable cancellation reason. }
+    function AutomaticTaskDownReason: String; virtual;
     constructor Create(const Name: String);
     destructor Destroy; override;
 
@@ -439,13 +449,20 @@ type
 
     { Checks for an unassigned matching race in this source site's queue. }
     function HasPendingRace(const aPazoID: integer; const aDestination, aDir, aFilename: String): boolean;
-    procedure AddTask(const t: TTask; const queueFire: boolean = false);
+    procedure AddTask(const t: TTask; const queueFire: boolean = True);
     procedure QueueFire;
+    { Subscribes a source queue and returns the destination's capacity revision. }
+    function RegisterQueueWaiter(const aSiteName: String): Int64;
+    { Wakes subscribed source queues after releasing the destination slot. }
+    procedure NotifyQueueWaiters;
+    {$IFDEF QUEUE_DIAGNOSTICS}
+    { Monotonic time of the latest destination notification, not readiness proof. }
+    function QueueDiagnosticChangedAt: Int64;
+    {$ENDIF}
     procedure QueueClean;
     procedure QueueSort;
     function RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
     //procedure QueueEmpty(const sitename: String);
-    procedure QueueFireInverval(const interval: integer);
     procedure QueueCleanInverval(const interval: integer);
     procedure RemovePazoMKDIR(const pazo_id: integer; const dir: String);
     procedure RemovePazoRace(const aPazoID: integer; const aDstSite, aDir, aFilename: String);
@@ -501,6 +518,8 @@ type
     function isRouteableTo(const sitename: String): boolean;
 
     procedure RegisterMaxSimUpHit(const aSlotName: String);
+    property MaxSimUpCooldownUntil: TDateTime read fMaxSimUpCooldownUntil; //< absolute upload retry deadline
+    property MaxSimDownCooldownUntil: TDateTime read fMaxSimDownCooldownUntil; //< absolute download retry deadline
     procedure ResetMaxSimUpCooldown;
     function MaxSimUpCooldownActive: boolean;
     function MaxSimUpCooldownRemainingSeconds: integer;
@@ -643,8 +662,7 @@ type
 function ReadSites(): boolean;
 procedure SlotsFire;
 procedure SiteAutoStart;
-procedure AddTask(const t: TTask; const queueFire: boolean = false);
-procedure QueueFireInverval(const interval: integer);
+procedure AddTask(const t: TTask; const queueFire: boolean = True);
 procedure QueueCleanInverval(const interval: integer);
 function RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
 procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
@@ -666,6 +684,13 @@ function FindSiteByName(const aNetname, aSitename: String): TSite;
   @param(aSlotname slotname which is used for searching)
   @returns(@link(TSiteSlot) class of slot, @nil otherwise) }
 function FindSlotByName(const aSlotname: String): TSiteSlot;
+{ True if the named site exists and permits automatic work. }
+function SiteAllowsAutomaticTasks(const aSiteName: String): Boolean;
+
+{ Returns the automatic-task cancellation reason for a site state.
+  Temporary failures remain eligible for the existing reconnect/backoff behavior. }
+function GetAutomaticTaskDownReason(const aStatus: TSiteStatus; const aPermDown: Boolean): String;
+
 procedure SitesInit;
 procedure SitesStart;
 procedure SitesUninit;
@@ -753,9 +778,10 @@ var
 implementation
 
 uses
+  {$IFDEF QUEUE_DIAGNOSTICS}queuediagnostics,{$ENDIF}
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
-  dirlist.helpers, tags, Generics.Defaults;
+  dirlist.helpers, tags, Generics.Defaults, notify;
 
 const
   section = 'sites';
@@ -783,6 +809,7 @@ procedure AddSite(const aSite: TSite);
 begin
   sites.Add(aSite);
   sitesDict.Add(aSite.Name, aSite);
+  aSite.fQueue.Start;
 end;
 
 procedure DeleteSite(const aSite: TSite);
@@ -1077,8 +1104,14 @@ begin
     Result := fQueue.HasPendingRace(aPazoID, Name, aDestination, aDir, aFilename);
 end;
 
-procedure TSite.AddTask(const t: TTask; const queueFire: boolean = false);
+procedure TSite.AddTask(const t: TTask; const queueFire: boolean = True);
 begin
+  if (t <> nil) and t.CancelIfSiteDown then
+  begin
+    if t.IsNotifyTask then TaskReady(t);
+    t.Free;
+    Exit;
+  end;
   if fQueue = nil then
   begin
     Debug(dpError, section, Format('CRITICAL LOG: fQueue is nil in TSite.AddTask for site %s', [Name]));
@@ -1091,17 +1124,7 @@ begin
     exit;
   end;
 
-  fQueue.AddTask(t);
-  if queueFire then self.QueueFire;
-end;
-
-procedure QueueFireInverval(const interval: integer);
-var fSite: TSite;
-begin
-  for fSite in sites do
-  begin
-    fSite.QueueFireInverval(interval);
-  end;
+  fQueue.AddTask(t, queueFire);
 end;
 
 procedure QueueCleanInverval(const interval: integer);
@@ -1113,9 +1136,10 @@ begin
   end;
 end;
 
-procedure AddTask(const t: TTask; const queueFire: boolean = false);
+procedure AddTask(const t: TTask; const queueFire: boolean = True);
 var
   fAdminSite: TSite;
+  fTaskName: String;
 begin
   if t = nil then
   begin
@@ -1123,6 +1147,7 @@ begin
     exit;
   end;
 
+  fTaskName := t.Name;
   try
     if not (t.ssite1 = nil) then
     begin
@@ -1144,20 +1169,7 @@ begin
     except
     on e: Exception do
     begin
-      Debug(dpError, section, '[EXCEPTION] TSite.AddTask (%s): %s', [t.Name, e.Message]);
-    end;
-  end;
-end;
-
-procedure TSite.QueueFireInverval(const interval: integer);
-begin
-  try
-    if (fQueue <> nil) and (MilliSecondsBetween(Now, fQueue.QueueLastRun) >= interval) then
-      self.QueueFire;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, '[EXCEPTION] TSite.QueueFireInverval (%s): %s', [self.Name, e.Message]);
+      Debug(dpError, section, '[EXCEPTION] TSite.AddTask (%s): %s', [fTaskName, e.Message]);
     end;
   end;
 end;
@@ -1180,6 +1192,34 @@ begin
   fQueue.QueueClean;
 end;
 
+function TSite.RegisterQueueWaiter(const aSiteName: String): Int64;
+begin
+  if aSiteName <> Name then
+    Result := FQueueWakeTargets.RegisterSite(aSiteName)
+  else
+    Result := FQueueWakeTargets.Revision;
+end;
+
+procedure TSite.NotifyQueueWaiters;
+var
+  fSiteName: String;
+  fSource: TSite;
+begin
+  for fSiteName in FQueueWakeTargets.TakeSites do
+  begin
+    fSource := FindSiteByName('', fSiteName);
+    if fSource <> nil then
+      fSource.fQueue.QueueFire({$IFDEF QUEUE_DIAGNOSTICS}qwDestination{$ENDIF});
+  end;
+end;
+
+{$IFDEF QUEUE_DIAGNOSTICS}
+function TSite.QueueDiagnosticChangedAt: Int64;
+begin
+  Result := FQueueWakeTargets.DiagnosticChangedAt;
+end;
+{$ENDIF}
+
 procedure TSite.QueueFire;
 begin
   fQueue.QueueFire;
@@ -1192,7 +1232,8 @@ begin
   Debug(dpSpam, section, 'QueueEmpty start: ' + sitename);
   for site in sites do
   begin
-     site.fQueue.QueueEmpty(sitename);
+    if site.fQueue <> nil then
+      site.fQueue.QueueEmpty(sitename);
   end;
 end;
 
@@ -1445,11 +1486,21 @@ begin
 end;
 
 procedure SitesUninit;
+var
+  fSite: TSite;
 begin
   Debug(dpSpam, section, 'Uninit1');
 
   if sites <> nil then
   begin
+    { Stop every queue before destroying any referenced site. }
+    for fSite in sites do
+    begin
+      fSite.fQueue.Terminate;
+      fSite.QueueFire;
+    end;
+    for fSite in sites do
+      fSite.fQueue.QueueStop;
     sites.Free;
     sites := nil;
   end;
@@ -1564,8 +1615,6 @@ end;
 procedure TSiteSlot.Execute;
 var
   tname: String;
-  fPazoSite: TPazoSite;
-  fPair: TDestinationRank;
   fSite: TSite;
   fCurrentTask: TTask;
   fTaskExecuteOk: boolean;
@@ -1624,7 +1673,8 @@ begin
 
         fTaskExecuteOk := False;
         try
-          fTaskExecuteOk := fCurrentTask.Execute(self);
+          if not fCurrentTask.CancelIfSiteDown(True) then
+            fTaskExecuteOk := fCurrentTask.Execute(self);
           if fTaskExecuteOk then
           begin
             LastTaskExecution := Now();
@@ -1694,18 +1744,6 @@ begin
                   end;
                 end;
 
-                // prepare all possible destination sites for a possible new transfer by firing their queue
-                if ((not shouldquit) and (not slshutdown)) then
-                begin
-                  for fPazoSite in TPazoRaceTask(fCurrentTask).mainpazo.PazoSitesList do
-                  begin
-                    for fPair in fPazoSite.destinations do
-                    begin
-                      if fPair.PazoSite.Name = site.Name then
-                        FindSiteByName('', fPazoSite.Name).QueueFire;
-                    end;
-                  end;
-                end;
               end;
 
             finally
@@ -1755,7 +1793,8 @@ begin
 
         if ((not shouldquit) and (not slshutdown)) then
         begin
-          site.QueueFire;
+          site.fQueue.QueueFire({$IFDEF QUEUE_DIAGNOSTICS}qwSlot{$ENDIF});
+          site.NotifyQueueWaiters;
         end;
       end
       else
@@ -3229,6 +3268,12 @@ begin
   begin
     site.fFreeSlotsCS.Enter('SetTodotask');
     try
+      {$IFDEF QUEUE_DIAGNOSTICS}
+      if Value = nil then
+        FQueueDiagnosticFreedAt := QueueDiagnosticNow
+      else
+        FQueueDiagnosticFreedAt := 0;
+      {$ENDIF}
       fTodotask := Value;
       if fTodoTask <> nil then
       begin
@@ -3259,6 +3304,7 @@ begin
   self.Name := Name;
   features := [];
   fSlotsAssignmentLock := TSlCriticalSection2.Create('SLFTP_SlotsAssignmentMutex_' + Name, True);
+  FQueueWakeTargets := TQueueWakeTargets.Create;
   fQueue := TQueueThread.Create(Name);
   self.fSpeedFromCS := TSlCriticalSection2.Create('SpeedFromCS_' + Name);
   self.fSpeedFromCache := nil;
@@ -3441,10 +3487,13 @@ var
   fSlot: TSiteSlot;
 begin
   Debug(dpSpam, section, 'Site %s destroy begin', [Name]);
-  fQueue.Free;
-  QueueEmpty(Name);
+  if fQueue <> nil then
+    fQueue.QueueStop;
   for fSlot in slots do
     fSlot.Free;
+  QueueEmpty(Name);
+  FreeAndNil(fQueue);
+  FQueueWakeTargets.Free;
   slots.Free;
   fSlotsAssignmentLock.Free;
   fSpeedFromCS.Free;
@@ -3508,6 +3557,27 @@ begin
   end;
 end;
 
+function GetAutomaticTaskDownReason(const aStatus: TSiteStatus; const aPermDown: Boolean): String;
+begin
+  if aPermDown then Result := 'site_permdown'
+  else if aStatus = sstMarkedAsDownByUser then Result := 'site_marked_down'
+  else if aStatus = sstDown then Result := 'site_down'
+  else Result := '';
+end;
+
+function SiteAllowsAutomaticTasks(const aSiteName: String): Boolean;
+var
+  fSite: TSite;
+begin
+  fSite := FindSiteByName('', aSiteName);
+  Result := (fSite <> nil) and (fSite.AutomaticTaskDownReason = '');
+end;
+
+function TSite.AutomaticTaskDownReason: String;
+begin
+  Result := GetAutomaticTaskDownReason(FWorkingStatus, fPermDownStatus);
+end;
+
 procedure TSite.SetWorking(const Value: TSiteStatus);
 begin
   if Value <> FWorkingStatus then
@@ -3518,7 +3588,12 @@ begin
     if (Value = sstTempDown) and (FWorkingStatus in [sstDown, sstMarkedAsDownByUser]) then
       exit;
 
-    FWorkingStatus := Value;
+    AcquireSlotsAssignmentLock('SetWorking');
+    try
+      FWorkingStatus := Value;
+    finally
+      ReleaseSlotsAssignmentLock;
+    end;
 
     if Name = getAdminSiteName then
     begin
@@ -3627,6 +3702,7 @@ procedure TSite.SetMaxUp(Value: integer);
 begin
   WCInteger('max_up', Value);
   fMaxUp := Value;
+  NotifyQueueWaiters;
 end;
 
 procedure TSite.Setconnect_timeout(const Value: integer);
@@ -4576,7 +4652,7 @@ begin
   fWantedSlot := '';
 
   // check if the destination site and its slots are ready
-  if aSite <> nil then
+  if (aSite <> nil) and (aSite.AutomaticTaskDownReason = '') then
   begin
     begin
 
@@ -4949,7 +5025,12 @@ end;
 
 procedure TSite.SetPermDownStatus(Value: boolean);
 begin
-  fPermDownStatus := Value;
+  AcquireSlotsAssignmentLock('SetPermDownStatus');
+  try
+    fPermDownStatus := Value;
+  finally
+    ReleaseSlotsAssignmentLock;
+  end;
   WCBool('permdown', Value);
 end;
 

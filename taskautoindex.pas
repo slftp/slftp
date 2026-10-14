@@ -11,6 +11,8 @@ type
   public
     function Execute(slot: Pointer): Boolean; override;
     function Name: String; override;
+    { Periodic automatic work must respect explicit site disablement. }
+    function RequiresAvailableSite: Boolean; override;
   end;
 
 implementation
@@ -160,6 +162,11 @@ begin
   end;
 end;
 
+function TAutoIndexTask.RequiresAvailableSite: Boolean;
+begin
+  Result := True;
+end;
+
 function TAutoIndexTask.Execute(slot: Pointer): Boolean;
 var
   s: TSiteSlot;
@@ -171,14 +178,14 @@ var
   procedure ReAddTask;
   begin
     // fInterval > 0: feature is enabled and new task will be executed in fInterval seconds
-    if fInterval > 0 then
+    if (s.site.AutomaticTaskDownReason = '') and (fInterval > 0) then
     begin
       try
         l := TAutoIndexTask.Create(netname, channel, site1);
         l.startat := IncSecond(Now, fInterval);
         l.dontremove := True;
-        AddTask(l);
         s.site.NextAutoIndexDateTime := l.startat;
+        AddTask(l);
       except
         on e: Exception do
         begin
