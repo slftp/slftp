@@ -1,5 +1,7 @@
 unit console;
 
+{$I queuediagnostics.inc}
+
 interface
 
 procedure Console_QueueAdd(const name, task: String);

@@ -33,6 +33,8 @@
 
 unit mainthread;
 
+{$I queuediagnostics.inc}
+
 interface
 
 uses SysUtils;

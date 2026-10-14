@@ -1,5 +1,7 @@
 unit pazo;
 
+{$I queuediagnostics.inc}
+
 // EZTA Z UNITOT CSAK A QUEUE_LOCK ZARASA UTAN SZABAD HIVNI!
 // THIS ONLY ON THE QUEUE_LOCK CLOSING is FREE to call!
 interface

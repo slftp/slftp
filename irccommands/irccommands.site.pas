@@ -1,5 +1,7 @@
 unit irccommands.site;
 
+{$I queuediagnostics.inc}
+
 interface
 
 { slftp site commands functions }
