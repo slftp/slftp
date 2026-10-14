@@ -96,6 +96,10 @@ test:	FORCE
 	./tests/slftpUnitTests
 	$(MAKE) cleanuptestdir
 
+# Standalone diagnostic probe; -B prevents reuse of units from the other clock mode.
+queue_wait_probe:	FORCE
+	$(CC) -B $(CFLAGS) $(CINCLUDES) tests/queuewaitprobe.lpr
+
 clean:
 	@find . -name "*.ppu" -type f -delete
 	@find . \( -path "./libs/mORMot2/static" \) -prune -o -name "*.o" -type f -exec rm {} +

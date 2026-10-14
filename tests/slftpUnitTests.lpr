@@ -65,11 +65,14 @@ uses
   taskhttpimdbTests,
   slsslTests,
   sitesunitTests,
+  queueunitTests,
+  {$IFDEF LINUX}slclockTests,{$ENDIF}
   precatcherTests,
   slcriticalsection2Tests,
   variantCacheTests,
   sltimerTests,
-  raceperfunitTests;
+  raceperfunitTests,
+  tasksunitTests;
 
 var
   filecheck: String;
