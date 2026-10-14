@@ -879,6 +879,8 @@ begin
         for i := p.PazoSitesList.Count - 1 downto 0 do
         begin
           ps := TPazoSite(p.PazoSitesList[i]);
+          if not SiteAllowsAutomaticTasks(ps.Name) then
+            Continue;
           fAdder := 0;
           if ps.status in [rssShouldPre, rssRealPre] then
             fAdder := 100;
