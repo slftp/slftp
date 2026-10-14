@@ -11,6 +11,8 @@ type
     public
       function Execute(slot: Pointer): Boolean; override;
       function Name: String; override;
+    { Periodic automatic work must respect explicit site disablement. }
+    function RequiresAvailableSite: Boolean; override;
   end;
 
 implementation
@@ -23,6 +25,11 @@ const
   rsections = 'autonuke';
 
 { TAutoNukeTask }
+
+function TAutoNukeTask.RequiresAvailableSite: Boolean;
+begin
+  Result := True;
+end;
 
 function TAutoNukeTask.Execute(slot: Pointer): Boolean;
 label
@@ -39,14 +46,14 @@ var
   procedure RetryNextTime;
   begin
     // fInterval > 0: feature is enabled and new task will be executed in fInterval seconds
-    if fInterval > 0 then
+    if (s.site.AutomaticTaskDownReason = '') and (fInterval > 0) then
     begin
       try
         l := TAutoNukeTask.Create(netname, channel, site1);
         l.startat := IncSecond(Now, fInterval);
         l.dontremove := True;
-        AddTask(l);
         s.site.NextAutoNukeDateTime := l.startat;
+        AddTask(l);
       except
         on e: Exception do
         begin
