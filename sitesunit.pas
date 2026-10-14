@@ -779,7 +779,6 @@ var
 implementation
 
 uses
-  {$IFDEF QUEUE_DIAGNOSTICS}queuediagnostics,{$ENDIF}
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
   dirlist.helpers, tags, Generics.Defaults, notify;
