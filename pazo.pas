@@ -1562,8 +1562,10 @@ var
   fPazoSite: TPazoSite;
   fSitesList: TList<String>;
   fDestinationRank: TSiteRank;
+  fDirectoryWasPending: Boolean;
 begin
   Result := False;
+  fDirectoryWasPending := False;
 
   d := dirlist.FindDirlist(dir);
   if d <> nil then
@@ -1577,6 +1579,7 @@ begin
     // dir exist, we can set need_mkdir to false
     d.dirlist_lock.Enter('TPazoSite.MkdirReady');
     try
+      fDirectoryWasPending := d.need_mkdir or (d.dependency_mkdir <> '');
       d.need_mkdir := False;
       d.dependency_mkdir := '';
     finally
@@ -1585,31 +1588,34 @@ begin
 
     pazo.RacePerf.MarkDirectoryUsable(Name, dir);
 
-    //fire the queue for all source sites
-    fSitesList := TList<String>.Create;
-    try
-      //find all sites which have this site as destination
-      for fPazoSite in self.pazo.PazoSitesList do
-      begin
-        for fDestinationRank in fPazoSite.FDestinations do
+    if fDirectoryWasPending then
+    begin
+      // Wake dependent source queues only on a pending-to-ready transition.
+      fSitesList := TList<String>.Create;
+      try
+        //find all sites which have this site as destination
+        for fPazoSite in self.pazo.PazoSitesList do
         begin
-          if (fDestinationRank.FPazoSite.Name = self.Name) then
+          for fDestinationRank in fPazoSite.FDestinations do
           begin
-            if not fSitesList.Contains(fPazoSite.Name) then
+            if (fDestinationRank.FPazoSite.Name = self.Name) then
             begin
-              fSitesList.Add(fPazoSite.Name);
+              if not fSitesList.Contains(fPazoSite.Name) then
+              begin
+                fSitesList.Add(fPazoSite.Name);
+              end;
+              break;
             end;
-            break;
           end;
         end;
-      end;
 
-      for fSiteName in fSitesList do
-      begin
-        FindSiteByName('', fSiteName).QueueFire({$IFDEF QUEUE_DIAGNOSTICS}qwMkdirReady{$ENDIF});
+        for fSiteName in fSitesList do
+        begin
+          FindSiteByName('', fSiteName).QueueFire({$IFDEF QUEUE_DIAGNOSTICS}qwMkdirReady{$ENDIF});
+        end;
+      finally
+        fSitesList.Free;
       end;
-    finally
-      fSitesList.Free;
     end
 
   end;
@@ -1624,7 +1630,8 @@ begin
     end;
   end;
 
-  pazo.RacePerf.MarkMkdirDone(Name, 0, dir);
+  if fDirectoryWasPending then
+    pazo.RacePerf.MarkMkdirDone(Name, 0, dir);
   Result := True;
 end;
 

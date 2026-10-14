@@ -852,19 +852,6 @@ begin
       de.IsOnSite := True;
     end;
 
-    // entries found means the dir exists
-    if ((need_mkdir)) then
-    begin
-      for de in entries.Values do
-      begin
-        if de.IsOnSite then
-        begin
-          need_mkdir := False;
-          break;
-        end;
-      end;
-    end;
-
   finally
     fLockReleasedUs := TRacePerf.NowMicroSeconds;
     dirlist_lock.Leave;
