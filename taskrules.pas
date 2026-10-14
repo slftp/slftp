@@ -10,6 +10,8 @@ type
     constructor Create(const netname, channel: String; site: String);
     function Execute(slot: Pointer): Boolean; override;
     function Name: String; override;
+    { Periodic automatic work must respect explicit site disablement. }
+    function RequiresAvailableSite: Boolean; override;
   end;
 
 implementation
@@ -25,6 +27,11 @@ const
 constructor TRulesTask.Create(const netname, channel: String; site: String);
 begin
   inherited Create(netname, channel, site);
+end;
+
+function TRulesTask.RequiresAvailableSite: Boolean;
+begin
+  Result := True;
 end;
 
 function TRulesTask.Execute(slot: Pointer): Boolean;
@@ -253,7 +260,7 @@ ujra:
 
   // re add
   i := s.site.AutoRulesStatus;
-  if i > 0 then
+  if (s.site.AutomaticTaskDownReason = '') and (i > 0) then
   begin
     try
       t := TRulesTask.Create(netname, channel, site1);
