@@ -801,8 +801,6 @@ begin
       de.IsOnSite := True;
     end;
 
-
-
     // entries found means the dir exists
     if ((need_mkdir)) then
     begin
