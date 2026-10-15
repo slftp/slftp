@@ -1393,10 +1393,8 @@ var
   fPazoSite: TPazoSite;
   fSitesList: TList<String>;
   fDestinationRank: TDestinationRank;
-  fDirectoryWasPending: Boolean;
 begin
   Result := False;
-  fDirectoryWasPending := False;
 
   d := dirlist.FindDirlist(dir);
   if d <> nil then
@@ -1410,43 +1408,39 @@ begin
     // dir exist, we can set need_mkdir to false
     d.dirlist_lock.Enter('TPazoSite.MkdirReady');
     try
-      fDirectoryWasPending := d.need_mkdir or (d.dependency_mkdir <> '');
       d.need_mkdir := False;
       d.dependency_mkdir := '';
     finally
       d.dirlist_lock.Leave;
     end;
 
-    if fDirectoryWasPending then
-    begin
-      //fire the queue for all source sites
-      fSitesList := TList<String>.Create;
-      try
-        //find all sites which have this site as destination
-        for fPazoSite in self.pazo.PazoSitesList do
+    //fire the queue for all source sites
+    fSitesList := TList<String>.Create;
+    try
+      //find all sites which have this site as destination
+      for fPazoSite in self.pazo.PazoSitesList do
+      begin
+        for fDestinationRank in fPazoSite.FDestinations do
         begin
-          for fDestinationRank in fPazoSite.FDestinations do
+          if (fDestinationRank.FPazoSite.Name = self.Name) then
           begin
-            if (fDestinationRank.FPazoSite.Name = self.Name) then
+            if not fSitesList.Contains(fDestinationRank.PazoSite.Name) then
             begin
-              if not fSitesList.Contains(fDestinationRank.PazoSite.Name) then
-              begin
-                fSitesList.Add(fDestinationRank.PazoSite.Name);
-              end;
-              break;
+              fSitesList.Add(fDestinationRank.PazoSite.Name);
             end;
+            break;
           end;
         end;
-  
-        for fSiteName in fSitesList do
-        begin
-          FindSiteByName('', fSiteName).QueueFire;
-        end;
-      finally
-        fSitesList.Free;
-      end
-  
-    end;
+      end;
+
+      for fSiteName in fSitesList do
+      begin
+        FindSiteByName('', fSiteName).QueueFire;
+      end;
+    finally
+      fSitesList.Free;
+    end
+
   end;
 
   try
