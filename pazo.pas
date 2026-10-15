@@ -1393,8 +1393,10 @@ var
   fPazoSite: TPazoSite;
   fSitesList: TList<String>;
   fDestinationRank: TDestinationRank;
+  fDirectoryWasPending: Boolean;
 begin
   Result := False;
+  fDirectoryWasPending := False;
 
   d := dirlist.FindDirlist(dir);
   if d <> nil then
@@ -1408,39 +1410,43 @@ begin
     // dir exist, we can set need_mkdir to false
     d.dirlist_lock.Enter('TPazoSite.MkdirReady');
     try
+      fDirectoryWasPending := d.need_mkdir or (d.dependency_mkdir <> '');
       d.need_mkdir := False;
       d.dependency_mkdir := '';
     finally
       d.dirlist_lock.Leave;
     end;
 
-    //fire the queue for all source sites
-    fSitesList := TList<String>.Create;
-    try
-      //find all sites which have this site as destination
-      for fPazoSite in self.pazo.PazoSitesList do
-      begin
-        for fDestinationRank in fPazoSite.FDestinations do
+    if fDirectoryWasPending then
+    begin
+      //fire the queue for all source sites
+      fSitesList := TList<String>.Create;
+      try
+        //find all sites which have this site as destination
+        for fPazoSite in self.pazo.PazoSitesList do
         begin
-          if (fDestinationRank.FPazoSite.Name = self.Name) then
+          for fDestinationRank in fPazoSite.FDestinations do
           begin
-            if not fSitesList.Contains(fDestinationRank.PazoSite.Name) then
+            if (fDestinationRank.FPazoSite.Name = self.Name) then
             begin
-              fSitesList.Add(fDestinationRank.PazoSite.Name);
+              if not fSitesList.Contains(fDestinationRank.PazoSite.Name) then
+              begin
+                fSitesList.Add(fDestinationRank.PazoSite.Name);
+              end;
+              break;
             end;
-            break;
           end;
         end;
-      end;
-
-      for fSiteName in fSitesList do
-      begin
-        FindSiteByName('', fSiteName).QueueFire;
-      end;
-    finally
-      fSitesList.Free;
-    end
-
+  
+        for fSiteName in fSitesList do
+        begin
+          FindSiteByName('', fSiteName).QueueFire;
+        end;
+      finally
+        fSitesList.Free;
+      end
+  
+    end;
   end;
 
   try
@@ -1506,6 +1512,8 @@ begin
   // parse the dirlist
   try
     d.ParseDirlist(liststring);
+    // A successful FTP listing proves the directory exists, even when it is empty.
+    MkdirReady(dir);
   except
     on e: Exception do
     begin
