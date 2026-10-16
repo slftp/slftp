@@ -67,6 +67,7 @@ uses
   precatcherTests,
   slcriticalsection2Tests,
   variantCacheTests,
+  {$IFDEF LINUX}slclockTests,{$ENDIF}
   sltimerTests;
 
 var
