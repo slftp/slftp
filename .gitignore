@@ -18,6 +18,7 @@ docs/_dev
 *.local
 *.identcache
 __history
+__recovery
 *.drc
 *.map
 *.exe
