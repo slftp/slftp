@@ -39,6 +39,10 @@ bin/*
 Win32/*
 Win64/*
 tests/openssl-*
+# unit test runtime files: copies of config/* and test output
+tests/slftp.*
+tests/*.log
+tests/dunitx-results.xml
 
 # Visual Studio Code
 .vscode/*
