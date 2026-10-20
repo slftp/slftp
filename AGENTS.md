@@ -50,6 +50,7 @@ Read the doc that matches your task before changing code.
 | [agents/docs/build-and-test.md](agents/docs/build-and-test.md) | building, running tests, dealing with build artifacts        |
 | [agents/docs/conventions.md](agents/docs/conventions.md)   | writing code or commit messages                                  |
 | [agents/docs/databases.md](agents/docs/databases.md)       | touching SQLite/MySQL code (mORMot2 parameter binding pitfall)   |
+| [agents/docs/merge-requests.md](agents/docs/merge-requests.md) | opening a merge request: GitLab/`glab` setup and usage       |
 | [agents/skills/](agents/skills/README.md)                  | optional shortcuts for the most common tasks — check the index   |
 | [docs/](docs/)                                             | user/operator docs: runtime files, precatcher, chains, indexer, tvinfo, FAQ |
 
