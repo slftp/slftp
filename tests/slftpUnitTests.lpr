@@ -142,7 +142,7 @@ begin
   else
   begin
     // run the registered tests, exit code is set by the runner
-    // (number of errors + failures, 0 on success);
+    // (bit 0 set on failures, bit 1 set on errors, 0 on success);
     // useful command line options: --all --format=plain / --suite=NAME / -l
     App := TTestRunner.Create(nil);
     App.Initialize;
