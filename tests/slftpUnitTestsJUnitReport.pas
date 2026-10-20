@@ -47,6 +47,10 @@ implementation
 uses
   xmlwrite;
 
+const
+  { characters below #32 which are not allowed in XML 1.0 (all except tab, LF and CR) }
+  XML_INVALID_CHARS = [#0..#8, #11, #12, #14..#31];
+
 {* formats a TDateTime fraction as JUnit time attribute (seconds with '.'
    as decimal separator, independent of the system locale)
    @param(aTime duration as TDateTime fraction)
@@ -58,6 +62,27 @@ begin
   fFormatSettings := DefaultFormatSettings;
   fFormatSettings.DecimalSeparator := '.';
   Result := FloatToStrF(aTime * SecsPerDay, ffFixed, 15, 3, fFormatSettings);
+end;
+
+{* removes the characters which are not allowed in XML 1.0 from a test
+   message (e.g. the mIRC color code #3); the XML writer raises an
+   EConvertError on them, which would abort the test run
+   @param(aText message text)
+   @returns(aText without characters that are invalid in XML) *}
+function _XmlText(const aText: String): String;
+var
+  i, fLen: Integer;
+begin
+  SetLength(Result, Length(aText));
+  fLen := 0;
+  for i := 1 to Length(aText) do
+  begin
+    if aText[i] in XML_INVALID_CHARS then
+      Continue;
+    Inc(fLen);
+    Result[fLen] := aText[i];
+  end;
+  SetLength(Result, fLen);
 end;
 
 constructor TslJUnitResultsWriter.Create(AOwner: TComponent);
@@ -139,14 +164,14 @@ begin
     if AFailure.IsIgnoredTest then
     begin
       fElement := FDoc.CreateElement('skipped');
-      fElement.SetAttribute('message', AFailure.ExceptionMessage);
+      fElement.SetAttribute('message', _XmlText(AFailure.ExceptionMessage));
     end
     else
     begin
       fElement := FDoc.CreateElement('failure');
-      fElement.SetAttribute('message', AFailure.ExceptionMessage);
+      fElement.SetAttribute('message', _XmlText(AFailure.ExceptionMessage));
       fElement.SetAttribute('type', AFailure.ExceptionClassName);
-      fElement.AppendChild(FDoc.CreateTextNode(AFailure.AsString));
+      fElement.AppendChild(FDoc.CreateTextNode(_XmlText(AFailure.AsString)));
     end;
     FCurrentCase.AppendChild(fElement);
   end;
@@ -160,9 +185,9 @@ begin
   if FCurrentCase <> nil then
   begin
     fElement := FDoc.CreateElement('error');
-    fElement.SetAttribute('message', AError.ExceptionMessage);
+    fElement.SetAttribute('message', _XmlText(AError.ExceptionMessage));
     fElement.SetAttribute('type', AError.ExceptionClassName);
-    fElement.AppendChild(FDoc.CreateTextNode(AError.AsString));
+    fElement.AppendChild(FDoc.CreateTextNode(_XmlText(AError.AsString)));
     FCurrentCase.AppendChild(fElement);
   end;
   inherited AddError(ATest, AError);
