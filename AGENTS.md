@@ -46,6 +46,7 @@ Read the doc that matches your task before changing code.
 |------------------------------------------------------------|------------------------------------------------------------------|
 | [agents/docs/working-style.md](agents/docs/working-style.md) | starting any task: assumptions, simplicity, surgical changes, verification |
 | [agents/docs/architecture.md](agents/docs/architecture.md) | finding your way around: units, tasks, locking, libraries        |
+| [agents/docs/external-software.md](agents/docs/external-software.md) | working on FTP daemon quirks (glFTPd/pzs-ng, DrFTPD, …) or IRC   |
 | [agents/docs/compilers.md](agents/docs/compilers.md)       | writing any code: FPC vs. Delphi differences, test framework, project files |
 | [agents/docs/build-and-test.md](agents/docs/build-and-test.md) | building, running tests, dealing with build artifacts        |
 | [agents/docs/conventions.md](agents/docs/conventions.md)   | writing code or commit messages                                  |
