@@ -18,6 +18,7 @@ docs/_dev
 *.local
 *.identcache
 __history
+__recovery
 *.drc
 *.map
 *.exe
@@ -38,9 +39,10 @@ bin/*
 Win32/*
 Win64/*
 tests/openssl-*
-# von 'make test' nach tests/ kopierte Config-Dateien
+# unit test runtime files: copies of config/* and test output
 tests/slftp.*
-# von 'make test' erzeugter JUnit-Report
+tests/*.log
+tests/dunitx-results.xml
 tests/fpcunit-junit.xml
 
 # Visual Studio Code

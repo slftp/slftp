@@ -79,7 +79,7 @@ var
   fStart: TDateTime;
   fElapsedMs: Int64;
 begin
-  fURL := 'https://mock.httpstatus.io/404';
+  fURL := 'https://httpbin.org/status/404';
   fStart := Now;
   Result := HttpGetUrl(fURL, fHTML, fErrMsg, 2);
   fElapsedMs := MilliSecondsBetween(Now, fStart);
@@ -96,7 +96,7 @@ var
   fStart: TDateTime;
   fElapsedMs: Int64;
 begin
-  fURL := 'https://mock.httpstatus.io/500';
+  fURL := 'https://httpbin.org/status/500';
   fStart := Now;
   Result := HttpGetUrl(fURL, fHTML, fErrMsg, 2);
   fElapsedMs := MilliSecondsBetween(Now, fStart);
