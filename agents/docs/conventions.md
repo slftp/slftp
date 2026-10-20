@@ -38,4 +38,14 @@ Summary of `CONTRIBUTING.md`, which is binding and wins on any conflict.
 ## Branches
 
 - Branch off `dev`, one topic per branch; rebase onto `dev` instead of merging.
+- The project is on GitLab (`gitlab.com/slftp/slftp`): changes go in as merge requests targeting `dev`,
+  titled like the commit header. GitHub tools (`gh`) don't apply. If `glab` isn't installed, create the
+  merge request with push options:
+  ```
+  git push -u origin <branch> -o merge_request.create -o merge_request.target=dev \
+    -o "merge_request.title=<commit header>" -o "merge_request.description=<text>" \
+    -o merge_request.remove_source_branch
+  ```
+  Push options must not contain newlines: use `<br>` for line breaks in the description, or edit it
+  in the web UI afterwards.
 - Releases are annotated tags made from `dev` only (process: `CONTRIBUTING.md`).
