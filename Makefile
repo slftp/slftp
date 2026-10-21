@@ -128,4 +128,3 @@ revpatchrevert: FORCE
 	@if [ -d ".git" ]; then \
         perl replace_git_commit.pl ;\
     fi
-
