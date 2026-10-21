@@ -1,10 +1,11 @@
 SHELL = bash
 SLFTPPATH = ~/slftp
 CC = fpc
-CFLAGS = -MDelphi -O3 -Xs -Ct-
+MORMOTFLAGS = -dNOPATCHRTL
+CFLAGS = -MDelphi -O3 -Xs -Ct- $(MORMOTFLAGS)
 CINCLUDES = -Fuirccommands -Furules -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline -Fulibs/lkJSON -Fulibs/TRegExpr -Fulibs/pasmp -Fulibs/Indy10/* -Fulibs/Indy10/Protocols -Fulibs/Indy10/Protocols/OpenSSL -Fulibs/Indy10/Protocols/OpenSSL/* -Fulibs/LibTar -Fulibs/mORMot2/src/core -Fulibs/mORMot2/src/lib -Fulibs/mORMot2/src/crypt -Fulibs/mORMot2/src/db -Fulibs/mORMot2/src/orm -Fulibs/mORMot2/src/rest -Fulibs/mORMot2/src/soa -Fulibs/ZeosLib/* -Fulibs/mORMot2/src/net/
 CTESTINCLUDES = -Futests/* -Futests/fptest/*
-CDBFLAGS = -dDEBUG -MDelphi -gl -gp -gw3
+CDBFLAGS = -dDEBUG -MDelphi -gl -gp -gw3 $(MORMOTFLAGS)
 # flag for heaptrace output
 # see http://wiki.freepascal.org/heaptrc & http://wiki.freepascal.org/leakview
 HEAPTRACE = -gh
@@ -12,10 +13,10 @@ HEAPTRACE = -gh
 # see http://wiki.lazarus.freepascal.org/Profiling#Using_Valgrind.2FCallgrind
 VALGRIND = -gv
 GPROF = -pg
-VTUNE = -dDEBUG -MDelphi -gl -gp -gw3 -O2
+VTUNE = -dDEBUG -MDelphi -gl -gp -gw3 -O2 $(MORMOTFLAGS)
 # release-near build with debug info for profiling (no -dDEBUG on purpose:
 # fpc.cfg would add -Crtoi checks then, skewing the measurements)
-PROFILE = -MDelphi -O3 -gl -gw3 -Ct-
+PROFILE = -MDelphi -O3 -gl -gw3 -Ct- $(MORMOTFLAGS)
 
 default: clean slftp
 
@@ -127,3 +128,4 @@ revpatchrevert: FORCE
 	@if [ -d ".git" ]; then \
         perl replace_git_commit.pl ;\
     fi
+
