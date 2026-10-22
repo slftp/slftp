@@ -433,6 +433,11 @@ type
     procedure WCBool(const Name: String; const val: boolean);
     function RCDateTime(const Name: String; const def: TDateTime): TDateTime;
     procedure WCDateTime(const Name: String; const val: TDateTime);
+    { Writes all Name=Value pairs, removes the given keys and saves sites.dat only one time, see
+      @link(TEncIniFile.WriteSectionValues)
+      @param(aValues Name=Value pairs to write, existing keys are overwritten)
+      @param(aDeleteNames keys to remove after writing the values, can be @nil) }
+    procedure WCValues(const aValues: TStrings; const aDeleteNames: TStrings = nil);
 
     procedure AddTask(const t: TTask; const queueFire: boolean = false);
     procedure QueueFire;
@@ -2079,8 +2084,8 @@ function TSiteSlot.LoginBnc(const i: integer; kill: boolean = False): boolean;
 var
   sslm: TSSLMethods;
   un, upw, tmp: String;
-  bncList, splitted: TStringList;
-  j: Integer;
+  bncList, splitted, fValues, fDeleteNames: TStringList;
+  j, k: Integer;
   currentBnc, tmpBnc, tmpHost: String;
   tmpPort: Integer;
   fDoCheckSiteSoftware: boolean;
@@ -2298,6 +2303,8 @@ begin
     bncList.CaseSensitive := False;
     bncList.Duplicates := dupIgnore;
     splitted := TStringList.Create;
+    fValues := TStringList.Create;
+    fDeleteNames := TStringList.Create;
     bnccsere.Enter('LoginBnc');
     try
       currentBnc := Host + ':' + IntToStr(Port);
@@ -2329,34 +2336,32 @@ begin
         exit;
       end;
 
-      // Clear current bnclist
-      j := 0;
-      while (True) do
+      // write the sorted bnc list at once and remove the entries that are no longer needed (j is the old count);
+      // a failed save of sites.dat can't leave a partially sorted list (with missing entries) behind this way
+      for k := 0 to bncList.Count - 1 do
       begin
-        if RCString('bnc_host-' + IntToStr(j), '') = '' then
-          break;
-
-        site.DeleteKey('bnc_host-' + IntToStr(j));
-        site.DeleteKey('bnc_port-' + IntToStr(j));
-        Debug(dpSpam, section, '[bncsort] Removed BNC from %s: %s', [site.Name, RCString('bnc_host-' + IntToStr(j), '') + ':' + IntToStr(RCInteger('bnc_port-' + IntToStr(j), 0))]);
-        inc(j)
-      end;
-
-      // Re-add sorted bnc list
-      for j := 0 to bncList.Count - 1 do
-      begin
-        splitString(bncList[j], ':', splitted);
+        splitString(bncList[k], ':', splitted);
         tmpHost := splitted[0];
         tmpPort := StrToInt(splitted[1]);
         Debug(dpSpam, section, '[bncsort] Added BNC to %s: %s', [site.Name, tmpHost + ':' + IntToStr(tmpPort)]);
 
-        self.site.WCString('bnc_host-' + IntToStr(j), tmpHost);
-        self.site.WCInteger('bnc_port-' + IntToStr(j), tmpPort);
+        fValues.Add('bnc_host-' + IntToStr(k) + '=' + tmpHost);
+        fValues.Add('bnc_port-' + IntToStr(k) + '=' + IntToStr(tmpPort));
       end;
+
+      for k := bncList.Count to j - 1 do
+      begin
+        fDeleteNames.Add('bnc_host-' + IntToStr(k));
+        fDeleteNames.Add('bnc_port-' + IntToStr(k));
+      end;
+
+      self.site.WCValues(fValues, fDeleteNames);
     finally
       bnccsere.Leave;
       FreeAndNil(bncList);
       FreeAndNil(splitted);
+      FreeAndNil(fValues);
+      FreeAndNil(fDeleteNames);
     end;
   end;
 
@@ -3361,6 +3366,23 @@ procedure TSite.WCDateTime(const Name: String; const val: TDateTime);
 begin
   sitesdat.WriteString('site-' + self.Name, Name, MyDateToStr(val));
   FSettingsCacheDict.SetValue(Name, val);
+end;
+
+procedure TSite.WCValues(const aValues: TStrings; const aDeleteNames: TStrings = nil);
+var
+  i: Integer;
+begin
+  try
+    sitesdat.WriteSectionValues('site-' + self.Name, aValues, aDeleteNames);
+  finally
+    // sites.dat is changed in memory even if saving it failed, so the cache has to follow in any case;
+    // the entries are removed instead of set to read them again with the right type later
+    for i := 0 to aValues.Count - 1 do
+      FSettingsCacheDict.Delete(aValues.Names[i]);
+    if aDeleteNames <> nil then
+      for i := 0 to aDeleteNames.Count - 1 do
+        FSettingsCacheDict.Delete(aDeleteNames[i]);
+  end;
 end;
 
 destructor TSite.Destroy;

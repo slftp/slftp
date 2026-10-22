@@ -525,9 +525,9 @@ var
   s: TSite;
   bnc: String;
   aktbnchost, bnchost: String;
-  aktbncport, bncport: integer;
-  i: integer;
-  megvan: boolean;
+  bncport: integer;
+  i, j, fIndex: integer;
+  fValues, fDeleteNames: TStringList;
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
@@ -548,38 +548,43 @@ begin
     exit;
   end;
 
+  fIndex := -1;
   i := 0;
-  megvan := False;
   while (True) do
   begin
     aktbnchost := s.RCString('bnc_host-' + IntToStr(i), '');
-    aktbncport := s.RCInteger('bnc_port-' + IntToStr(i), 0);
     if (aktbnchost = '') then
       break;
 
-    if (not megvan) then
-    begin
-      if (aktbnchost = bnchost) and (aktbncport = bncport) then
-      begin
-        megvan := True;
-        s.DeleteKey('bnc_host-' + IntToStr(i));
-        s.DeleteKey('bnc_port-' + IntToStr(i));
-      end;
-    end
-    else
-    begin
-      s.DeleteKey('bnc_host-' + IntToStr(i));
-      s.DeleteKey('bnc_port-' + IntToStr(i));
-      s.WCString('bnc_host-' + IntToStr(i - 1), aktbnchost);
-      s.WCInteger('bnc_port-' + IntToStr(i - 1), aktbncport);
-    end;
+    if (fIndex = -1) and (aktbnchost = bnchost) and (s.RCInteger('bnc_port-' + IntToStr(i), 0) = bncport) then
+      fIndex := i;
+
     Inc(i);
   end;
 
-  if (not megvan) then
+  if (fIndex = -1) then
   begin
     irc_addtext(Netname, Channel, 'Bnc not found.');
     exit;
+  end;
+
+  // move all bncs after the removed one up one position and remove the last one; write everything at once so
+  // that a failed save of sites.dat can't leave a partially changed list (with missing entries) behind
+  fValues := TStringList.Create;
+  fDeleteNames := TStringList.Create;
+  try
+    for j := fIndex to i - 2 do
+    begin
+      fValues.Add('bnc_host-' + IntToStr(j) + '=' + s.RCString('bnc_host-' + IntToStr(j + 1), ''));
+      fValues.Add('bnc_port-' + IntToStr(j) + '=' + IntToStr(s.RCInteger('bnc_port-' + IntToStr(j + 1), 0)));
+    end;
+    fDeleteNames.Add('bnc_host-' + IntToStr(i - 1));
+    fDeleteNames.Add('bnc_port-' + IntToStr(i - 1));
+
+    s.WCValues(fValues, fDeleteNames);
+  finally
+    fValues.Free;
+    fDeleteNames.Free;
   end;
 
   Result := True;

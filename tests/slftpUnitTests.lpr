@@ -55,7 +55,8 @@ uses
   precatcherTests,
   slcriticalsection2Tests,
   variantCacheTests,
-  sltimerTests;
+  sltimerTests,
+  encinifileTests;
 
 {* returns the value of the --junit=<filename> command line option
    @returns(the file name, or empty string if the option is not present) *}

@@ -108,6 +108,7 @@ type
     procedure LoadValues;
     procedure SetCaseSensitive(Value: Boolean);
     procedure MoveAndOverwriteFile(const aSourceFileName, aDestinationFileName: string);
+    procedure SetValue(aStrings: TStrings; const aIdent, aValue: String);
   public
     AutoUpdate: Boolean;
     constructor Create(const FileName, Passphrase: String; autoupdate: Boolean = False; compression: Boolean = True); overload;
@@ -127,6 +128,12 @@ type
     procedure UpdateFile; override;
     procedure Rename(const FileName: String; Reload: Boolean);
     procedure WriteString(const Section, Ident, Value: String); override;
+    { Writes all Name=Value pairs, removes the given keys and saves the file only one time (if AutoUpdate is
+      enabled). All changes are made in memory before saving, so they are all applied even if saving fails.
+      @param(aSection section to write the values into)
+      @param(aValues Name=Value pairs to write, existing keys are overwritten)
+      @param(aDeleteIdents keys to remove from the section after writing the values, can be @nil) }
+    procedure WriteSectionValues(const aSection: String; const aValues: TStrings; const aDeleteIdents: TStrings = nil);
     property CaseSensitive: Boolean read GetCaseSensitive write SetCaseSensitive;
   end;
 
@@ -975,10 +982,22 @@ begin
     LoadValues;
 end;
 
-procedure TEncIniFile.WriteString(const Section, Ident, Value: String);
+procedure TEncIniFile.SetValue(aStrings: TStrings; const aIdent, aValue: String);
 var
   I: Integer;
   S: String;
+begin
+  S := aIdent + '=' + aValue;
+  I := aStrings.IndexOfName(aIdent);
+  if I >= 0 then
+    aStrings[I] := S
+  else
+    aStrings.Add(S);
+end;
+
+procedure TEncIniFile.WriteString(const Section, Ident, Value: String);
+var
+  I: Integer;
   Strings: TStrings;
 begin
   il.Enter('WriteString');
@@ -988,12 +1007,39 @@ begin
       Strings := TStrings(FSections.Objects[I])
     else
       Strings := AddSection(Section);
-    S := Ident + '=' + Value;
-    I := Strings.IndexOfName(Ident);
+    SetValue(Strings, Ident, Value);
+
+    if self.AutoUpdate then
+      UpdateFile;
+
+  finally
+    il.Leave;
+  end;
+end;
+
+procedure TEncIniFile.WriteSectionValues(const aSection: String; const aValues: TStrings; const aDeleteIdents: TStrings = nil);
+var
+  I, fIndex: Integer;
+  fStrings: TStrings;
+begin
+  il.Enter('WriteSectionValues');
+  try
+    I := FSections.IndexOf(aSection);
     if I >= 0 then
-      Strings[I] := S
+      fStrings := TStrings(FSections.Objects[I])
     else
-      Strings.Add(S);
+      fStrings := AddSection(aSection);
+
+    for I := 0 to aValues.Count - 1 do
+      SetValue(fStrings, aValues.Names[I], aValues.ValueFromIndex[I]);
+
+    if aDeleteIdents <> nil then
+      for I := 0 to aDeleteIdents.Count - 1 do
+      begin
+        fIndex := fStrings.IndexOfName(aDeleteIdents[I]);
+        if fIndex >= 0 then
+          fStrings.Delete(fIndex);
+      end;
 
     if self.AutoUpdate then
       UpdateFile;

@@ -460,10 +460,10 @@ function IrcNetDelServer(const netname, channel, params: String): boolean;
 var
   nn: String;
   bnc: String;
-  aktbnchost, bnchost: String;
-  aktbncport, bncport: integer;
-  i: integer;
-  megvan: boolean;
+  aktbnchost, bnchost, fSection: String;
+  bncport: integer;
+  i, j, fIndex: integer;
+  fValues, fDeleteIdents: TStringList;
 begin
   Result := False;
   nn := UpperCase(SubString(params, ' ', 1));
@@ -483,42 +483,43 @@ begin
     exit;
   end;
 
+  fSection := 'ircnet-' + nn;
+  fIndex := -1;
   i := 0;
-  megvan := False;
   while (True) do
   begin
-    aktbnchost := sitesdat.ReadString('ircnet-' + nn, 'bnc_host-' +
-      IntToStr(i), '');
-    aktbncport := sitesdat.ReadInteger('ircnet-' + nn, 'bnc_port-' +
-      IntToStr(i), 0);
+    aktbnchost := sitesdat.ReadString(fSection, 'bnc_host-' + IntToStr(i), '');
     if (aktbnchost = '') then
       break;
 
-    if (not megvan) then
-    begin
-      if (aktbnchost = bnchost) and (aktbncport = bncport) then
-      begin
-        megvan := True;
-        sitesdat.DeleteKey('ircnet-' + nn, 'bnc_host-' + IntToStr(i));
-        sitesdat.DeleteKey('ircnet-' + nn, 'bnc_port-' + IntToStr(i));
-      end;
-    end
-    else
-    begin
-      sitesdat.DeleteKey('ircnet-' + nn, 'bnc_host-' + IntToStr(i));
-      sitesdat.DeleteKey('ircnet-' + nn, 'bnc_port-' + IntToStr(i));
-      sitesdat.WriteString('ircnet-' + nn, 'bnc_host-' + IntToStr(i - 1),
-        aktbnchost);
-      sitesdat.WriteInteger('ircnet-' + nn, 'bnc_port-' + IntToStr(i - 1),
-        aktbncport);
-    end;
+    if (fIndex = -1) and (aktbnchost = bnchost) and (sitesdat.ReadInteger(fSection, 'bnc_port-' + IntToStr(i), 0) = bncport) then
+      fIndex := i;
 
     Inc(i);
   end;
-  if (not megvan) then
+  if (fIndex = -1) then
   begin
     irc_addtext(Netname, Channel, 'Bnc not found.');
     exit;
+  end;
+
+  // move all bncs after the removed one up one position and remove the last one; write everything at once so
+  // that a failed save of sites.dat can't leave a partially changed list (with missing entries) behind
+  fValues := TStringList.Create;
+  fDeleteIdents := TStringList.Create;
+  try
+    for j := fIndex to i - 2 do
+    begin
+      fValues.Add('bnc_host-' + IntToStr(j) + '=' + sitesdat.ReadString(fSection, 'bnc_host-' + IntToStr(j + 1), ''));
+      fValues.Add('bnc_port-' + IntToStr(j) + '=' + IntToStr(sitesdat.ReadInteger(fSection, 'bnc_port-' + IntToStr(j + 1), 0)));
+    end;
+    fDeleteIdents.Add('bnc_host-' + IntToStr(i - 1));
+    fDeleteIdents.Add('bnc_port-' + IntToStr(i - 1));
+
+    sitesdat.WriteSectionValues(fSection, fValues, fDeleteIdents);
+  finally
+    fValues.Free;
+    fDeleteIdents.Free;
   end;
 
   Result := True;

@@ -1685,44 +1685,34 @@ end;
 
 procedure TMyIrcThread.BncCsere;
 var
-  i: Integer;
-  elsobncport, aktbncport: Integer;
-  elsobnchost, aktbnchost: String;
+  i, fCount, fSource: Integer;
+  fSection: String;
+  fValues: TStringList;
 begin
-  i := 0;
-  elsobncport := 0;
-  elsobnchost := '';
+  fSection := 'ircnet-' + netname;
 
-  while (true) do
-  begin
-    aktbnchost := sitesdat.ReadString('ircnet-' + netname, 'bnc_host-' + IntToStr(i), '');
-    aktbncport := sitesdat.ReadInteger('ircnet-' + netname, 'bnc_port-' + IntToStr(i), 0);
-    if (aktbnchost = '') then
-      break;
+  fCount := 0;
+  while sitesdat.ReadString(fSection, 'bnc_host-' + IntToStr(fCount), '') <> '' do
+    Inc(fCount);
 
-    if (i = 0) then
+  if fCount < 2 then
+    exit;
+
+  // move the first bnc to the end and all others one position up; write the whole list at once so that
+  // a failed save of sites.dat can't leave a partially rotated list (with missing entries) behind
+  fValues := TStringList.Create;
+  try
+    for i := 0 to fCount - 1 do
     begin
-      elsobnchost := aktbnchost;
-      elsobncport := aktbncport;
-    end
-    else
-    begin
-      sitesdat.WriteString('ircnet-' + netname, 'bnc_host-' + IntToStr(i - 1), aktbnchost);
-      sitesdat.WriteInteger('ircnet-' + netname, 'bnc_port-' + IntToStr(i - 1), aktbncport);
+      fSource := (i + 1) mod fCount;
+      fValues.Add('bnc_host-' + IntToStr(i) + '=' + sitesdat.ReadString(fSection, 'bnc_host-' + IntToStr(fSource), ''));
+      fValues.Add('bnc_port-' + IntToStr(i) + '=' + IntToStr(sitesdat.ReadInteger(fSection, 'bnc_port-' + IntToStr(fSource), 0)));
     end;
 
-    sitesdat.DeleteKey('ircnet-' + netname, 'bnc_host-' + IntToStr(i));
-    sitesdat.DeleteKey('ircnet-' + netname, 'bnc_port-' + IntToStr(i));
-
-    inc(i);
+    sitesdat.WriteSectionValues(fSection, fValues);
+  finally
+    fValues.Free;
   end;
-
-  if ((i <> 0) and (elsobnchost <> '') and (elsobncport <> 0)) then
-  begin
-    sitesdat.WriteString('ircnet-' + netname, 'bnc_host-' + IntToStr(i - 1), elsobnchost);
-    sitesdat.WriteInteger('ircnet-' + netname, 'bnc_port-' + IntToStr(i - 1), elsobncport);
-  end;
-
 end;
 
 procedure TMyIrcThread.Execute;
