@@ -4491,8 +4491,16 @@ end;
 
 function clock_gettime_c(clk_id: clockid_t; tp: ptimespec): cint;
 begin
-  // Preserve the requested clock: FPC uses this reading for absolute event deadlines.
-  // Substituting a coarse clock can put a short timeout's deadline in the past.
+  // FPC only knows the regular clocks: convert to the *_FAST version
+  case clk_id of
+    // 1 ms resolution is good enough for milliseconds-based RTL functions
+    CLOCK_REALTIME:
+      clk_id := CLOCK_REALTIME_FAST;
+    CLOCK_MONOTONIC:
+      clk_id := CLOCK_MONOTONIC_FAST;
+    // no CLOCK_MONOTONIC_RAW redirect because it doesn't match CLOCK_MONOTONIC
+    // and cthreads.pp forces pthread_condattr_setclock(CLOCK_MONOTONIC_RAW)
+  end;
   // it is much faster to not use the Linux syscall but the libc vDSO call
   result := clock_gettime(clk_id, tp);
 end;
