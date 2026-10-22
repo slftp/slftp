@@ -17,6 +17,12 @@ Summary of `CONTRIBUTING.md`, which is binding and wins on any conflict.
 - Don't hack something in — refactor and write proper code.
 - Write or adjust tests when a function's behavior changes.
 
+## Docs
+
+- Reference code by symbol name (`TSiteSlot.ProcessFeat`, `parseIrcJOIN`), never by line number —
+  line numbers go stale with every edit above them.
+- Only link to external URLs you have verified actually resolve.
+
 ## Commits
 
 ```
