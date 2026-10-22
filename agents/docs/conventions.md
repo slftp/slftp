@@ -12,6 +12,8 @@ Summary of `CONTRIBUTING.md`, which is binding and wins on any conflict.
   - `_foo` — functions that exist only in the `implementation` section
 - Comments are PasDoc. Everything in the `interface` section **must** be documented: `//<` after fields,
   `@param(...)`/`@returns(...)` for functions.
+- Reuse existing slFtp helpers (`mystrings.pas`, `slhelper.pas`, `dbhandler.pas`, …) first; otherwise
+  prefer mORMot2 over other libraries or new own implementations.
 - Prefer generic classes (`Generics.Collections`) over old non-generic containers.
 - Write several small functions instead of one big one; avoid duplication.
 - Don't hack something in — refactor and write proper code.
