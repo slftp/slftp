@@ -46,10 +46,13 @@ There are two global `AddTask` procedures — know which one you call:
 
 ## Libraries (`libs/`)
 
-- **mORMot2** — preferred for new code: ORM, SQLite3, JSON (`mormot.core.json`), crypto, OpenSSL
-  bindings (`mormot.lib.openssl11`, used by the socket layer)
-- **ZeosLib** — MySQL/MariaDB, used through `mormot.db.sql.zeos` (`dbhandler.pas`, `dbaddpre.pas`)
-- **Indy10** — utility functions only (e.g. `IdGlobal`); it is *not* the socket layer
+- **[mORMot2](https://github.com/synopse/mORMot2)** ([synopse.info](https://synopse.info)) — preferred
+  for new code: ORM, SQLite3, JSON (`mormot.core.json`), crypto, OpenSSL bindings
+  (`mormot.lib.openssl11`, used by the socket layer)
+- **[ZeosLib](https://sourceforge.net/projects/zeoslib/)** — MySQL/MariaDB, used through
+  `mormot.db.sql.zeos` (`dbhandler.pas`, `dbaddpre.pas`)
+- **[Indy10](https://www.indyproject.org/)** — utility functions only (e.g. `IdGlobal`); it is *not*
+  the socket layer
 - **TRegExpr** (commonly used) / **FLRE** — regular expressions
 - **lkJSON** — legacy JSON; use mORMot2 JSON for new code
 - LibTar, BeRoHighResolutionTimer, pasmp (multithreading), rcmdline
@@ -57,3 +60,6 @@ There are two global `AddTask` procedures — know which one you call:
 
 All libraries must compile with both FPC and Delphi.
 - `libs/lib_updater.py` updates the bundled libraries
+
+For the external, non-vendored software slFtp talks to (FTP daemons, IRC), see
+[external-software](external-software.md).
