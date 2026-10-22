@@ -4,7 +4,7 @@ interface
 
 uses
   {$IFDEF FPC}
-    TestFramework;
+    fpcunit, testregistry;
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility;
   {$ENDIF}
@@ -42,9 +42,9 @@ begin
     'No data connection';
 
   fSiteSoftware := StringToSiteSoftWare(fText);
-  CheckEqualsString(SiteSoftWareToString(sswGlFTPD), SiteSoftWareToString(fSiteSoftware));
+  CheckEquals(SiteSoftWareToString(sswGlFTPD), SiteSoftWareToString(fSiteSoftware));
   fSoftwareVersion := ParseSiteSoftwareVersionFromString(fSiteSoftware, fText);
-  CheckEqualsString('2.11a', fSoftwareVersion);
+  CheckEquals('2.11a', fSoftwareVersion);
 end;
 
 procedure TTestSitesunit.TestParseSiteSoftwareGLFTPDStat2;
@@ -60,9 +60,9 @@ begin
     'No data connection';
 
   fSiteSoftware := StringToSiteSoftWare(fText);
-  CheckEqualsString(SiteSoftWareToString(sswGlFTPD), SiteSoftWareToString(fSiteSoftware));
+  CheckEquals(SiteSoftWareToString(sswGlFTPD), SiteSoftWareToString(fSiteSoftware));
   fSoftwareVersion := ParseSiteSoftwareVersionFromString(fSiteSoftware, fText);
-  CheckEqualsString('2.11', fSoftwareVersion);
+  CheckEquals('2.11', fSoftwareVersion);
 end;
 
 procedure TTestSitesunit.TestParseSiteSoftwareDRFTPDStat1;
@@ -79,9 +79,9 @@ begin
     'DrFTPD 3.2.0 - The Distributed FTPD';
 
   fSiteSoftware := StringToSiteSoftWare(fText);
-  CheckEqualsString(SiteSoftWareToString(sswDrftpd), SiteSoftWareToString(fSiteSoftware));
+  CheckEquals(SiteSoftWareToString(sswDrftpd), SiteSoftWareToString(fSiteSoftware));
   fSoftwareVersion := ParseSiteSoftwareVersionFromString(fSiteSoftware, fText);
-  CheckEqualsString('3.2.0', fSoftwareVersion);
+  CheckEquals('3.2.0', fSoftwareVersion);
 end;
 
 procedure TTestSitesunit.TestParseSiteSoftwareDRFTPDStat2;
@@ -98,9 +98,9 @@ begin
     'DrFTPD 4.0.1-SNAPSHOT - The Distributed FTPD';
 
   fSiteSoftware := StringToSiteSoftWare(fText);
-  CheckEqualsString(SiteSoftWareToString(sswDrftpd), SiteSoftWareToString(fSiteSoftware));
+  CheckEquals(SiteSoftWareToString(sswDrftpd), SiteSoftWareToString(fSiteSoftware));
   fSoftwareVersion := ParseSiteSoftwareVersionFromString(fSiteSoftware, fText);
-  CheckEqualsString('4.0.1-SNAPSHOT', fSoftwareVersion);
+  CheckEquals('4.0.1-SNAPSHOT', fSoftwareVersion);
 end;
 
 procedure TTestSitesunit.TestParseSiteSoftwareGLFTPDVERS1;
@@ -111,9 +111,9 @@ begin
   fText := 'glFTPd 2.11a (Jan  3 2021) 64BiT Linux+TLS(OpenSSL 1.1.1i  8 Dec 2020)+SSP';
 
   fSiteSoftware := StringToSiteSoftWare(fText);
-  CheckEqualsString(SiteSoftWareToString(sswGlFTPD), SiteSoftWareToString(fSiteSoftware));
+  CheckEquals(SiteSoftWareToString(sswGlFTPD), SiteSoftWareToString(fSiteSoftware));
   fSoftwareVersion := ParseSiteSoftwareVersionFromString(fSiteSoftware, fText);
-  CheckEqualsString('2.11a', fSoftwareVersion);
+  CheckEquals('2.11a', fSoftwareVersion);
 end;
 
 procedure TTestSitesunit.TestParseSiteSoftwareIOFTPDVERS1;
@@ -124,9 +124,9 @@ begin
   fText := 'ioFTPD version: 7-7-3r, OpenSSL v1.0.2n , BioNiNJA v1.0b5 Release 2018-11-13 Custom';
 
   fSiteSoftware := StringToSiteSoftWare(fText);
-  CheckEqualsString(SiteSoftWareToString(sswIoftpd), SiteSoftWareToString(fSiteSoftware));
+  CheckEquals(SiteSoftWareToString(sswIoftpd), SiteSoftWareToString(fSiteSoftware));
   fSoftwareVersion := ParseSiteSoftwareVersionFromString(fSiteSoftware, fText);
-  CheckEqualsString('7-7-3r', fSoftwareVersion);
+  CheckEquals('7-7-3r', fSoftwareVersion);
 end;
 
 procedure TTestSitesunit.TestParseSiteSoftwareRaidenFTPDBANNER1;
@@ -137,7 +137,7 @@ begin
   fText := 'Welcome to RaidenFTPD32 FTP server';
 
   fSiteSoftware := StringToSiteSoftWare(fText);
-  CheckEqualsString(SiteSoftWareToString(sswRaidenftpd), SiteSoftWareToString(fSiteSoftware));
+  CheckEquals(SiteSoftWareToString(sswRaidenftpd), SiteSoftWareToString(fSiteSoftware));
 end;
 
 procedure TTestSitesunit.TestParseSiteSoftwarePureFTPDBANNER1;
@@ -148,7 +148,7 @@ begin
   fText := '---------- Welcome to Pure-FTPd [privsep] [TLS] ----------';
 
   fSiteSoftware := StringToSiteSoftWare(fText);
-  CheckEqualsString(SiteSoftWareToString(sswPureFTPd), SiteSoftWareToString(fSiteSoftware));
+  CheckEquals(SiteSoftWareToString(sswPureFTPd), SiteSoftWareToString(fSiteSoftware));
 end;
 
 initialization
