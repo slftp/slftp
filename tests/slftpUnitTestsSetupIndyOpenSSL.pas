@@ -1,10 +1,10 @@
-﻿unit slftpUnitTestsSetupIndyOpenSSL;
+unit slftpUnitTestsSetupIndyOpenSSL;
 
 interface
 
 uses
   {$IFDEF FPC}
-    TestFramework;
+    fpcunit, testregistry;
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility, DUnitX.Assert;
   {$ENDIF}
@@ -13,11 +13,7 @@ type
   // base class which should be used whenever the Indy OpenSSL is needed
   TTestIndyOpenSSL = class(TTestCase)
   protected
-    {$IFDEF FPC}
-      procedure SetUpOnce; override;
-    {$ELSE}
-      procedure SetUp; override;
-    {$ENDIF}
+    procedure SetUp; override;
   end;
 
 implementation
@@ -25,13 +21,26 @@ implementation
 uses
   SysUtils, mormot.lib.openssl11, mormot.core.os, slssl;
 
+{$IFDEF FPC}
+var
+  // fpcunit has no SetUpOnce, so guard the setup manually: OpenSSL loading
+  // is process-global anyway
+  glOpenSSLSetupDone: Boolean = False;
+{$ENDIF}
+
 { TTestIndyOpenSSL }
 
-procedure TTestIndyOpenSSL.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
-var 
+procedure TTestIndyOpenSSL.SetUp;
+var
   fError: String;
   fInitResult: Boolean;
 begin
+  {$IFDEF FPC}
+  if glOpenSSLSetupDone then
+    Exit;
+  glOpenSSLSetupDone := True;
+  {$ENDIF}
+
   fError := '';
   fInitResult := InitOpenSSL(fError);
   CheckTrue(fInitResult, 'Mormotssl initOpenSsl returned false: ' + fError);
@@ -46,10 +55,4 @@ begin
   end;
 end;
 
-initialization
-  {$IFDEF FPC}
-    RegisterTest('Indy OpenSSL', TTestIndyOpenSSL.Suite);
-  {$ELSE}
-    TDUnitX.RegisterTestFixture(TTestIndyOpenSSL);
-  {$ENDIF}
 end.

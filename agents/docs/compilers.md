@@ -41,7 +41,7 @@ existing slFtp helpers, which already behave the same on both compilers, over RT
 | Base64 | `base64` unit | `NetEncoding` unit | `mystrings.pas` |
 | Socket helpers | `sockets` unit | `IdWinsock2` | `slhelper.pas` |
 | Memory manager | `cthreads` + `mormot.core.fpcx64mm` (or `cmem`) | `FastMM5` | `slftp.lpr` / `slftp.dpr` |
-| Unit tests | fptest | DUnitX | `tests/` |
+| Unit tests | fpcunit | DUnitX | `tests/` |
 
 Patterns from the code:
 
@@ -63,13 +63,13 @@ function _DirListSorter({$IFDEF FPC}constref{$ELSE}const{$ENDIF} i1, i2: TDirLis
 ## Unit tests for both frameworks
 
 Tests are written once as DUnit-style `TTestCase` classes with `published` test methods and `Check*`
-asserts (`CheckEquals`, `CheckEqualsString`, `CheckTrue`, …). On Delphi, `DUnitX.DUnitCompatibility` maps
-them to DUnitX. Only the `uses` and the registration differ:
+asserts (`CheckEquals`, `CheckTrue`, …). fpcunit provides them natively; on Delphi,
+`DUnitX.DUnitCompatibility` maps them to DUnitX. Only the `uses` and the registration differ:
 
 ```pascal
 uses
   {$IFDEF FPC}
-    TestFramework;
+    fpcunit, testregistry;
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility;
   {$ENDIF}
@@ -83,6 +83,12 @@ initialization
     TDUnitX.RegisterTestFixture(TTestTags);
   {$ENDIF}
 ```
+
+- Use `CheckEquals` for strings too; fpcunit has no `CheckEqualsString`.
+- fpcunit has no `SetUpOnce`/`TeardownOnce`. For setup that must run only once per process, guard
+  `SetUp` with a unit-global flag on FPC (see `slftpUnitTestsSetupIndyOpenSSL.pas`,
+  `ircchansettingsTests.pas`). The FPC runner exits without unit finalization, so there is no matching
+  teardown on that side.
 
 ## Keep both project sides in sync
 

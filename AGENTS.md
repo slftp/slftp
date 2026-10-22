@@ -15,12 +15,12 @@ via IRC bot commands and a text-mode console; there is no GUI.
 
 ## Essential commands
 
-| Task          | Linux (FPC)                                                 | Windows (Delphi)                                   |
-|---------------|-------------------------------------------------------------|----------------------------------------------------|
-| Release build | `make slftp_64`                                             | `make.bat slftp_64`                                |
-| Debug build   | `make slftp_64_debug`                                       | `make.bat slftp_64_debug`                          |
-| Unit tests    | copy `config/*` into `tests/`, then `make test < /dev/null` | copy `config\*` into `tests\`, then `make.bat test` |
-| Clean         | `make clean`                                                | `make.bat clean`                                   |
+| Task          | Linux (FPC)             | Windows (Delphi)                                    |
+|---------------|-------------------------|-----------------------------------------------------|
+| Release build | `make slftp_64`         | `make.bat slftp_64`                                 |
+| Debug build   | `make slftp_64_debug`   | `make.bat slftp_64_debug`                           |
+| Unit tests    | `make test`             | copy `config\*` into `tests\`, then `make.bat test` |
+| Clean         | `make clean`            | `make.bat clean`                                    |
 
 The build patches the git hash into `slftp.inc` and reverts it afterwards — never commit that change.
 More pitfalls: [build-and-test](agents/docs/build-and-test.md).
