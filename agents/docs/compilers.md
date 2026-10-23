@@ -98,5 +98,24 @@ initialization
 | New source folder or library | `Makefile` (`CINCLUDES`), `slftp.lpi`, `slftpUnitTests.lpi` | `slftp.dproj`, `slftpUnitTests.dproj` (`DCC_UnitSearchPath`; `make.bat` reads it) |
 | New test unit | `uses` of `tests/slftpUnitTests.lpr` | `uses` of `tests/slftpUnitTests.dpr` |
 | Program startup / memory manager | `slftp.lpr` | `slftp.dpr` |
+| Compiler define for all FPC builds | `Makefile` (`MORMOTFLAGS`), `CustomOptions` in `slftp.lpi` and `slftpUnitTests.lpi` | — |
 
 CI uses the `Makefile`, not the `.lpi` files, but keep the `.lpi` files current for Lazarus users.
+
+Defines meant for mORMot2 (e.g. `NOPATCHRTL`) must be passed on the command line or in the project
+files. `slftp.inc` does not work for them, because mORMot2 units only include `mormot.defines.inc`.
+
+## FPC: mORMot2 RTL patching is disabled (`NOPATCHRTL`)
+
+On Linux x86_64, mORMot2 normally overwrites FPC RTL functions at startup with its own versions. FPC
+builds disable this with `-dNOPATCHRTL`. The patch to `Linux.clock_gettime` silently swaps
+`CLOCK_REALTIME`/`CLOCK_MONOTONIC` for the coarse clocks (1–4 ms resolution), so short
+`TEvent.WaitFor` timeouts can return early. `tests/slclockTests.pas` checks for this.
+
+- The define also turns off the faster replacements for `Move`/`FillChar`, string and dynamic array
+  reference counting, string comparison and concatenation, and the direct jumps into the memory manager.
+  FPC's own versions are slightly slower but behave the same.
+- It is a stopgap until mORMot2 is fixed upstream (https://synopse.info/forum/viewtopic.php?id=7618).
+  After updating the vendored mORMot2 to a fixed version, remove the define from all three files and
+  check that the `slclock` tests still pass.
+- Delphi and non-x86_64 FPC targets are not affected.
