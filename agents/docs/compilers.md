@@ -15,7 +15,9 @@ conditional compilation.
 
 ## You can usually verify only one side
 
-An agent normally has only one compiler available. If you cannot build and test with the other one:
+An agent normally has only one compiler available. On Windows, FPC can be added through WSL, see the
+skill [test-both-compilers](../skills/test-both-compilers/SKILL.md). If you cannot build and test with
+the other one:
 
 - Check your change against the differences below.
 - Say clearly in your summary which compiler you built and tested with, and that the other side is

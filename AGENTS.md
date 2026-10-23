@@ -45,6 +45,7 @@ Read the doc that matches your task before changing code.
 | [agents/docs/external-software.md](agents/docs/external-software.md) | working on FTP daemon quirks (glFTPd/pzs-ng, DrFTPD, …) or IRC   |
 | [agents/docs/compilers.md](agents/docs/compilers.md)       | writing any code: FPC vs. Delphi differences, test framework, project files |
 | [agents/docs/build-and-test.md](agents/docs/build-and-test.md) | building, running tests, dealing with build artifacts        |
+| [agents/docs/wsl-fpc-setup.md](agents/docs/wsl-fpc-setup.md) | setting up WSL so that a Windows machine can build with FPC   |
 | [agents/docs/conventions.md](agents/docs/conventions.md)   | writing code, docs or commit messages                            |
 | [agents/docs/databases.md](agents/docs/databases.md)       | touching SQLite/MySQL code (mORMot2 parameter binding pitfall)   |
 | [agents/docs/merge-requests.md](agents/docs/merge-requests.md) | opening a merge request: GitLab/`glab` setup and usage       |

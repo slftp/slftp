@@ -1,2 +1,4 @@
 # cmd.exe mis-resolves goto labels in LF-only batch files, keep them CRLF on checkout
 /*.bat text eol=crlf
+# bash in WSL fails on CRLF line endings, keep the agent scripts LF on Windows checkouts too
+/agents/**/*.sh text eol=lf
