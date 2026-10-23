@@ -18,7 +18,7 @@ The two sides are independent and can run at the same time.
 
 1. From the repository root:
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File agents\skills\test-both-compilers\fpc-wsl.ps1
+   powershell -NoProfile -ExecutionPolicy Bypass -File .agents\skills\test-both-compilers\fpc-wsl.ps1
    ```
    - Builds `HEAD` plus uncommitted changes and untracked (not ignored) files, so nothing needs to be
      committed. `-Ref <ref>` builds only the committed state of that ref.

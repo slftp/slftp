@@ -7,7 +7,7 @@
   window the user can follow, which closes itself on success and stays open on failure.
   The Windows checkout is only read.
   Exit codes: 0 = build and tests passed, 1 = build or tests failed, 2 = WSL environment missing
-  (see agents/docs/wsl-fpc-setup.md), 3 = window closed or timeout before the run finished,
+  (see .agents/docs/wsl-fpc-setup.md), 3 = window closed or timeout before the run finished,
   4 = another run is active.
 .PARAMETER Ref
   Build only the committed state of this ref. Default: HEAD plus uncommitted changes and untracked files.
@@ -36,7 +36,7 @@ function Invoke-Wsl {
 
 Invoke-Wsl true *> $null
 if ($LASTEXITCODE -ne 0) {
-  Write-Output 'ERROR: no usable WSL distribution, see agents/docs/wsl-fpc-setup.md'
+  Write-Output 'ERROR: no usable WSL distribution, see .agents/docs/wsl-fpc-setup.md'
   exit 2
 }
 $script = (Invoke-Wsl wslpath -u "$PSScriptRoot\fpc-wsl.sh") -join ''
