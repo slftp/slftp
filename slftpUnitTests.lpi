@@ -52,6 +52,9 @@
         <SyntaxMode Value="Delphi"/>
       </SyntaxOptions>
     </Parsing>
+    <Other>
+      <CustomOptions Value="-dNOPATCHRTL"/>
+    </Other>
   </CompilerOptions>
   <Debugging>
     <Exceptions Count="3">

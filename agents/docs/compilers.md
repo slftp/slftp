@@ -100,5 +100,15 @@ initialization
 | New source folder or library | `Makefile` (`CINCLUDES`), `slftp.lpi`, `slftpUnitTests.lpi` | `slftp.dproj`, `slftpUnitTests.dproj` (`DCC_UnitSearchPath`; `make.bat` reads it) |
 | New test unit | `uses` of `tests/slftpUnitTests.lpr` | `uses` of `tests/slftpUnitTests.dpr` |
 | Program startup / memory manager | `slftp.lpr` | `slftp.dpr` |
+| Compiler define for all FPC builds | `Makefile` (`MORMOTFLAGS`), `CustomOptions` in `slftp.lpi` and `slftpUnitTests.lpi` | — |
 
 CI uses the `Makefile`, not the `.lpi` files, but keep the `.lpi` files current for Lazarus users.
+
+Defines meant for mORMot2 (e.g. `NOPATCHRTL`) must be passed on the command line or in the project
+files. `slftp.inc` does not work for them, because mORMot2 units only include `mormot.defines.inc`.
+
+## FPC: `NOPATCHRTL`
+
+FPC builds pass `-dNOPATCHRTL` so mORMot2 does not patch the FPC RTL. Its patched `clock_gettime`
+uses coarse clocks, which makes short `TEvent.WaitFor` timeouts return early
+(`tests/slclockTests.pas`).

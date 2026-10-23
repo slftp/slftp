@@ -9,6 +9,8 @@ through WSL.
 
 - Release build: `make slftp_64`; debug build: `make slftp_64_debug` (further targets: see `Makefile`)
 - CI builds with `fpc` through the `Makefile`. `slftp.lpi` (Lazarus project) exists but is not used by CI.
+- All FPC targets pass `-dNOPATCHRTL` (`MORMOTFLAGS` in the `Makefile`). Don't drop it when adding or
+  changing targets; see [compilers](compilers.md#fpc-nopatchrtl).
 - Unit tests use fpcunit (ships with FPC) and run via `make test`
   - `make test` copies `config/*` into `tests/` itself; the test binary reads the config files from its
     own directory. CI moves them there in `before_script` instead, so `config/` is empty and the copy is

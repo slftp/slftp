@@ -55,6 +55,7 @@ uses
   precatcherTests,
   slcriticalsection2Tests,
   variantCacheTests,
+  {$IFDEF LINUX}slclockTests,{$ENDIF}
   sltimerTests;
 
 {* returns the value of the --junit=<filename> command line option
