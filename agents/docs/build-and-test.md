@@ -2,6 +2,8 @@
 
 CI builds and tests with both compilers (FPC on Linux, Delphi on Windows). For code differences, writing
 tests that work in both frameworks and keeping the project files in sync, see [compilers](compilers.md).
+On Windows, the skill [test-both-compilers](../skills/test-both-compilers/SKILL.md) runs both sides, FPC
+through WSL.
 
 ## Linux (FPC)
 

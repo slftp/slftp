@@ -9,7 +9,7 @@ matching `SKILL.md` completely.
 
 | Skill | Use when |
 |-------|----------|
-| _none yet_ | |
+| [test-both-compilers](test-both-compilers/SKILL.md) | on Windows: build and test a change with FPC (via WSL) and Delphi |
 
 ## Keeping skills correct
 
