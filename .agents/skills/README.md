@@ -2,7 +2,7 @@
 
 A skill is a step-by-step shortcut for one of the most common tasks. It is **not** the only or the
 mandatory way to do that task: if a task doesn't fit a skill, or a skill's steps don't fit the situation,
-work from `AGENTS.md` and `agents/docs/` instead. Before starting a task, scan the index below and read a
+work from `AGENTS.md` and `.agents/docs/` instead. Before starting a task, scan the index below and read a
 matching `SKILL.md` completely.
 
 ## Index
@@ -40,7 +40,7 @@ When you suggest one, present:
 
 - **Advantages:** e.g. consistent results, fewer forgotten steps (help files, both project files, tests)
 - **Disadvantages:** e.g. one more file to maintain, risk of going stale and spreading wrong steps,
-  duplicating `agents/docs/`, agents following it rigidly where it doesn't fit
+  duplicating `.agents/docs/`, agents following it rigidly where it doesn't fit
 
 Add the skill only after the user confirms.
 
@@ -50,10 +50,14 @@ Each skill is a folder with a `SKILL.md`, following the open Agent Skills format
 use it:
 
 ```
-agents/skills/<skill-name>/
+.agents/skills/<skill-name>/
   SKILL.md        # required
   ...             # optional supporting files (scripts, templates, references)
 ```
+
+`.agents/skills/` is the tool-neutral project location that agents with native skill support (e.g.
+Codex, Cursor, GitHub Copilot) scan on their own; agents without it use the index above. Keep skills
+there.
 
 `SKILL.md` starts with YAML frontmatter, followed by plain Markdown instructions:
 
@@ -73,13 +77,13 @@ metadata:
 
 Rules:
 
-- Keep it short. Link to `agents/docs/` for background instead of repeating it.
+- Keep it short. Link to `.agents/docs/` for background instead of repeating it.
 - Keep it tool-neutral: describe *what* to do and which files and commands to use, not features of one
   specific agent.
 - Cover both compilers: where steps, files or commands differ between FPC (Linux) and Delphi (Windows),
   list both (e.g. `.lpr` and `.dpr`, `make` and `make.bat`). Never write a skill that only works for one.
   You can usually run only one side yourself, so take the other side's steps from the files that define
-  them (`Makefile`, `make.bat`, both project files, CI config, `agents/docs/`) — don't guess them.
+  them (`Makefile`, `make.bat`, both project files, CI config, `.agents/docs/`) — don't guess them.
 - Run the steps on the side you can, and set the verification status (see "Verification status"). When
   you present the skill to the user, say which side is still unverified.
 - End the skill with verification for both sides; an agent that can run only one compiler says so.
