@@ -10,7 +10,7 @@ via IRC bot commands and a text-mode console; there is no GUI.
 
 - Two compilers, one code base: FPC on Linux, Delphi on Windows ([compilers](agents/docs/compilers.md))
 - Entry points: `slftp.lpr` (FPC) / `slftp.dpr` (Delphi); tests: `tests/slftpUnitTests.lpr` / `.dpr`
-- Integration branch: `dev`. Feature branches start from `dev` and are rebased onto it (no merge commits)
+- Integration branch: `dev`. Feature branches start from `dev`; MRs are squash-merged by default
 
 ## Essential commands
 

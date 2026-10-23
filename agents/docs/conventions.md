@@ -45,7 +45,8 @@ Summary of `CONTRIBUTING.md`, which is binding and wins on any conflict.
 
 ## Branches
 
-- Branch off `dev`, one topic per branch; rebase onto `dev` instead of merging.
+- Branch off `dev`, one topic per branch. To update a branch, rebasing onto `dev` is preferred, but
+  merging `dev` in is fine: GitLab squash-merges MRs by default, so the branch history never reaches `dev`.
 - The project is on GitLab (`gitlab.com/slftp/slftp`): changes go in as merge requests targeting `dev`,
   titled like the commit header. GitHub tools (`gh`) don't apply. If `glab` isn't installed, create the
   merge request with push options:
