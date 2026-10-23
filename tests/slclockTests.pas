@@ -4,7 +4,7 @@ interface
 
 {$IF Defined(FPC) and Defined(LINUX)}
 uses
-  TestFramework;
+  fpcunit, testregistry;
 
 type
   { Checks the Linux/FPC clock redirection and real event timeout duration. }

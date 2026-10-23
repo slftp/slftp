@@ -43,6 +43,8 @@ tests/openssl-*
 tests/slftp.*
 tests/*.log
 tests/dunitx-results.xml
+tests/fpcunit-junit.xml
+tests/*.so*
 
 # Visual Studio Code
 .vscode/*

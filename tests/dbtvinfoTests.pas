@@ -4,7 +4,7 @@ interface
 
 uses
   {$IFDEF FPC}
-    TestFramework;
+    fpcunit, testregistry;
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility;
   {$ENDIF}
@@ -79,11 +79,11 @@ begin
 
   fExpectedResultStr := 'Greys.Anatomy';
   fOutputStr := replaceTVShowChars(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
 
   fExpectedResultStr := 'Greys+Anatomy';
   fOutputStr := replaceTVShowChars(fInputStr, True);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
 end;
 
 procedure TTestShowFunctions.ReplaceTVShowChars2;
@@ -94,11 +94,11 @@ begin
   
   fExpectedResultStr := 'Double.Shot.at.Love';
   fOutputStr := replaceTVShowChars(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
   
   fExpectedResultStr := 'Double+Shot+at+Love';
   fOutputStr := replaceTVShowChars(fInputStr, True);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
 end;
 
 procedure TTestShowFunctions.ReplaceTVShowChars3;
@@ -109,11 +109,11 @@ begin
   
   fExpectedResultStr := 'Andromeda';
   fOutputStr := replaceTVShowChars(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
   
   fExpectedResultStr := 'Andromeda';
   fOutputStr := replaceTVShowChars(fInputStr, True);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
 end;
 
 procedure TTestShowFunctions.ReplaceTVShowChars4;
@@ -124,11 +124,11 @@ begin
   
   fExpectedResultStr := 'Alvin.%26.the.Chipmunks';
   fOutputStr := replaceTVShowChars(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
 
   fOutputStr := replaceTVShowChars(fInputStr, True);
   fExpectedResultStr := 'Alvin+%26+the+Chipmunks';
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
 end;
 
 procedure TTestShowFunctions.ReplaceTVShowChars5;
@@ -139,11 +139,11 @@ begin
   
   fExpectedResultStr := 'Prison.Break';
   fOutputStr := replaceTVShowChars(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
   
   fOutputStr := replaceTVShowChars(fInputStr, True);
   fExpectedResultStr := 'Prison+Break';
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
 end;
 
 procedure TTestShowFunctions.ReplaceTVShowChars6;
@@ -154,11 +154,11 @@ begin
 
   fExpectedResultStr := 'Lets.Make.A.Deal';
   fOutputStr := replaceTVShowChars(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
 
   fOutputStr := replaceTVShowChars(fInputStr, True);
   fExpectedResultStr := 'Lets+Make+A+Deal';
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
 end;
 
 procedure TTestShowFunctions.GetShowValues1;
@@ -173,10 +173,10 @@ begin
   fEpisode := 14;
   
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
   
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -193,10 +193,10 @@ begin
   fEpisode := 6;
   
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
   
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -213,10 +213,10 @@ begin
   fEpisode := 16;
   
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
   
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -233,10 +233,10 @@ begin
   fEpisode := 17;
   
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
   
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -253,10 +253,10 @@ begin
   fEpisode := 1;
   
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
   
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -273,10 +273,10 @@ begin
   fEpisode := 0;
   
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
   
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -293,10 +293,10 @@ begin
   fEpisode := 3;
   
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
   
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -313,10 +313,10 @@ begin
   fEpisode := 20;
   
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
   
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -333,10 +333,10 @@ begin
   fEpisode := 2;
   
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
   
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -353,10 +353,10 @@ begin
   fEpisode := 198;
   
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
   
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -373,10 +373,10 @@ begin
   fEpisode := 26;
   
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
   
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -393,10 +393,10 @@ begin
   fEpisode := 5;
   
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
   
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -413,10 +413,10 @@ begin
   fEpisode := 5;
   
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
   
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -433,10 +433,10 @@ begin
   fEpisode := Ord(tvNoExplicitShowTag);
   
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
   
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -453,10 +453,10 @@ begin
   fEpisode := Ord(tvNoExplicitShowTag);
   
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
   
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -473,10 +473,10 @@ begin
   fEpisode := 1;
   
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
   
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -493,10 +493,10 @@ begin
   fEpisode := Ord(tvNoExplicitShowTag);
   
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
   
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -513,10 +513,10 @@ begin
   fEpisode := 1553904000;
   
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
   
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -533,10 +533,10 @@ begin
   fEpisode := 3;
   
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
   
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -553,10 +553,10 @@ begin
   fEpisode := 8;
   
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
   
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -573,10 +573,10 @@ begin
   fEpisode := Ord(tvNoEpisodeTag);
 
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -593,10 +593,10 @@ begin
   fEpisode := Ord(tvNoEpisodeTag);
 
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -613,10 +613,10 @@ begin
   fEpisode := Ord(tvNoEpisodeTag);
 
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -633,10 +633,10 @@ begin
   fEpisode := Ord(tvNoEpisodeTag);
 
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -653,10 +653,10 @@ begin
   fEpisode := Ord(tvNoEpisodeTag);
 
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -673,10 +673,10 @@ begin
   fEpisode := Ord(tvNoEpisodeTag);
 
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -693,10 +693,10 @@ begin
   fEpisode := Ord(tvNoEpisodeTag);
 
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -713,10 +713,10 @@ begin
   fEpisode := -10;
 
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -734,11 +734,11 @@ begin
 
   getShowValues(fInputStr, fOutputStr);
   // not equally is expected because its a group tagging failure
-  CheckNotEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckNotEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
   // not equally is expected because its a group tagging failure
-  CheckNotEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckNotEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -755,10 +755,10 @@ begin
   fEpisode := -10;
 
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -776,10 +776,10 @@ begin
   fEpisode := Ord(tvNoExplicitShowTag);
 
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -796,10 +796,10 @@ begin
   fEpisode := Ord(tvNoExplicitShowTag);
 
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -816,10 +816,10 @@ begin
   fEpisode := Ord(tvNoExplicitShowTag);
 
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -837,10 +837,10 @@ begin
   fEpisode := 7;
 
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -857,10 +857,10 @@ begin
   fEpisode := Ord(tvNoExplicitShowTag);
 
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -877,10 +877,10 @@ begin
   fEpisode := Ord(tvNoExplicitShowTag);
 
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -897,10 +897,10 @@ begin
   fEpisode := Ord(tvNoExplicitShowTag);
 
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -917,10 +917,10 @@ begin
   fEpisode := 2;
 
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -937,10 +937,10 @@ begin
   fEpisode := 4;
 
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -957,10 +957,10 @@ begin
   fEpisode := 1;
 
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -977,10 +977,10 @@ begin
   fEpisode := Ord(tvNoExplicitShowTag);
 
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;
@@ -997,10 +997,10 @@ begin
   fEpisode := Ord(tvNoExplicitShowTag);
 
   getShowValues(fInputStr, fOutputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags failed!');
 
   getShowValues(fInputStr, fOutputStr, fOutSeason, fOutEpisode);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Removing scene tags and getting season+episode failed!');
   CheckEquals(fSeason, fOutSeason, 'Getting season failed!');
   CheckEquals(fEpisode, fOutEpisode, 'Getting episode failed!');
 end;

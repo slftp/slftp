@@ -7,10 +7,19 @@ tests that work in both frameworks and keeping the project files in sync, see [c
 
 - Release build: `make slftp_64`; debug build: `make slftp_64_debug` (further targets: see `Makefile`)
 - CI builds with `fpc` through the `Makefile`. `slftp.lpi` (Lazarus project) exists but is not used by CI.
-- Unit tests use fptest (`tests/fptest`) and run via `make test`
-  - The test binary needs the config files in `tests/`. CI runs `mv config/* tests/`; locally **copy**
-    them instead so `config/` stays intact.
-  - The runner waits for `<Enter>` at the end, so run it non-interactively: `make test < /dev/null`
+- Unit tests use fpcunit (ships with FPC) and run via `make test`
+  - `make test` copies `config/*` into `tests/` itself; the test binary reads the config files from its
+    own directory. CI moves them there in `before_script` instead, so `config/` is empty and the copy is
+    skipped. Without the config files the binary exits with code 2.
+  - The run is non-interactive and bounded by `timeout 300`; exit code 124 means the binary hung.
+  - It writes the plain console output plus a JUnit report to `tests/fpcunit-junit.xml` (gitignored); CI
+    uploads it as GitLab test report.
+  - Run the binary by hand: `./tests/slftpUnitTests --all --format=plain`, a single suite with
+    `--suite=<name>`, list the tests with `-l`. Without arguments it only prints the usage. With
+    `--junit=<file>` it always runs all tests and ignores the other options.
+  - Exit code: bit 0 is set on failures, bit 1 on errors (0 = all passed).
+  - The runner exits via `fpExit` without running unit `finalization` sections (see the comment at the
+    end of `tests/slftpUnitTests.lpr`).
 - `make clean` removes compiled `.o`/`.ppu` files. They are created next to the sources and are gitignored.
 - After switching branches, do not compile single units against existing `.ppu` files — stale units can
   crash fpc. Always do a full `make` build.

@@ -4,7 +4,7 @@ CC = fpc
 MORMOTFLAGS = -dNOPATCHRTL
 CFLAGS = -MDelphi -O3 -Xs -Ct- $(MORMOTFLAGS)
 CINCLUDES = -Fuirccommands -Furules -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline -Fulibs/lkJSON -Fulibs/TRegExpr -Fulibs/pasmp -Fulibs/Indy10/* -Fulibs/Indy10/Protocols -Fulibs/Indy10/Protocols/OpenSSL -Fulibs/Indy10/Protocols/OpenSSL/* -Fulibs/LibTar -Fulibs/mORMot2/src/core -Fulibs/mORMot2/src/lib -Fulibs/mORMot2/src/crypt -Fulibs/mORMot2/src/db -Fulibs/mORMot2/src/orm -Fulibs/mORMot2/src/rest -Fulibs/mORMot2/src/soa -Fulibs/ZeosLib/* -Fulibs/mORMot2/src/net/
-CTESTINCLUDES = -Futests/* -Futests/fptest/*
+CTESTINCLUDES = -Futests/*
 CDBFLAGS = -dDEBUG -MDelphi -gl -gp -gw3 $(MORMOTFLAGS)
 # flag for heaptrace output
 # see http://wiki.freepascal.org/heaptrc & http://wiki.freepascal.org/leakview
@@ -94,7 +94,8 @@ slftp_profile:	FORCE
 test:	FORCE
 	$(MAKE) clean
 	$(CC) $(CFLAGS) $(CINCLUDES) $(CTESTINCLUDES) tests/slftpUnitTests.lpr
-	./tests/slftpUnitTests
+	@if ls config/* >/dev/null 2>&1; then cp -f config/* tests/; fi
+	timeout 300 ./tests/slftpUnitTests --all --junit=tests/fpcunit-junit.xml
 	$(MAKE) cleanuptestdir
 
 clean:

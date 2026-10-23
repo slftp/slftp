@@ -4,7 +4,7 @@ interface
 
 uses
   {$IFDEF FPC}
-    TestFramework;
+    fpcunit, testregistry;
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility;
   {$ENDIF}
@@ -49,7 +49,7 @@ begin
   fExpectedResultStr := 'TBS';
 
   fOutputStr := GetGroupname(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Groupname extracted!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Groupname extracted!');
 end;
 
 procedure TTestMyGroupHelpers.TestGetGroupname2;
@@ -60,7 +60,7 @@ begin
   fExpectedResultStr := 'AGITB';
 
   fOutputStr := GetGroupname(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Groupname extracted!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Groupname extracted!');
 end;
 
 procedure TTestMyGroupHelpers.TestGetGroupname3;
@@ -71,7 +71,7 @@ begin
   fExpectedResultStr := 'ZzZz_iNT';
 
   fOutputStr := GetGroupname(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Groupname extracted!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Groupname extracted!');
 end;
 
 procedure TTestMyGroupHelpers.TestGetGroupname4;
@@ -82,7 +82,7 @@ begin
   fExpectedResultStr := 'CiELOS';
 
   fOutputStr := GetGroupname(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Groupname extracted!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Groupname extracted!');
 end;
 
 procedure TTestMyGroupHelpers.TestGetGroupname5;
@@ -93,7 +93,7 @@ begin
   fExpectedResultStr := 'WaLMaRT';
 
   fOutputStr := GetGroupname(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Wrong Groupname extracted!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Wrong Groupname extracted!');
 end;
 
 procedure TTestMyGroupHelpers.TestRemoveGroupname1;
@@ -104,7 +104,7 @@ begin
   fExpectedResultStr := 'American.Ninja.Warrior.S11E01.1080p.WEB.h264';
 
   fOutputStr := RemoveGroupname(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Remove of Groupname failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Remove of Groupname failed!');
 end;
 
 procedure TTestMyGroupHelpers.TestRemoveGroupname2;
@@ -115,7 +115,7 @@ begin
   fExpectedResultStr := 'Borgen.S03E03.iNTERNAL.SUBFRENCH.720p.WEB.H264';
 
   fOutputStr := RemoveGroupname(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Remove of Groupname failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Remove of Groupname failed!');
 end;
 
 procedure TTestMyGroupHelpers.TestRemoveGroupname3;
@@ -126,7 +126,7 @@ begin
   fExpectedResultStr := 'VA_-_EDM_Deejay_Compilation_2019-(PDM706)-WEB-2019';
 
   fOutputStr := RemoveGroupname(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Remove of Groupname failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Remove of Groupname failed!');
 end;
 
 procedure TTestMyGroupHelpers.TestRemoveGroupname4;
@@ -137,7 +137,7 @@ begin
   fExpectedResultStr := 'Maher_Daniel-A_Heart_That_Beats_You_EP-(NO19092)-WEB-2019';
 
   fOutputStr := RemoveGroupname(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Remove of Groupname failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Remove of Groupname failed!');
 end;
 
 procedure TTestMyGroupHelpers.TestRemoveGroupname5;
@@ -148,7 +148,7 @@ begin
   fExpectedResultStr := 'Putney.Swope.1969.720p.BluRay.x264';
 
   fOutputStr := RemoveGroupname(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Remove of Groupname failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Remove of Groupname failed!');
 end;
 
 procedure TTestMyGroupHelpers.TestRemoveINT1;
@@ -159,7 +159,7 @@ begin
   fExpectedResultStr := 'Melanie_Flash_-_Halfway_To_Heaven-WEB-2007-MARiBOR';
 
   fOutputStr := RemoveINT(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Failed to remove INT from Groupname!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Failed to remove INT from Groupname!');
 end;
 
 procedure TTestMyGroupHelpers.TestRemoveINT2;
@@ -170,7 +170,7 @@ begin
   fExpectedResultStr := 'Jar-Zywo-WEB-PL-2016-I_KnoW';
 
   fOutputStr := RemoveINT(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Failed to remove INT from Groupname!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Failed to remove INT from Groupname!');
 end;
 
 procedure TTestMyGroupHelpers.TestRemoveINT3;
@@ -181,7 +181,7 @@ begin
   fExpectedResultStr := 'VA_-_EDM_Deejay_Compilation_2019-(PDM706)-WEB-2019-ZzZz';
 
   fOutputStr := RemoveINT(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Failed to remove INT from Groupname!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Failed to remove INT from Groupname!');
 end;
 
 procedure TTestMyGroupHelpers.TestRemoveINT4;
@@ -192,7 +192,7 @@ begin
   fExpectedResultStr := 'The_Weeknd-Secrets-CONVERT-DVDRip-x264-2017-SRPx';
 
   fOutputStr := RemoveINT(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Failed to remove INT from Groupname!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Failed to remove INT from Groupname!');
 end;
 
 procedure TTestMyGroupHelpers.TestRemoveINT5;
@@ -203,7 +203,7 @@ begin
   fExpectedResultStr := 'Young.Sheldon.S01E08.PL.iNT.DVDRiP.x264-N0L';
 
   fOutputStr := RemoveINT(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Failed to remove INT from Groupname!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Failed to remove INT from Groupname!');
 end;
 
 procedure TTestMyGroupHelpers.TestRemoveWEB1;
@@ -214,7 +214,7 @@ begin
   fExpectedResultStr := 'Los_Cachorros_De_Juan_Villarreal-Lo_Mas_Escuchado_De-ES-WEB-2019-FREGON';
 
   fOutputStr := RemoveWEB(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Failed to remove WEB from Groupname!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Failed to remove WEB from Groupname!');
 end;
 
 procedure TTestMyGroupHelpers.TestRemoveWEB2;
@@ -225,7 +225,7 @@ begin
   fExpectedResultStr := 'Super.Wings.S03E17.720p.WEB.h264-WEBTUBE';
 
   fOutputStr := RemoveWEB(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Failed to remove WEB from Groupname!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Failed to remove WEB from Groupname!');
 end;
 
 procedure TTestMyGroupHelpers.TestRemoveWEB3;
@@ -236,7 +236,7 @@ begin
   fExpectedResultStr := 'Tommy_Trash_-_Ripper-(WFH019)-SINGLE-WEB-2019-FMC';
 
   fOutputStr := RemoveWEB(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Failed to remove WEB from Groupname!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Failed to remove WEB from Groupname!');
 end;
 
 procedure TTestMyGroupHelpers.TestRemoveWEB4;
@@ -247,7 +247,7 @@ begin
   fExpectedResultStr := 'Zervos_P.-Call_Out_To_Me-WEB-2012-CRN';
 
   fOutputStr := RemoveWEB(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Failed to remove WEB from Groupname!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Failed to remove WEB from Groupname!');
 end;
 
 procedure TTestMyGroupHelpers.TestRemoveWEB5;
@@ -258,7 +258,7 @@ begin
   fExpectedResultStr := 'Elite.S01E03.1080p.WEB.x264-DeathToWebCrop';
 
   fOutputStr := RemoveWEB(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Failed to remove WEB from Groupname!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Failed to remove WEB from Groupname!');
 end;
 
 initialization
