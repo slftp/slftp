@@ -22,7 +22,7 @@ build_dir="$HOME/slftp-fpc-build"
 log_file="$build_dir.log"
 exitcode_file="$build_dir.exitcode"
 image=registry.gitlab.com/slftp/ci-images/ubuntu-lts
-setup_doc=agents/docs/wsl-fpc-setup.md
+setup_doc=.agents/docs/wsl-fpc-setup.md
 
 case "$1" in
   --initialized) [ -d "$build_dir/.git" ]; exit ;;
