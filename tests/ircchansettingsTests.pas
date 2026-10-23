@@ -37,7 +37,6 @@ begin
   {$IFDEF FPC}
   if glIrcChannelSettingsSetupDone then
     Exit;
-  glIrcChannelSettingsSetupDone := True;
   {$ENDIF}
 
   // init
@@ -56,6 +55,10 @@ begin
   RegisterChannelSettings('EfNet', '#plainy', 'STATS INFO', '', 'moresecure', False, False);
 
   CheckEquals(6, IrcChanSettingsList.Count, 'Should have 6 chan settings');
+
+  {$IFDEF FPC}
+  glIrcChannelSettingsSetupDone := True;
+  {$ENDIF}
 end;
 
 {$IFNDEF FPC}

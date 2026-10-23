@@ -40,10 +40,13 @@ begin
   {$IFDEF FPC}
   if glSlCriticalSection2SetupDone then
     Exit;
-  glSlCriticalSection2SetupDone := True;
   {$ENDIF}
 
   SlCriticalSection2Init(100, True);
+
+  {$IFDEF FPC}
+  glSlCriticalSection2SetupDone := True;
+  {$ENDIF}
 end;
 
 {$IFNDEF FPC}

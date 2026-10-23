@@ -38,7 +38,6 @@ begin
   {$IFDEF FPC}
   if glOpenSSLSetupDone then
     Exit;
-  glOpenSSLSetupDone := True;
   {$ENDIF}
 
   fError := '';
@@ -53,6 +52,10 @@ begin
       {$IFNDEF FPC}DUnitX.Assert.Assert.{$ENDIF}Fail(Format('[EXCEPTION] Unexpected error while loading OpenSSL: %s%s %s%s', [sLineBreak, e.ClassName, sLineBreak, e.Message]));
     end;
   end;
+
+  {$IFDEF FPC}
+  glOpenSSLSetupDone := True;
+  {$ENDIF}
 end;
 
 end.
