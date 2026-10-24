@@ -106,6 +106,8 @@ var
   proof_dirs_priority: Integer; //< value for priority in queue sorter for proof dirs from slftp.ini
   subs_dirs_priority: Integer; //< value for priority in queue sorter for subtitle dirs from slftp.ini
   cover_dirs_priority: Integer; //< value for priority in queue sorter for cover dirs from slftp.ini
+  glSfvFilesPriority: Integer;
+  glNfoFilesPriority: Integer;
   queueclean_unassigned: Integer;
   queueclean_maxrunning: Integer;
   enable_queueclean: boolean;
@@ -234,38 +236,52 @@ begin
       if (Result <> 0) then
         exit;
 
-      // Give priority to sfv
-      if ((tpr1.IsSfv) and (not tpr2.IsSfv)) then
-      begin
-        Result := -1;
-        exit;
-      end;
-      if ((not tpr1.IsSfv) and (tpr2.IsSfv)) then
-      begin
-        Result := 1;
-        exit;
-      end;
-      if ((tpr1.IsSfv) and (tpr2.IsSfv)) then
+      // Prioritize SFV tasks according to the configured value.
+      if tpr1.IsSfv and tpr2.IsSfv then
       begin
         Result := CompareValue(tpr2.rank, tpr1.rank);
         exit;
+      end;
+      if tpr1.IsSfv <> tpr2.IsSfv then
+      begin
+        case glSfvFilesPriority of
+          1:
+            if tpr1.IsSfv then
+              Result := -1
+            else
+              Result := 1;
+          2:
+            if tpr1.IsSfv then
+              Result := 1
+            else
+              Result := -1;
+        end;
+        if Result <> 0 then
+          exit;
       end;
 
-      // Give priority to nfo
-      if ((tpr1.IsNfo) and (not tpr2.IsNfo)) then
-      begin
-        Result := -1;
-        exit;
-      end;
-      if ((not tpr1.IsNfo) and (tpr2.IsNfo)) then
-      begin
-        Result := 1;
-        exit;
-      end;
-      if ((tpr1.IsNfo) and (tpr2.IsNfo)) then
+      // Prioritize NFO tasks according to the configured value.
+      if tpr1.IsNfo and tpr2.IsNfo then
       begin
         Result := CompareValue(tpr2.rank, tpr1.rank);
         exit;
+      end;
+      if tpr1.IsNfo <> tpr2.IsNfo then
+      begin
+        case glNfoFilesPriority of
+          1:
+            if tpr1.IsNfo then
+              Result := -1
+            else
+              Result := 1;
+          2:
+            if tpr1.IsNfo then
+              Result := 1
+            else
+              Result := -1;
+        end;
+        if Result <> 0 then
+          exit;
       end;
 
       // Sample dir priority
@@ -1883,6 +1899,8 @@ begin
   // config
   maxassign := config.ReadInteger(section, 'maxassign', 200);
   maxassign_delay := config.ReadInteger(section, 'maxassign_delay', 15);
+  glSfvFilesPriority := config_sfv_files_priority;
+  glNfoFilesPriority := config_nfo_files_priority;
   sample_dirs_priority := config.ReadInteger(section, 'sample_dirs_priority', 1);
   if not (sample_dirs_priority in [0..2]) then
     sample_dirs_priority := 1;

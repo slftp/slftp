@@ -236,6 +236,8 @@ const
 var
   image_files_priority: Integer; //< value for priority in dirlist sorter for image files from slftp.ini
   video_files_priority: Integer; //< value for priority in dirlist sorter for video files from slftp.ini
+  glSfvFilesPriority: Integer;
+  glNfoFilesPriority: Integer;
   uid_lock: TCriticalSection;
   uidg: UInt64 = 1;
 {$I common.inc}
@@ -889,28 +891,42 @@ begin
     // At least one file need to have an extension for extention sorting
     if (i1.Extension <> '') or (i2.Extension <> '') then
     begin
-      // sfv priority
-      if ((i1.IsSFV) and (not i2.IsSFV)) then
+      // SFV file priority
+      if i1.IsSFV <> i2.IsSFV then
       begin
-        Result := -1;
-        exit;
-      end;
-      if ((not i1.IsSFV) and (i2.IsSFV)) then
-      begin
-        Result := 1;
-        exit;
+        case glSfvFilesPriority of
+          1:
+            if i1.IsSFV then
+              Result := -1
+            else
+              Result := 1;
+          2:
+            if i1.IsSFV then
+              Result := 1
+            else
+              Result := -1;
+        end;
+        if Result <> 0 then
+          exit;
       end;
 
-      // nfo priority
-      if ((i1.IsNFO) and (not i2.IsNFO)) then
+      // NFO file priority
+      if i1.IsNFO <> i2.IsNFO then
       begin
-        Result := -1;
-        exit;
-      end;
-      if ((not i1.IsNFO) and (i2.IsNFO)) then
-      begin
-        Result := 1;
-        exit;
+        case glNfoFilesPriority of
+          1:
+            if i1.IsNFO then
+              Result := -1
+            else
+              Result := 1;
+          2:
+            if i1.IsNFO then
+              Result := 1
+            else
+              Result := -1;
+        end;
+        if Result <> 0 then
+          exit;
       end;
 
       // image files priority (i.e.: proofs, covers)
@@ -1702,6 +1718,9 @@ procedure DirlistInit;
 begin
   DirlistHelperInit;
   uid_lock := TCriticalSection.Create;
+
+  glSfvFilesPriority := config_sfv_files_priority;
+  glNfoFilesPriority := config_nfo_files_priority;
 
   image_files_priority := config.ReadInteger('queue', 'image_files_priority', 2);
   if not (image_files_priority in [0..2]) then

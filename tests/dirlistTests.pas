@@ -14,12 +14,13 @@ type
   published
     procedure TestCompleteTag1;
     procedure TestCompleteTag2;
+    procedure TestSfvNfoPriority;
   end;
 
 implementation
 
 uses
-  dirlist, SysUtils;
+  dirlist, SysUtils, Generics.Collections;
 
 { TTestDirlistHelpers }
 
@@ -79,6 +80,35 @@ begin
       if fDirlist <> nil then
         fDirlist.Free;
     end;
+end;
+
+procedure TTestDirlist.TestSfvNfoPriority;
+var
+  fEntries: TList<TDirListEntry>;
+  fSfv: TDirListEntry;
+  fNfo: TDirListEntry;
+  fOther: TDirListEntry;
+begin
+  fEntries := TList<TDirListEntry>.Create;
+  fSfv := TDirListEntry.Create('release.sfv', nil, False);
+  fNfo := TDirListEntry.Create('release.nfo', nil, False);
+  fOther := TDirListEntry.Create('release.mkv', nil, False);
+  try
+    fEntries.Add(fOther);
+    fEntries.Add(fNfo);
+    fEntries.Add(fSfv);
+
+    SortDirlistEntries(fEntries);
+
+    CheckTrue(fEntries[0] = fSfv);
+    CheckTrue(fEntries[1] = fNfo);
+    CheckTrue(fEntries[2] = fOther);
+  finally
+    fEntries.Free;
+    fOther.Free;
+    fNfo.Free;
+    fSfv.Free;
+  end;
 end;
 
 
