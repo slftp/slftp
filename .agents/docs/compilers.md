@@ -112,3 +112,10 @@ files. `slftp.inc` does not work for them, because mORMot2 units only include `m
 FPC builds pass `-dNOPATCHRTL` so mORMot2 does not patch the FPC RTL. Its patched `clock_gettime`
 uses coarse clocks, which makes short `TEvent.WaitFor` timeouts return early
 (`tests/slclockTests.pas`).
+
+## FPC: `FPCMM_BOOST`
+
+FPC builds pass `-dFPCMM_BOOST` instead of relying on the `FPCMM_SERVER` default of
+`mormot.core.fpcx64mm`: tiny blocks go up to 256 bytes and are kept apart from medium blocks, which
+reduces lock contention between the hundreds of slFtp threads. `FPCMM_BOOSTER` (128 arenas) needs more
+memory and its per-thread arena selection is experimental.
