@@ -293,7 +293,7 @@ var
   season: Integer;
   episode: int64;
 begin
-  if config.ReadBool(section, 'skip_tv_releases', false) then
+  if config_cached_bool(section, 'skip_tv_releases', false) then
   begin
     getShowValues(rls, showname, season, episode);
     (*
@@ -393,7 +393,7 @@ begin
       dbaddimdb_cs.Leave;
     end;
 
-    if config.ReadBool(section, 'post_lookup_infos', false) then
+    if config_cached_bool(section, 'post_lookup_infos', false) then
     begin
       irc_AddInfo(Format('<c7>[iMDB Data]</c> for <b>%s</b> : %s', [rls, imdbdata.imdb_id]));
       imdbdata.PostResults(rls);
@@ -461,7 +461,7 @@ begin
 
         if (ps <> nil) then
         begin
-          if spamcfg.ReadBool('addinfo','imdbupdate',True) then
+          if spam_config_cached_bool('addinfo','imdbupdate',True) then
             irc_SendUPDATE(Format('<c3>[ADDIMDB]</c> %s %s now has iMDB infos (%s)', [p.rls.section, p.rls.rlsname, ps.name]));
           kb_Add('', '', ps.name, p.rls.section, '', kbeUPDATE, p.rls.rlsname, '');
         end;

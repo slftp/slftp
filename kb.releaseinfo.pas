@@ -1313,7 +1313,7 @@ begin
     // showname was found in db
     db_tvinfo.ripname := rlsname;
 
-    if DaysBetween(UnixToDateTime(db_tvinfo.last_updated), now()) >= config.ReadInteger('tasktvinfo', 'days_between_last_update', 6) then
+    if DaysBetween(UnixToDateTime(db_tvinfo.last_updated), now()) >= config_cached_integer('tasktvinfo', 'days_between_last_update', 6) then
     begin
       // try to update infos in database
       if not db_tvinfo.Update then

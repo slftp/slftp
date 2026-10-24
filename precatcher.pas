@@ -308,7 +308,7 @@ begin
       begin
         MyDebug('<c4>[GLOBAL SKIPPED GROUP]</c> detected!: ' + rls);
         Debug(dpSpam, rsections, 'Global skipped group detected!: ' + rls);
-        if ((not precatcher_debug) and (spamcfg.ReadBool('precatcher', 'global_skip_group', True))) then
+        if ((not precatcher_debug) and (spam_config_cached_bool('precatcher', 'global_skip_group', True))) then
           irc_addadmin('<b><c14>Info</c></b>: Global skipped group detected!: ' + rls);
         skiprlses.Add(rls);
         exit;

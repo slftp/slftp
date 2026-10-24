@@ -2910,14 +2910,14 @@ begin
         exit;
       end;
 
-    if aIsForIndexing and config.ReadBool('indexer', 'use_custom_dirlist_command', False) then
+    if aIsForIndexing and config_cached_bool('indexer', 'use_custom_dirlist_command', False) then
     begin
       if ((dir = '') or (site.legacydirlist) or (forcecwd)) then
-        cmd := config.ReadString('indexer', 'custom_dirlist_command', 'list -al')
+        cmd := config_cached_string('indexer', 'custom_dirlist_command', 'list -al')
       else if dir[1] = '/' then
-        cmd := config.ReadString('indexer', 'custom_dirlist_command', 'list -al') + ' ' + MyIncludeTrailingSlash(dir)
+        cmd := config_cached_string('indexer', 'custom_dirlist_command', 'list -al') + ' ' + MyIncludeTrailingSlash(dir)
       else
-        cmd := config.ReadString('indexer', 'custom_dirlist_command', 'list -al') + ' ' + aktdir + MyIncludeTrailingSlash(dir);
+        cmd := config_cached_string('indexer', 'custom_dirlist_command', 'list -al') + ' ' + aktdir + MyIncludeTrailingSlash(dir);
     end
     else
     begin
@@ -3209,16 +3209,16 @@ begin
   fMaxPreDn := RCInteger('max_pre_dn', max_dn);
   fFailedNfoCounter := 0;
 
-  fReducedSpeedstatWeight := RCBool('reduced_speedstat_weight', config.ReadBool('speedstats', 'reduced_speedstat_weight', False));;
+  fReducedSpeedstatWeight := RCBool('reduced_speedstat_weight', config_cached_bool('speedstats', 'reduced_speedstat_weight', False));;
   fPermDownStatus := RCBool('permdown', False);
-  fSkipBeingUploadedFiles := TSkipBeingUploaded(RCInteger('skip_being_uploaded_files', config.ReadInteger('dirlist', 'skip_being_uploaded_files', 0)));
+  fSkipBeingUploadedFiles := TSkipBeingUploaded(RCInteger('skip_being_uploaded_files', config_cached_integer('dirlist', 'skip_being_uploaded_files', 0)));
   fUseForNFOdownload := TUseForNfoDownload(RCInteger('usefornfodownload', 1));
   fNoannounce := RCBool('noannounce', False);
   flegacydirlist := RCBool('legacycwd', False);
   fConnect_timeout := RCInteger('connect_timeout', 15);
-  fIdleInterval := RCInteger('idleinterval', config.ReadInteger(section, 'idleinterval', 25));
+  fIdleInterval := RCInteger('idleinterval', config_cached_integer(section, 'idleinterval', 25));
   fIo_timeout := RCInteger('io_timeout', 15);
-  fMaxIdle := RCInteger('max_idle', config.ReadInteger(section, 'maxidle', 60));
+  fMaxIdle := RCInteger('max_idle', config_cached_integer(section, 'maxidle', 60));
   fKillConnectionOnStalledTransferSeconds := RCInteger('kill_connection_on_stalled_transfer_seconds', kill_connection_on_stalled_transfer_seconds);
   fMaxUpPerRip := RCInteger('maxupperrip', 0);
   fMaxSimUpCooldownUntil := 0;
@@ -4628,7 +4628,7 @@ end;
 
 function TSite.GetSetDownOnOutOfSpace: boolean;
 begin
-  Result := RCBool('set_down_on_out_of_space', config.ReadBool('sites', 'set_down_on_out_of_space', False));
+  Result := RCBool('set_down_on_out_of_space', config_cached_bool('sites', 'set_down_on_out_of_space', False));
 end;
 
 procedure TSite.SetSetDownOnOutOfSpace(const Value: boolean);
@@ -4638,7 +4638,7 @@ end;
 
 function TSite.GetSetDownOnOutOfCredits: boolean;
 begin
-  Result := RCBool('set_down_on_out_of_credits', config.ReadBool('sites', 'set_down_on_out_of_credits', False));
+  Result := RCBool('set_down_on_out_of_credits', config_cached_bool('sites', 'set_down_on_out_of_credits', False));
 end;
 
 procedure TSite.SetSetDownOnOutOfCredits(const Value: boolean);
@@ -4839,7 +4839,7 @@ end;
 
 function TSite.GetSiteIdent;
 begin
-  Result := RCString('ident_response', config.ReadString('ident', 'response', 'slftpuser'));
+  Result := RCString('ident_response', config_cached_string('ident', 'response', 'slftpuser'));
 end;
 
 procedure TSite.SetSiteIdent(const Value: String);
@@ -4902,7 +4902,7 @@ end;
 
 function TSite.GetUseSiteSearchOnReqFill: boolean;
 begin
-  Result := RCBool('use_site_search_on_reqfill', config.ReadBool('autodirlist', 'use_site_search_on_reqfill', False));
+  Result := RCBool('use_site_search_on_reqfill', config_cached_bool('autodirlist', 'use_site_search_on_reqfill', False));
 end;
 
 procedure TSite.SetUseSiteSearchOnReqFill(const Value: boolean);

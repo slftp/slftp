@@ -32,7 +32,7 @@ begin
   Result := nil;
   rx := TRegexpr.Create;
   try
-    rx.Expression := config.ReadString(rsections, 'expect_nfo_files', '');
+    rx.Expression := config_cached_string(rsections, 'expect_nfo_files', '');
     try
       de := dl.FindNfo;
       if (de <> nil) then
@@ -117,7 +117,7 @@ begin
     if nil = IndexFindNfo(dl) then
     begin
       //Debug(dpError, rsections,'ERROR: No NFO Found');
-      if (aktszint < config.ReadInteger(rsections, 'max_deep', 5)) then // wont go any deeper
+      if (aktszint < config_cached_integer(rsections, 'max_deep', 5)) then // wont go any deeper
       begin
         for de in dl.entries.Values do
         begin

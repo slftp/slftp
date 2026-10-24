@@ -527,7 +527,7 @@ begin
 
       if ((d.entries.Count = 0) and (secondsWithNoChange > GetNewdirMaxEmptyValue())) then
       begin
-        if spamcfg.readbool(c_section, 'incomplete', True) then
+        if spam_config_cached_bool(c_section, 'incomplete', True) then
         begin
           irc_Addstats(Format('<c11>[EMPTY]</c> %s: %s %s %s is still empty after %d seconds, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsWithNoChange]));
         end;
@@ -537,7 +537,7 @@ begin
 
       if ((d.entries.Count > 0) and (secondsWithNoChange > GetNewdirMaxUnchangedValue())) then
       begin
-        if spamcfg.readbool(c_section, 'incomplete', True) then
+        if spam_config_cached_bool(c_section, 'incomplete', True) then
         begin
           irc_Addstats(Format('<c11>[iNCOMPLETE]</c> %s: %s %s %s is still incomplete after %d seconds with no change, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsWithNoChange]));
         end;
@@ -551,7 +551,7 @@ begin
       begin
         if ( (d.CompletedTime <> 0) and (secondsSinceCompleted > GetNewdirMaxCompletedValue()) ) then
         begin
-          if spamcfg.readbool(c_section, 'incomplete', True) then
+          if spam_config_cached_bool(c_section, 'incomplete', True) then
           begin
             irc_Addstats(Format('<c11>[PRE]</c> %s: %s %s %s, giving up %d seconds after max. should be completed time...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceCompleted]));
           end;
@@ -565,7 +565,7 @@ begin
 
         if ( (d.StartedTime <> 0) AND (secondsSinceStart > GetNewdirMaxCreatedValue()) ) then
         begin
-          if spamcfg.readbool(c_section, 'incomplete', True) then
+          if spam_config_cached_bool(c_section, 'incomplete', True) then
           begin
             irc_Addstats(Format('<c11>[LONG]</c> %s: %s %s %s, giving up %d seconds after it started...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceStart]));
           end;
@@ -575,7 +575,7 @@ begin
 
         if ( (d.CompletedTime <> 0) AND (secondsSinceCompleted > GetNewdirMaxCompletedValue()) ) then
         begin
-          if spamcfg.readbool(c_section, 'incomplete', True) then
+          if spam_config_cached_bool(c_section, 'incomplete', True) then
           begin
             irc_Addstats(Format('<c11>[FULL]</c> %s: %s %s %s is complete, giving up %d seconds after max. should be completed time...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceCompleted]));
           end;
@@ -1031,7 +1031,7 @@ begin
           end;
           if (0 <> Pos('File name not allowed', s.lastResponse)) then
           begin
-            if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+            if spam_config_cached_bool('taskrace', 'filename_not_allowed', True) then
             begin
               irc_Adderror(s.todotask, '<c4>[NOT ALLOWED]</c> %s', [tname]);
             end;
@@ -1096,7 +1096,7 @@ begin
 
           else if (0 <> Pos('Not allowed to make directories here', s.lastResponse)) then
           begin
-            if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
+            if spam_config_cached_bool('taskrace', 'cant_create_dir', True) then
             begin
               irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s for %s',[s.Name, s.lastResponse, Trim(aktdir)]);
             end;
@@ -1109,7 +1109,7 @@ begin
           // 550 System Error- /GAMES/Mass.Effect.Andromeda.Updat: No space left on device.
           else if ( (0 <> Pos('System Error', s.lastResponse)) and ( (0 <> Pos('Read-only file system', s.lastResponse)) OR (0 <> Pos('Permission denied', s.lastResponse)) OR (0 <> Pos('Input/output error', s.lastResponse)) OR (0 <> Pos('No space left', s.lastResponse)) )  ) then
           begin
-            if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
+            if spam_config_cached_bool('taskrace', 'cant_create_dir', True) then
             begin
               irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s for %s',[s.Name, s.lastResponse, Trim(aktdir)]);
             end;
@@ -1138,7 +1138,7 @@ begin
                 AddRule(Format('%s %s if group = %s then DROP',[site1, mainpazo.rls.section, mainpazo.rls.groupname]), rule_err, True);
               end;
             end;
-            if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
+            if spam_config_cached_bool('taskrace', 'cant_create_dir', True) then
             begin
               irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s for %s',[s.Name, s.lastResponse, Trim(aktdir)]);
             end;
@@ -1163,7 +1163,7 @@ begin
 
       else
         begin
-          if spamcfg.ReadBool('taskrace', 'denying_creation_of', True) then
+          if spam_config_cached_bool('taskrace', 'denying_creation_of', True) then
           begin
             irc_Adderror(s.todotask, '<c4>[ERROR MKDIR]</c> TPazoMkdirTask %s: %s',[tname, s.lastResponse]);
           end;
@@ -1329,7 +1329,7 @@ var
         (0 < Pos('Slave is offline', lastResponse)) ) )
     ) then
     begin
-      if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
+      if spam_config_cached_bool(c_section, 'no_such_file_or_directory', True) then
       begin
         irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
       end;
@@ -1404,7 +1404,7 @@ var
       // Filesize decreased: slowkicker detected
       if (fLastSrcFileSize > 0) and (lSrcFileSize < fLastSrcFileSize) then
       begin
-        if spamcfg.readbool(c_section, 'src_regression', True) then
+        if spam_config_cached_bool(c_section, 'src_regression', True) then
         begin
           irc_Adderror(Format('<c7>[SRC-REGRESSION]</c> %s: %d->%d age=%dms - killing slots',
             [tname, fLastSrcFileSize, lSrcFileSize, fSrcDiffMSec]));
@@ -1466,7 +1466,7 @@ var
         Debug(dpSpam, c_section,
           '[DST-UPLOADER-SWITCH] %s: %s -> %s at size=%d (prev size=%d age=%dms)',
           [tname, fLastDstUploader, lDstUser, lDstFileSize, fLastDstFileSize, fDstDiffMSec]);
-        if spamcfg.readbool(c_section, 'dst_uploader_switch', True) then
+        if spam_config_cached_bool(c_section, 'dst_uploader_switch', True) then
         begin
           irc_Adderror(Format('<c7>[DST-UPLOADER-SWITCH]</c> %s: %s -> %s (size=%d)',
             [tname, fLastDstUploader, lDstUser, lDstFileSize]));
@@ -1496,7 +1496,7 @@ var
       // Filesize decreased: slowkicker detected
       if (fLastDstFileSize > 0) and (lDstFileSize < fLastDstFileSize) then
       begin
-        if spamcfg.readbool(c_section, 'dst_regression', True) then
+        if spam_config_cached_bool(c_section, 'dst_regression', True) then
         begin
           irc_Adderror(Format('<c7>[DST-REGRESSION]</c> %s: %d->%d age=%dms - killing slots',
             [tname, fLastDstFileSize, lDstFileSize, fDstDiffMSec]));
@@ -1812,7 +1812,7 @@ begin
 
           //553 means: Requested action not taken. File name not allowed.
           //therefore don't try to send that file again
-          if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+          if spam_config_cached_bool('taskrace', 'filename_not_allowed', True) then
           begin
             irc_Adderror(Format('<c4>[NOT ALLOWED]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
           end;
@@ -2013,7 +2013,7 @@ begin
           //COMPLETE MSG: 550 file.rar: No such file or directory.
           if (0 <> Pos('No such file or directory', lastResponse)) then
           begin
-            if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
+            if spam_config_cached_bool(c_section, 'no_such_file_or_directory', True) then
             begin
               irc_Adderror(fPassiveSlot.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
             end;
@@ -2206,7 +2206,7 @@ begin
           //425 Can't open data connection.
           if (0 < Pos('Can''t open data connection', lastResponse)) then
           begin
-            if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
+            if spam_config_cached_bool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(Format('<c4>[Can''t open data connection]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
 
             sdst.DestroySocketAndRelogin('TPazoRaceTask');
@@ -2219,7 +2219,7 @@ begin
           //COMPLETE MSG: 425 Can't build data connection
           if (0 < Pos('t build data connection', lastResponse)) then
           begin
-            if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
+            if spam_config_cached_bool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(sdst.todotask, '<c4>[ERROR Cant build]</c> TPazoRaceTask %s', [tname]);
 
             sdst.DestroySocketAndRelogin('TPazoRaceTask');
@@ -2260,7 +2260,7 @@ begin
 
           if (0 < Pos('not allowed in this file name', lastResponse)) then
           begin   //530 .. not allowed in this file name
-            if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+            if spam_config_cached_bool('taskrace', 'filename_not_allowed', True) then
             begin
               irc_Adderror(Format('<c4>[NOT ALLOWED]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
             end;
@@ -2342,7 +2342,7 @@ begin
 
           if ( (0 < Pos('maximum simultaneous uploads', lastResponse)) or (0 < Pos('Your have reached your maximum of', lastResponse)) ) then
           begin
-            if spamcfg.readbool(c_section, 'reached_max_sim_up', True) then
+            if spam_config_cached_bool(c_section, 'reached_max_sim_up', True) then
               irc_Adderror(sdst.todotask, '<c4>[ERROR] Maxsim up (confed max_up: %d)</c> %s (%s)', [sdst.site.max_up, tname, lastResponse]);
 
             if sdst <> nil then
@@ -2384,7 +2384,7 @@ begin
 
             //553 means: Requested action not taken. File name not allowed.
             //therefore don't try to send that file again
-            if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+            if spam_config_cached_bool('taskrace', 'filename_not_allowed', True) then
             begin
               irc_Adderror(Format('<c4>[NOT ALLOWED]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
             end;
@@ -2444,7 +2444,7 @@ begin
           //550 Your have reached your maximum of 3 simultaneous uploads. Transfer denied.
           if 0 < Pos('Your have reached your maximum of', lastResponse) then
           begin
-            if spamcfg.readbool(c_section, 'reached_max_sim_up', True) then
+            if spam_config_cached_bool(c_section, 'reached_max_sim_up', True) then
               irc_Adderror(sdst.todotask, '<c4>[ERROR] Maxsim up (confed max_up: %d)</c> %s (%s)', [sdst.site.max_up, tname, lastResponse]);
 
             if sdst <> nil then
@@ -2555,7 +2555,7 @@ begin
           //COMPLETE MSG: 426 Read timed out
           if ( (0 < Pos('t open data connection', lastResponse)) or (0 < Pos('Read timed out', lastResponse)) ) then
           begin
-            if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
+            if spam_config_cached_bool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant open]</c> TPazoRaceTask %s', [tname]);
 
               sdst.DestroySocketAndRelogin('TPazoRaceTask');
@@ -2569,7 +2569,7 @@ begin
           //COMPLETE MSG: 425 Transfers to 3rd party addresses are not supported.
           if ( 0 < Pos('addresses are not supported', lastResponse) ) then
           begin
-            if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
+            if spam_config_cached_bool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant open]</c> TPazoRaceTask %s', [tname]);
 
 
@@ -2654,7 +2654,7 @@ begin
           //COMPLETE MSG: 553 Permission Denied: not allowed to download from this directory!
           if ((0 < Pos('Permission denied', lastResponse)) or (0 < Pos('Permission Denied', lastResponse))) then
           begin
-            if spamcfg.readbool(c_section, 'permission_denied', True) then
+            if spam_config_cached_bool(c_section, 'permission_denied', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR] Permission denied</c> %s', [tname]);
 
             sdst.DestroySocketAndRelogin('TPazoRaceTask');
@@ -2668,7 +2668,7 @@ begin
           //COMPLETE MSG: 550 Permission Denied: 300.0GB bandwidth usage detected. Current Ratio:(0.46/0.5).
           if (0 < Pos('bandwidth usage detected', lastResponse)) then
           begin
-            if spamcfg.readbool(c_section, 'permission_denied', True) then
+            if spam_config_cached_bool(c_section, 'permission_denied', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR] Permission denied</c> %s', [tname]);
 
             //TODO: Disable downloading for this site for some time until you uploaded more stuff to download again
@@ -2683,7 +2683,7 @@ begin
           //COMPLETE MSG: 550 You have downloaded the same file too often. Please check your AUTO retry setti ... ?
           if (0 < Pos('downloaded the same file too often', lastResponse)) then
           begin
-            if spamcfg.readbool(c_section, 'reached_max_sim_down', True) then
+            if spam_config_cached_bool(c_section, 'reached_max_sim_down', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR] You have downloaded the same file too often</c> %s', [tname]);
 
             sdst.DestroySocket(False);
@@ -2698,7 +2698,7 @@ begin
           //              553 You have reached your maximum simultaneous downloads allowed. [GLFTPD]
           if ( (0 < Pos('You have reached your maximum simultaneous downloads allowed', lastResponse)) or (0 < Pos('Your have reached your maximum of', lastResponse)) ) then
           begin
-            if spamcfg.readbool(c_section, 'reached_max_sim_down', True) then
+            if spam_config_cached_bool(c_section, 'reached_max_sim_down', True) then
               irc_Adderror(sdst.todotask, '<c4>[ERROR] Maxsim down (confed max_dn/max_pre_dn: %d/%d)</c> %s (%s)', [ssrc.site.max_dn, ssrc.site.max_pre_dn, tname, lastResponse]);
               // on glftpd we could try to kill ghosts if it occurs repeatedly, on drftpd only setdown the site helps when it happens over and over
 
@@ -2925,7 +2925,7 @@ begin
           //COMPLETE MSG: 425 Can't open data connection.
           if (0 <> Pos('t open data connection', lastResponse)) then
           begin
-            if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
+            if spam_config_cached_bool(c_section, 'cant_open_data_connection', True) then
             begin
               irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant open]</c> TPazoRaceTask %s', [tname]);
             end;
@@ -2952,7 +2952,7 @@ begin
         if (0 < Pos('File has been deleted on the master', lastResponse)) then
         begin
           //exit here, try again won't help if file don't get traded just again after deleting
-          if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
+          if spam_config_cached_bool(c_section, 'no_such_file_or_directory', True) then
           begin
             irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
           end;
@@ -2967,7 +2967,7 @@ begin
         if (0 < Pos('is being deleted', lastResponse)) then
         begin
           //exit here, try again won't help if file don't get traded just again after deleting
-          if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
+          if spam_config_cached_bool(c_section, 'no_such_file_or_directory', True) then
           begin
             irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
           end;
@@ -2981,7 +2981,7 @@ begin
         if (0 < Pos('wasn''t found in any root', lastResponse)) then
         begin
           //exit here, try again won't help if file don't get traded just again after deleting
-          if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
+          if spam_config_cached_bool(c_section, 'no_such_file_or_directory', True) then
           begin
             irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
           end;
@@ -3057,7 +3057,7 @@ begin
           if (0 < Pos('You have to turn on secure data connection', lastResponse)) then
           begin
             ssrc.site.sslfxp := srNeeded;
-            if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
+            if spam_config_cached_bool(c_section, 'turn_on_sslfxp', True) then
             begin
               irc_Adderror(ssrc.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
             end;
@@ -3128,7 +3128,7 @@ begin
           //COMPLETE MSG: 425 Can't build data connection
           if (0 < Pos('t build data connection', lastResponse)) then
           begin
-            if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
+            if spam_config_cached_bool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(sdst.todotask, '<c4>[ERROR Cant build]</c> TPazoRaceTask %s', [tname]);
 
             sdst.DestroySocket(False);
@@ -3278,7 +3278,7 @@ begin
           if (0 < Pos('You have to turn on secure data connection', lastResponse)) then
           begin
             sdst.site.sslfxp := srNeeded;
-            if spamcfg.readbool(c_section, 'turn_on_sslfxp', True) then
+            if spam_config_cached_bool(c_section, 'turn_on_sslfxp', True) then
             begin
               irc_Adderror(sdst.todotask, '<c4>[ERROR SSLFXP]</c> TPazoRaceTask %s, %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
             end;
@@ -3314,7 +3314,7 @@ begin
           //553 means: Requested action not taken. File name not allowed.
           //therefore don't try to send that file again
 
-          if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+          if spam_config_cached_bool('taskrace', 'filename_not_allowed', True) then
           begin
             irc_Adderror(Format('<c4>[NOT ALLOWED]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
           end;

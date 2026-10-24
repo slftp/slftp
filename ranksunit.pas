@@ -263,7 +263,7 @@ begin
   end;
 
   if (lcomplete = 0) or (fcomplete = 0) then exit; // if we didnt catch any announces
-  if db < Round(p.PazoSitesList.Count * config.ReadInteger(r_section, 'percent_of_sites_to_score', 30) / 100) then exit; // if we have not enough sites
+  if db < Round(p.PazoSitesList.Count * config_cached_integer(r_section, 'percent_of_sites_to_score', 30) / 100) then exit; // if we have not enough sites
 
   minduration := MillisecondsBetween(fcomplete, p.added);
   maxduration := MillisecondsBetween(lcomplete, p.added);

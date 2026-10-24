@@ -192,12 +192,12 @@ begin
   // no nfo file found. Reschedule the task and exit.
     if (nfofile = '') then
     begin
-      if attempt < config.readInteger(section, 'readd_attempts', 5) then
+      if attempt < config_cached_integer(section, 'readd_attempts', 5) then
       begin
         Debug(dpSpam, section, '[iNFO]: No nfo file found for ' + mainpazo.rls.rlsname);
 
         r := TPazoGenreNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt+1);
-        r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
+        r.startat := IncSecond(Now, config_cached_integer(section, 'readd_interval', 60));
         try
           AddTask(r);
         except
@@ -224,7 +224,7 @@ begin
   // nfo file could not be downloaded. Reschedule the task and exit.
     if i <> 1 then
     begin
-      if attempt < config.readInteger(section, 'readd_attempts', 5) then
+      if attempt < config_cached_integer(section, 'readd_attempts', 5) then
       begin
         Debug(dpSpam, section, '[iNFO]: Nfo file could not be downloaded for ' + mainpazo.rls.rlsname);
         try
@@ -234,7 +234,7 @@ begin
           else
             r := TPazoGenreNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
 
-          r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
+          r.startat := IncSecond(Now, config_cached_integer(section, 'readd_interval', 60));
           AddTask(r);
         except
           on e: Exception do
