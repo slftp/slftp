@@ -9,7 +9,7 @@ uses
   TslCriticalSection
   Provides a possibility for a critical section to have a timeout when trying to enter.
   Supports multiple nested enter calls from the same thread.
-  Allows to enable detailed monitoring of wait and hold times.
+  Allows to enable detailed monitoring of wait and hold times, which also logs long holds.
 }
 
 
@@ -27,9 +27,16 @@ type
     FWaitTimesDict: TDictionary<string, Double>;
     FHoldTimesDict: TDictionary<string, Double>;
     FLockCountDict: TDictionary<string, Integer>;
+    FMaxWaitTimesDict: TDictionary<string, Double>; //< longest wait in ms per lock owner name
+    FMaxHoldTimesDict: TDictionary<string, Double>; //< longest hold in ms per lock owner name
+    FTimeoutCountDict: TDictionary<string, Integer>; //< number of timed out waits per lock owner name
+    FTimeoutCountLock: TCriticalSection; //< protects @link(FTimeoutCountDict), timed out threads don't own the lock
     function GetCurrentLockOwnerName: string;
     procedure InitNoTimeoutLocking;
     procedure FreeObjects;
+    { Counts a timed out wait.
+      @param(aLockOwnerName The name of the code which tried to acquire the lock.) }
+    procedure CountTimeout(const aLockOwnerName: string);
   public
     { Constuctor.
       @param(aName A unique name for this critical section. If another instance with the same name already exists, an exception will be raised.)
@@ -66,7 +73,8 @@ type
 
   { Initalize this unit.
     @param(aLockingTimeout Set the default locking timout.)
-    @param(aUseTimer Set to true, if hold and wait times should be recorded. This might add some performance penalty.) }
+    @param(aUseTimer Set to true, if hold and wait times and timeouts should be recorded and holds of at least one second
+      logged. This might add some performance penalty.) }
   procedure SlCriticalSection2Init(const aLockingTimeout: integer; const aUseTimer: Boolean);
 
   { Unnitalize this unit - free all resources. }
@@ -78,7 +86,8 @@ type
   { Returns true, if wait times are being recorded, false otherwise. }
   function GetUseTimer: boolean;
 
-  { Writes all wait and hold times of locks into a log file at the path of slftp executable and returns that path. }
+  { Writes the wait and hold times (total, count, average, maximum) and the timeouts of all locks into a log file at the
+    path of slftp executable and returns that path. }
   function WriteCriticalSection2StatsToFile: String;
 
 
@@ -95,6 +104,11 @@ implementation
     end;
     TStrDoublePair = TPair<string, Double>;
     TStrDoublePairList = TList<TStrDoublePair>;
+    TStrIntPair = TPair<string, Integer>;
+    TStrIntPairList = TList<TStrIntPair>;
+
+  const
+    C_LONG_HOLD_LOG_MS = 1000; //< holds of at least this many ms are logged if hold times are recorded
 
   var
     glUseTimeoutLocking: boolean = True;
@@ -104,6 +118,38 @@ implementation
     glUsedCriticalSectionsLock: TCriticalSection;
     glDebugSection: string = 'slcriticalsection2';
     glIsInitialized: boolean = False;
+
+  threadvar
+    glIsLoggingLongHold: boolean; //< set while a long hold is logged: writing the log line takes a lock itself
+
+  { Adds a measured time to the total and to the maximum of a lock owner. }
+  procedure _AddTime(const aTotals, aMaxima: TDictionary<string, Double>; const aLockOwnerName: string; const aMilliseconds: Double);
+  var
+    fValue: Double;
+  begin
+    if aTotals.TryGetValue(aLockOwnerName, fValue) then
+      aTotals[aLockOwnerName] := fValue + aMilliseconds
+    else
+      aTotals.Add(aLockOwnerName, aMilliseconds);
+
+    if (not aMaxima.TryGetValue(aLockOwnerName, fValue)) or (aMilliseconds > fValue) then
+      aMaxima.AddOrSetValue(aLockOwnerName, aMilliseconds);
+  end;
+
+  { Logs that a lock has been held for at least @link(C_LONG_HOLD_LOG_MS). Called after the lock has been released. }
+  procedure _LogLongHold(const aLockName, aLockOwnerName, aCodeSegmentName: string; const aHoldMs: Double);
+  begin
+    if glIsLoggingLongHold then
+      exit;
+
+    glIsLoggingLongHold := True;
+    try
+      Debug(dpError, glDebugSection, '[WARN] Lock ''%s'' was held by thread %s for %.0f ms - %s (%s)',
+        [aLockName, IntToHex(GetCurrentThreadId, 4), aHoldMs, aLockOwnerName, aCodeSegmentName]);
+    finally
+      glIsLoggingLongHold := False;
+    end;
+  end;
 
   procedure SlCriticalSection2Init(const aLockingTimeout: integer; const aUseTimer: Boolean);
   var
@@ -197,6 +243,10 @@ implementation
         FWaitTimesDict := TDictionary<string, Double>.Create;
         FHoldTimesDict := TDictionary<string, Double>.Create;
         FLockCountDict := TDictionary<string, Integer>.Create;
+        FMaxWaitTimesDict := TDictionary<string, Double>.Create;
+        FMaxHoldTimesDict := TDictionary<string, Double>.Create;
+        FTimeoutCountDict := TDictionary<string, Integer>.Create;
+        FTimeoutCountLock := TCriticalSection.Create;
       end;
     end
     else
@@ -233,6 +283,10 @@ implementation
         FreeAndNil(FHoldTimesDict);
         FreeAndNil(FLockCountDict);
         FreeAndNil(FHoldTimerStack);
+        FreeAndNil(FMaxWaitTimesDict);
+        FreeAndNil(FMaxHoldTimesDict);
+        FreeAndNil(FTimeoutCountDict);
+        FreeAndNil(FTimeoutCountLock);
       end;
 
       if glUsedCriticalSectionsLock <> nil then
@@ -296,6 +350,9 @@ implementation
               end;
             wrTimeout:
               begin
+                if glUseTimer then
+                  CountTimeout(aLockOwnerName);
+
                 if aRaiseExceptionOnFail then
                 begin
                   raise Exception.Create(Format('Unable to acquire lock ''%s'' (%s) by %s thread within %d ms. Lock is held by thread %s (%d) - %s (%s)', [FName, aLockOwnerName, IntToHex(GetCurrentThreadId, 4), aTimeoutMs, IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName, FCurrentCodeSegmentName]));
@@ -314,12 +371,9 @@ implementation
         if glUseTimer then
         begin
           fTimer.Stop;
-          if Result then // maybe timeouts without exception would be interesting too?
+          if Result then // timeouts are counted separately, see CountTimeout
           begin
-            if not FWaitTimesDict.ContainsKey(aLockOwnerName) then
-              FWaitTimesDict.Add(aLockOwnerName, fTimer.ElapsedMilliseconds)
-            else
-              FWaitTimesDict[aLockOwnerName] := FWaitTimesDict[aLockOwnerName] + fTimer.ElapsedMilliseconds;
+            _AddTime(FWaitTimesDict, FMaxWaitTimesDict, aLockOwnerName, fTimer.ElapsedMilliseconds);
 
             if not FLockCountDict.ContainsKey(aLockOwnerName) then
               FLockCountDict.Add(aLockOwnerName, 1)
@@ -343,22 +397,37 @@ implementation
     end;
   end;
 
+  procedure TslCriticalSection2.CountTimeout(const aLockOwnerName: string);
+  var
+    fCount: Integer;
+  begin
+    FTimeoutCountLock.Enter;
+    try
+      if not FTimeoutCountDict.TryGetValue(aLockOwnerName, fCount) then
+        fCount := 0;
+      FTimeoutCountDict.AddOrSetValue(aLockOwnerName, fCount + 1);
+    finally
+      FTimeoutCountLock.Leave;
+    end;
+  end;
+
   procedure TslCriticalSection2.Leave;
   var
-    fLockOwnerName: String;
+    fLockOwnerName, fLockName, fCodeSegmentName: String;
     fTimer: TSLTimer;
+    fHoldMs: Double;
 
-    procedure _handleTimer;
+    { @returns(hold time in ms, 0 if hold times are not recorded) }
+    function _handleTimer: Double;
     begin
+      Result := 0;
       if glUseTimer then
       begin
         fTimer := FHoldTimerStack.Pop;
         try
           fTimer.Stop;
-          if not FHoldTimesDict.ContainsKey(fLockOwnerName) then
-             FHoldTimesDict.Add(fLockOwnerName, fTimer.ElapsedMilliseconds)
-          else
-            FHoldTimesDict[fLockOwnerName] := FHoldTimesDict[fLockOwnerName] + fTimer.ElapsedMilliseconds;
+          Result := fTimer.ElapsedMilliseconds;
+          _AddTime(FHoldTimesDict, FMaxHoldTimesDict, fLockOwnerName, Result);
         finally
           fTimer.Free;
         end;
@@ -384,11 +453,18 @@ implementation
       begin
         FLockOwningThreadID := 0;
         fLockOwnerName := FLockOwnerNameStack.Pop;
+        fLockName := FName;
+        fCodeSegmentName := FCurrentCodeSegmentName;
         FCurrentCodeSegmentName := '';
-        _handleTimer;
+        fHoldMs := _handleTimer;
 
-        // SetEvent must be the last thing we do because after that the next thread will start working
+        // SetEvent must be the last access to this instance because after that the next thread will start working
+        // and might even free it
         FEvent.SetEvent;
+
+        // log outside of the lock, the log write takes another lock and might be slow
+        if fHoldMs >= C_LONG_HOLD_LOG_MS then
+          _LogLongHold(fLockName, fLockOwnerName, fCodeSegmentName, fHoldMs);
       end;
 
     end
@@ -446,6 +522,11 @@ implementation
     Result := CompareValue(Right.Value, Left.Value);
   end;
 
+  function _StrIntPairSorter({$IFDEF FPC}constref{$ELSE}const{$ENDIF} Left, Right: TStrIntPair): Integer;
+  begin
+    Result := CompareValue(Right.Value, Left.Value);
+  end;
+
   function WriteCriticalSection2StatsToFile: String;
   var
     fSortedList: TList<TEntryData>;
@@ -457,12 +538,13 @@ implementation
 
   procedure SortAndWriteDict(const aHeader: string;
     const aDict: TDictionary<string, Double>;
-    const aCountsDict: TDictionary<string, Integer>);
+    const aCountsDict: TDictionary<string, Integer>;
+    const aMaxDict: TDictionary<string, Double>);
   var
     fSortedSub: TStrDoublePairList;
     fSubPair: TStrDoublePair;
     fCount: Integer;
-    fAvg: Double;
+    fAvg, fMax: Double;
   begin
     fOutput.Add('  ' + aHeader + ':');
     fSortedSub := TStrDoublePairList.Create;
@@ -479,8 +561,40 @@ implementation
         else
           fAvg := 0;
 
-        fOutput.Add(Format('    %s: total=%.3f, count=%d, avg=%.3f', [fSubPair.Key, fSubPair.Value, fCount, fAvg]));
+        if not aMaxDict.TryGetValue(fSubPair.Key, fMax) then
+          fMax := 0;
+
+        fOutput.Add(Format('    %s: total=%.3f, count=%d, avg=%.3f, max=%.3f', [fSubPair.Key, fSubPair.Value, fCount, fAvg, fMax]));
       end;
+    finally
+      fSortedSub.Free;
+    end;
+  end;
+
+  procedure SortAndWriteTimeouts(const aCriticalSection: TslCriticalSection2);
+  var
+    fSortedSub: TStrIntPairList;
+    fSubPair: TStrIntPair;
+  begin
+    fSortedSub := TStrIntPairList.Create;
+    try
+      aCriticalSection.FTimeoutCountLock.Enter;
+      try
+        for fSubPair in aCriticalSection.FTimeoutCountDict do
+          fSortedSub.Add(fSubPair);
+      finally
+        aCriticalSection.FTimeoutCountLock.Leave;
+      end;
+
+      // only locks with timeouts get this section, so that they are easy to find
+      if fSortedSub.Count = 0 then
+        exit;
+
+      fSortedSub.Sort(TComparer<TStrIntPair>.Construct(_StrIntPairSorter));
+
+      fOutput.Add('  Timeouts:');
+      for fSubPair in fSortedSub do
+        fOutput.Add(Format('    %s: count=%d', [fSubPair.Key, fSubPair.Value]));
     finally
       fSortedSub.Free;
     end;
@@ -516,8 +630,9 @@ begin
       fOutput.Add(Format('Critical Section: %s', [fEntry.Name]));
       fOutput.Add(Format('  Total Wait Time: %.3f', [fEntry.WaitSum]));
 
-      SortAndWriteDict('Wait Times', fEntry.CriticalSection.FWaitTimesDict, fEntry.CriticalSection.FLockCountDict);
-      SortAndWriteDict('Hold Times', fEntry.CriticalSection.FHoldTimesDict, fEntry.CriticalSection.FLockCountDict);
+      SortAndWriteDict('Wait Times', fEntry.CriticalSection.FWaitTimesDict, fEntry.CriticalSection.FLockCountDict, fEntry.CriticalSection.FMaxWaitTimesDict);
+      SortAndWriteDict('Hold Times', fEntry.CriticalSection.FHoldTimesDict, fEntry.CriticalSection.FLockCountDict, fEntry.CriticalSection.FMaxHoldTimesDict);
+      SortAndWriteTimeouts(fEntry.CriticalSection);
 
       fOutput.Add(''); // Empty line between entries
     end;

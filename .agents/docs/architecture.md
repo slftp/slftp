@@ -43,6 +43,11 @@ There are two global `AddTask` procedures — know which one you call:
 - **Never call `AddTask` while holding a dirlist lock.** Collect the tasks and add them after leaving the
   lock, as `pazo.pas` and `taskrace.pas` do ("add task outside the dirlist lock to avoid deadlocks with
   the queue lock").
+- Lock diagnostics (`[debug]` in `slftp.ini`): with `event_based_locking_timeout`, a timed out `Enter`
+  raises "Unable to acquire lock … Lock is held by thread X (nesting) - owner (code segment)".
+  `monitor_lock_times` adds the `!loglockstats` report (total, count, average and maximum per `Enter`
+  name, plus timeouts; counted since startup, wait times only of successful waits) and logs holds of 1 s
+  or more as `[WARN]`.
 
 ## Libraries (`libs/`)
 
