@@ -37,7 +37,25 @@ type
     lastservername: String;
     FCurrentIrcNick: String;
     flood: integer;
+    FSettingsLoaded: Boolean;
+    FServerHost: String;
+    FServerPort: Integer;
+    FProxyName: String;
+    FIrcSSL: Boolean;
+    FIrcNick: String;
+    FIrcANick: String;
+    FIrcUsername: String;
+    FIrcIdent: String;
+    FIrcPassword: String;
+    FMangleHost: Boolean;
+    FInvisible: Boolean;
+    FMangleHostEnabled: Boolean;
+    FSocks5Enabled: Boolean;
+    FOperUserId: String;
+    FOperPassword: String;
+    FPerformCommands: TStringList;
 
+    procedure LoadConnectionSettings;
     function GetIrcSSL: Boolean;
 
     function GetIrcNick: String;
@@ -596,18 +614,11 @@ begin
   irc_last_written := Now;
   shouldquit := False;
   shouldrestart := False;
+  FSettingsLoaded := False;
+  FPerformCommands := TStringList.Create;
   flood := RCInt('flood', 333);
   console_add_ircwindow(aNetname);
 
-  // TODO: remove this as its not needed anymore
-  if sitesdat.ReadString('ircnet-' + aNetname, 'host', '') <> '' then
-  begin
-    // converting old entries to new
-    sitesdat.WriteString('ircnet-' + aNetname, 'bnc_host-0', sitesdat.ReadString('ircnet-' + aNetname, 'host', ''));
-    sitesdat.WriteInteger('ircnet-' + aNetname, 'bnc_port-0', sitesdat.ReadInteger('ircnet-' + aNetname, 'port', 0));
-    sitesdat.DeleteKey('ircnet-' + aNetname, 'host');
-    sitesdat.DeleteKey('ircnet-' + aNetname, 'port');
-  end;
 end;
 
 destructor TMyIrcThread.Destroy;
@@ -615,6 +626,7 @@ begin
   FSocketWriteLock.Free;
 
   FPendingMessagesQueue.Free;
+  FPerformCommands.Free;
 
   status := 'destroying...';
   console_delwindow(netname);
@@ -625,11 +637,49 @@ end;
 procedure TMyIrcThread.SetProxyName(value: String);
 begin
   sitesdat.WriteString('ircnet-' + netname, 'proxyname', Value);
+  if FSettingsLoaded then
+    FProxyName := Value;
 end;
 
 function TMyIrcThread.GetProxyName: String;
 begin
-  result := sitesdat.ReadString('ircnet-' + netname, 'proxyname', '!!NOIN!!');
+  if FSettingsLoaded then
+    Result := FProxyName
+  else
+    Result := sitesdat.ReadString('ircnet-' + netname, 'proxyname', '!!NOIN!!');
+end;
+
+procedure TMyIrcThread.LoadConnectionSettings;
+var
+  i: Integer;
+  fPerform: String;
+begin
+  FServerHost := sitesdat.ReadString('ircnet-' + netname, 'bnc_host-0', '');
+  FServerPort := sitesdat.ReadInteger('ircnet-' + netname, 'bnc_port-0', 0);
+  FProxyName := sitesdat.ReadString('ircnet-' + netname, 'proxyname', '!!NOIN!!');
+  FIrcSSL := sitesdat.ReadBool('ircnet-' + netname, 'ssl', False);
+  FIrcNick := sitesdat.ReadString('ircnet-' + netname, 'nick', mynickname);
+  FIrcANick := sitesdat.ReadString('ircnet-' + netname, 'anick', myanickname);
+  FIrcUsername := sitesdat.ReadString('ircnet-' + netname, 'username', mynickname);
+  FIrcIdent := sitesdat.ReadString('ircnet-' + netname, 'ident', mynickname);
+  FIrcPassword := sitesdat.ReadString('ircnet-' + netname, 'password', '');
+  FMangleHost := sitesdat.ReadBool('ircnet-' + netname, 'manglehost', False);
+  FInvisible := sitesdat.ReadBool('ircnet-' + netname, 'invisible', False);
+  FMangleHostEnabled := config.ReadBool(section, 'manglehost', True);
+  FSocks5Enabled := config.ReadBool(section, 'socks5', False);
+  FOperUserId := sitesdat.ReadString('ircnet-' + netname, 'oper_userid', '');
+  FOperPassword := sitesdat.ReadString('ircnet-' + netname, 'oper_password', '');
+  FPerformCommands.Clear;
+  i := 0;
+  while True do
+  begin
+    fPerform := sitesdat.ReadString('ircnet-' + netname, 'perform-' + IntToStr(i), '');
+    if fPerform = '' then
+      Break;
+    FPerformCommands.Add(fPerform);
+    Inc(i);
+  end;
+  FSettingsLoaded := True;
 end;
 
 procedure TMyIrcThread.IrcSetupSocket;
@@ -637,15 +687,15 @@ begin
   irc_last_read := Now();
   registered := False;
   Disconnect;
+  LoadConnectionSettings;
 
-  Host := RawByteString(sitesdat.ReadString('ircnet-' + netname, 'bnc_host-0', ''));
-  Port := sitesdat.ReadInteger('ircnet-' + netname, 'bnc_port-0', 0);
-  //    ssl:= sitesdat.ReadBool('ircnet-'+netname, 'ssl', False);
+  Host := RawByteString(FServerHost);
+  Port := FServerPort;
 
-  if ((ProxyName = '!!NOIN!!') or (ProxyName = '0') or (ProxyName = '')) then
-    SetupSocks5(self, config.ReadBool(section, 'socks5', False))
+  if ((FProxyName = '!!NOIN!!') or (FProxyName = '0') or (FProxyName = '')) then
+    SetupSocks5(self, FSocks5Enabled)
   else
-    mSLSetupSocks5(proxyname, self, True);
+    mSLSetupSocks5(FProxyName, self, True);
 
 end;
 
@@ -1630,7 +1680,7 @@ begin
 
   status := 'online...';
 
-  if (config.ReadBool(section, 'manglehost', True) and (MangleHost)) then
+  if (FMangleHostEnabled and MangleHost) then
   begin
     if not IrcWrite('MODE ' + FCurrentIrcNick + ' +h') then
     begin
@@ -1648,23 +1698,17 @@ begin
     end;
   end;
 
-  userid := sitesdat.ReadString('ircnet-' + netname, 'oper_userid', '');
-  pass := sitesdat.ReadString('ircnet-' + netname, 'oper_password', '');
+  userid := FOperUserId;
+  pass := FOperPassword;
   if ((userid <> '') and (pass <> '')) then
     if not IrcWrite('OPER ' + userid + ' ' + pass) then
       exit;
 
-  i := 0;
-  while (true) do
+  for i := 0 to FPerformCommands.Count - 1 do
   begin
-    perform := sitesdat.ReadString('ircnet-' + netname, 'perform-' + IntToStr(i), '');
-    if (perform = '') then
-      break;
+    perform := FPerformCommands[i];
     if not IrcWrite(perform) then
-    begin
-      continue;
-    end;
-    inc(i);
+      Continue;
   end;
 
   Result := True;
@@ -1856,27 +1900,42 @@ end;
 
 function TMyIrcThread.GetIrcNick: String;
 begin
-  result := RCString('nick', mynickname);
+  if FSettingsLoaded then
+    Result := FIrcNick
+  else
+    Result := RCString('nick', mynickname);
 end;
 
 function TMyIrcThread.GetIrcANick: String;
 begin
-  result := RCString('anick', myanickname);
+  if FSettingsLoaded then
+    Result := FIrcANick
+  else
+    Result := RCString('anick', myanickname);
 end;
 
 function TMyIrcThread.GetIrcUsername: String;
 begin
-  result := RCString('username', mynickname);
+  if FSettingsLoaded then
+    Result := FIrcUsername
+  else
+    Result := RCString('username', mynickname);
 end;
 
 function TMyIrcThread.GetIrcIdent: String;
 begin
-  result := RCString('ident', mynickname);
+  if FSettingsLoaded then
+    Result := FIrcIdent
+  else
+    Result := RCString('ident', mynickname);
 end;
 
 function TMyIrcThread.GetIrcPassword: String;
 begin
-  result := RCString('password', '');
+  if FSettingsLoaded then
+    Result := FIrcPassword
+  else
+    Result := RCString('password', '');
 end;
 
 procedure TMyIrcThread.SetIrcNick(value: String);
@@ -1906,7 +1965,10 @@ end;
 
 function TMyIrcThread.GetIrcSSL: boolean;
 begin
-  result := RCBool('ssl', false);
+  if FSettingsLoaded then
+    Result := FIrcSSL
+  else
+    Result := RCBool('ssl', false);
 end;
 
 function TMyIrcThread.ChanNicks(const chan: String): String;
@@ -1921,7 +1983,10 @@ end;
 
 function TMyIrcThread.Getmanglehost: boolean;
 begin
-  result := RCBool('manglehost', False); //sitesdat.ReadBool('ircnet-' + netname, 'manglehost', True);
+  if FSettingsLoaded then
+    Result := FMangleHost
+  else
+    Result := RCBool('manglehost', False);
 end;
 
 procedure TMyIrcThread.Setinvisible(value: boolean);
@@ -1931,7 +1996,10 @@ end;
 
 function TMyIrcThread.Getinvisible: boolean;
 begin
-  result := RCBool('invisible', False); //sitesdat.ReadBool('ircnet-' + netname, 'invisible', True);
+  if FSettingsLoaded then
+    Result := FInvisible
+  else
+    Result := RCBool('invisible', False);
 end;
 
 (*
@@ -1987,11 +2055,29 @@ end;
 procedure TMyIrcThread.WCString(name: String; val: String);
 begin
   sitesdat.WriteString('ircnet-' + netname, name, val);
+  if FSettingsLoaded then
+    if name = 'nick' then
+      FIrcNick := val
+    else if name = 'anick' then
+      FIrcANick := val
+    else if name = 'username' then
+      FIrcUsername := val
+    else if name = 'ident' then
+      FIrcIdent := val
+    else if name = 'password' then
+      FIrcPassword := val;
 end;
 
 procedure TMyIrcThread.WCBool(name: String; val: boolean);
 begin
   sitesdat.WriteBool('ircnet-' + netname, name, val);
+  if FSettingsLoaded then
+    if name = 'ssl' then
+      FIrcSSL := val
+    else if name = 'manglehost' then
+      FMangleHost := val
+    else if name = 'invisible' then
+      FInvisible := val;
 end;
 
 (*
