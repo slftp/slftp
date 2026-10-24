@@ -70,6 +70,13 @@ test to a working one.
   If the failing tests are unrelated to those commits, suspect the environment, e.g. a dead external
   service (see above).
 
+## Profiling a stripped release binary
+
+FPC builds are reproducible: the same commit, compiler and flags, but `-Xs-` instead of `-Xs` (plain
+omission still strips) and `-B`, gives identical code plus symbols. Use it as symbol file when sampling
+the running process: `gdb -p <pid> -batch -ex "symbol-file <unstripped>" -ex "thread apply all bt 12"`.
+With `-O3` backtraces stop after one or two frames, but frame 0 is exact.
+
 ## `slftp.inc`
 
 Both `make` and `make.bat` patch the current git hash into `SL_REV` in `slftp.inc` and reset it after the
