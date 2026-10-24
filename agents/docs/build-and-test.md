@@ -36,7 +36,8 @@ through WSL.
   - The test binary needs the config files in `tests\`. CI moves `config\*` there; locally **copy** them.
     Without them the runner prints a file check and waits for `<Enter>`.
   - Run from the repository root: `.\make.bat test` in PowerShell, `cmd //c ".\\make.bat test < NUL"` in
-    Git Bash.
+    Git Bash. Keep the `.\`: some agent shells set `NoDefaultCurrentDirectoryInExePath`, which stops cmd.exe
+    from finding `make.bat` in the current directory.
   - Every run deletes all `.dcu`/`.dll` files in the repository (`del /q /s`), downloads OpenSSL and does a
     full rebuild, so it takes a while. An aborted run can leave a partial `tests\openssl-*.zip` behind; it
     is gitignored and overwritten by the next run.
