@@ -43,30 +43,34 @@ const
 { functions for ECB de-/encryption }
 
 // perl compatible index, cause delphis pos works different
-function PCindex(const w: RawByteString): Cardinal;
+function PCindex(const w: AnsiChar): Cardinal;
+var
+  i: Integer;
 begin
-  Result := Pos(w, B64);
-  if Result > 0 then dec(Result);
+  // a loop instead of Pos: Pos needs a temporary string for the char, which costs an allocation per char
+  Result := 0;
+  for i := 1 to Length(B64) do
+    if B64[i] = w then
+      Exit(i - 1);
 end;
 
 function PCsubstr(const w: RawByteString; const i: Integer): AnsiChar;
-var
-  s: RawByteString;
 begin
+  // index the string directly instead of copying a substring, which costs an allocation per char
   Result := #0;
-  s := Copy(w, i + 1, 1);
-  if (length(s) > 0) then
-    Result := s[1];
+  if (i >= 0) and (i < Length(w)) then
+    Result := w[i + 1];
 end;
 
 { non-standard base64 implementation for ECB mode }
 function bytetoB64(const ec: RawByteString): RawByteString;
 var
-  dc: RawByteString;
   left, right: Cardinal;
-  i, k : Integer;
+  i, k, fPos: Integer;
 begin
-  dc := '';
+  // each started block of 8 bytes gives 12 chars; allocate the result at once instead of growing it char by char
+  SetLength(Result, ((Length(ec) + 7) div 8) * 12);
+  fPos := 0;
   k := -1;
 
   while (k < (length(ec) - 1)) do
@@ -91,28 +95,29 @@ begin
 
     for i := 0 to 5 do
     begin
-      dc := dc + PCsubstr(B64, right and $3F);
+      inc(fPos);
+      Result[fPos] := PCsubstr(B64, right and $3F);
       right := right shr 6;
     end;
 
     for i := 0 to 5 do
     begin
-      dc := dc + PCsubstr(B64, left and $3F);
+      inc(fPos);
+      Result[fPos] := PCsubstr(B64, left and $3F);
       left := left shr 6;
     end;
   end;
-
-  Result := dc;
 end;
 
 { non-standard base64 implementation for ECB mode }
 function B64tobyte(const ec: RawByteString): RawByteString;
 var
-  dc: RawByteString;
-  k: Integer;
+  k, fPos: Integer;
   i, right, left: Cardinal;
 begin
-  dc := '';
+  // each started block of 12 chars gives 8 bytes; allocate the result at once instead of growing it byte by byte
+  SetLength(Result, ((Length(ec) + 11) div 12) * 8);
+  fPos := 0;
   k := -1;
 
   while (k < (length(ec) - 1)) do
@@ -134,16 +139,16 @@ begin
 
      for i := 0 to 3 do
      begin
-       dc := dc + AnsiChar(Chr((left and ($FF shl ((3 - i) * 8))) shr ((3 - i) * 8)));
+       inc(fPos);
+       Result[fPos] := AnsiChar(Chr((left and ($FF shl ((3 - i) * 8))) shr ((3 - i) * 8)));
      end;
 
      for i := 0 to 3 do
      begin
-       dc := dc + AnsiChar(Chr((right and ($FF shl ((3 - i) * 8))) shr ((3 - i) * 8)));
+       inc(fPos);
+       Result[fPos] := AnsiChar(Chr((right and ($FF shl ((3 - i) * 8))) shr ((3 - i) * 8)));
      end;
   end;
-
-  Result := dc;
 end;
 
 function set_key(const key: String): String;
@@ -217,8 +222,8 @@ end;
 
 function TIrcBlowkeyECB.EncryptMessage(const dText: String): String;
 var
-  fStrHelper, fResultHelper, temp: RawByteString;
-  i, fSplitLength: Integer;
+  fStrHelper, fResultHelper: RawByteString;
+  i, fLength, fSplitLength: Integer;
 begin
   {$IFDEF UNICODE}
     fStrHelper := UTF8Encode(dText);
@@ -226,24 +231,19 @@ begin
     SetLength(fStrHelper, Length(dText));
     move(dText[1], fStrHelper[1], Length(dText));
   {$ENDIF}
-  fResultHelper := '';
 
   // Each message is split into blocks of 8 bytes, encrypted individually.
   // A block shorter than 8 bytes is padded with zeroes.
-  if (length(fStrHelper) mod 8 > 0) then
-    for i := 1 to 8 - (length(fStrHelper) mod 8) do
-      fStrHelper := fStrHelper + #0;
+  fLength := Length(fStrHelper);
+  fSplitLength := (fLength + 7) div 8;
+  SetLength(fStrHelper, fSplitLength * 8);
+  if fSplitLength * 8 > fLength then
+    FillChar(fStrHelper[fLength + 1], fSplitLength * 8 - fLength, 0);
 
-  SetLength(temp, 8);
-
-  fSplitLength := Length(fStrHelper) div 8;
-
+  // encrypt the blocks in place and encode them all at once: no allocations per block
   for i := 1 to fSplitLength do
-  begin
-    temp := Copy(fStrHelper, 1 + (i - 1) * 8, 8);
-    BlowfishEncryptECB(FKeyData, PAnsiChar(temp), PAnsiChar(temp));
-    fResultHelper := fResultHelper + bytetoB64(temp);
-  end;
+    BlowfishEncryptECB(FKeyData, @fStrHelper[1 + (i - 1) * 8], @fStrHelper[1 + (i - 1) * 8]);
+  fResultHelper := bytetoB64(fStrHelper);
 
   {$IFDEF UNICODE}
     Result := UTF8ToString(fResultHelper);
