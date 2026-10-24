@@ -1654,6 +1654,10 @@ begin
     try
       main_lock.Enter('Execute');
       try
+        // the code segments name the current step in lock timeout messages and long hold warnings
+        if GetUseTimeoutLocking then
+          main_lock.SetCurrentCodeSegment('move waiting tasks');
+
         // Move mature tasks from waiting_tasks to main tasks queue
         for i := waiting_tasks.Count - 1 downto 0 do
         begin
@@ -1676,6 +1680,8 @@ begin
         if bTasksMoved then
           tasks.Sort(@QueueSorter);
 
+        if GetUseTimeoutLocking then
+          main_lock.SetCurrentCodeSegment('scan for ready tasks');
         for fListIndex := 0 to 1 do
         begin
           if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
@@ -1693,6 +1699,8 @@ begin
             if (((fTask.ready) or (fTask.readyerror)) and (fTask.slot1 = nil)) then
             begin
               ss := fTask.uidtext;
+              if GetUseTimeoutLocking then
+                main_lock.SetCurrentCodeSegment('remove ready ' + fTask.ClassName + ' ' + ss);
               if fTask.IsNotifyTask then
                 TaskReady(fTask);
 
@@ -1722,8 +1730,12 @@ begin
         end;
         end;
 
+        if GetUseTimeoutLocking then
+          main_lock.SetCurrentCodeSegment('wait for slots assignment lock');
         ts.AcquireSlotsAssignmentLock('Queue iterate');
         try
+          if GetUseTimeoutLocking then
+            main_lock.SetCurrentCodeSegment('iterate tasks');
           for fTask in tasks do
           begin
             try
@@ -1742,6 +1754,8 @@ begin
               begin
                 if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
                 begin
+                  if GetUseTimeoutLocking then
+                    main_lock.SetCurrentCodeSegment('assign ' + fTask.Fullname);
                   if fTask.IsReadyToBeExecuted then
                     TryToAssignSlots(fTask);
                 end
