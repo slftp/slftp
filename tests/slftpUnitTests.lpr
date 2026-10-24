@@ -27,6 +27,8 @@ uses
   fpcunit, testregistry, plaintestreport,
   slftpUnitTestsJUnitReport,
   mrdohutils,
+  // slftp loads SQLite dynamically at startup, the tests link it statically instead
+  mormot.db.raw.sqlite3.static,
   slftpUnitTestsSetup,
   // add all test units below
   mystringsTests,
@@ -54,6 +56,8 @@ uses
   sitesunitTests,
   precatcherTests,
   slcriticalsection2Tests,
+  dbhandlerTests,
+  indexerTests,
   variantCacheTests,
   sltimerTests;
 
