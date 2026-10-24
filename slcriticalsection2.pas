@@ -486,7 +486,7 @@ implementation
 
       if FLockOwningThreadID <> GetCurrentThreadId then
       begin
-        Debug(dpError, glDebugSection, Format('Tried to notify code segment ''%s'', but lock is by another thread %s (%d) - %s.', [IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName]));
+        Debug(dpError, glDebugSection, Format('Tried to notify code segment ''%s'', but lock is held by another thread %s (%d) - %s.', [aSegmentName, IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName]));
         exit;
       end;
 

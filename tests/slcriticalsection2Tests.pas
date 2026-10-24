@@ -21,6 +21,7 @@ type
     procedure TestGetOrCreate;
     procedure TestTimeoutsAreCounted;
     procedure TestTimeoutMessageNamesCodeSegment;
+    procedure TestCodeSegmentOfOtherThreadIsRejected;
     procedure TestMaxHoldTime;
     procedure TestLongHoldIsLogged;
   end;
@@ -272,6 +273,39 @@ begin
     end;
 
     CheckTrue(Pos('- holder (holder segment)', fMessage) > 0, 'unexpected message: ' + fMessage);
+  finally
+    cs.Free;
+  end;
+end;
+
+// tests that a thread which does not hold the lock cannot set its code segment and only gets a warning logged
+procedure TTestSLCriticalSection2.TestCodeSegmentOfOtherThreadIsRejected;
+var
+  cs: TSlCriticalSection2;
+  fHolder: TLockHolderThread;
+  fMessage, fLog: String;
+begin
+  cs := TSlCriticalSection2.Create('TestForeignCodeSegment');
+  try
+    fMessage := '';
+    fHolder := TLockHolderThread.Create(cs, 'holder segment');
+    try
+      CheckTrue(fHolder.WaitUntilLocked, 'holder thread did not get the lock');
+      cs.SetCurrentCodeSegment('foreign segment');
+      try
+        cs.Enter('waiter', 1);
+      except
+        on E: Exception do
+          fMessage := E.Message;
+      end;
+    finally
+      fHolder.Free;
+    end;
+
+    CheckTrue(Pos('- holder (holder segment)', fMessage) > 0, 'code segment of the holder changed: ' + fMessage);
+    fLog := LogTail(20);
+    CheckTrue(Pos('Tried to notify code segment ''foreign segment'', but lock is held by another thread', fLog) > 0,
+      'not logged: ' + fLog);
   finally
     cs.Free;
   end;
