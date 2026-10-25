@@ -15,6 +15,12 @@ through WSL.
   - `make test` copies `config/*` into `tests/` itself; the test binary reads the config files from its
     own directory. CI moves them there in `before_script` instead, so `config/` is empty and the copy is
     skipped. Without the config files the binary exits with code 2.
+  - The tests need OpenSSL 3 in `tests/`: `libcrypto.so.3`, `libssl.so.3` and `legacy.so`. They are
+    gitignored (`tests/*.so*`, `*.so`), so a fresh clone or worktree lacks them. Copy them from the system,
+    as CI does in `before_script`:
+    `cp /usr/lib/x86_64-linux-gnu/{libcrypto.so.3,libssl.so.3,ossl-modules/legacy.so} tests/`.
+    `slssl.pas` sets the OpenSSL provider search path to the binary's own directory, so without
+    `tests/legacy.so` the SSL and IRC Blowfish CBC tests fail with "legacy ssl provider not loaded!".
   - The run is non-interactive and bounded by `timeout 300`; exit code 124 means the binary hung.
   - It writes the plain console output plus a JUnit report to `tests/fpcunit-junit.xml` (gitignored); CI
     uploads it as GitLab test report.
