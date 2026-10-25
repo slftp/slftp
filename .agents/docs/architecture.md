@@ -40,9 +40,15 @@ There are two global `AddTask` procedures — know which one you call:
 
 - `slcriticalsection2.pas` provides `TSlCriticalSection2`, a named critical section used throughout
   (e.g. `TDirList.dirlist_lock` in `dirlist.pas`).
-- **Never call `AddTask` while holding a dirlist lock.** Collect the tasks and add them after leaving the
-  lock, as `pazo.pas` and `taskrace.pas` do ("add task outside the dirlist lock to avoid deadlocks with
-  the queue lock").
+- **Don't acquire a lock while holding another one.** Threads that take nested locks in different orders
+  deadlock. Collect the work under the first lock and do it after leaving it. Example: never call
+  `AddTask` while holding a dirlist lock — `pazo.pas` and `taskrace.pas` collect the tasks and add them
+  after leaving the lock ("add task outside the dirlist lock to avoid deadlocks with the queue lock").
+- **Exception: queue lock, then slots assignment lock.** `queueunit.pas` often takes a site's slots
+  assignment lock (`TSite.AcquireSlotsAssignmentLock` in `sitesunit.pas`) while holding the queue
+  `main_lock`. Keep that order: never take the queue lock while holding a slots assignment lock. Race tasks
+  are the only case where one thread holds the slots assignment locks of two sites (source and
+  destination); don't add more.
 - **Keep locks that many threads take short.** Don't do network I/O or encryption while holding them.
 
 ## Libraries (`libs/`)
