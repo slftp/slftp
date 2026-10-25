@@ -6,6 +6,8 @@
 #   fpc-wsl.sh             build HEAD + uncommitted changes + untracked (not ignored) files
 #   fpc-wsl.sh <ref>       build only the committed state of <ref>
 #   fpc-wsl.sh --id <id> [<ref>]  same, but write the exit code to a file of its own for run <id>
+#   fpc-wsl.sh --export <dir> [<ref>]  same sources, but only the release build, no unit tests: copies
+#                          the slftp binary, config/ and the OpenSSL libraries into <dir> (glftpd-e2e)
 #   fpc-wsl.sh --initialized  exit code 0 if the build clone exists (else the run clones, slow)
 #   fpc-wsl.sh --clear [<id>]   remove the exit code file of the last run (or of run <id>)
 #   fpc-wsl.sh --status [<id>]  print the exit code of the last run (or of run <id>), nothing while it
@@ -34,6 +36,7 @@ case "$1" in
     echo "Full log: $log_file"
     exit 0 ;;
   --id) run_id="$2"; exitcode_file="$exitcode_file.$2"; shift 2 ;;
+  --export) export_dir="$(realpath -m "$2")"; shift 2 ;;
 esac
 ref="$1"
 
@@ -96,7 +99,24 @@ build_and_test() {
     make test < /dev/null'
 }
 
-run() { check_env && sync_sources && build_and_test; }
+build_and_export() {
+  step "update CI image $image"
+  docker pull -q "$image" || echo "WARNING: pull failed, using the local image"
+  step "make slftp_64, copy it to $export_dir"
+  mkdir -p "$export_dir" || return
+  docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$build_dir":/src -v "$export_dir":/out \
+    -w /src "$image" sh -c '
+    make clean >/dev/null &&
+    make slftp_64 && echo "=== BUILD OK ===" &&
+    cp slftp /out/ && cp -r config/. /out/ &&
+    cp /usr/lib/x86_64-linux-gnu/libcrypto.so.3 /usr/lib/x86_64-linux-gnu/libssl.so.3 /out/ &&
+    cp /usr/lib/x86_64-linux-gnu/ossl-modules/legacy.so /out/'
+}
+
+run() {
+  check_env && sync_sources || return
+  if [ -n "$export_dir" ]; then build_and_export; else build_and_test; fi
+}
 
 # exit code 11: another run is active; the lock is held until this script exits
 exec 9>"$build_dir.lock"
