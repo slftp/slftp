@@ -63,7 +63,7 @@ fail() { echo "ERROR: $*"; return 1; }
 
 check_env() {
   local missing='' tool
-  for tool in git docker tmux curl python3; do
+  for tool in git docker tmux curl python3 ss; do
     command -v "$tool" >/dev/null || missing="$missing $tool"
   done
   [ -z "$missing" ] || { fail "missing:$missing, see $setup_doc"; return 10; }
@@ -118,19 +118,46 @@ build_slftp() {
   return $rc
 }
 
-# ---- sites: site <n> is container slftp-e2e-glftpd-<n> on port 2120+<n>, slFtp site name E2E<n> ----
+# ---- sites: site <n> is container slftp-e2e-glftpd-<n> on port port_base+<n>, slFtp site name E2E<n> ----
 
-site_port() { echo $((2120 + $1)); }
+# site_port <n>: port of site <n>, for scenarios that connect to it themselves
+site_port() { echo $((port_base + $1)); }
+# site_pasv <n>: passive port range of site <n>
+site_pasv() { echo "$((pasv_base + 100 * ($1 - 1)))-$((pasv_base + 100 * $1 - 1))"; }
+
+# ports_free <from>-<to>: true if no TCP socket listens on a port in the range
+ports_free() {
+  ss -Hltn | awk -v r="$1" 'BEGIN { split(r, a, "-") }
+    { p = $4; sub(/.*:/, "", p); p += 0 } p >= a[1] + 0 && p <= a[2] + 0 { busy = 1 } END { exit busy }'
+}
+
+# choose_ports: sets port_base and pasv_base to the first of ten port blocks in which the ports of all
+# sites are free, e.g. not taken by a glftpd of the host. Block <k> (0 to 9) starts at 2120+100*<k>
+# and at 50000+1000*<k> (100 passive ports per site), so it has room for ten sites.
+choose_ports() {
+  local k i
+  [ "$sites" -le 10 ] || { fail "a scenario can have at most 10 sites"; return; }
+  for k in $(seq 0 9); do
+    port_base=$((2120 + 100 * k)) pasv_base=$((50000 + 1000 * k))
+    for i in $(seq 1 "$sites"); do
+      ports_free "$(site_port "$i")-$(site_port "$i")" && ports_free "$(site_pasv "$i")" || continue 2
+    done
+    [ "$k" -eq 0 ] || note "the default ports are in use, the sites use $((port_base + 1))+ and $pasv_base+"
+    return 0
+  done
+  fail "no free ports for the sites in any of the blocks of choose_ports in e2e.sh"
+}
 
 # start_sites: starts E2E1..E2E<sites>, each with the scenario's section directories
 start_sites() {
   local i port section t
   step "start $sites glftpd sites"
   stop_sites
+  choose_ports || return
   for i in $(seq 1 "$sites"); do
     port=$(site_port "$i")
     docker run -d --name "$image-$i" --network host -e PORT="$port" \
-      -e PASV_PORTS="$((49900 + 100 * i))-$((49999 + 100 * i))" "$image_tag" >/dev/null || return
+      -e PASV_PORTS="$(site_pasv "$i")" "$image_tag" >/dev/null || return
     for section in $sections; do site_exec "$i" "mkdir -m777 /glftpd/site/$section" || return; done
   done
   for i in $(seq 1 "$sites"); do
