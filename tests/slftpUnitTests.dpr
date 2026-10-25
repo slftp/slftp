@@ -61,6 +61,7 @@ uses
   mrdohutils,
   slftpUnitTestsSetup,
   slsslTests,
+  sltcpTests,
   mystringsTests,
   mystringsTests.Base64,
   httpTests,

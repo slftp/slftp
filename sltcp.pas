@@ -984,11 +984,22 @@ begin
 end;
 
 function TslTCPSocket.Read(var s: String; timeout: Integer = slDefaultTimeout; maxolvasas: Integer = 0; untilDisconnects: Boolean = False): Boolean;
+const
+  // a bigger buffer (e.g. after a large STAT -l) is released instead of kept per socket
+  MaxKeptBufferSize = 1024 * 1024;
 begin
   try
-    fss.Size:= 0;
+    // rewind instead of fss.Size := 0: freeing and reallocating the buffer on every read takes the
+    // global medium block lock of the memory manager, which hundreds of slot threads contend for
+    fss.Position:= 0;
     Result:= Read(fss, timeout, maxolvasas, untilDisconnects);
-    s:= fss.DataString;
+    {$IFDEF UNICODE}
+      s:= fss.Encoding.GetString(fss.Bytes, 0, fss.Position);
+    {$ELSE}
+      SetString(s, PAnsiChar(fss.Memory), fss.Position);
+    {$ENDIF}
+    if fss.Size > MaxKeptBufferSize then
+      fss.Size:= 0;
   except
     on e: Exception do
     begin

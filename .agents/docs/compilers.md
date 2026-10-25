@@ -120,3 +120,6 @@ blocks go up to 256 bytes and are kept apart from medium blocks, which reduces l
 the hundreds of slFtp threads. Set the mode only via this define, never by editing the vendored unit:
 without it the unit falls back to its mono-threaded GUI defaults. `FPCMM_BOOSTER` (128 arenas) needs
 more memory and its per-thread arena selection is experimental.
+In every mode, medium blocks (2.6 KB to 256 KB) share one global lock. Don't free and reallocate
+such buffers on hot paths that hundreds of threads run; reuse them instead, as `TslTCPSocket.Read`
+does with its read buffer.
