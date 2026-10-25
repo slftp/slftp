@@ -43,6 +43,9 @@ There are two global `AddTask` procedures — know which one you call:
 - **Never call `AddTask` while holding a dirlist lock.** Collect the tasks and add them after leaving the
   lock, as `pazo.pas` and `taskrace.pas` do ("add task outside the dirlist lock to avoid deadlocks with
   the queue lock").
+- **Keep locks that many threads take short.** Don't do network I/O or encryption while holding them:
+  the IRC thread only takes a message out of its echo queue under the lock and sends it afterwards
+  (`TMyIrcThread.IrcProcess` in `irc.pas`).
 
 ## Libraries (`libs/`)
 
