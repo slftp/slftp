@@ -3,7 +3,7 @@ unit dbhandler;
 interface
 
 uses
-  mormot.db.sql.zeos, mormot.db.sql.sqlite3, mormot.orm.core, mormot.rest.sqlite3;
+  mormot.db.sql.zeos, mormot.db.sql.sqlite3, mormot.db.raw.sqlite3, mormot.orm.core, mormot.rest.sqlite3;
 
 { Creates an initialized instance of TSQLDBSQLite3ConnectionProperties for further use of given SQLite3 database
   @param(aDatabaseName name of the database file on local storage, must include filename extension)
@@ -19,26 +19,34 @@ function CreateSQLite3DbConn(const aDatabaseName: String; const aPassword: Strin
   @returns(Initialized TSQLRestClientDB instance, returns exception and nil on failure) }
 function CreateORMSQLite3DB(const aORMSQLModel: TSQLModel; const aDatabaseName: String; const aPassword: String): TSQLRestClientDB;
 
+{ Rolls back the transaction of a SQLite3 database if one is open. Unlike TSqlDataBase.RollBack it asks SQLite
+  whether a transaction is open: the flag of TSqlDataBase is wrong after a failed COMMIT (the transaction stays open)
+  and after errors on which SQLite already ended the transaction itself (e.g. SQLITE_FULL). So only use it for
+  transactions started with plain SQL ('BEGIN TRANSACTION;'), not with TSqlDataBase.TransactionBegin
+  @param(aDB database whose open transaction is rolled back) }
+procedure SQLite3RollbackIfActive(const aDB: TSqlDataBase);
+
 var
   MySQLCon: TSQLDBZEOSConnectionProperties = nil; //< global connection to a MySQL/MariaDb server
 
 implementation
 
 uses
-  SysUtils, debugunit, globals, mormot.core.unicode, mormot.db.raw.sqlite3;
+  SysUtils, debugunit, globals, mormot.core.unicode;
 
 const
   section = 'dbhandler';
 
-procedure _CreateDatabaseFolder;
-begin
-  if not DirectoryExists(DATABASEFOLDERNAME) then
-    Mkdir(DATABASEFOLDERNAME);
-end;
-
 function _GetDatabasePath: String;
 begin
   Result := ExtractFilePath(ParamStr(0)) + DATABASEFOLDERNAME + PathDelim;
+end;
+
+procedure _CreateDatabaseFolder;
+begin
+  // use the full path: the databases are opened next to the binary, the current directory can differ
+  if not ForceDirectories(_GetDatabasePath) then
+    raise Exception.CreateFmt('Cannot create database folder %s', [_GetDatabasePath]);
 end;
 
 function CreateSQLite3DbConn(const aDatabaseName: String; const aPassword: String; const aIsInMemory: Boolean = False): TSQLDBSQLite3ConnectionProperties;
@@ -90,6 +98,13 @@ begin
       exit;
     end;
   end;
+end;
+
+procedure SQLite3RollbackIfActive(const aDB: TSqlDataBase);
+begin
+  // SQLite is in autocommit mode exactly when no transaction is open
+  if sqlite3.get_autocommit(aDB.DB) = 0 then
+    aDB.Execute('ROLLBACK TRANSACTION;');
 end;
 
 end.
