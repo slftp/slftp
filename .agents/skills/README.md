@@ -79,7 +79,7 @@ Rules:
 
 - Keep it short. Link to `.agents/docs/` for background instead of repeating it.
 - Keep it tool-neutral: describe *what* to do and which files and commands to use, not features of one
-  specific agent.
+  specific agent, and don't prescribe helper programs ([conventions](../docs/conventions.md#docs)).
 - Cover both compilers: where steps, files or commands differ between FPC (Linux) and Delphi (Windows),
   list both (e.g. `.lpr` and `.dpr`, `make` and `make.bat`). Never write a skill that only works for one.
   You can usually run only one side yourself, so take the other side's steps from the files that define
