@@ -1,7 +1,8 @@
 #!/bin/bash
-# Runs an end-to-end scenario inside WSL: slFtp, built with FPC in the GitLab CI image, against glftpd
-# sites with pzs-ng in Docker containers, driven through slFtp's console in tmux. Started by e2e.ps1,
-# see SKILL.md next to this file. Runs as the normal WSL user and only reads the Windows checkout.
+# Runs an end-to-end scenario on Linux or in WSL: slFtp, built with FPC in the GitLab CI image, against
+# glftpd sites with pzs-ng in Docker containers, driven through slFtp's console in tmux. Started
+# directly on Linux and by e2e.ps1 on Windows, see SKILL.md next to this file. Runs as the normal user
+# and only reads the checkout.
 #
 #   e2e.sh <scenario>          build HEAD + uncommitted changes + untracked (not ignored) files and run
 #                              scenarios/<scenario>.sh with that build
@@ -20,13 +21,12 @@
 # test-both-compilers/fpc-wsl.sh and shares its lock. Exit code 10: environment not set up.
 
 skill_dir="$(cd "$(dirname "$0")" && pwd)"
-win_repo="$(cd "$skill_dir/../../.." && pwd)"
 fpc_script="$skill_dir/../test-both-compilers/fpc-wsl.sh"
 work="$HOME/slftp-e2e"
 log_file="$work/e2e.log"
 exitcode_file="$work/e2e.exitcode"
 image=slftp-e2e-glftpd
-setup_doc=.agents/docs/wsl-fpc-setup.md
+setup_doc=.agents/skills/glftpd-e2e/SKILL.md
 
 # pinned third-party software; change these on purpose and run the skill once to check
 gl_url=https://glftpd.io/files/glftpd-LNX-2.16_3.6.0_x64.tgz
@@ -60,18 +60,18 @@ ref="$2"
 
 step() { echo; echo "=== $* ==="; }
 fail() { echo "ERROR: $*"; return 1; }
-win_git() { (cd "$win_repo" && git.exe "$@"); }
 
 check_env() {
   local missing='' tool
-  for tool in git.exe git docker tmux curl python3; do
+  for tool in git docker tmux curl python3; do
     command -v "$tool" >/dev/null || missing="$missing $tool"
   done
-  [ -z "$missing" ] || { fail "missing in WSL:$missing, see $setup_doc"; return 10; }
+  [ -z "$missing" ] || { fail "missing:$missing, see $setup_doc"; return 10; }
   docker info >/dev/null 2>&1 || { fail "docker not usable by $(id -un), see $setup_doc"; return 10; }
-  # slFtp loads ./libsqlite3.so on Linux, and the CI image has no libsqlite3
-  sqlite_lib=$(ldconfig -p | grep -oE '/\S+/libsqlite3\.so\.0$' | sort | tail -1)
-  [ -n "$sqlite_lib" ] || { fail "libsqlite3 missing in WSL (package libsqlite3-0)"; return 10; }
+  # slFtp loads ./libsqlite3.so on Linux, and the CI image has no libsqlite3. ldconfig is in /sbin,
+  # which is not in the PATH of normal users on some distributions.
+  sqlite_lib=$(PATH="$PATH:/sbin" ldconfig -p | grep -oE '/\S+/libsqlite3\.so\.0$' | sort | tail -1)
+  [ -n "$sqlite_lib" ] || { fail "libsqlite3 missing (package libsqlite3-0)"; return 10; }
   [ -f "$skill_dir/scenarios/$scenario.sh" ] || fail "unknown scenario '$scenario', see $skill_dir/scenarios"
 }
 
@@ -104,15 +104,12 @@ prepare_image() {
   docker image prune -f --filter label=slftp-e2e >/dev/null
 }
 
-# Builds slFtp with fpc-wsl.sh into build-<name>; ref empty = HEAD + local changes
+# Builds slFtp with fpc-wsl.sh into build-<name>, which also writes build-<name>.commit; ref empty =
+# HEAD + local changes
 build_slftp() {
-  local name="$1" build_ref="$2" commit rc
-  commit=$(win_git rev-parse --short "${build_ref:-HEAD}" | tr -d '\r')
-  [ -n "$build_ref" ] || [ -z "$(win_git status --porcelain | tr -d '\r')" ] ||
-    commit="$commit + uncommitted changes"
-  echo "$commit" > "$work/build-$name.commit"
-  step "build $name: ${build_ref:-HEAD} ($commit)"
-  rm -rf "$work/build-$name"
+  local name="$1" build_ref="$2" rc
+  step "build $name: ${build_ref:-HEAD}"
+  rm -rf "$work/build-$name" "$work/build-$name.commit"
   # without its final PASSED line, which would read like the result of the whole run
   bash "$fpc_script" --export "$work/build-$name" $build_ref | sed '/^=== PASSED ===$/d'
   rc=${PIPESTATUS[0]}

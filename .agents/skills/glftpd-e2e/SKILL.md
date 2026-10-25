@@ -1,58 +1,80 @@
 ---
 name: glftpd-e2e
-description: Run an end-to-end scenario of slFtp against real glftpd sites with pzs-ng, two or more Docker containers in WSL, driven through slFtp's console; e.g. an FXP race between two sites. Use from Windows to check a change to what slFtp does on sites (races, dirlists, site handling) before committing or opening a merge request.
+description: Run an end-to-end scenario of slFtp against real glftpd sites with pzs-ng, two or more Docker containers, driven through slFtp's console; e.g. an FXP race between two sites. Use on Linux, or on Windows through WSL, to check a change to what slFtp does on sites (races, dirlists, site handling) before committing or opening a merge request.
 metadata:
   fpc: verified
   delphi: unverified
 ---
 
-# glftpd end-to-end test from Windows
+# glftpd end-to-end test
 
-For a Windows machine with WSL and Docker, set up with [wsl-fpc-setup](../../docs/wsl-fpc-setup.md).
-It tests the Linux build of slFtp only: the scenarios type into its console through `tmux`, which can't
-drive the Delphi build on Windows. Report Delphi as unverified for this kind of test.
+Runs on Linux with Docker, and on Windows in WSL. It tests the Linux build of slFtp only: the
+scenarios type into its console through `tmux`, which can't drive the Delphi build on Windows. Report
+Delphi as unverified for this kind of test.
 
-A run, all inside WSL (`~/slftp-e2e/`):
+A run, all on Linux or inside WSL (`~/slftp-e2e/`):
 
 1. Builds the site image `slftp-e2e-glftpd`: glftpd and pzs-ng, both pinned in `e2e.sh` (`gl_url` with
    `gl_sha512`, `pzs_commit`), configured by the files in `glftpd/` (`zsconfig.h` is compiled in).
 2. Builds slFtp with `make slftp_64` in the CI image through `fpc-wsl.sh --export` of
-   [test-both-compilers](../test-both-compilers/SKILL.md); both skills share its build clone and lock.
+   [test-both-compilers](../test-both-compilers/SKILL.md), in its separate clone `~/slftp-fpc-build`:
+   the checkout is only read, also on Linux. Both skills share that clone and its lock.
 3. Starts the sites the scenario needs: site `<n>` is the container `slftp-e2e-glftpd-<n>` on
    `127.0.0.1:2120+<n>`, user `glftpd`/`glftpd`, TLS required for logins, listings and data, sections
    at `/<section>`. All containers use the host network, so FXP between them stays on 127.0.0.1.
 4. Starts slFtp in a fresh runtime directory with the default config and runs the scenario.
 5. Exits slFtp and removes the containers; the image and the downloads stay.
 
+## Requirements
+
+- **Linux:** x86-64, `git`, `tmux`, `curl`, `python3` and `libsqlite3-0`, and Docker Engine usable
+  without `sudo`: the user is in the group `docker`, so `docker info` works. Rootless Docker doesn't
+  fit: the build runs as `--user $(id -u)` and expects its output to belong to the user. Installing
+  needs `sudo`, so ask the user, e.g. on Ubuntu `sudo apt-get install docker.io tmux && sudo usermod
+  -aG docker $USER`, then log in again.
+- **Windows:** WSL with Docker, set up with [wsl-fpc-setup](../../docs/wsl-fpc-setup.md). The other
+  tools come with Ubuntu.
+
 ## Run
 
 1. From the repository root:
-   ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File .agents\skills\glftpd-e2e\e2e.ps1 -Scenario race
-   ```
-   - Tests `HEAD` plus uncommitted changes and untracked (not ignored) files; `-Ref <ref>` tests only
-     the committed state of that ref.
-   - `-Baseline <ref>` also builds `<ref>` and runs the scenario with it first, for a before/after
-     comparison. Use it only when the user asks for one, it doubles the build time. Compare with the
-     merge base (`git merge-base HEAD dev`), not with `dev` itself, which may have moved on.
-   - Runs hidden, waits and prints a summary. A run with the race scenario takes about a minute, two
-     with `-Baseline`, so run it in the background or with a long timeout (`-TimeoutMinutes`, default
-     60).
-   - The first run (downloads, image builds, CI image pull) shows a console window the user can follow;
-     `-Visible` does that for any run. The window closes itself on success and stays open on failure.
-   - `-Distro <name>` selects a WSL distribution other than the default.
-2. Exit code of the command:
+   - Linux:
+     ```sh
+     bash .agents/skills/glftpd-e2e/e2e.sh race > /dev/null; echo "exit code $?"
+     bash .agents/skills/glftpd-e2e/e2e.sh --summary
+     ```
+     The run prints the full log, hence the `> /dev/null`; `--summary` prints the important lines.
+     `e2e.sh --baseline <ref> race` and `e2e.sh race <ref>` are the options below.
+   - Windows:
+     ```powershell
+     powershell -NoProfile -ExecutionPolicy Bypass -File .agents\skills\glftpd-e2e\e2e.ps1 -Scenario race
+     ```
+     It runs `e2e.sh` in WSL hidden, waits and prints the summary. The first run (downloads, image
+     builds, CI image pull) shows a console window the user can follow; `-Visible` does that for any
+     run. The window closes itself on success and stays open on failure. `-Distro <name>` selects a
+     WSL distribution other than the default.
+
+   Both:
+   - Test `HEAD` plus uncommitted changes and untracked (not ignored) files; a ref (`-Ref <ref>`)
+     tests only the committed state of that ref.
+   - A baseline (`-Baseline <ref>`) also builds `<ref>` and runs the scenario with it first, for a
+     before/after comparison. Use it only when the user asks for one, it doubles the build time.
+     Compare with the merge base (`git merge-base HEAD dev`), not with `dev` itself, which may have
+     moved on.
+   - A run with the race scenario takes about a minute, two with a baseline, the first run longer. Run
+     it in the background or with a long timeout (`e2e.ps1`: `-TimeoutMinutes`, default 60).
+2. Exit code (`e2e.ps1` / `e2e.sh`):
    - `0`: all checks passed
    - `1`: a check or the build failed. The summary shows the `FAIL` lines or the compiler errors. The
      result file `~/slftp-e2e/result-<change|baseline>.txt` holds each check's output and the console at
      the end; `slftp.log` is in `~/slftp-e2e/run-<change|baseline>/`, the full log in
      `~/slftp-e2e/e2e.log`.
-   - `2`: WSL, Docker or a tool the scripts need is missing; the summary names it. Docker:
-     [wsl-fpc-setup](../../docs/wsl-fpc-setup.md). The others come with Ubuntu; if one is missing, ask
-     the user to install the package (`sudo` needs their password).
-   - `3`: the window was closed or the timeout hit before the run finished
-   - `4`: another run is active (all runs share the sites, and the build shares the clone of
+   - `2` / `10`: WSL, Docker or a tool the scripts need is missing; the summary names it. See
+     "Requirements".
+   - `3` (only `e2e.ps1`): the window was closed or the timeout hit before the run finished
+   - `4` / `11`: another run is active (all runs share the sites, and the build shares the clone of
      test-both-compilers). Retry when it has finished.
+
 
 ## Scenarios
 
@@ -106,5 +128,5 @@ this skill, delete `~/slftp-e2e` and the `slftp-e2e-glftpd` images.
 ## Report
 
 3. Report the tested commits and whether uncommitted changes were included, each `PASS`/`FAIL`, the
-   notes (timings, and with `-Baseline` both builds), and the result file path. The run covers only the
+   notes (timings, and with a baseline both builds), and the result file path. The run covers only the
    FPC build; say that Delphi is unverified by it.
