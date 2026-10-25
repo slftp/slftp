@@ -10,6 +10,7 @@ matching `SKILL.md` completely.
 | Skill | Use when |
 |-------|----------|
 | [test-both-compilers](test-both-compilers/SKILL.md) | on Windows: build and test a change with FPC (via WSL) and Delphi |
+| [glftpd-e2e](glftpd-e2e/SKILL.md) | on Windows: run slFtp end to end against glftpd sites with pzs-ng in WSL, e.g. an FXP race |
 
 ## Keeping skills correct
 

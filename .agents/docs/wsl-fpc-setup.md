@@ -1,9 +1,9 @@
 # WSL setup for FPC builds on Windows
 
 One-time setup that lets a Windows machine build and test with FPC in WSL, in the same Docker image the
-GitLab CI uses (`registry.gitlab.com/slftp/ci-images/ubuntu-lts`). It is used by the skill
-[test-both-compilers](../skills/test-both-compilers/SKILL.md); come here when its script reports a
-missing environment.
+GitLab CI uses (`registry.gitlab.com/slftp/ci-images/ubuntu-lts`). It is used by the skills
+[test-both-compilers](../skills/test-both-compilers/SKILL.md) and
+[glftpd-e2e](../skills/glftpd-e2e/SKILL.md); come here when their scripts report a missing environment.
 
 Run these long steps in a visible console window so the user can follow the progress: a hidden install
 or download shows no output for minutes and looks hung. Let the window close itself on success and stay
