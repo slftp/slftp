@@ -21,17 +21,20 @@ A run, all on Linux or inside WSL (`~/slftp-e2e/`):
    the checkout is only read, also on Linux. Both skills share that clone and its lock.
 3. Starts the sites the scenario needs: site `<n>` is the container `slftp-e2e-glftpd-<n>` on
    `127.0.0.1:2120+<n>`, user `glftpd`/`glftpd`, TLS required for logins, listings and data, sections
-   at `/<section>`. All containers use the host network, so FXP between them stays on 127.0.0.1.
+   at `/<section>`. All containers use the host network, so FXP between them stays on 127.0.0.1. If
+   one of their ports (also the passive ones from 50000) is in use, e.g. by a glftpd of the host, all
+   sites move to the next free block: `2220+<n>` and 51000, and so on. The result notes that.
 4. Starts slFtp in a fresh runtime directory with the default config and runs the scenario.
 5. Exits slFtp and removes the containers; the image and the downloads stay.
 
 ## Requirements
 
-- **Linux:** x86-64, `git`, `tmux`, `curl`, `python3` and `libsqlite3-0`, and Docker Engine usable
-  without `sudo`: the user is in the group `docker`, so `docker info` works. Rootless Docker doesn't
-  fit: the build runs as `--user $(id -u)` and expects its output to belong to the user. Installing
-  needs `sudo`, so ask the user, e.g. on Ubuntu `sudo apt-get install docker.io tmux && sudo usermod
-  -aG docker $USER`, then log in again.
+- **Linux:** x86-64, `git`, `tmux`, `curl`, `python3`, `ss` (iproute2) and `libsqlite3-0`, and Docker
+  Engine usable without `sudo`: the user is in the group `docker`, so `docker info` works. Rootless
+  Docker doesn't fit: the build runs as `--user $(id -u)` and expects its output to belong to the user.
+  Installing needs `sudo`, so ask the user, e.g. on Ubuntu `sudo apt-get install docker.io tmux &&
+  sudo usermod -aG docker $USER`, then log in again. Not run on a Linux machine outside WSL yet, only
+  from a checkout in the WSL file system, which takes the same path through the scripts.
 - **Windows:** WSL with Docker, set up with [wsl-fpc-setup](../../docs/wsl-fpc-setup.md). The other
   tools come with Ubuntu.
 
@@ -89,7 +92,8 @@ A scenario is `scenarios/<name>.sh`, sourced by `e2e.sh`. Copy `race.sh` and add
 `slftp.precatcher`), and defines `steps`. `steps` runs while slFtp is up and the sites are empty, and
 records results with `check` and `note`. The helpers are documented where `e2e.sh` defines them:
 `add_sites`, `console`, `wait_console`, `console_has`, `console_ok`, `make_release`, `ftp_upload`,
-`site_exec`, `site_complete`, `site_same_files`, `seconds_since`.
+`site_exec`, `site_complete`, `site_same_files`, `seconds_since`. A scenario that connects to a site
+itself takes the port from `site_port`, never a fixed one.
 
 Pitfalls found so far:
 
