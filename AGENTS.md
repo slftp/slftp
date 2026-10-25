@@ -31,6 +31,8 @@ the config files the Windows tests need: [build-and-test](.agents/docs/build-and
 - **Reuse before writing:** slFtp helpers first, then mORMot2: [conventions](.agents/docs/conventions.md).
 - **Follow the conventions** for naming, PasDoc comments and commit messages: [conventions](.agents/docs/conventions.md).
 - **Test behavior changes.**
+- **Offer a CHANGELOG entry** for changes operators notice: ask the user before finishing, never add one
+  unasked: [conventions](.agents/docs/conventions.md#changelog).
 - **Don't guess.** If behavior or intent is unclear, ask.
 - **Keep changes minimal and surgical:** [working-style](.agents/docs/working-style.md).
 
@@ -46,9 +48,9 @@ Read the doc that matches your task before changing code.
 | [.agents/docs/compilers.md](.agents/docs/compilers.md)       | writing any code: FPC vs. Delphi differences, test framework, project files |
 | [.agents/docs/build-and-test.md](.agents/docs/build-and-test.md) | building, running tests, dealing with build artifacts        |
 | [.agents/docs/wsl-fpc-setup.md](.agents/docs/wsl-fpc-setup.md) | setting up WSL so that a Windows machine can build with FPC   |
-| [.agents/docs/conventions.md](.agents/docs/conventions.md)   | writing code, docs or commit messages                            |
+| [.agents/docs/conventions.md](.agents/docs/conventions.md)   | writing code, docs, commit messages or CHANGELOG entries         |
 | [.agents/docs/databases.md](.agents/docs/databases.md)       | touching SQLite/MySQL code (mORMot2 parameter binding pitfall)   |
-| [.agents/docs/merge-requests.md](.agents/docs/merge-requests.md) | opening a merge request: GitLab/`glab` setup and usage       |
+| [.agents/docs/merge-requests.md](.agents/docs/merge-requests.md) | opening a merge request: `glab`, or REST API/push options without it |
 | [.agents/skills/](.agents/skills/README.md)                  | optional shortcuts for the most common tasks — check the index   |
 | [docs/](docs/)                                             | user/operator docs: runtime files, precatcher, chains, indexer, tvinfo, FAQ |
 

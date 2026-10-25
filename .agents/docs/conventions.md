@@ -24,6 +24,28 @@ Summary of `CONTRIBUTING.md`, which is binding and wins on any conflict.
 - Reference code by symbol name (`TSiteSlot.ProcessFeat`, `parseIrcJOIN`), never by line number —
   line numbers go stale with every edit above them.
 - Only link to external URLs you have verified actually resolve.
+- Don't prescribe general-purpose helper programs (`curl`, `jq`, `python3`, `sed`, …) in docs or
+  skills: which ones are installed differs per machine. Describe what is needed (endpoint, data,
+  constraints) and let the agent use what it has. Name a program only when the project requires it
+  (`git`, `make`, `glab`, the compilers).
+
+## Changelog
+
+`CHANGELOG` tells operators what changed between releases. `CONTRIBUTING.md` doesn't cover it; these
+rules follow the existing entries.
+
+- When your change is worth an entry, propose the entry text and ask the user before finishing whether
+  to add it; never add one unasked. An accepted entry goes into the same commit as the change.
+- Worth an entry, because operators notice it:
+  - new features: `slftp.ini` settings, IRC commands and their options, rules, support for FTPD
+    software or libraries
+  - bug fixes with a visible effect: wrong behavior, crashes, corrupted files, message floods, leaks
+  - noticeable improvements: performance, changed behavior or output, library upgrades (OpenSSL, mORMot2)
+  - removed commands or settings, with what to use instead and what happens to existing config
+  - new build or runtime requirements (compiler or OpenSSL versions), as a `** NOTE: ... **` line
+- Not worth an entry: refactorings, tests, style, comments, agent docs and build internals that don't
+  change how slFtp is built or run.
+- Stick to the existing structure and style of the file.
 
 ## Commits
 
@@ -48,13 +70,6 @@ Summary of `CONTRIBUTING.md`, which is binding and wins on any conflict.
 - Branch off `dev`, one topic per branch. To update a branch, rebasing onto `dev` is preferred, but
   merging `dev` in is fine: GitLab squash-merges MRs by default, so the branch history never reaches `dev`.
 - The project is on GitLab (`gitlab.com/slftp/slftp`): changes go in as merge requests targeting `dev`,
-  titled like the commit header. GitHub tools (`gh`) don't apply. If `glab` isn't installed, create the
-  merge request with push options:
-  ```
-  git push -u origin <branch> -o merge_request.create -o merge_request.target=dev \
-    -o "merge_request.title=<commit header>" -o "merge_request.description=<text>" \
-    -o merge_request.remove_source_branch
-  ```
-  Push options must not contain newlines: use `<br>` for line breaks in the description, or edit it
-  in the web UI afterwards.
+  titled like the commit header. GitHub tools (`gh`) don't apply. How to open one, also without `glab`:
+  [merge-requests](merge-requests.md).
 - Releases are annotated tags made from `dev` only (process: `CONTRIBUTING.md`).
