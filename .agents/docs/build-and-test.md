@@ -30,6 +30,11 @@ through WSL.
   - Exit code: bit 0 is set on failures, bit 1 on errors (0 = all passed).
   - The runner exits via `fpExit` without running unit `finalization` sections (see the comment at the
     end of `tests/slftpUnitTests.lpr`).
+- Running `slftp` itself needs the config files from `config/`, the three OpenSSL files as for the tests,
+  and `libsqlite3.so` in its directory: `Main_Init` loads SQLite from `./libsqlite3.so` on Linux, so start
+  it there with `LD_LIBRARY_PATH=.`. The CI image has no libsqlite3. A `masterpass.txt` in the same
+  directory answers the master password prompts (`console.pas`), and the first start creates `sites.dat`
+  with it.
 - `make clean` removes compiled `.o`/`.ppu` files. They are created next to the sources and are gitignored.
 - After switching branches, do not compile single units against existing `.ppu` files — stale units can
   crash fpc. Always do a full `make` build.

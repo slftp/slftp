@@ -54,3 +54,12 @@ wsl -d Ubuntu -- docker run --rm registry.gitlab.com/slftp/ci-images/ubuntu-lts 
 
 prints the FPC version of the CI. The script also needs Windows `git.exe` inside WSL, which works as long
 as the Windows `PATH` is appended in WSL (the default).
+
+## Pitfalls
+
+- WSL shuts the distribution down soon after the last `wsl.exe` session has ended, even with Docker
+  running, and stops its containers and `tmux` sessions with it. Keep work that must keep running inside
+  one `wsl.exe` call, as the `.ps1` scripts of the skills do.
+- From Git Bash, set `MSYS_NO_PATHCONV=1` for `wsl.exe` calls with `/mnt/c/...` paths, or Git Bash
+  rewrites them into Windows paths. Put longer logic into `.sh` files and run them by path instead of
+  nesting it into `wsl.exe -- bash -c "..."`, where quoting loses variables and `$(...)`.
