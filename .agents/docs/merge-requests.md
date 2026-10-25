@@ -21,6 +21,59 @@ glab mr create --source-branch <branch> --target-branch dev \
 non-interactively. Target `dev`, not the repo's default branch display — see `AGENTS.md` ("Integration
 branch: `dev`").
 
+## Without `glab`
+
+A missing `glab` does not block the MR: use the REST API or push options below. Afterwards, tell the
+user that installing `glab` (see [One-time setup](#one-time-setup)) improves the workflow.
+
+If `GITLAB_TOKEN` is set, use the REST API. Otherwise ask the user once: may you look for a token in
+git's credential store (see below), or should you use push options?
+
+### REST API
+
+`glab` is a client for this API, so the API can do everything `glab` does: multi-line descriptions,
+updating the MR, pipelines, comments. It needs a token with `api` scope, from one of these sources:
+
+- `GITLAB_TOKEN` (`glab` reads it too).
+- git's credential store, **only with the user's permission**: the `password=` line that
+  `git credential fill` prints for `protocol=https` and `host=gitlab.com`. Some helpers open a login
+  prompt if nothing is stored. The stored secret may not work for the API: a password or a token with
+  only repository scopes is rejected with 401 or 403, and an OAuth token from Git Credential Manager
+  probably is too.
+- a new token the user creates in the browser via
+  `https://gitlab.com/-/user_settings/personal_access_tokens?name=slftp-agent&scopes=api` and stores in
+  `GITLAB_TOKEN`. OAuth (the browser login of `glab auth login`) would need a registered OAuth
+  application, so it is no simpler.
+
+Create the MR with whatever HTTP client and JSON encoder you have:
+
+- `POST https://gitlab.com/api/v4/projects/slftp%2Fslftp/merge_requests`
+- header `Authorization: Bearer <token>`
+- JSON body with `source_branch`, `target_branch` (`dev`), `title` and `description`
+
+Never print the token or put it on a command line, where the process list shows it. Encode the JSON
+with a real encoder instead of escaping it by hand, and keep temporary files outside the repo. The branch
+must already be pushed. The response's `web_url` is the MR link. On 401/403 the token is unusable; fall
+back to push options.
+
+### Push options
+
+GitLab can create the MR while you push:
+
+```
+git push -u origin <branch> -o merge_request.create -o merge_request.target=dev \
+  -o "merge_request.title=<commit header>" -o "merge_request.description=<text>" \
+  -o merge_request.remove_source_branch
+```
+
+Push options must not contain line breaks: use `<br>` for line breaks in the description, or edit it in
+the GitLab UI afterwards. The push output prints the MR link.
+
+Push options only reach GitLab together with a ref update. If the branch is already pushed and up to
+date, git reports "Everything up-to-date", sends nothing and no MR is created. Then give the user the
+link to create it in the browser instead:
+`https://gitlab.com/slftp/slftp/-/merge_requests/new?merge_request[source_branch]=<branch>&merge_request[target_branch]=dev`
+
 ## Windows PATH gotcha after installing `glab`
 
 Installing `glab` (or anything else) updates the **registry**, but any process already running —
