@@ -73,5 +73,6 @@ test to a working one.
 ## `slftp.inc`
 
 Both `make` and `make.bat` patch the current git hash into `SL_REV` in `slftp.inc` and reset it after the
-build. A modified `slftp.inc` during or after an aborted build is expected — revert it, never commit it.
+build, also when it fails. A modified `slftp.inc` during or after an aborted build is expected — revert it,
+never commit it.
 `SL_VERSION`/`HELP_VERSION` are only changed as part of the release process (see `CONTRIBUTING.md`).

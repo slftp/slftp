@@ -21,6 +21,10 @@ Summary of `CONTRIBUTING.md`, which is binding and wins on any conflict.
 
 ## Docs
 
+- Write down only what a reader needs to use or change the code correctly: behavior, constraints and
+  pitfalls that still exist. How a change works belongs in code comments, why it was made in the commit
+  message. Pitfalls your change removed don't belong in the docs.
+- Prefer adjusting an existing sentence to adding a paragraph.
 - Reference code by symbol name (`TSiteSlot.ProcessFeat`, `parseIrcJOIN`), never by line number —
   line numbers go stale with every edit above them.
 - Only link to external URLs you have verified actually resolve.

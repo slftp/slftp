@@ -59,8 +59,9 @@ Read the doc that matches your task before changing code.
 These instructions are maintained by the agents that use them. As part of every task:
 
 - **Update** AGENTS.md or the matching doc in `.agents/docs/` when you change something they describe, or
-  when you learn something non-obvious that is missing. Updates that describe your own change belong to
-  your change. Corrections of unrelated wrong information are a separate topic and get their own commit.
+  when you learn something non-obvious that a future agent needs to do its task correctly (what belongs
+  in a doc: [conventions](.agents/docs/conventions.md#docs)). Updates that describe your own change belong
+  to your change. Corrections of unrelated wrong information are a separate topic and get their own commit.
 - **Fix** wrong or outdated information immediately — in docs and in skills — instead of working around it.
 - **Skills:** never add one on your own. Suggest it only if it is really worth it, list its advantages and
   disadvantages, and add it only after the user confirms. See [.agents/skills/](.agents/skills/README.md).
