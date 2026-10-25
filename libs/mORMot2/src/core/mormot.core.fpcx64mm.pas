@@ -61,7 +61,7 @@ unit mormot.core.fpcx64mm;
 // target a multi-threaded service on a modern CPU
 // - define FPCMM_DEBUG, FPCMM_ASSUMEMULTITHREAD, FPCMM_ERMS
 // - currently mormot2tests run with no contention when FPCMM_SERVER is set :)
-{$define FPCMM_SERVER}
+{.$define FPCMM_SERVER}
 
 // increase settings for more aggressive multi-threaded process
 // - tiny blocks will up to 256 bytes (instead of 128 bytes);
