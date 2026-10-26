@@ -42,7 +42,7 @@ const
 
 { functions for ECB de-/encryption }
 
-// perl compatible index, cause delphis pos works different
+// perl compatible index: 0-based position of w in B64, but 0 instead of -1 if not found
 function PCindex(const w: AnsiChar): Cardinal;
 var
   i: Integer;
