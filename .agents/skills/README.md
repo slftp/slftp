@@ -11,6 +11,7 @@ matching `SKILL.md` completely.
 |-------|----------|
 | [test-both-compilers](test-both-compilers/SKILL.md) | on Windows: build and test a change with FPC (via WSL) and Delphi |
 | [glftpd-e2e](glftpd-e2e/SKILL.md) | on Linux, or on Windows in WSL: run slFtp end to end against glftpd sites with pzs-ng, e.g. an FXP race |
+| [run-slftp](run-slftp/SKILL.md) | start slFtp, type commands into its console, read the screen and stop it, to try a change in the real program |
 
 ## Keeping skills correct
 
@@ -55,6 +56,9 @@ use it:
   SKILL.md        # required
   ...             # optional supporting files (scripts, templates, references)
 ```
+
+A script that two or more skills use goes into `.agents/scripts/` instead, documented in its own
+header; a script only one skill uses stays in that skill's folder.
 
 `.agents/skills/` is the tool-neutral project location that agents with native skill support (e.g.
 Codex, Cursor, GitHub Copilot) scan on their own; agents without it use the index above. Keep skills

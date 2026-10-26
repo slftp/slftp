@@ -52,6 +52,7 @@ Read the doc that matches your task before changing code.
 | [.agents/docs/databases.md](.agents/docs/databases.md)       | touching SQLite/MySQL code (mORMot2 parameter binding pitfall)   |
 | [.agents/docs/merge-requests.md](.agents/docs/merge-requests.md) | opening a merge request: `glab`, or REST API/push options without it |
 | [.agents/skills/](.agents/skills/README.md)                  | optional shortcuts for the most common tasks — check the index   |
+| [.agents/scripts/](.agents/scripts/)                         | changing a script that several skills share; each documents itself in its header |
 | [docs/](docs/)                                             | user/operator docs: runtime files, precatcher, chains, indexer, tvinfo, FAQ |
 
 ## Keeping agent instructions current

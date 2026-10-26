@@ -1,14 +1,15 @@
 #!/bin/bash
 # Builds slFtp and runs the unit tests with FPC inside WSL, in the GitLab CI image (same steps as the
 # CI jobs buildlinux64 and testlinux64). Started by fpc-wsl.ps1, see SKILL.md next to this file; on
-# Linux, glftpd-e2e uses its --export. Runs as the normal user and only reads the checkout this script
-# lives in.
+# Linux, glftpd-e2e and run-slftp use its --export. Runs as the normal user and only reads the
+# checkout this script lives in.
 #
 #   fpc-wsl.sh             build HEAD + uncommitted changes + untracked (not ignored) files
 #   fpc-wsl.sh <ref>       build only the committed state of <ref>
 #   fpc-wsl.sh --id <id> [<ref>]  same, but write the exit code to a file of its own for run <id>
 #   fpc-wsl.sh --export <dir> [<ref>]  same sources, but only the release build, no unit tests: copies
-#                          the slftp binary, config/ and the OpenSSL libraries into <dir> (glftpd-e2e)
+#                          the slftp binary, config/ and the OpenSSL libraries into <dir> (glftpd-e2e,
+#                          run-slftp)
 #                          and writes the tested state to <dir>.commit: the short commit hash, with
 #                          " + uncommitted changes" if there were any
 #   fpc-wsl.sh --initialized  exit code 0 if the build clone exists (else the run clones, slow)

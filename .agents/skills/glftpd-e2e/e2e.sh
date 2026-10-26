@@ -1,13 +1,16 @@
 #!/bin/bash
-# Runs an end-to-end scenario on Linux or in WSL: slFtp, built with FPC in the GitLab CI image, against
-# glftpd sites with pzs-ng in Docker containers, driven through slFtp's console in tmux. Started
-# directly on Linux and by e2e.ps1 on Windows, see SKILL.md next to this file. Runs as the normal user
-# and only reads the checkout.
+# Runs an end-to-end scenario on Linux or in WSL: slFtp, built with FPC in the GitLab CI image (or the
+# Delphi build of e2e.ps1 on Windows), against glftpd sites with pzs-ng in Docker containers, driven
+# through slFtp's console with .agents/scripts/slftp-run.sh. Started directly on Linux and by e2e.ps1 on Windows, see SKILL.md next
+# to this file. Runs as the normal user and only reads the checkout.
 #
 #   e2e.sh <scenario>          build HEAD + uncommitted changes + untracked (not ignored) files and run
 #                              scenarios/<scenario>.sh with that build
 #   e2e.sh <scenario> <ref>    the same with only the committed state of <ref>
 #   e2e.sh --baseline <ref> <scenario> [<ref>]  also build <ref> and run the scenario with it first
+#   e2e.sh --windows-build <dir> <scenario>  in WSL: no build, run the scenario with the Delphi build
+#                              that e2e.ps1 prepared in <dir> on a Windows drive (with <dir>.commit);
+#                              its runtime directory is run-change next to <dir>
 #   e2e.sh --id <id> ...       write the exit code to a file of its own for run <id>
 #   e2e.sh --initialized       exit code 0 if the glftpd image exists (else the run builds it, slow)
 #   e2e.sh --clear [<id>]      remove the exit code file of the last run (or of run <id>)
@@ -27,6 +30,8 @@ log_file="$work/e2e.log"
 exitcode_file="$work/e2e.exitcode"
 image=slftp-e2e-glftpd
 setup_doc=.agents/skills/glftpd-e2e/SKILL.md
+# shellcheck source=../../scripts/slftp-run.sh
+. "$skill_dir/../../scripts/slftp-run.sh"
 
 # pinned third-party software; change these on purpose and run the skill once to check
 gl_url=https://glftpd.io/files/glftpd-LNX-2.16_3.6.0_x64.tgz
@@ -52,6 +57,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --id) run_id="$2"; exitcode_file="$exitcode_file.$2"; shift 2 ;;
     --baseline) baseline_ref="$2"; shift 2 ;;
+    --windows-build) windows_build="$(realpath -m "$2")"; slftp_windows=1; shift 2 ;;
     *) break ;;
   esac
 done
@@ -63,16 +69,16 @@ fail() { echo "ERROR: $*"; return 1; }
 
 check_env() {
   local missing='' tool
-  for tool in git docker tmux curl python3 ss; do
+  for tool in git docker curl python3 ss; do
     command -v "$tool" >/dev/null || missing="$missing $tool"
   done
   [ -z "$missing" ] || { fail "missing:$missing, see $setup_doc"; return 10; }
   docker info >/dev/null 2>&1 || { fail "docker not usable by $(id -un), see $setup_doc"; return 10; }
-  # slFtp loads ./libsqlite3.so on Linux, and the CI image has no libsqlite3. ldconfig is in /sbin,
-  # which is not in the PATH of normal users on some distributions.
-  sqlite_lib=$(PATH="$PATH:/sbin" ldconfig -p | grep -oE '/\S+/libsqlite3\.so\.0$' | sort | tail -1)
-  [ -n "$sqlite_lib" ] || { fail "libsqlite3 missing (package libsqlite3-0)"; return 10; }
-  [ -f "$skill_dir/scenarios/$scenario.sh" ] || fail "unknown scenario '$scenario', see $skill_dir/scenarios"
+  slftp_check_env || { echo "see $setup_doc"; return 10; }
+  [ -f "$skill_dir/scenarios/$scenario.sh" ] || fail "unknown scenario '$scenario', see $skill_dir/scenarios" ||
+    return
+  # the Delphi build is the one of the Windows checkout, so neither a ref nor a baseline
+  [ -z "$slftp_windows" ] || [ -z "$ref$baseline_ref" ] || fail '--windows-build takes no ref and no baseline'
 }
 
 # Builds the site image unless it exists for the current inputs: downloads glftpd and pzs-ng
@@ -221,39 +227,7 @@ for f in sorted(os.listdir(d)):
 PY
 }
 
-# ---- slFtp console in tmux ----
-
-pane() { tmux capture-pane -p -J -S -3000 -t "$session"; }
-
-# console <text>: types a line into the Admin window, e.g. an IRC command with the ! prefix
-console() { tmux send-keys -t "$session" -l -- "$1"; tmux send-keys -t "$session" Enter; sleep 0.7; }
-
-# console_has <text> [<seconds>]: true if the console shows the text (fixed string, not a pattern)
-# within <seconds> (default 2). It polls because a single capture can catch slFtp redrawing its
-# window, which then looks empty. No grep -q here and in the other pipes: it exits early, and with
-# pipefail the writer's SIGPIPE fails the pipe.
-console_has() {
-  local t=0
-  until pane | grep -F -- "$1" >/dev/null; do
-    sleep 0.1
-    t=$((t + 1))
-    [ $t -lt $((${2:-2} * 10)) ] || return 1
-  done
-}
-
-# console_ok: true if no command so far has replied Failed.
-console_ok() { ! console_has 'Failed.' 1; }
-
-# wait_console <text> [<count>] [<seconds>]: waits until the console shows the text <count> times
-wait_console() {
-  local t=0
-  while [ "$(pane | grep -cF -- "$1")" -lt "${2:-1}" ]; do
-    sleep 0.1
-    t=$((t + 1))
-    [ $t -lt $((${3:-30} * 10)) ] || { note "TIMEOUT after ${3:-30} s waiting for '$1' x${2:-1}"; return 1; }
-  done
-  return 0
-}
+# ---- slFtp: console helpers (pane, console, console_has, console_ok, wait_console) in slftp-run.sh ----
 
 # add_sites: adds E2E1..E2E<sites> with AUTH TLS and the scenario's sections at /<section>, and waits
 # until slFtp has logged in to all of them
@@ -271,36 +245,19 @@ add_sites() {
 
 start_slftp() {
   local section
-  rm -rf "$run_dir" && mkdir -p "$run_dir" &&
-    cp -r "$work/build-$name/." "$run_dir/" && cp -L "$sqlite_lib" "$run_dir/libsqlite3.so" || return
-  # console.pas reads the master password from this file instead of prompting; the first start
-  # creates sites.dat with it
-  echo e2epass > "$run_dir/masterpass.txt"
+  slftp_prepare "$build" || return
   # !setdir only accepts sections that the precatcher knows
   for section in $sections; do
     sed -i "/^\[sections\]$/a $section=$section" "$run_dir/slftp.precatcher" || return
   done
-  tmux kill-session -t "$session" 2>/dev/null
-  # the trailing echo and sleep keep the pane, so its exit shows; slFtp clears the screen on exit
-  tmux new-session -d -s "$session" -x 250 -y 100 \
-    "cd '$run_dir' && LD_LIBRARY_PATH=. ./slftp; echo SLFTP-EXITED rc=\$?; sleep 3600" || return
-  wait_console 'Command:' 1 30 || { pane; return 1; }
-  sleep 3 # until the queue has started
-  pane | grep -oE 'slFtp v\S+ .*git# \S+\)' | sort -u
-  return 0
+  slftp_start
 }
 
 stop_slftp() {
   sleep 1 # no new lines for a while, so the window is not being redrawn
-  { echo '---- console ----'; pane | grep -vE '^\|\s*\|$' | sed 's/  \+/ /g'; } >> "$result"
-  console '!die'
-  if ! wait_console 'SLFTP-EXITED' 1 60; then
-    note 'slFtp did not exit within 60 s after !die, killed it'
-    pkill -9 -P "$(tmux display -p -t "$session" '#{pane_pid}')" -x slftp
-    sleep 1
-  fi
-  grep -F '[EXCEPTION]' "$run_dir/slftp.log" | tail -20 | sed 's/^/NOTE: slftp.log: /' | tee -a "$result"
-  tmux kill-session -t "$session" 2>/dev/null
+  # without the empty lines of the window frames (| on Linux, │ on Windows)
+  { echo '---- console ----'; pane | grep -vE '^ *(\||│)+ *(\||│)* *$' | sed 's/  \+/ /g'; } >> "$result"
+  slftp_stop
 }
 
 # ---- results ----
@@ -327,7 +284,13 @@ seconds_since() { awk -v a="$1" -v b="$EPOCHREALTIME" 'BEGIN { printf "%.2f", b 
 run_scenario() {
   name="$1"
   session="slftp-e2e-$name"
-  run_dir="$work/run-$name"
+  if [ -n "$slftp_windows" ]; then
+    build="$windows_build"
+    run_dir="$(dirname "$windows_build")/run-$name"
+  else
+    build="$work/build-$name"
+    run_dir="$work/run-$name"
+  fi
   result="$work/result-$name.txt"
   failed=0
   sites=1
@@ -335,8 +298,8 @@ run_scenario() {
   # shellcheck source=/dev/null
   . "$skill_dir/scenarios/$scenario.sh" || return
   : > "$result"
-  step "scenario $scenario with build $name ($(cat "$work/build-$name.commit"))"
-  start_sites && start_slftp || { tmux kill-session -t "$session" 2>/dev/null; stop_sites; return 1; }
+  step "scenario $scenario with build $name ($(cat "$build.commit"))"
+  start_sites && start_slftp || { slftp_kill; stop_sites; return 1; }
   steps || { fail "scenario $scenario stopped before its end"; failed=1; }
   stop_slftp
   stop_sites
@@ -349,7 +312,7 @@ main() {
   if [ -n "$baseline_ref" ]; then
     build_slftp baseline "$baseline_ref" || return
   fi
-  build_slftp change "$ref" || return
+  [ -n "$slftp_windows" ] || build_slftp change "$ref" || return
   local rc=0
   if [ -n "$baseline_ref" ]; then
     run_scenario baseline || rc=1
