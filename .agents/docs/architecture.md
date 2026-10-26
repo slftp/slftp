@@ -50,6 +50,9 @@ There are two global `AddTask` procedures — know which one you call:
   are the only case where one thread holds the slots assignment locks of two sites (source and
   destination); don't add more.
 - **Keep locks that many threads take short.** Don't do network I/O or encryption while holding them.
+- **Reuse medium-sized buffers on hot paths.** In FPC's `mormot.core.fpcx64mm`, medium blocks (2.6 KB to
+  256 KB) share one global lock in every mode. Don't free and reallocate such buffers on paths that
+  hundreds of threads run; reuse them instead, as `TslTCPSocket.Read` does with its read buffer.
 
 ## Libraries (`libs/`)
 

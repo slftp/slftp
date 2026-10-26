@@ -11,7 +11,7 @@ FPC on Windows is not supported, even though `slftp.lpr` contains Windows condit
 FPC-on-Windows code paths or build steps.
 
 FPC compiles in Delphi mode (`-MDelphi`), so most code is shared unchanged. The rest is handled with
-conditional compilation.
+conditional compilation. For tests that run in both test frameworks, see [writing-tests](writing-tests.md).
 
 ## You can usually verify only one side
 
@@ -45,52 +45,7 @@ existing slFtp helpers, which already behave the same on both compilers, over RT
 | Memory manager | `cthreads` + `mormot.core.fpcx64mm` (or `cmem`) | `FastMM5` | `slftp.lpr` / `slftp.dpr` |
 | Unit tests | fpcunit | DUnitX | `tests/` |
 
-Patterns from the code:
-
-```pascal
-// String type: never assume SizeOf(Char) = 1. Use RawByteString/bytes for network and file data.
-{$IFDEF UNICODE}
-  ExtractStrings([' ', ',', '|'], [], PChar(affils), List);
-{$ELSE}
-  ExtractStrings([' ', ',', '|'], [], PAnsiChar(affils), List);
-{$ENDIF}
-
-// Comparer for Generics.Collections sorting
-function _DirListSorter({$IFDEF FPC}constref{$ELSE}const{$ENDIF} i1, i2: TDirListEntry): Integer;
-
-// Atomic counter
-{$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumDn);
-```
-
-## Unit tests for both frameworks
-
-Tests are written once as DUnit-style `TTestCase` classes with `published` test methods and `Check*`
-asserts (`CheckEquals`, `CheckTrue`, …). fpcunit provides them natively; on Delphi,
-`DUnitX.DUnitCompatibility` maps them to DUnitX. Only the `uses` and the registration differ:
-
-```pascal
-uses
-  {$IFDEF FPC}
-    fpcunit, testregistry;
-  {$ELSE}
-    DUnitX.TestFramework, DUnitX.DUnitCompatibility;
-  {$ENDIF}
-
-...
-
-initialization
-  {$IFDEF FPC}
-    RegisterTest('tags', TTestTags.Suite);
-  {$ELSE}
-    TDUnitX.RegisterTestFixture(TTestTags);
-  {$ENDIF}
-```
-
-- Use `CheckEquals` for strings too; fpcunit has no `CheckEqualsString`.
-- fpcunit has no `SetUpOnce`/`TeardownOnce`. For setup that must run only once per process, guard
-  `SetUp` with a unit-global flag on FPC (see `slftpUnitTestsSetupIndyOpenSSL.pas`,
-  `ircchansettingsTests.pas`). The FPC runner exits without unit finalization, so there is no matching
-  teardown on that side.
+Never assume `SizeOf(Char) = 1`; use `RawByteString` or bytes for network and file data.
 
 ## Keep both project sides in sync
 
@@ -98,28 +53,21 @@ initialization
 |--------|----------|-------------|
 | New unit in an existing source folder | nothing (found via search path) | nothing (found via search path) |
 | New source folder or library | `Makefile` (`CINCLUDES`), `slftp.lpi`, `slftpUnitTests.lpi` | `slftp.dproj`, `slftpUnitTests.dproj` (`DCC_UnitSearchPath`; `make.bat` reads it) |
-| New test unit | `uses` of `tests/slftpUnitTests.lpr` | `uses` of `tests/slftpUnitTests.dpr` |
 | Program startup / memory manager | `slftp.lpr` | `slftp.dpr` |
 | Compiler define for all FPC builds | `Makefile` (`MORMOTFLAGS`), `CustomOptions` in `slftp.lpi` and `slftpUnitTests.lpi` | — |
 
 CI uses the `Makefile`, not the `.lpi` files, but keep the `.lpi` files current for Lazarus users.
 
-Defines meant for mORMot2 (e.g. `NOPATCHRTL`) must be passed on the command line or in the project
-files. `slftp.inc` does not work for them, because mORMot2 units only include `mormot.defines.inc`.
+## FPC defines
 
-## FPC: `NOPATCHRTL`
+All FPC builds pass these defines. Defines meant for mORMot2 must be passed on the command line or in
+the project files; `slftp.inc` does not work for them, because mORMot2 units only include
+`mormot.defines.inc`.
 
-FPC builds pass `-dNOPATCHRTL` so mORMot2 does not patch the FPC RTL. Its patched `clock_gettime`
-uses coarse clocks, which makes short `TEvent.WaitFor` timeouts return early
-(`tests/slclockTests.pas`).
-
-## FPC: `FPCMM_BOOST`
-
-FPC builds pass `-dFPCMM_BOOST` (which implies `FPCMM_SERVER`) to `mormot.core.fpcx64mm`: tiny
-blocks go up to 256 bytes and are kept apart from medium blocks, which reduces lock contention between
-the hundreds of slFtp threads. Set the mode only via this define, never by editing the vendored unit:
-without it the unit falls back to its mono-threaded GUI defaults. `FPCMM_BOOSTER` (128 arenas) needs
-more memory and its per-thread arena selection is experimental.
-In every mode, medium blocks (2.6 KB to 256 KB) share one global lock. Don't free and reallocate
-such buffers on hot paths that hundreds of threads run; reuse them instead, as `TslTCPSocket.Read`
-does with its read buffer.
+- `NOPATCHRTL`: mORMot2 does not patch the FPC RTL. Its patched `clock_gettime` uses coarse clocks,
+  which makes short `TEvent.WaitFor` timeouts return early (`tests/slclockTests.pas`).
+- `FPCMM_BOOST` (implies `FPCMM_SERVER`): `mormot.core.fpcx64mm` keeps tiny blocks up to 256 bytes
+  apart from medium blocks, which reduces lock contention between the hundreds of slFtp threads. Set the
+  mode only via this define, never by editing the vendored unit: without it the unit falls back to its
+  mono-threaded GUI defaults. `FPCMM_BOOSTER` (128 arenas) needs more memory and its per-thread arena
+  selection is experimental. Medium blocks still share one lock, see [architecture](architecture.md#locking).

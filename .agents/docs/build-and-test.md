@@ -1,7 +1,8 @@
 # Build & test
 
-CI builds and tests with both compilers (FPC on Linux, Delphi on Windows). For code differences, writing
-tests that work in both frameworks and keeping the project files in sync, see [compilers](compilers.md).
+CI builds and tests with both compilers (FPC on Linux, Delphi on Windows). For code differences and
+keeping the project files in sync, see [compilers](compilers.md); for writing tests that work in both
+frameworks, see [writing-tests](writing-tests.md).
 On Windows, the skill [test-both-compilers](../skills/test-both-compilers/SKILL.md) runs both sides, FPC
 through WSL.
 
@@ -10,7 +11,7 @@ through WSL.
 - Release build: `make slftp_64`; debug build: `make slftp_64_debug` (further targets: see `Makefile`)
 - CI builds with `fpc` through the `Makefile`. `slftp.lpi` (Lazarus project) exists but is not used by CI.
 - All FPC targets pass `-dNOPATCHRTL -dFPCMM_BOOST` (`MORMOTFLAGS` in the `Makefile`). Don't drop them
-  when adding or changing targets; see [compilers](compilers.md#fpc-nopatchrtl).
+  when adding or changing targets; see [compilers](compilers.md#fpc-defines).
 - Unit tests use fpcunit (ships with FPC) and run via `make test`
   - `make test` copies `config/*` into `tests/` itself; the test binary reads the config files from its
     own directory. CI moves them there in `before_script` instead, so `config/` is empty and the copy is

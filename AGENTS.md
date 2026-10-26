@@ -30,7 +30,7 @@ the config files the Windows tests need: [build-and-test](.agents/docs/build-and
 - **One topic per branch and per commit.** Unrelated fixes get their own branch off `dev`.
 - **Reuse before writing:** slFtp helpers first, then mORMot2: [conventions](.agents/docs/conventions.md).
 - **Follow the conventions** for naming, PasDoc comments and commit messages: [conventions](.agents/docs/conventions.md).
-- **Test behavior changes.**
+- **Test behavior changes:** [writing-tests](.agents/docs/writing-tests.md).
 - **Offer a CHANGELOG entry** for changes operators notice: ask the user before finishing, never add one
   unasked: [conventions](.agents/docs/conventions.md#changelog).
 - **Don't guess.** If behavior or intent is unclear, ask.
@@ -45,7 +45,8 @@ Read the doc that matches your task before changing code.
 | [.agents/docs/working-style.md](.agents/docs/working-style.md) | starting any task: assumptions, simplicity, surgical changes, verification |
 | [.agents/docs/architecture.md](.agents/docs/architecture.md) | finding your way around: units, tasks, locking, libraries        |
 | [.agents/docs/external-software.md](.agents/docs/external-software.md) | working on FTP daemon quirks (glFTPd/pzs-ng, DrFTPD, …) or IRC   |
-| [.agents/docs/compilers.md](.agents/docs/compilers.md)       | writing any code: FPC vs. Delphi differences, test framework, project files |
+| [.agents/docs/compilers.md](.agents/docs/compilers.md)       | writing any code: FPC vs. Delphi differences, project files, FPC defines |
+| [.agents/docs/writing-tests.md](.agents/docs/writing-tests.md) | writing unit tests that run with both fpcunit and DUnitX   |
 | [.agents/docs/build-and-test.md](.agents/docs/build-and-test.md) | building, running tests, dealing with build artifacts        |
 | [.agents/docs/wsl-fpc-setup.md](.agents/docs/wsl-fpc-setup.md) | setting up WSL so that a Windows machine can build with FPC   |
 | [.agents/docs/conventions.md](.agents/docs/conventions.md)   | writing code, docs, commit messages or CHANGELOG entries         |
