@@ -985,7 +985,8 @@ end;
 
 function TslTCPSocket.Read(var s: String; timeout: Integer = slDefaultTimeout; maxolvasas: Integer = 0; untilDisconnects: Boolean = False): Boolean;
 const
-  // a bigger buffer (e.g. after a large STAT -l) is released instead of kept per socket
+  // current callers read at most slBufferSize per call; this guards callers that pass untilDisconnects or a
+  // large maxolvasas, so that a bigger buffer is released instead of kept per socket
   MaxKeptBufferSize = 1024 * 1024;
 begin
   try
