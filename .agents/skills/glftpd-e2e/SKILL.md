@@ -32,9 +32,8 @@ A run, all on Linux or inside WSL (`~/slftp-e2e/`):
 - **Linux:** x86-64, `git`, `tmux`, `curl`, `python3`, `ss` (iproute2) and `libsqlite3-0`, and Docker
   Engine usable without `sudo`: the user is in the group `docker`, so `docker info` works. Rootless
   Docker doesn't fit: the build runs as `--user $(id -u)` and expects its output to belong to the user.
-  Installing needs `sudo`, so ask the user, e.g. on Ubuntu `sudo apt-get install docker.io tmux &&
-  sudo usermod -aG docker $USER`, then log in again. Not run on a Linux machine outside WSL yet, only
-  from a checkout in the WSL file system, which takes the same path through the scripts.
+  Installing needs `sudo`, so ask the user, e.g. on Debian or Ubuntu `sudo apt-get install docker.io
+  tmux && sudo usermod -aG docker $USER`, then log in again. Run as `root` it works as well.
 - **Windows:** WSL with Docker, set up with [wsl-fpc-setup](../../docs/wsl-fpc-setup.md). The other
   tools come with Ubuntu.
 
@@ -126,8 +125,9 @@ Each run replaces what the previous one left, so nothing piles up:
   files in `glftpd/`), `e2e.sh` removes the images of older inputs and the build stages.
 - no containers: they are removed at the end of each run
 
-The CI image and `~/slftp-fpc-build` belong to test-both-compilers and stay. To remove everything of
-this skill, delete `~/slftp-e2e` and the `slftp-e2e-glftpd` images.
+The CI image and `~/slftp-fpc-build` belong to test-both-compilers and stay, as does the base image
+`ubuntu:24.04` of the site image (about 80 MB). To remove everything of this skill, delete
+`~/slftp-e2e` and the `slftp-e2e-glftpd` images.
 
 ## Report
 
