@@ -26,8 +26,13 @@ branch: `dev`").
 A missing `glab` does not block the MR: use the REST API or push options below. Afterwards, tell the
 user that installing `glab` (see [One-time setup](#one-time-setup)) improves the workflow.
 
-If `GITLAB_TOKEN` is set, use the REST API. Otherwise ask the user once: may you look for a token in
-git's credential store (see below), or should you use push options?
+Take the first way that works; ask the user nothing before step 3:
+
+1. `GITLAB_TOKEN` is set: use the [REST API](#rest-api).
+2. Otherwise use [push options](#push-options) if they can do the job (they can't if the branch is
+   already pushed and up to date, or the task needs more than creating the MR, e.g. updating it).
+3. Only then ask the user once whether you may read a token from git's credential store and use the
+   REST API with it.
 
 ### REST API
 
@@ -70,8 +75,8 @@ Push options must not contain line breaks: use `<br>` for line breaks in the des
 the GitLab UI afterwards. The push output prints the MR link.
 
 Push options only reach GitLab together with a ref update. If the branch is already pushed and up to
-date, git reports "Everything up-to-date", sends nothing and no MR is created. Then give the user the
-link to create it in the browser instead:
+date, git reports "Everything up-to-date", sends nothing and no MR is created. Then ask about the
+credential store (see above); if the user declines, give them the link to create the MR in the browser:
 `https://gitlab.com/slftp/slftp/-/merge_requests/new?merge_request[source_branch]=<branch>&merge_request[target_branch]=dev`
 
 ## Windows PATH gotcha after installing `glab`
