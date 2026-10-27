@@ -1979,6 +1979,8 @@ begin
 end;
 
 function TSiteSlot.Cwd(dir: String; force: boolean = False): boolean;
+var
+  matcheddir: String;
 begin
   Result := False;
   dir := MyIncludeTrailingSlash(dir);
@@ -1988,9 +1990,17 @@ begin
     if ((site.legacydirlist) or (force)) then
     begin
       if not Send('CWD %s', [dir]) then
+      begin
+        if site.legacydirlist then
+          aktdir := ''; // CWD outcome unknown, force a real CWD next time
         exit;
+      end;
       if not Read('CWD') then
+      begin
+        if site.legacydirlist then
+          aktdir := '';
         exit;
+      end;
 
       if (lastResponseCode = 250) then
       begin
@@ -1998,10 +2008,19 @@ begin
         begin
           Debug(dpError, section, 'TRIMMED RLSNAME DETECTED! ' + Name + ' ' + dir);
 
-          if dir[1] <> '/' then
-            aktdir := aktdir + dir
+          if site.legacydirlist then
+          begin
+            // server moved into the matched dir, not the requested one
+            if not Pwd(matcheddir) then
+              aktdir := '';
+          end
           else
-            aktdir := dir;
+          begin
+            if dir[1] <> '/' then
+              aktdir := aktdir + dir
+            else
+              aktdir := dir;
+          end;
 
           Result := True;
           exit;

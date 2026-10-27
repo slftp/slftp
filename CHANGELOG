@@ -63,6 +63,7 @@
     {#} Fix build on BSD
     {#} Fix corrupted sites.dat and rtpl/SITE.setting files when the process gets killed or crashes
     {#} Fix REQUEST precatcher event firing when it should not
+    {#} Fix legacycwd sites running commands in the wrong directory after a failed CWD or a trimmed release name
     {+} Enable SFV check to avoid sending wrong files. Set sections in SFVRelease in [taskrace] of slftp.ini
     {+} Enable locks with timeout in slftp.ini section 'debug' setting 'event_based_locking'. This is to debug deadlocks and
         will raise an exception with some info about which thread and code is blocking a lock.
