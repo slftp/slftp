@@ -21,10 +21,10 @@
 # Everything lives in ~/slftp-e2e: downloads (dl/), image build context (image/), slFtp builds
 # (build-<name>/), runtime directories (run-<name>/), results (result-<name>.txt), log and exit code.
 # Only one run at a time: another one exits with code 11. The slFtp build itself is done by
-# test-both-compilers/fpc-wsl.sh and shares its lock. Exit code 10: environment not set up.
+# .agents/scripts/fpc-wsl.sh and shares its lock. Exit code 10: environment not set up.
 
 skill_dir="$(cd "$(dirname "$0")" && pwd)"
-fpc_script="$skill_dir/../test-both-compilers/fpc-wsl.sh"
+fpc_script="$skill_dir/../../scripts/fpc-wsl.sh"
 work="$HOME/slftp-e2e"
 log_file="$work/e2e.log"
 exitcode_file="$work/e2e.exitcode"

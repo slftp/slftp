@@ -1,8 +1,8 @@
 #!/bin/bash
 # Builds slFtp and runs the unit tests with FPC inside WSL, in the GitLab CI image (same steps as the
-# CI jobs buildlinux64 and testlinux64). Started by fpc-wsl.ps1, see SKILL.md next to this file; on
-# Linux, glftpd-e2e and run-slftp use its --export. Runs as the normal user and only reads the
-# checkout this script lives in.
+# CI jobs buildlinux64 and testlinux64). Used by the skills test-both-compilers (started by its
+# fpc-wsl.ps1), and glftpd-e2e and run-slftp (its --export), see their SKILL.md. Runs as the normal
+# user and only reads the checkout this script lives in.
 #
 #   fpc-wsl.sh             build HEAD + uncommitted changes + untracked (not ignored) files
 #   fpc-wsl.sh <ref>       build only the committed state of <ref>
@@ -23,7 +23,7 @@
 # The exit code of a run with --id goes to ~/slftp-fpc-build.exitcode.<id>, so the caller never reads
 # the result of another run.
 
-repo="$(cd "$(dirname "$0")/../../.." && pwd)"
+repo="$(cd "$(dirname "$0")/../.." && pwd)"
 build_dir="$HOME/slftp-fpc-build"
 log_file="$build_dir.log"
 exitcode_file="$build_dir.exitcode"

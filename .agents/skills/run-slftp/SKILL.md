@@ -23,7 +23,7 @@ run the Delphi build.
 ## Run
 
 1. Build:
-   - Linux: `bash .agents/skills/test-both-compilers/fpc-wsl.sh --export ~/slftp-run/build`: the
+   - Linux: `bash .agents/scripts/fpc-wsl.sh --export ~/slftp-run/build`: the
      release build of `HEAD` plus uncommitted changes in the CI image, in the clone of
      [test-both-compilers](../test-both-compilers/SKILL.md); the checkout is only read. `<dir>.commit`
      holds the tested commit.

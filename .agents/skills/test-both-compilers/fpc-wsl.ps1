@@ -2,7 +2,7 @@
 .SYNOPSIS
   Builds slFtp and runs the unit tests with FPC in WSL, see SKILL.md next to this file.
 .DESCRIPTION
-  Runs fpc-wsl.sh in a separate process, waits until it has finished and prints a summary. The run is
+  Runs .agents/scripts/fpc-wsl.sh in a separate process, waits until it has finished and prints a summary. The run is
   hidden, except for the long first run (clone, image pull) or with -Visible: then it shows a console
   window the user can follow, which closes itself on success and stays open on failure.
   The Windows checkout is only read.
@@ -39,7 +39,7 @@ if ($LASTEXITCODE -ne 0) {
   Write-Output 'ERROR: no usable WSL distribution, see .agents/docs/wsl-fpc-setup.md'
   exit 2
 }
-$script = (Invoke-Wsl wslpath -u "$PSScriptRoot\fpc-wsl.sh") -join ''
+$script = (Invoke-Wsl wslpath -u "$PSScriptRoot\..\..\scripts\fpc-wsl.sh") -join ''
 Invoke-Wsl bash $script --initialized
 if ($LASTEXITCODE -ne 0) { $Visible = $true }
 

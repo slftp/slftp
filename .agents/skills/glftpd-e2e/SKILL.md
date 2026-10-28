@@ -17,8 +17,8 @@ A run, all on Linux or inside WSL (`~/slftp-e2e/`) except for the Delphi build:
 
 1. Builds the site image `slftp-e2e-glftpd`: glftpd and pzs-ng, both pinned in `e2e.sh` (`gl_url` with
    `gl_sha512`, `pzs_commit`), configured by the files in `glftpd/` (`zsconfig.h` is compiled in).
-2. Builds slFtp with `make slftp_64` in the CI image through `fpc-wsl.sh --export` of
-   [test-both-compilers](../test-both-compilers/SKILL.md), in its separate clone `~/slftp-fpc-build`:
+2. Builds slFtp with `make slftp_64` in the CI image through `.agents/scripts/fpc-wsl.sh --export`
+   of [test-both-compilers](../test-both-compilers/SKILL.md), in its separate clone `~/slftp-fpc-build`:
    the checkout is only read, also on Linux. Both skills share that clone and its lock. With
    `-Compiler Delphi`, `e2e.ps1` instead builds `slftp.exe` with `make.bat slftp_64` in the checkout
    and prepares it with `slftp-run.ps1 prepare` in `%LOCALAPPDATA%\slftp-e2e\build-change`.

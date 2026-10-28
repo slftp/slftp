@@ -52,7 +52,7 @@ if ($LASTEXITCODE -ne 0) {
   exit 2
 }
 $script = (Invoke-Wsl wslpath -u "$PSScriptRoot\e2e.sh") -join ''
-$fpcScript = (Invoke-Wsl wslpath -u "$PSScriptRoot\..\test-both-compilers\fpc-wsl.sh") -join ''
+$fpcScript = (Invoke-Wsl wslpath -u "$PSScriptRoot\..\..\scripts\fpc-wsl.sh") -join ''
 Invoke-Wsl bash $script --initialized
 $initialized = $LASTEXITCODE -eq 0
 if ($Compiler -eq 'FPC') {
