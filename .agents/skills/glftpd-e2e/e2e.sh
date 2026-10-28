@@ -13,10 +13,7 @@
 #                              its runtime directory is run-change next to <dir>
 #   e2e.sh --id <id> ...       write the exit code to a file of its own for run <id>
 #   e2e.sh --initialized       exit code 0 if the glftpd image exists (else the run builds it, slow)
-#   e2e.sh --clear [<id>]      remove the exit code file of the last run (or of run <id>)
-#   e2e.sh --status [<id>]     print the exit code of the last run (or of run <id>), nothing while it
-#                              is still running
-#   e2e.sh --summary           print the results of the last run
+#   e2e.sh --clear | --status | --summary  see .agents/scripts/run-protocol.sh
 #
 # Everything lives in ~/slftp-e2e: downloads (dl/), image build context (image/), slFtp builds
 # (build-<name>/), runtime directories (run-<name>/), results (result-<name>.txt), log and exit code.
@@ -30,6 +27,10 @@ log_file="$work/e2e.log"
 exitcode_file="$work/e2e.exitcode"
 image=slftp-e2e-glftpd
 setup_doc=.agents/skills/glftpd-e2e/SKILL.md
+# steps, checks, notes, result files and the compiler errors of a failed build
+summary_pattern='^=== |^ERROR|^(PASS|FAIL|NOTE):|^Result file:|Error:|Fatal:'
+# shellcheck source=../../scripts/run-protocol.sh
+. "$skill_dir/../../scripts/run-protocol.sh"
 # shellcheck source=../../scripts/slftp-run.sh
 . "$skill_dir/../../scripts/slftp-run.sh"
 
@@ -43,15 +44,9 @@ image_tag="$image:$({ echo "$gl_url $gl_sha512 $pzs_commit"; cat "$skill_dir"/gl
   sha256sum | cut -c1-12)"
 
 mkdir -p "$work"
+run_query "$@"
 case "$1" in
   --initialized) docker image inspect "$image_tag" >/dev/null 2>&1; exit ;;
-  --clear) rm -f "$exitcode_file${2:+.$2}"; exit 0 ;;
-  --status) [ -f "$exitcode_file${2:+.$2}" ] && cat "$exitcode_file${2:+.$2}"; exit 0 ;;
-  --summary)
-    # steps, checks, notes, result files and the compiler errors of a failed build
-    grep -E '^=== |^ERROR|^(PASS|FAIL|NOTE):|^Result file:|Error:|Fatal:' "$log_file"
-    echo "Full log: $log_file"
-    exit 0 ;;
 esac
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -321,20 +316,4 @@ main() {
   return $rc
 }
 
-exec 9>"$work/e2e.lock"
-if ! flock -n 9; then
-  echo "ERROR: another run is active, try again when it has finished"
-  [ -z "$run_id" ] || echo 11 > "$exitcode_file"
-  exit 11
-fi
-rm -f "$exitcode_file"
-set -o pipefail
-main 2>&1 | tee "$log_file"
-rc=$?
-if [ $rc -eq 0 ]; then
-  echo "=== PASSED ==="
-else
-  echo "=== FAILED with exit code $rc ==="
-fi | tee -a "$log_file"
-echo $rc > "$exitcode_file"
-exit $rc
+run_locked "$work/e2e.lock" main

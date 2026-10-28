@@ -13,20 +13,20 @@
 #                          and writes the tested state to <dir>.commit: the short commit hash, with
 #                          " + uncommitted changes" if there were any
 #   fpc-wsl.sh --initialized  exit code 0 if the build clone exists (else the run clones, slow)
-#   fpc-wsl.sh --clear [<id>]   remove the exit code file of the last run (or of run <id>)
-#   fpc-wsl.sh --status [<id>]  print the exit code of the last run (or of run <id>), nothing while it
-#                               is still running
-#   fpc-wsl.sh --summary   print the important lines of the last log
+#   fpc-wsl.sh --clear | --status | --summary  see run-protocol.sh next to this file
 #
 # Clone, log and exit code live in the home directory: ~/slftp-fpc-build, ~/slftp-fpc-build.{log,exitcode}
 # Only one run at a time: another one exits with code 11 and leaves clone, log and exit code alone.
-# The exit code of a run with --id goes to ~/slftp-fpc-build.exitcode.<id>, so the caller never reads
-# the result of another run.
 
-repo="$(cd "$(dirname "$0")/../.." && pwd)"
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+repo="$(cd "$script_dir/../.." && pwd)"
 build_dir="$HOME/slftp-fpc-build"
 log_file="$build_dir.log"
 exitcode_file="$build_dir.exitcode"
+# steps, compiler errors, failed test suites/tests and the test totals
+summary_pattern='^=== |^ERROR|Error:|Fatal:|Fail| [EF]:[1-9]|Number of'
+# shellcheck source=run-protocol.sh
+. "$script_dir/run-protocol.sh"
 image=registry.gitlab.com/slftp/ci-images/ubuntu-lts
 # A checkout on a Windows drive (WSL) is read with Windows git and its own settings (autocrlf, stat
 # info), any other checkout with git. Neither writes to it.
@@ -38,15 +38,9 @@ else
   setup_doc=.agents/skills/glftpd-e2e/SKILL.md
 fi
 
+run_query "$@"
 case "$1" in
   --initialized) [ -d "$build_dir/.git" ]; exit ;;
-  --clear) rm -f "$exitcode_file${2:+.$2}"; exit 0 ;;
-  --status) [ -f "$exitcode_file${2:+.$2}" ] && cat "$exitcode_file${2:+.$2}"; exit 0 ;;
-  --summary)
-    # steps, compiler errors, failed test suites/tests and the test totals
-    grep -E '^=== |^ERROR|Error:|Fatal:|Fail| [EF]:[1-9]|Number of' "$log_file"
-    echo "Full log: $log_file"
-    exit 0 ;;
   --id) run_id="$2"; exitcode_file="$exitcode_file.$2"; shift 2 ;;
   --export) export_dir="$(realpath -m "$2")"; shift 2 ;;
 esac
@@ -132,21 +126,4 @@ run() {
   if [ -n "$export_dir" ]; then build_and_export; else build_and_test; fi
 }
 
-# exit code 11: another run is active; the lock is held until this script exits
-exec 9>"$build_dir.lock"
-if ! flock -n 9; then
-  echo "ERROR: another run is active, try again when it has finished"
-  [ -z "$run_id" ] || echo 11 > "$exitcode_file"
-  exit 11
-fi
-rm -f "$exitcode_file"
-set -o pipefail
-run 2>&1 | tee "$log_file"
-rc=$?
-if [ $rc -eq 0 ]; then
-  echo "=== PASSED ==="
-else
-  echo "=== FAILED with exit code $rc ==="
-fi | tee -a "$log_file"
-echo $rc > "$exitcode_file"
-exit $rc
+run_locked "$build_dir.lock" run
