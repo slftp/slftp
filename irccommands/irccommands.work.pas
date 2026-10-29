@@ -86,36 +86,45 @@ end;
 
 function IrcDirlistStats(const netname, channel, params: String): boolean;
 var
-  fReleaseName, fDir: String;
+  fReleaseName, fSiteName, fDir: String;
   fStats: TDirlistStats;
   fTruncated: Boolean;
   fStat: TDirlistStatsRecord;
 begin
   Result := False;
-  fReleaseName := Trim(params);
+  fReleaseName := SubString(params, ' ', 1);
+  fSiteName := UpperCase(SubString(params, ' ', 2));
   if fReleaseName = '' then
   begin
-    irc_addtext(Netname, Channel, 'Usage: !dirliststats releasename');
+    irc_addtext(Netname, Channel, 'Usage: !dirliststats releasename [site]');
     Exit;
   end;
 
-  if not DirlistStatsGet(fReleaseName, fStats, fTruncated) then
+  if not DirlistStatsGet(fReleaseName, fSiteName, fStats, fTruncated) then
   begin
-    irc_addtext(Netname, Channel, 'No dirlist stats found for <b>%s</b>.', [fReleaseName]);
+    if fSiteName = '' then
+      irc_addtext(Netname, Channel, 'No dirlist stats found for <b>%s</b>.', [fReleaseName])
+    else
+      irc_addtext(Netname, Channel, 'No dirlist stats found for <b>%s</b> on <b>%s</b>.', [fReleaseName, fSiteName]);
     Result := True;
     Exit;
   end;
 
-  irc_addtext(Netname, Channel, 'Dirlist stats for <b>%s</b> (%d/%d directories%s)',
-    [fReleaseName, Length(fStats), 50, IfThen(fTruncated, ', more omitted', '')]);
+  if fSiteName = '' then
+    irc_addtext(Netname, Channel, 'First dirlist snapshots for <b>%s</b> (%d/%d%s)',
+      [fReleaseName, Length(fStats), 50, IfThen(fTruncated, ', more omitted', '')])
+  else
+    irc_addtext(Netname, Channel, 'First dirlist snapshots for <b>%s</b> on <b>%s</b> (%d/%d%s)',
+      [fReleaseName, fSiteName, Length(fStats), 50, IfThen(fTruncated, ', more omitted', '')]);
   for fStat in fStats do
   begin
     if fStat.FDir = '' then
       fDir := '<root>'
     else
       fDir := fStat.FDir;
-    irc_addtext(Netname, Channel, '%s @ <b>%s</b> / %s: 0B=%d, >0B=%d',
-      [fStat.FSection, fStat.FSiteName, fDir, fStat.FZeroByteFiles, fStat.FPositiveByteFiles]);
+    irc_addtext(Netname, Channel, '#%d %s @ <b>%s</b> / %s: 0B=%d, >0B=%d',
+      [fStat.FSequence, fStat.FSection, fStat.FSiteName, fDir,
+       fStat.FZeroByteFiles, fStat.FPositiveByteFiles]);
   end;
   Result := True;
 end;

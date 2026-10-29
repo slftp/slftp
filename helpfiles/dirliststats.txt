@@ -1,3 +1,4 @@
-Usage: <cmd> releasename
-Description: shows up to 50 cached dirlists for the release, grouped by section and site.
+Usage: <cmd> releasename [site]
+Description: shows the first 50 dirlist snapshots for the release, optionally limited to one site.
+Each site keeps its own first 50 snapshots; without a site, the first 50 across all sites are shown.
 Displays counts for zero-byte and non-zero-byte files; file names are not shown.

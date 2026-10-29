@@ -5,6 +5,7 @@ interface
 type
   { Statistics for one release directory on one site. File names are not stored. }
   TDirlistStatsRecord = record
+    FSequence: Integer; //< order in which this snapshot was collected
     FSection: String; //< section containing the release
     FSiteName: String; //< site containing the directory
     FDir: String; //< directory relative to the release root; empty for the root
@@ -15,14 +16,14 @@ type
   { Snapshot of the collected dirlist statistics for one release. }
   TDirlistStats = TArray<TDirlistStatsRecord>;
 
-{ Adds or updates statistics for one release directory. At most 50 unique
-  directories are kept per release. }
+{ Adds one dirlist snapshot. The first 50 snapshots per site are kept for each release. }
 procedure DirlistStatsAdd(const aReleaseName, aSection, aSiteName, aDir: String;
   const aZeroByteFiles, aPositiveByteFiles: Integer);
 
 { Returns a thread-safe snapshot of the release statistics.
-  @param(aTruncated @true if more than 50 unique directories were seen) }
-function DirlistStatsGet(const aReleaseName: String; out aStats: TDirlistStats;
+  @param(aSiteName Optional site filter)
+  @param(aTruncated @true if more than 50 snapshots matched the query) }
+function DirlistStatsGet(const aReleaseName, aSiteName: String; out aStats: TDirlistStats;
   out aTruncated: Boolean): Boolean;
 
 implementation
@@ -31,13 +32,15 @@ uses
   SysUtils, SyncObjs, Generics.Collections;
 
 const
-  cMaxDirlistStatsPerRelease = 50;
+  cMaxDirlistStatsPerSite = 50;
 
 type
   TDirlistStatsCollection = class
   public
     Items: TList<TDirlistStatsRecord>;
     Truncated: Boolean;
+    TruncatedSites: TDictionary<String, Boolean>;
+    NextSequence: Integer;
     constructor Create;
     destructor Destroy; override;
   end;
@@ -51,11 +54,14 @@ begin
   inherited Create;
   Items := TList<TDirlistStatsRecord>.Create;
   Truncated := False;
+  TruncatedSites := TDictionary<String, Boolean>.Create;
+  NextSequence := 0;
 end;
 
 destructor TDirlistStatsCollection.Destroy;
 begin
   Items.Free;
+  TruncatedSites.Free;
   inherited Destroy;
 end;
 
@@ -65,6 +71,7 @@ var
   fCollection: TDirlistStatsCollection;
   fRecord: TDirlistStatsRecord;
   fReleaseKey: String;
+  fSiteStatsCount: Integer;
   i: Integer;
 begin
   if aReleaseName = '' then
@@ -79,26 +86,23 @@ begin
       glDirlistStats.Add(fReleaseKey, fCollection);
     end;
 
+    fSiteStatsCount := 0;
     for i := 0 to fCollection.Items.Count - 1 do
     begin
       fRecord := fCollection.Items[i];
-      if SameText(fRecord.FSection, aSection) and
-         SameText(fRecord.FSiteName, aSiteName) and
-         SameText(fRecord.FDir, aDir) then
-      begin
-        fRecord.FZeroByteFiles := aZeroByteFiles;
-        fRecord.FPositiveByteFiles := aPositiveByteFiles;
-        fCollection.Items[i] := fRecord;
-        Exit;
-      end;
+      if SameText(fRecord.FSiteName, aSiteName) then
+        Inc(fSiteStatsCount);
     end;
 
-    if fCollection.Items.Count >= cMaxDirlistStatsPerRelease then
+    if fSiteStatsCount >= cMaxDirlistStatsPerSite then
     begin
       fCollection.Truncated := True;
+      fCollection.TruncatedSites.AddOrSetValue(UpperCase(aSiteName), True);
       Exit;
     end;
 
+    Inc(fCollection.NextSequence);
+    fRecord.FSequence := fCollection.NextSequence;
     fRecord.FSection := aSection;
     fRecord.FSiteName := aSiteName;
     fRecord.FDir := aDir;
@@ -110,10 +114,12 @@ begin
   end;
 end;
 
-function DirlistStatsGet(const aReleaseName: String; out aStats: TDirlistStats;
+function DirlistStatsGet(const aReleaseName, aSiteName: String; out aStats: TDirlistStats;
   out aTruncated: Boolean): Boolean;
 var
   fCollection: TDirlistStatsCollection;
+  fItems: TList<TDirlistStatsRecord>;
+  fRecord: TDirlistStatsRecord;
   i: Integer;
 begin
   Result := False;
@@ -125,11 +131,32 @@ begin
     if not glDirlistStats.TryGetValue(UpperCase(aReleaseName), fCollection) then
       Exit;
 
-    SetLength(aStats, fCollection.Items.Count);
-    for i := 0 to fCollection.Items.Count - 1 do
-      aStats[i] := fCollection.Items[i];
-    aTruncated := fCollection.Truncated;
-    Result := True;
+    if aSiteName = '' then
+      aTruncated := fCollection.Truncated
+    else
+      fCollection.TruncatedSites.TryGetValue(UpperCase(aSiteName), aTruncated);
+
+    fItems := TList<TDirlistStatsRecord>.Create;
+    try
+      for i := 0 to fCollection.Items.Count - 1 do
+      begin
+        fRecord := fCollection.Items[i];
+        if ((aSiteName <> '') and (not SameText(fRecord.FSiteName, aSiteName))) then
+          Continue;
+
+        if fItems.Count >= cMaxDirlistStatsPerSite then
+        begin
+          aTruncated := True;
+          Break;
+        end;
+        fItems.Add(fRecord);
+      end;
+
+      aStats := fItems.ToArray;
+      Result := fItems.Count > 0;
+    finally
+      fItems.Free;
+    end;
   finally
     glDirlistStatsLock.Leave;
   end;
