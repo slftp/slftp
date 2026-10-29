@@ -4,6 +4,7 @@ interface
 
 { slftp work commands functions }
 function IrcDirlist(const netname, channel, params: String): boolean;
+function IrcDirlistStats(const netname, channel, params: String): boolean;
 function IrcAutoDirlist(const netname, channel, params: String): boolean;
 function IrcLatest(const netname, channel, params: String): boolean;
 function IrcSpread(const netname, channel, params: String): boolean; overload;
@@ -22,7 +23,8 @@ implementation
 uses
   SysUtils, Classes, math, DateUtils, Contnrs, SyncObjs, irccommandsunit, sitesunit, dirlist, pazo,
   kb, kb.releaseinfo, rulesunit, mystrings, debugunit, queueunit, notify, irc, taskrace, statsunit, nuke,
-  globalskipunit, configunit, mainthread, RegExpr, taskraw, sltcp, mygrouphelpers, Generics.Collections, StrUtils;
+  globalskipunit, configunit, mainthread, RegExpr, taskraw, sltcp, mygrouphelpers, Generics.Collections, StrUtils,
+  dirliststats;
 
 const
   section = 'irccommands.work';
@@ -79,6 +81,42 @@ begin
     d.Free;
   end;
 
+  Result := True;
+end;
+
+function IrcDirlistStats(const netname, channel, params: String): boolean;
+var
+  fReleaseName, fDir: String;
+  fStats: TDirlistStats;
+  fTruncated: Boolean;
+  fStat: TDirlistStatsRecord;
+begin
+  Result := False;
+  fReleaseName := Trim(params);
+  if fReleaseName = '' then
+  begin
+    irc_addtext(Netname, Channel, 'Usage: !dirliststats releasename');
+    Exit;
+  end;
+
+  if not DirlistStatsGet(fReleaseName, fStats, fTruncated) then
+  begin
+    irc_addtext(Netname, Channel, 'No dirlist stats found for <b>%s</b>.', [fReleaseName]);
+    Result := True;
+    Exit;
+  end;
+
+  irc_addtext(Netname, Channel, 'Dirlist stats for <b>%s</b> (%d/%d directories%s)',
+    [fReleaseName, Length(fStats), 50, IfThen(fTruncated, ', more omitted', '')]);
+  for fStat in fStats do
+  begin
+    if fStat.FDir = '' then
+      fDir := '<root>'
+    else
+      fDir := fStat.FDir;
+    irc_addtext(Netname, Channel, '%s @ <b>%s</b> / %s: 0B=%d, >0B=%d',
+      [fStat.FSection, fStat.FSiteName, fDir, fStat.FZeroByteFiles, fStat.FPositiveByteFiles]);
+  end;
   Result := True;
 end;
 

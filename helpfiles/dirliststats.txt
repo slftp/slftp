@@ -1,0 +1,3 @@
+Usage: <cmd> releasename
+Description: shows up to 50 cached dirlists for the release, grouped by section and site.
+Displays counts for zero-byte and non-zero-byte files; file names are not shown.

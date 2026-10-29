@@ -261,7 +261,7 @@ implementation
 uses
   SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
   taskrace, mystrings, irc, sltcp, slhelper, Math, taskpretime, configunit,
-  mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv;
+  mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv, dirliststats;
 
 const
   section = 'pazo';
@@ -1488,6 +1488,7 @@ var
   fFoundDirListEntries, fRemovePazoRaceEntries: TObjectList<TDirListEntry>;
   fTasksAdded: boolean;
   fSite: TSite;
+  fZeroByteFiles, fPositiveByteFiles: Integer;
 begin
   Result := False;
 
@@ -1525,8 +1526,13 @@ begin
   if d.entries = nil then
     exit;
   if d.entries.Count = 0 then
+  begin
+    DirlistStatsAdd(pazo.rls.rlsname, pazo.rls.section, Name, dir, 0, 0);
     exit;
+  end;
 
+  fZeroByteFiles := 0;
+  fPositiveByteFiles := 0;
 
   // Do some stuff obviously
   if d.entries.Count > 0 then
@@ -1542,6 +1548,11 @@ begin
           begin
             if not de.Directory then
             begin
+              if de.filesize = 0 then
+                Inc(fZeroByteFiles)
+              else if de.filesize > 0 then
+                Inc(fPositiveByteFiles);
+
               if (de.justadded) then
               begin
                 de.justadded := False;
@@ -1555,6 +1566,9 @@ begin
       finally
         d.dirlist_lock.Leave;
       end;
+
+      DirlistStatsAdd(pazo.rls.rlsname, pazo.rls.section, Name, dir,
+        fZeroByteFiles, fPositiveByteFiles);
 
       SortDirlistEntries(fFoundDirListEntries);
 
