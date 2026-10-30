@@ -49,11 +49,25 @@ slftp_prepare() {
     echo "ERROR: $run_dir exists and is no runtime directory"
     return 1
   fi
-  rm -rf "$run_dir" && mkdir -p "$run_dir" && cp -r "$1/." "$run_dir/" || return
+  # the slFtp of a killed run (the caller holds the lock of the runs): Windows can't delete a running
+  # slftp.exe
+  if [ -n "$slftp_windows" ] && [ -f "$run_dir/slftp-run.pid" ]; then
+    _ps_run kill || return
+  fi
+  # the conhost of a killed slFtp can hold the directory for a moment, and without slftp.exe the check
+  # above would refuse every later run
+  rm -rf "$run_dir" || { sleep 2; rm -rf "$run_dir"; } || return
+  mkdir -p "$run_dir" && cp -r "$1/." "$run_dir/" || return
   [ -n "$slftp_windows" ] || cp -L "$slftp_sqlite" "$run_dir/libsqlite3.so" || return
   # console.pas reads the master password from this file instead of prompting; the first start
   # creates sites.dat with it
   echo slftp-run > "$run_dir/masterpass.txt"
+}
+
+# _ps_run <command>: runs slftp-run.ps1 <command> for run_dir
+_ps_run() {
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(wslpath -w "$slftp_lib_dir/slftp-run.ps1")" \
+    "$1" -Dir "$(wslpath -w "$run_dir")"
 }
 
 # _ps <command> [<text> [<count> [<seconds>]]]: runs a command of the serve process (see
@@ -118,8 +132,7 @@ wait_console() {
 # slftp_start: starts slFtp in run_dir, waits for its prompt and prints the version line
 slftp_start() {
   if [ -n "$slftp_windows" ]; then
-    coproc _slftp_ps { exec powershell.exe -NoProfile -ExecutionPolicy Bypass \
-      -File "$(wslpath -w "$slftp_lib_dir/slftp-run.ps1")" serve -Dir "$(wslpath -w "$run_dir")"; }
+    coproc _slftp_ps { _ps_run serve; }
     # coproc file descriptors are not available in subshells, as in pane | grep
     exec {_ps_in}>&"${_slftp_ps[1]}" {_ps_out}<&"${_slftp_ps[0]}"
     _ps start
@@ -163,10 +176,11 @@ slftp_stop() {
   return 0
 }
 
-# slftp_kill: ends slFtp at once, also after a failed or no start
+# slftp_kill: ends slFtp at once, also after a failed or no start. On Windows not through the serve
+# process: an aborted run's signal can have ended it, or a killed pane can have left a reply in its pipe.
 slftp_kill() {
   if [ -n "$slftp_windows" ]; then
-    [ -z "$_ps_in" ] || { _ps kill; _ps_close; }
+    [ -z "$_ps_in" ] || { _ps_close; _ps_run kill; }
   else
     tmux kill-session -t "$session" 2>/dev/null
   fi

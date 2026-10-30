@@ -24,11 +24,14 @@ A run, all on Linux or inside WSL (`~/slftp-e2e/`) except for the Delphi build:
    and prepares it with `slftp-run.ps1 prepare` in `%LOCALAPPDATA%\slftp-e2e\build-change`.
 3. Starts the sites the scenario needs: site `<n>` is the container `slftp-e2e-glftpd-<n>` on
    `127.0.0.1:2120+<n>`, user `glftpd`/`glftpd`, TLS required for logins, listings and data, sections
-   at `/<section>`. All containers use the host network, so FXP between them stays on 127.0.0.1. If
-   one of their ports (also the passive ones from 50000) is in use, e.g. by a glftpd of the host, all
-   sites move to the next free block: `2220+<n>` and 51000, and so on. The result notes that.
+   at `/<section>`. All containers use the host network, so FXP between them stays on 127.0.0.1, and
+   the login ports listen only there. If one of their ports (also the passive ones from 50000) is in
+   use, e.g. by a glftpd of the host, all sites move to the next free block: `2220+<n>` and 51000, and
+   so on. The result notes that.
 4. Starts slFtp in a fresh runtime directory with the default config and runs the scenario.
-5. Exits slFtp and removes the containers; the image and the downloads stay.
+5. Exits slFtp and removes the containers; the image and the downloads stay. An aborted run does the
+   same on a signal to its process group, e.g. from a closed window or Ctrl-C, but not on one to
+   `e2e.sh` alone. Otherwise the next run with the same compiler does.
 
 ## Requirements
 

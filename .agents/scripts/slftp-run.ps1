@@ -211,11 +211,12 @@ public static class SlftpConsole {
 }
 '@
 
-# Get-SlftpProcess: the slFtp process of the runtime directory, $null if it doesn't run
+# Get-SlftpProcess: the slFtp process of the runtime directory, $null if it doesn't run. A pid file
+# that a hard kill left behind can name another process by now, even another slFtp.
 function Get-SlftpProcess {
   if (-not (Test-Path $pidFile)) { return $null }
   $process = Get-Process -Id ([int](Get-Content $pidFile)) -ErrorAction SilentlyContinue
-  if ($process -and $process.ProcessName -eq 'slftp') { return $process }
+  if ($process -and $process.Path -eq [IO.Path]::GetFullPath((Join-Path $Dir 'slftp.exe'))) { return $process }
   return $null
 }
 
@@ -317,7 +318,10 @@ function Invoke-Console([string]$Name, [string]$Arg, [int]$Lines, [int]$Within) 
     'kill' {
       $process = Get-SlftpProcess
       Disconnect-Slftp
-      if ($process) { Stop-Process -Id $process.Id -Force }
+      if ($process) {
+        Stop-Process -Id $process.Id -Force
+        $process.WaitForExit(5000) | Out-Null
+      }
       if (Test-Path $pidFile) { Remove-Item $pidFile }
       return 0
     }

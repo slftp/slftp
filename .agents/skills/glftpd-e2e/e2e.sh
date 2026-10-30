@@ -241,9 +241,10 @@ add_sites() {
 start_slftp() {
   local section
   slftp_prepare "$build" || return
-  # !setdir only accepts sections that the precatcher knows
+  # !setdir only accepts sections that the precatcher knows. A Windows checkout can have CRLF files
+  # (core.autocrlf), so keep the line ending of the file.
   for section in $sections; do
-    sed -i "/^\[sections\]$/a $section=$section" "$run_dir/slftp.precatcher" || return
+    sed -i "s/^\[sections\]\(\r\?\)$/&\n$section=$section\1/" "$run_dir/slftp.precatcher" || return
   done
   slftp_start
 }
@@ -275,10 +276,22 @@ note() { echo "NOTE: $*" | tee -a "$result"; }
 # seconds_since <EPOCHREALTIME value>: elapsed seconds with two decimals
 seconds_since() { awk -v a="$1" -v b="$EPOCHREALTIME" 'BEGIN { printf "%.2f", b - a }'; }
 
+# abort_run: ends slFtp and the sites when the run is aborted, e.g. its window was closed. Nobody reads
+# the output any more, and writing to it could stop the cleanup, so the reason goes to the log only.
+abort_run() {
+  trap '' HUP INT TERM PIPE
+  echo 'ERROR: run aborted by a signal, or the output or the serve process of slftp-run.ps1 has ended' >> "$log_file"
+  exec > /dev/null 2>&1
+  slftp_kill
+  stop_sites
+  exit 1
+}
+
 # Runs the scenario with build-<name>; exit code 1 if a check failed
 run_scenario() {
   name="$1"
   session="slftp-e2e-$name"
+  trap abort_run HUP INT TERM PIPE
   if [ -n "$slftp_windows" ]; then
     build="$windows_build"
     run_dir="$(dirname "$windows_build")/run-$name"
@@ -308,7 +321,11 @@ main() {
     build_slftp baseline "$baseline_ref" || return
   fi
   [ -n "$slftp_windows" ] || build_slftp change "$ref" || return
-  local rc=0
+  local rc=0 build_name
+  # a killed run can have left the slFtp of either build, and it would log in to the new sites
+  if [ -z "$slftp_windows" ]; then
+    for build_name in baseline change; do session="slftp-e2e-$build_name" slftp_kill; done
+  fi
   if [ -n "$baseline_ref" ]; then
     run_scenario baseline || rc=1
   fi
