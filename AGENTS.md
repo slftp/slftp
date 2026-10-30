@@ -27,7 +27,8 @@ the config files the Windows tests need: [build-and-test](.agents/docs/build-and
 
 - **Support both compilers.** If you can only build and test with one, say which one and that the other
   is unverified: [compilers](.agents/docs/compilers.md).
-- **One topic per branch and per commit.** Unrelated fixes get their own branch off `dev`.
+- **One topic per branch.** Fixes to the same feature or area are one topic and need no split into several
+  commits, as MRs are squash-merged. Unrelated fixes get their own branch off `dev`.
 - **Reuse before writing:** slFtp helpers first, then mORMot2: [conventions](.agents/docs/conventions.md).
 - **Follow the conventions** for naming, PasDoc comments and commit messages: [conventions](.agents/docs/conventions.md).
 - **Test behavior changes:** [writing-tests](.agents/docs/writing-tests.md).
@@ -53,6 +54,7 @@ Read the doc that matches your task before changing code.
 | [.agents/docs/databases.md](.agents/docs/databases.md)       | touching SQLite/MySQL code (mORMot2 parameter binding pitfall)   |
 | [.agents/docs/merge-requests.md](.agents/docs/merge-requests.md) | opening a merge request: `glab`, or REST API/push options without it |
 | [.agents/skills/](.agents/skills/README.md)                  | optional shortcuts for the most common tasks — check the index   |
+| [.agents/scripts/](.agents/scripts/)                         | changing a script that several skills share; each documents itself in its header |
 | [docs/](docs/)                                             | user/operator docs: runtime files, precatcher, chains, indexer, tvinfo, FAQ |
 
 ## Keeping agent instructions current

@@ -1,9 +1,9 @@
 # WSL setup for FPC builds on Windows
 
 One-time setup that lets a Windows machine build and test with FPC in WSL, in the same Docker image the
-GitLab CI uses (`registry.gitlab.com/slftp/ci-images/ubuntu-lts`). It is used by the skill
-[test-both-compilers](../skills/test-both-compilers/SKILL.md); come here when its script reports a
-missing environment.
+GitLab CI uses (`registry.gitlab.com/slftp/ci-images/ubuntu-lts`). It is used by the skills
+[test-both-compilers](../skills/test-both-compilers/SKILL.md) and
+[glftpd-e2e](../skills/glftpd-e2e/SKILL.md); come here when their scripts report a missing environment.
 
 Run these long steps in a visible console window so the user can follow the progress: a hidden install
 or download shows no output for minutes and looks hung. Let the window close itself on success and stay
@@ -54,3 +54,12 @@ wsl -d Ubuntu -- docker run --rm registry.gitlab.com/slftp/ci-images/ubuntu-lts 
 
 prints the FPC version of the CI. The script also needs Windows `git.exe` inside WSL, which works as long
 as the Windows `PATH` is appended in WSL (the default).
+
+## Pitfalls
+
+- WSL shuts the distribution down soon after the last `wsl.exe` session has ended, even with Docker
+  running, and stops its containers and `tmux` sessions with it. Keep work that must keep running inside
+  one `wsl.exe` call, as the `.ps1` scripts of the skills do.
+- From Git Bash, set `MSYS_NO_PATHCONV=1` for `wsl.exe` calls with `/mnt/c/...` paths, or Git Bash
+  rewrites them into Windows paths. Put longer logic into `.sh` files and run them by path instead of
+  nesting it into `wsl.exe -- bash -c "..."`, where quoting loses variables and `$(...)`.

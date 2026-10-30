@@ -2,3 +2,5 @@
 /*.bat text eol=crlf
 # bash in WSL fails on CRLF line endings, keep the agent scripts LF on Windows checkouts too
 /.agents/**/*.sh text eol=lf
+# copied into a Linux Docker image as they are
+/.agents/skills/glftpd-e2e/glftpd/* text eol=lf

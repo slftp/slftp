@@ -386,6 +386,7 @@ begin
   if rc < 0 then
   begin
     // error already set!
+    slFlushResolvedHost(host);
     Disconnect;
     exit;
   end;
@@ -394,6 +395,7 @@ begin
 
   if not IsWriteAble(timeout) then
   begin
+    slFlushResolvedHost(host);
     Disconnect;
     exit;
   end;
@@ -402,6 +404,7 @@ begin
 
   if(slSoError(slSocket, error) <> '') then
   begin
+    slFlushResolvedHost(host);
     Disconnect;
     exit;
   end;
