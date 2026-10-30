@@ -28,7 +28,7 @@ were actually run there (`metadata` in the frontmatter, see "Format"): `verified
   change doesn't affect it. Pure wording or typo fixes leave the status unchanged.
 - **Using a skill:** if a side is `unverified`, tell the user before you start and check every step
   against the files it names. If the steps worked as written on that side, set it to `verified`; if
-  not, fix them first. Commit that skill update on its own (one topic per commit).
+  not, fix them first. Commit that skill update on its own, as it is unrelated to the task.
 - Never set a side to `verified` that you did not run.
 
 ## Proposing a new skill
