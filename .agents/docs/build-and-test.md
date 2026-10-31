@@ -1,7 +1,8 @@
 # Build & test
 
-CI builds and tests with both compilers (FPC on Linux, Delphi on Windows). For code differences, writing
-tests that work in both frameworks and keeping the project files in sync, see [compilers](compilers.md).
+CI builds and tests with both compilers (FPC on Linux, Delphi on Windows). For code differences and
+keeping the project files in sync, see [compilers](compilers.md); for writing tests that work in both
+frameworks, see [writing-tests](writing-tests.md).
 On Windows, the skill [test-both-compilers](../skills/test-both-compilers/SKILL.md) runs both sides, FPC
 through WSL. To run slFtp itself, see the skill [run-slftp](../skills/run-slftp/SKILL.md).
 
@@ -9,8 +10,8 @@ through WSL. To run slFtp itself, see the skill [run-slftp](../skills/run-slftp/
 
 - Release build: `make slftp_64`; debug build: `make slftp_64_debug` (further targets: see `Makefile`)
 - CI builds with `fpc` through the `Makefile`. `slftp.lpi` (Lazarus project) exists but is not used by CI.
-- All FPC targets pass `-dNOPATCHRTL` (`MORMOTFLAGS` in the `Makefile`). Don't drop it when adding or
-  changing targets; see [compilers](compilers.md#fpc-nopatchrtl).
+- All FPC targets pass `-dNOPATCHRTL -dFPCMM_BOOST` (`MORMOTFLAGS` in the `Makefile`). Don't drop them
+  when adding or changing targets; see [compilers](compilers.md#fpc-defines).
 - Unit tests use fpcunit (ships with FPC) and run via `make test`
   - `make test` copies `config/*` into `tests/` itself; the test binary reads the config files from its
     own directory. CI moves them there in `before_script` instead, so `config/` is empty and the copy is
@@ -80,6 +81,13 @@ test to a working one.
 - Compare with the last green pipeline on `dev` (`.../pipelines?ref=dev`) and with the commits in between.
   If the failing tests are unrelated to those commits, suspect the environment, e.g. a dead external
   service (see above).
+
+## Profiling a stripped release binary
+
+FPC builds are reproducible: the same commit, compiler and flags, but `-Xs-` instead of `-Xs` (plain
+omission still strips) and `-B`, gives identical code plus symbols. Use it as symbol file when sampling
+the running process: `gdb -p <pid> -batch -ex "symbol-file <unstripped>" -ex "thread apply all bt 12"`.
+With `-O3` backtraces stop after one or two frames, but frame 0 is exact.
 
 ## `slftp.inc`
 

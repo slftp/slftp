@@ -63,6 +63,7 @@ uses
   mormot.db.raw.sqlite3.static,
   slftpUnitTestsSetup,
   slsslTests,
+  sltcpTests,
   mystringsTests,
   mystringsTests.Base64,
   httpTests,

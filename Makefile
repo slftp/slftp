@@ -3,8 +3,10 @@ SLFTPPATH = ~/slftp
 CC = fpc
 # stop mORMot2 from patching the FPC RTL on Linux x86_64: its clock_gettime
 # redirect swaps in the coarse clocks, so short TEvent.WaitFor timeouts return
-# early. Keep in sync with CustomOptions in slftp.lpi and slftpUnitTests.lpi
-MORMOTFLAGS = -dNOPATCHRTL
+# early. FPCMM_BOOST: more and larger tiny-block arenas in mormot.core.fpcx64mm,
+# less lock contention with many threads. Keep in sync with CustomOptions in
+# slftp.lpi and slftpUnitTests.lpi
+MORMOTFLAGS = -dNOPATCHRTL -dFPCMM_BOOST
 CFLAGS = -MDelphi -O3 -Xs -Ct- $(MORMOTFLAGS)
 CINCLUDES = -Fuirccommands -Furules -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline -Fulibs/lkJSON -Fulibs/TRegExpr -Fulibs/pasmp -Fulibs/Indy10/* -Fulibs/Indy10/Protocols -Fulibs/Indy10/Protocols/OpenSSL -Fulibs/Indy10/Protocols/OpenSSL/* -Fulibs/LibTar -Fulibs/mORMot2/src/core -Fulibs/mORMot2/src/lib -Fulibs/mORMot2/src/crypt -Fulibs/mORMot2/src/db -Fulibs/mORMot2/src/orm -Fulibs/mORMot2/src/rest -Fulibs/mORMot2/src/soa -Fulibs/ZeosLib/* -Fulibs/mORMot2/src/net/
 CTESTINCLUDES = -Futests/*

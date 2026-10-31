@@ -53,6 +53,7 @@ uses
   kb.releaseinfo.MVIDTests,
   taskhttpimdbTests,
   slsslTests,
+  sltcpTests,
   sitesunitTests,
   precatcherTests,
   slcriticalsection2Tests,
