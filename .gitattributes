@@ -4,3 +4,4 @@
 /.agents/**/*.sh text eol=lf
 # copied into a Linux Docker image as they are
 /.agents/skills/glftpd-e2e/glftpd/* text eol=lf
+/.agents/skills/unrealircd/server/* text eol=lf

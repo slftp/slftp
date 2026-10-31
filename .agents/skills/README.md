@@ -12,6 +12,7 @@ matching `SKILL.md` completely.
 | [test-both-compilers](test-both-compilers/SKILL.md) | on Windows: build and test a change with FPC (via WSL) and Delphi |
 | [glftpd-e2e](glftpd-e2e/SKILL.md) | on Linux, or on Windows in WSL: run slFtp end to end against glftpd sites with pzs-ng, e.g. an FXP race |
 | [run-slftp](run-slftp/SKILL.md) | start slFtp, type commands into its console, read the screen and stop it, to try a change in the real program |
+| [unrealircd](unrealircd/SKILL.md) | start a local UnrealIRCd with FiSH test clients in Docker, to try a change to slFtp's IRC code against a real server |
 
 ## Keeping skills correct
 
