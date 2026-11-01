@@ -3,7 +3,7 @@ unit slmasks;
 interface
 
 uses
-  SyncObjs, RegExpr, mormot.core.search;
+  SyncObjs, RegExpr, mormot.core.base, mormot.core.search;
 
 type
   {
