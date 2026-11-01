@@ -11,6 +11,7 @@ type
   private
     FKeyData: TBlowfishData; //< generated blowfish data for @link(blowkey)
     FBlowkey: String; //< blowkey for channel
+    FBlowkeyLength: Integer; //< key length in bytes for diagnostics
   public
     { Creates a new IrcBlowkey entry }
     constructor Create(const aNetname, aChannel, aChanRoles, aBlowkey: String; aChankey: String = ''; aInviteOnly: Boolean = False);
@@ -34,7 +35,7 @@ type
 implementation
 
 uses
-  SysUtils, debugunit;
+  SysUtils, debugunit, blowfishdiag;
 
 const
   B64: RawByteString = './0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -200,6 +201,7 @@ var
   {$ENDIF}
 begin
   FBlowkey := aBlowkey;
+  FBlowkeyLength := 0;
 
   if Blowkey <> '' then
   begin
@@ -211,6 +213,7 @@ begin
       move(fStrHelper[1], fKey[0], Length(fStrHelper));
     {$ENDIF}
     SetLength(fKey, Length(fKey));
+    FBlowkeyLength := Length(fKey);
     BlowfishInit(FKeyData, PAnsiChar(fKey), Length(fKey), @IV);
   end
   else
@@ -235,6 +238,7 @@ begin
   // Each message is split into blocks of 8 bytes, encrypted individually.
   // A block shorter than 8 bytes is padded with zeroes.
   fLength := Length(fStrHelper);
+  RecordBlowfishDiagnosticUse(bdmIrcEcbEncrypt, FBlowkeyLength, fLength);
   fSplitLength := (fLength + 7) div 8;
   SetLength(fStrHelper, fSplitLength * 8);
   if fSplitLength * 8 > fLength then
@@ -266,6 +270,7 @@ begin
 
   dText := '';
   fSplitLength := Length(eText) div 12;
+  RecordBlowfishDiagnosticUse(bdmIrcEcbDecrypt, FBlowkeyLength, fSplitLength * 8);
 
   for i := 1 to fSplitLength do
   begin

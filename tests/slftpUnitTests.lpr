@@ -36,6 +36,7 @@ uses
   httpTests,
   ircblowfish.ECBTests,
   ircblowfish.CBCTests,
+  blowfishdiagTests,
   tagsTests,
   ircblowfish.plaintextTests,
   dbtvinfoTests,

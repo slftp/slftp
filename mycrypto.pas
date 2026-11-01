@@ -14,7 +14,7 @@ function EncryptUDP(const s: String): String;
 implementation
 
 uses
-  SysUtils, delphiblowfish, configunit, debugunit, Math, mystrings;
+  SysUtils, delphiblowfish, configunit, debugunit, Math, mystrings, blowfishdiag;
 
 const
   section = 'crypto';
@@ -53,6 +53,7 @@ begin
   if l > MAX_UDP_PACKET then
     exit;
 
+  RecordBlowfishDiagnosticUse(bdmUdpCfbDecrypt, SizeOf(TslMD5Data), l);
   BlowfishReset(KeyData);
   BlowfishDecryptCFB(KeyData, @s[1], @s[1], l);
 
@@ -72,6 +73,7 @@ begin
     exit;
 
   p := Byte(RandomRange(UDP_MIN_PADDING, UDP_MAX_PADDING));
+  RecordBlowfishDiagnosticUse(bdmUdpCfbEncrypt, SizeOf(TslMD5Data), p + 1 + Length(s));
   block[0] := AnsiChar(p);
   Move(s[1], block[p], length(s));
 
