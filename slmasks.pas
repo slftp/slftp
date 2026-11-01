@@ -3,7 +3,12 @@ unit slmasks;
 interface
 
 uses
-  SyncObjs, DelphiMasks, RegExpr;
+  SyncObjs, RegExpr,
+  {$IFDEF FPC}
+    Masks;
+  {$ELSE}
+    System.Masks;
+  {$ENDIF}
 
 type
   {
