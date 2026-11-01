@@ -8,7 +8,6 @@ uses
 type
   TBlowfishKeyBytes = array of Byte;
 
-type
   { @abstract(ECB de/encryption for IRC Channel) }
   TIrcBlowkeyECB = class(TIrcChannelSettings)
   private
