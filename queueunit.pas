@@ -38,6 +38,7 @@ type
   fSiteName: String;
   fSite: TObject;
   fBusyDestinations: TDictionary<TObject, integer>;
+  fNeedSort: boolean; //< flag to track if queue needs sorting (set true when tasks added)
 
   queue_last_run: TDateTime;
   queueclean_last_run: TDateTime;
@@ -529,14 +530,21 @@ end;
 procedure TQueueThread.QueueSort;
 begin
   try
-    Debug(dpSpam, section, 'Sorting queue 1');
     main_lock.Enter('Queue_Sort');
     try
+      // skip sorting if no new tasks were added since last sort
+      if not fNeedSort then
+      begin
+        Debug(dpSpam, section, 'QueueSort: skipping, queue unchanged');
+        exit;
+      end;
+
+      Debug(dpSpam, section, 'Sorting queue');
       tasks.Sort(@QueueSorter);
+      fNeedSort := False; // reset dirty flag after sort
     finally
       main_lock.Leave;
     end;
-    Debug(dpSpam, section, 'Sorting queue 2');
   except
     on e: Exception do
     begin
@@ -580,6 +588,7 @@ begin
     fSiteName := aSiteName;
     fWatchdog := WatchdogNewParticipant('queue/' + aSiteName, 120);
     fBusyDestinations := TDictionary<TObject, integer>.Create;
+    fNeedSort := False;
   except
     FreeAndNil(fBusyDestinations);
     Queues.Extract(self);
@@ -1400,7 +1409,10 @@ begin
       if (t.startat > Now) then
         waiting_tasks.Add(t)
       else
+      begin
         tasks.Add(t);
+        fNeedSort := True; // mark queue as needing sorting
+      end;
 
       step := 'Race slot checks';
       try

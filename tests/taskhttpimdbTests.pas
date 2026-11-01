@@ -4,7 +4,7 @@ interface
 
 uses
   {$IFDEF FPC}
-    TestFramework{$IFDEF MSWINDOWS}, Windows {$ENDIF};
+    fpcunit, testregistry{$IFDEF MSWINDOWS}, Windows {$ENDIF};
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility{$IFDEF MSWINDOWS}, Windows {$ENDIF};
   {$ENDIF}
@@ -35,11 +35,7 @@ type
     FOriginalReleasePage: String;
     FUSAReleasePage: String;
   protected
-    {$IFDEF FPC}
-      procedure SetUpOnce; override;
-    {$ELSE}
-      procedure SetUp; override;
-    {$ENDIF}
+    procedure SetUp; override;
   published
     procedure TestGetOriginalReleaseGroupLink;
     procedure TestGetCountrySpecificLinksFromOriginalRelease;
@@ -62,11 +58,7 @@ type
     FOverviewPage: String;
     FFranceReleasePage: String;
   protected
-    {$IFDEF FPC}
-      procedure SetUpOnce; override;
-    {$ELSE}
-      procedure SetUp; override;
-    {$ENDIF}
+    procedure SetUp; override;
   published
     procedure TestGetCountrySpecificLinks;
     procedure TestGetWidestScreensCountUSA;
@@ -80,11 +72,7 @@ type
     FOverviewPage: String;
     FUSAReleasePage: String;
   protected
-    {$IFDEF FPC}
-      procedure SetUpOnce; override;
-    {$ELSE}
-      procedure SetUp; override;
-    {$ENDIF}
+    procedure SetUp; override;
   published
     procedure TestGetCountrySpecificLinks;
     procedure TestGetWidestScreensCountUSA;
@@ -97,11 +85,7 @@ type
     FOverviewPage: String;
     FGermanyReleasePage: String;
   protected
-    {$IFDEF FPC}
-      procedure SetUpOnce; override;
-    {$ELSE}
-      procedure SetUp; override;
-    {$ENDIF}
+    procedure SetUp; override;
   published
     procedure TestGetCountrySpecificLinks;
     procedure TestGetWidestScreensCountUSA;
@@ -154,12 +138,13 @@ begin
 
   try
     CheckEquals(2017, fImdbData.imdb_year, 'IMDB Year mismatch');
-    CheckEqualsString('War for the Planet of the Apes', fImdbData.imdb_origtitle);
+    CheckEquals('War for the Planet of the Apes', fImdbData.imdb_origtitle);
     CheckFalse(fImdbData.imdb_stvm, 'Should not be STV');
     CheckEquals(2017, fImdbData.imdb_cineyear, 'IMDB CineYear mismatch');
 
-    // Country validation (GraphQL returns ISO codes, mapped via slftp.imdbcountries)
-    CheckEqualsString('USA,Canada', fImdbData.imdb_countries.DelimitedText, 'Countries mismatch');
+    // Country validation (GraphQL returns ISO codes, mapped via slftp.imdbcountries).
+    // The API returns both USA and Canada (more data than the former HTML parser).
+    CheckEquals('USA,Canada', fImdbData.imdb_countries.DelimitedText, 'Countries mismatch');
     CheckTrue(fImdbData.imdb_countries.IndexOf('USA') >= 0, 'USA should be present');
     CheckTrue(fImdbData.imdb_countries.IndexOf('Canada') >= 0, 'Canada should be present');
 
@@ -181,7 +166,7 @@ begin
   TImdbDataProcessor.Process('Prison.Break.S01E01.Pilot.720p.BluRay.x264-GRP', 'tt0455275', fTitleJson, nil, fImdbData);
 
   try
-    CheckEqualsString('Prison Break', fImdbData.imdb_origtitle);
+    CheckEquals('Prison Break', fImdbData.imdb_origtitle);
     CheckEquals(2005, fImdbData.imdb_year);
     // Prison Break is a TV Series, currently our logic might mark it STV or just series.
     // In our new logic: type=TV_SERIES and it IS a TV show (S01E01) -> STV = True
@@ -190,7 +175,7 @@ begin
     // Country validation
     // CRITICAL: HTML parser had "UK,USA", API only returns "USA" - UK is MISSING!
     // This is a known API limitation - UK data lost compared to old HTML scraping
-    CheckEqualsString('USA', fImdbData.imdb_countries.DelimitedText, 'Countries mismatch');
+    CheckEquals('USA', fImdbData.imdb_countries.DelimitedText, 'Countries mismatch');
     CheckTrue(fImdbData.imdb_countries.IndexOf('USA') >= 0, 'USA should be present');
     CheckEquals(-1, fImdbData.imdb_countries.IndexOf('UK'), 'UK is missing from API (known issue)');
 
@@ -215,11 +200,12 @@ begin
     CheckTrue(fImdbData.imdb_stvm, 'Should be STV (TV Movie)');
 
     // Country validation
-    CheckEqualsString('USA', fImdbData.imdb_countries.DelimitedText, 'Countries mismatch');
+    // API and former HTML parser both return USA for this title.
+    CheckEquals('USA', fImdbData.imdb_countries.DelimitedText, 'Countries mismatch');
     CheckTrue(fImdbData.imdb_countries.IndexOf('USA') >= 0, 'USA should be present');
 
     // Language validation
-    CheckEqualsString('English', fImdbData.imdb_languages.DelimitedText, 'Languages mismatch');
+    CheckEquals('English', fImdbData.imdb_languages.DelimitedText, 'Languages mismatch');
   finally
     fImdbData.Free;
   end;
@@ -235,7 +221,7 @@ begin
   TImdbDataProcessor.Process('Example.Release.1984', 'tt0000000', fTitleJson, nil, fImdbData);
 
   try
-    CheckEqualsString('Germany,Germany', fImdbData.imdb_countries.DelimitedText,
+    CheckEquals('Germany,Germany', fImdbData.imdb_countries.DelimitedText,
       'DE country codes must map to Germany via slftp.imdbcountries');
   finally
     fImdbData.Free;
@@ -258,8 +244,8 @@ begin
   try
     // Validate first country (index 0) - critical for rule matching
     CheckEquals(2, fImdbData.imdb_countries.Count, 'Should have 2 countries');
-    CheckEqualsString('USA', fImdbData.imdb_countries[0], 'USA must be first country for rules');
-    CheckEqualsString('Canada', fImdbData.imdb_countries[1], 'Canada must be second country');
+    CheckEquals('USA', fImdbData.imdb_countries[0], 'USA must be first country for rules');
+    CheckEquals('Canada', fImdbData.imdb_countries[1], 'Canada must be second country');
 
     // Demonstrate rule behavior:
     // Rule "imdbcountries = USA" would MATCH (USA at index 0)
@@ -292,7 +278,7 @@ begin
   // Page without release groups
   fPageSource := '<html><body>No release groups here</body></html>';
   fLink := THtmlBoxOfficeMojoParser.GetOriginalReleaseGroupLink(fPageSource);
-  CheckEqualsString('', fLink, 'Should return empty when no Original Release group');
+  CheckEquals('', fLink, 'Should return empty when no Original Release group');
 end;
 
 procedure TTestTHtmlBoxOfficeMojoParser.TestGetOriginalReleaseGroupLinkFound;
@@ -303,12 +289,12 @@ begin
   // Simulated page with Original Release group
   fPageSource := '<a class="a-link-normal" href="/releasegroup/gr2193641989/">Original Release</a>';
   fLink := THtmlBoxOfficeMojoParser.GetOriginalReleaseGroupLink(fPageSource);
-  CheckEqualsString('/releasegroup/gr2193641989', fLink, 'Should extract Original Release link');
+  CheckEquals('/releasegroup/gr2193641989', fLink, 'Should extract Original Release link');
 end;
 
 { TTestTHtmlBoxOfficeMojoParser_tt5093026 }
 
-procedure TTestTHtmlBoxOfficeMojoParser_tt5093026.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
+procedure TTestTHtmlBoxOfficeMojoParser_tt5093026.SetUp;
 var
   fResStream: TResourceStream;
   fStrList: TStringList;
@@ -343,11 +329,11 @@ begin
   try
     THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(FOverviewPage, fBOMCountryLinks);
     CheckEquals(23, fBOMCountryLinks.Count, 'Count mismatch');
-    CheckEqualsString('/release/rl4094002689', fBOMCountryLinks.Items['USA'], 'Link mismatch');
-    CheckEqualsString('/release/rl3985016577', fBOMCountryLinks.Items['Italy'], 'Link mismatch');
-    CheckEqualsString('/release/rl3783689985', fBOMCountryLinks.Items['Portugal'], 'Link mismatch');
-    CheckEqualsString('/release/rl4119234305', fBOMCountryLinks.Items['Germany'], 'Link mismatch');
-    CheckEqualsString('/release/rl4152788737', fBOMCountryLinks.Items['France'], 'Link mismatch');
+    CheckEquals('/release/rl4094002689', fBOMCountryLinks.Items['USA'], 'Link mismatch');
+    CheckEquals('/release/rl3985016577', fBOMCountryLinks.Items['Italy'], 'Link mismatch');
+    CheckEquals('/release/rl3783689985', fBOMCountryLinks.Items['Portugal'], 'Link mismatch');
+    CheckEquals('/release/rl4119234305', fBOMCountryLinks.Items['Germany'], 'Link mismatch');
+    CheckEquals('/release/rl4152788737', fBOMCountryLinks.Items['France'], 'Link mismatch');
   finally
     fBOMCountryLinks.Free;
   end;
@@ -383,7 +369,7 @@ end;
 
 { TTestTHtmlBoxOfficeMojoParser_tt0375568 }
 
-procedure TTestTHtmlBoxOfficeMojoParser_tt0375568.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
+procedure TTestTHtmlBoxOfficeMojoParser_tt0375568.SetUp;
 var
   fResStream: TResourceStream;
   fStrList: TStringList;
@@ -418,11 +404,11 @@ begin
   try
     THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(FOverviewPage, fBOMCountryLinks);
     CheckEquals(27, fBOMCountryLinks.Count, 'Count mismatch');
-    CheckEqualsString('/release/rl3947005441', fBOMCountryLinks.Items['USA'], 'Link mismatch');
-    CheckEqualsString('/release/rl2452522497', fBOMCountryLinks.Items['Italy'], 'Link mismatch');
-    CheckEqualsString('/release/rl2335081985', fBOMCountryLinks.Items['Portugal'], 'Link mismatch');
-    CheckEqualsString('/release/rl2620294657', fBOMCountryLinks.Items['Spain'], 'Link mismatch');
-    CheckEqualsString('/release/rl2637071873', fBOMCountryLinks.Items['France'], 'Link mismatch');
+    CheckEquals('/release/rl3947005441', fBOMCountryLinks.Items['USA'], 'Link mismatch');
+    CheckEquals('/release/rl2452522497', fBOMCountryLinks.Items['Italy'], 'Link mismatch');
+    CheckEquals('/release/rl2335081985', fBOMCountryLinks.Items['Portugal'], 'Link mismatch');
+    CheckEquals('/release/rl2620294657', fBOMCountryLinks.Items['Spain'], 'Link mismatch');
+    CheckEquals('/release/rl2637071873', fBOMCountryLinks.Items['France'], 'Link mismatch');
   finally
     fBOMCountryLinks.Free;
   end;
@@ -448,7 +434,7 @@ end;
 
 { TTestTHtmlBoxOfficeMojoParser_tt3450958 }
 
-procedure TTestTHtmlBoxOfficeMojoParser_tt3450958.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
+procedure TTestTHtmlBoxOfficeMojoParser_tt3450958.SetUp;
 var
   fResStream: TResourceStream;
   fStrList: TStringList;
@@ -483,12 +469,12 @@ begin
   try
     THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(FOverviewPage, fBOMCountryLinks);
     CheckEquals(45, fBOMCountryLinks.Count, 'Count mismatch');
-    CheckEqualsString('/release/rl1782744577', fBOMCountryLinks.Items['USA'], 'Link mismatch');
-    CheckEqualsString('/release/rl3156968961', fBOMCountryLinks.Items['UK'], 'Link mismatch');
-    CheckEqualsString('/release/rl1730905601', fBOMCountryLinks.Items['Italy'], 'Link mismatch');
-    CheckEqualsString('/release/rl1261143553', fBOMCountryLinks.Items['Portugal'], 'Link mismatch');
-    CheckEqualsString('/release/rl1965786625', fBOMCountryLinks.Items['Germany'], 'Link mismatch');
-    CheckEqualsString('/release/rl1831568897', fBOMCountryLinks.Items['France'], 'Link mismatch');
+    CheckEquals('/release/rl1782744577', fBOMCountryLinks.Items['USA'], 'Link mismatch');
+    CheckEquals('/release/rl3156968961', fBOMCountryLinks.Items['UK'], 'Link mismatch');
+    CheckEquals('/release/rl1730905601', fBOMCountryLinks.Items['Italy'], 'Link mismatch');
+    CheckEquals('/release/rl1261143553', fBOMCountryLinks.Items['Portugal'], 'Link mismatch');
+    CheckEquals('/release/rl1965786625', fBOMCountryLinks.Items['Germany'], 'Link mismatch');
+    CheckEquals('/release/rl1831568897', fBOMCountryLinks.Items['France'], 'Link mismatch');
   finally
     fBOMCountryLinks.Free;
   end;
@@ -524,7 +510,7 @@ end;
 
 { TTestTHtmlBoxOfficeMojoParser_tt0087332 - Ghostbusters }
 
-procedure TTestTHtmlBoxOfficeMojoParser_tt0087332.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
+procedure TTestTHtmlBoxOfficeMojoParser_tt0087332.SetUp;
 var
   fResStream: TResourceStream;
   fStrList: TStringList;
@@ -565,7 +551,7 @@ var
 begin
   // Ghostbusters has multiple release groups - should find "Original Release"
   fLink := THtmlBoxOfficeMojoParser.GetOriginalReleaseGroupLink(FOverviewPage);
-  CheckEqualsString('/releasegroup/gr2193641989', fLink, 'Should find Original Release group link');
+  CheckEquals('/releasegroup/gr2193641989', fLink, 'Should find Original Release group link');
 end;
 
 procedure TTestTHtmlBoxOfficeMojoParser_tt0087332.TestGetCountrySpecificLinksFromOriginalRelease;

@@ -4,7 +4,7 @@ interface
 
 uses
   {$IFDEF FPC}
-    TestFramework;
+    fpcunit, testregistry;
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility;
   {$ENDIF}
@@ -31,12 +31,12 @@ begin
   fParticipant := WatchdogNewParticipant('test/lifecycle', 120);
   try
     CheckTrue(fParticipant <> nil);
-    CheckEqualsString('test/lifecycle', fParticipant.Name);
+    CheckEquals('test/lifecycle', fParticipant.Name);
     CheckEquals(120, fParticipant.StallSeconds);
 
     fParticipant.Beat;
     fParticipant.SetInfo('status=testing');
-    CheckEqualsString('status=testing', string(fParticipant.Info));
+    CheckEquals('status=testing', string(fParticipant.Info));
   finally
     WatchdogReleaseParticipant(fParticipant);
   end;

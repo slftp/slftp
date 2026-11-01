@@ -4,7 +4,7 @@ interface
 
 uses
   {$IFDEF FPC}
-    TestFramework;
+    fpcunit, testregistry;
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility;
   {$ENDIF}
@@ -57,7 +57,7 @@ begin
   dbaddimdb_SaveImdbData(fRlsName, fImdbData, nil, nil, nil, False);
 
   fImdbDataResult := GetImdbMovieData(fRlsName);
-  CheckEqualsString('Movie Name', fImdbDataResult.imdb_origtitle);
+  CheckEquals('Movie Name', fImdbDataResult.imdb_origtitle);
   CheckEquals(44, fImdbDataResult.imdb_rating);
 
   //update the imdb rating
@@ -101,7 +101,7 @@ begin
   dbaddimdb_SaveImdbData(fRlsName, fImdbData, nil, nil, nil, False);
 
   fImdbDataResult := GetImdbMovieData(fRlsName);
-  CheckEqualsString('Witness the Beginning of Evil.', fImdbDataResult.imdb_origtitle);
+  CheckEquals('Witness the Beginning of Evil.', fImdbDataResult.imdb_origtitle);
 
   DeleteIMDbDataWithImdbId('tt6920084');
 
@@ -253,7 +253,7 @@ begin
   dbaddimdb_SaveImdbData(fRlsName, fImdbData, nil, nil, nil, False);
 
   //check if the countries have been set at the TIMDBRelease
-  CheckEqualsString(fImdbRelease.imdb_languages.CommaText, fImdbData.imdb_languages.CommaText);
+  CheckEquals(fImdbRelease.imdb_languages.CommaText, fImdbData.imdb_languages.CommaText);
 end;
 
 procedure TTestIMDB.FindMovieWithoutYearTest;
