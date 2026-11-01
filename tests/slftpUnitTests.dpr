@@ -78,6 +78,7 @@ uses
   irccolorunitTests,
   ircparsingTests,
   slmasksTests,
+  slmd5Tests,
   dirlist.helpersTests,
   dirlistTests,
   precatcher.helpersTests,
