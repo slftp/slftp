@@ -3,10 +3,14 @@ unit ircblowfish.ECB;
 interface
 
 uses
-  ircchansettings;
+  SysUtils, ircchansettings;
 
 type
-  TBlowfishKeyBytes = array of Byte;
+  {$IFDEF FPC}
+    TBlowfishKeyBytes = array of Byte;
+  {$ELSE}
+    TBlowfishKeyBytes = TBytes;
+  {$ENDIF}
 
   { @abstract(ECB de/encryption for IRC Channel) }
   TIrcBlowkeyECB = class(TIrcChannelSettings)
@@ -34,7 +38,7 @@ type
 implementation
 
 uses
-  SysUtils, debugunit, slblowfishcipher;
+  debugunit, slblowfishcipher;
 
 const
   B64: RawByteString = './0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -188,6 +192,8 @@ procedure TIrcBlowkeyECB.UpdateKey(const aBlowkey: String);
 var
   {$IFNDEF UNICODE}
     fStrHelper: String;
+  {$ELSE}
+    fKeyBytesHelper: TBytes;
   {$ENDIF}
 begin
   FBlowkey := aBlowkey;
@@ -195,7 +201,8 @@ begin
   if Blowkey <> '' then
   begin
     {$IFDEF UNICODE}
-      FKeyBytes := TEncoding.UTF8.GetBytes(set_key(Blowkey));
+      fKeyBytesHelper := TEncoding.UTF8.GetBytes(set_key(Blowkey));
+      FKeyBytes := fKeyBytesHelper;
     {$ELSE}
       fStrHelper := set_key(Blowkey);
       SetLength(FKeyBytes, Length(fStrHelper));
