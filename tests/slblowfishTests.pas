@@ -21,9 +21,9 @@ implementation
 uses
   Classes, SysUtils, slblowfish;
 
-function TestStreamRoundTrip(const aCompress: Boolean): String;
+function TestStreamRoundTrip(const aCompress: Boolean): RawByteString;
 const
-  fText = 'slFtp encrypted configuration compatibility test';
+  fText: RawByteString = 'slFtp encrypted configuration compatibility test';
 var
   fInput, fEncrypted, fOutput: TMemoryStream;
   fKey: array[0..15] of Byte;

@@ -9,13 +9,16 @@ type
   TslBlowfishMode = (
     sbmECB, //< independent eight-byte blocks
     sbmCBC, //< cipher-block chaining
-    sbmCFB  //< 64-bit cipher feedback
+    sbmCFB  //< legacy 8-bit cipher feedback
   );
 
   { OpenSSL EVP context for one Blowfish operation. }
   TslBlowfishCipher = class
   private
     FContext: PEVP_CIPHER_CTX;
+    FCFB8State: array[0..7] of Byte;
+    FIsCFB8: Boolean;
+    FEncrypt: Boolean;
   public
     { Initializes one Blowfish cipher context.
       @param(aKey Blowfish key bytes)
@@ -69,8 +72,7 @@ begin
   case aMode of
     sbmECB: fCipherName := 'BF-ECB';
     sbmCBC: fCipherName := 'BF-CBC';
-  else
-    fCipherName := 'BF-CFB';
+    sbmCFB: fCipherName := 'BF-ECB';
   end;
   fCipher := EVP_get_cipherbyname(PUtf8Char(fCipherName));
   if fCipher = nil then
@@ -81,7 +83,14 @@ begin
   fIV := nil;
   if Length(aIV) > 0 then
     fIV := @aIV[0];
+  FIsCFB8 := aMode = sbmCFB;
+  FEncrypt := aEncrypt;
+  if FIsCFB8 then
+    Move(aIV[0], FCFB8State[0], SizeOf(FCFB8State));
+
   fDirection := Ord(aEncrypt);
+  if FIsCFB8 then
+    fDirection := 1;
 
   FContext := EVP_CIPHER_CTX_new();
   if FContext = nil then
@@ -111,6 +120,10 @@ end;
 
 function TslBlowfishCipher.Update(aInput, aOutput: PByte;
   aLength: Integer): Integer;
+var
+  i: Integer;
+  fInputByte, fOutputByte: Byte;
+  fOutputLength: Integer;
 begin
   Result := 0;
   if aLength < 0 then
@@ -119,6 +132,27 @@ begin
     Exit;
   if (aInput = nil) or (aOutput = nil) then
     raise Exception.Create('Blowfish input and output buffers must be assigned');
+  if FIsCFB8 then
+  begin
+    for i := 0 to aLength - 1 do
+    begin
+      fInputByte := aInput[i];
+      fOutputLength := 0;
+      if EVP_CipherUpdate(FContext, @fOutputByte, @fOutputLength,
+        @FCFB8State[0], SizeOf(FCFB8State)) <> 1 then
+        raise Exception.Create('OpenSSL Blowfish CFB8 keystream generation failed');
+      if fOutputLength <> SizeOf(FCFB8State) then
+        raise Exception.Create('OpenSSL Blowfish CFB8 returned an invalid keystream length');
+      aOutput[i] := fInputByte xor fOutputByte;
+      Move(FCFB8State[1], FCFB8State[0], SizeOf(FCFB8State) - 1);
+      if FEncrypt then
+        FCFB8State[High(FCFB8State)] := aOutput[i]
+      else
+        FCFB8State[High(FCFB8State)] := fInputByte;
+    end;
+    Result := aLength;
+    Exit;
+  end;
   if EVP_CipherUpdate(FContext, aOutput, @Result, aInput, aLength) <> 1 then
     raise Exception.Create('OpenSSL Blowfish transform failed');
   if Result <> aLength then
