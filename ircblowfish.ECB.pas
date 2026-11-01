@@ -6,10 +6,13 @@ uses
   ircchansettings;
 
 type
+  TBlowfishKeyBytes = array of Byte;
+
+type
   { @abstract(ECB de/encryption for IRC Channel) }
   TIrcBlowkeyECB = class(TIrcChannelSettings)
   private
-    FKeyBytes: TBytes; //< Blowfish key bytes for @link(blowkey)
+    FKeyBytes: TBlowfishKeyBytes; //< Blowfish key bytes for @link(blowkey)
     FBlowkey: String; //< blowkey for channel
   public
     { Creates a new IrcBlowkey entry }
@@ -213,7 +216,7 @@ var
   fStrHelper, fResultHelper: RawByteString;
   fLength, fSplitLength: Integer;
   fCipher: TslBlowfishCipher;
-  fIV: TBytes;
+  fIV: TBlowfishKeyBytes;
 begin
   {$IFDEF UNICODE}
     fStrHelper := UTF8Encode(dText);
