@@ -67,29 +67,39 @@ var
   fSnapshot: TBlowfishDiagnosticSnapshot;
   fCallCount: Integer;
   fKeyLengthIndex: Integer;
+  fKeyLengthCount: Integer;
+  fBucketCount: Integer;
+  fNewObservation: Boolean;
 begin
   fCallCount := InterlockedIncrement(glDiagnosticCounters[aMode].Calls);
+  fNewObservation := False;
   if aKeyLength > 56 then
     fKeyLengthIndex := 57
   else if aKeyLength < 0 then
     fKeyLengthIndex := 0
   else
     fKeyLengthIndex := aKeyLength;
-  if InterlockedIncrement(glObservedKeyLengths[aMode, fKeyLengthIndex]) = 1 then
+  fKeyLengthCount := InterlockedIncrement(glObservedKeyLengths[aMode, fKeyLengthIndex]);
+  if fKeyLengthCount = 1 then
+  begin
+    fNewObservation := True;
     Debug(dpMessage, ssection,
       '[BLOWFISH-DIAG] mode=%s observed_key_bytes=%d', [ModeNames[aMode], aKeyLength]);
+  end;
   case aPayloadLength of
     0:
-      InterlockedIncrement(glDiagnosticCounters[aMode].EmptyPayloads);
+      fBucketCount := InterlockedIncrement(glDiagnosticCounters[aMode].EmptyPayloads);
     1..8:
-      InterlockedIncrement(glDiagnosticCounters[aMode].SmallPayloads);
+      fBucketCount := InterlockedIncrement(glDiagnosticCounters[aMode].SmallPayloads);
     9..64:
-      InterlockedIncrement(glDiagnosticCounters[aMode].MediumPayloads);
+      fBucketCount := InterlockedIncrement(glDiagnosticCounters[aMode].MediumPayloads);
   else
-    InterlockedIncrement(glDiagnosticCounters[aMode].LargePayloads);
+    fBucketCount := InterlockedIncrement(glDiagnosticCounters[aMode].LargePayloads);
   end;
+  if fBucketCount = 1 then
+    fNewObservation := True;
 
-  if (fCallCount = 1) or ((fCallCount mod DiagnosticReportInterval) = 0) then
+  if fNewObservation or ((fCallCount mod DiagnosticReportInterval) = 0) then
   begin
     fSnapshot := GetBlowfishDiagnosticSnapshot(aMode);
     Debug(dpMessage, ssection,
