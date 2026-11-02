@@ -38,7 +38,7 @@ type
 implementation
 
 uses
-  debugunit, slblowfishcipher;
+  debugunit, slblowfishcipher, blowfishdiag;
 
 const
   B64: RawByteString = './0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -234,6 +234,7 @@ begin
   // Each message is split into blocks of 8 bytes, encrypted individually.
   // A block shorter than 8 bytes is padded with zeroes.
   fLength := Length(fStrHelper);
+  RecordBlowfishDiagnosticUse(bdmIrcEcbEncrypt, Length(FKeyBytes), fLength);
   fSplitLength := (fLength + 7) div 8;
   SetLength(fStrHelper, fSplitLength * 8);
   if fSplitLength * 8 > fLength then
@@ -276,6 +277,7 @@ begin
 
   dText := '';
   fSplitLength := Length(eText) div 12;
+  RecordBlowfishDiagnosticUse(bdmIrcEcbDecrypt, Length(FKeyBytes), fSplitLength * 8);
 
   if fSplitLength > 0 then
   begin

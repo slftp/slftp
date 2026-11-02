@@ -14,7 +14,7 @@ function EncryptUDP(const s: String): String;
 implementation
 
 uses
-  SysUtils, configunit, debugunit, Math, mystrings, slblowfishcipher;
+  SysUtils, configunit, debugunit, Math, mystrings, slblowfishcipher, blowfishdiag;
 
 const
   section = 'crypto';
@@ -56,6 +56,8 @@ begin
   if l > MAX_UDP_PACKET then
     exit;
 
+  RecordBlowfishDiagnosticUse(bdmUdpCfbDecrypt, Length(glBlowfishKey), l);
+
   FillChar(fIV, SizeOf(fIV), 0);
   fCipher := TslBlowfishCipher.Create(glBlowfishKey, fIV, sbmCFB, False);
   try
@@ -83,6 +85,7 @@ begin
     exit;
 
   p := Byte(RandomRange(UDP_MIN_PADDING, UDP_MAX_PADDING));
+  RecordBlowfishDiagnosticUse(bdmUdpCfbEncrypt, Length(glBlowfishKey), p + 1 + Length(s));
   block[0] := AnsiChar(p);
   Move(s[1], block[p], length(s));
 

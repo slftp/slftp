@@ -19,7 +19,7 @@ procedure DecryptFileToFile(input: String; output: String; const Key: array of b
 
 implementation
 
-uses SysUtils, slblowfishcipher{$IFDEF MSWINDOWS},Windows {$ENDIF};
+uses SysUtils, slblowfishcipher, blowfishdiag{$IFDEF MSWINDOWS},Windows {$ENDIF};
 
 const
   defaultIV: array[0..7] of byte= ($11, $22, $33, $44, $55, $66, $77, $88);
@@ -61,6 +61,7 @@ begin
     istream.CopyFrom(input, input.Size);
 
   try
+    RecordBlowfishDiagnosticUse(bdmFileCbcEncrypt, Length(Key), istream.Size);
     // eltaroljuk a meretet eloszor
     size:= istream.Size;
     b.EncryptCBC(@size,@buf);
@@ -134,6 +135,7 @@ begin
   ostream:= TMemoryStream.Create;
 
   try
+    RecordBlowfishDiagnosticUse(bdmFileCbcDecrypt, Length(Key), istream.Size);
     // kiolvassuk a meretet eloszor
     // eltaroljuk a meretet eloszor
     istream.Read(size, 8);

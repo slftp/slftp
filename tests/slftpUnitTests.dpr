@@ -69,6 +69,7 @@ uses
   httpTests,
   ircblowfish.ECBTests,
   ircblowfish.CBCTests,
+  blowfishdiagTests,
   blowfishCipherTests,
   slblowfishTests,
   tagsTests,
