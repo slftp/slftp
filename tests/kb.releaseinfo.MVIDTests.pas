@@ -4,7 +4,7 @@ interface
 
 uses
   {$IFDEF FPC}
-    TestFramework;
+    fpcunit, testregistry;
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility;
   {$ENDIF}
@@ -127,13 +127,13 @@ begin
     fClass.SetValuesFromTask(fFileCount, (fVideoRegion = 'PAL'), (fVideoRegion = 'NTSC'), fGenres);
 
     CheckEquals(23, fClass.mvidfiles, 'Filecount mismatch');
-    CheckEqualsString('Latin,Mambo,Salsa', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckEquals('Latin,Mambo,Salsa', fClass.mvidgenre.CommaText, 'genre mismatch');
     CheckFalse(fClass.mvidpal, 'PAL mismatch');
     CheckFalse(fClass.mvidntsc, 'NTSC mismatch');
     CheckFalse(fClass.mvidva, 'Various Artists mismatch');
     CheckTrue(fClass.mvidlive, 'LIVE mismatch');
     CheckEquals(2008, fClass.mvidyear, 'Year mismatch');
-    CheckEqualsString('ES', fClass.mvidlanguage, 'Language mismatch');
+    CheckEquals('ES', fClass.mvidlanguage, 'Language mismatch');
   finally
     fClass.Free;
   end;
@@ -325,13 +325,13 @@ begin
     fClass.SetValuesFromTask(fFileCount, (fVideoRegion = 'PAL'), (fVideoRegion = 'NTSC'), fGenres);
 
     CheckEquals(4, fClass.mvidfiles, 'Filecount mismatch');
-    CheckEqualsString('Pop', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckEquals('Pop', fClass.mvidgenre.CommaText, 'genre mismatch');
     CheckTrue(fClass.mvidpal, 'PAL mismatch');
     CheckFalse(fClass.mvidntsc, 'NTSC mismatch');
     CheckFalse(fClass.mvidva, 'Various Artists mismatch');
     CheckTrue(fClass.mvidlive, 'LIVE mismatch');
     CheckEquals(2020, fClass.mvidyear, 'Year mismatch');
-    CheckEqualsString('EN', fClass.mvidlanguage, 'Language mismatch');
+    CheckEquals('EN', fClass.mvidlanguage, 'Language mismatch');
   finally
     fClass.Free;
   end;
@@ -445,13 +445,13 @@ begin
     fClass.SetValuesFromTask(fFileCount, (fVideoRegion = 'PAL'), (fVideoRegion = 'NTSC'), fGenres);
 
     CheckEquals(52, fClass.mvidfiles, 'Filecount mismatch');
-    CheckEqualsString('Punk,Rock,Rockabilly', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckEquals('Punk,Rock,Rockabilly', fClass.mvidgenre.CommaText, 'genre mismatch');
     CheckFalse(fClass.mvidpal, 'PAL mismatch');
     CheckFalse(fClass.mvidntsc, 'NTSC mismatch');
     CheckFalse(fClass.mvidva, 'Various Artists mismatch');
     CheckTrue(fClass.mvidlive, 'LIVE mismatch');
     CheckEquals(2018, fClass.mvidyear, 'Year mismatch');
-    CheckEqualsString('EN', fClass.mvidlanguage, 'Language mismatch');
+    CheckEquals('EN', fClass.mvidlanguage, 'Language mismatch');
   finally
     fClass.Free;
   end;
@@ -599,13 +599,13 @@ begin
     fClass.SetValuesFromTask(fFileCount, (fVideoRegion = 'PAL'), (fVideoRegion = 'NTSC'), fGenres);
 
     CheckEquals(1, fClass.mvidfiles, 'Filecount mismatch');
-    CheckEqualsString('', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckEquals('', fClass.mvidgenre.CommaText, 'genre mismatch');
     CheckFalse(fClass.mvidpal, 'PAL mismatch');
     CheckTrue(fClass.mvidntsc, 'NTSC mismatch');
     CheckFalse(fClass.mvidva, 'Various Artists mismatch');
     CheckFalse(fClass.mvidlive, 'LIVE mismatch');
     CheckEquals(2016, fClass.mvidyear, 'Year mismatch');
-    CheckEqualsString('JA', fClass.mvidlanguage, 'Language mismatch');
+    CheckEquals('JA', fClass.mvidlanguage, 'Language mismatch');
   finally
     fClass.Free;
   end;
@@ -680,13 +680,13 @@ begin
     fClass.SetValuesFromTask(fFileCount, (fVideoRegion = 'PAL'), (fVideoRegion = 'NTSC'), fGenres);
 
     CheckEquals(1, fClass.mvidfiles, 'Filecount mismatch');
-    CheckEqualsString('Rock', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckEquals('Rock', fClass.mvidgenre.CommaText, 'genre mismatch');
     CheckFalse(fClass.mvidpal, 'PAL mismatch');
     CheckFalse(fClass.mvidntsc, 'NTSC mismatch');
     CheckFalse(fClass.mvidva, 'Various Artists mismatch');
     CheckFalse(fClass.mvidlive, 'LIVE mismatch');
     CheckEquals(2016, fClass.mvidyear, 'Year mismatch');
-    CheckEqualsString('EN', fClass.mvidlanguage, 'Language mismatch');
+    CheckEquals('EN', fClass.mvidlanguage, 'Language mismatch');
   finally
     fClass.Free;
   end;
@@ -798,13 +798,13 @@ begin
     fClass.SetValuesFromTask(fFileCount, (fVideoRegion = 'PAL'), (fVideoRegion = 'NTSC'), fGenres);
 
     CheckEquals(1, fClass.mvidfiles, 'Filecount mismatch');
-    CheckEqualsString('Chanson', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckEquals('Chanson', fClass.mvidgenre.CommaText, 'genre mismatch');
     CheckTrue(fClass.mvidpal, 'PAL mismatch');
     CheckFalse(fClass.mvidntsc, 'NTSC mismatch');
     CheckFalse(fClass.mvidva, 'Various Artists mismatch');
     CheckTrue(fClass.mvidlive, 'LIVE mismatch');
     CheckEquals(2017, fClass.mvidyear, 'Year mismatch');
-    CheckEqualsString('FR', fClass.mvidlanguage, 'Language mismatch');
+    CheckEquals('FR', fClass.mvidlanguage, 'Language mismatch');
   finally
     fClass.Free;
   end;
@@ -986,13 +986,13 @@ begin
     fClass.SetValuesFromTask(fFileCount, (fVideoRegion = 'PAL'), (fVideoRegion = 'NTSC'), fGenres);
 
     CheckEquals(1, fClass.mvidfiles, 'Filecount mismatch');
-    CheckEqualsString('House', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckEquals('House', fClass.mvidgenre.CommaText, 'genre mismatch');
     CheckFalse(fClass.mvidpal, 'PAL mismatch');
     CheckTrue(fClass.mvidntsc, 'NTSC mismatch');
     CheckFalse(fClass.mvidva, 'Various Artists mismatch');
     CheckFalse(fClass.mvidlive, 'LIVE mismatch');
     CheckEquals(2017, fClass.mvidyear, 'Year mismatch');
-    CheckEqualsString('EN', fClass.mvidlanguage, 'Language mismatch');
+    CheckEquals('EN', fClass.mvidlanguage, 'Language mismatch');
   finally
     fClass.Free;
   end;
@@ -1127,13 +1127,13 @@ begin
     fClass.SetValuesFromTask(fFileCount, (fVideoRegion = 'PAL'), (fVideoRegion = 'NTSC'), fGenres);
 
     CheckEquals(50, fClass.mvidfiles, 'Filecount mismatch');
-    CheckEqualsString('Ballad,Latin,Pop', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckEquals('Ballad,Latin,Pop', fClass.mvidgenre.CommaText, 'genre mismatch');
     CheckFalse(fClass.mvidpal, 'PAL mismatch');
     CheckTrue(fClass.mvidntsc, 'NTSC mismatch');
     CheckFalse(fClass.mvidva, 'Various Artists mismatch');
     CheckFalse(fClass.mvidlive, 'LIVE mismatch');
     CheckEquals(2006, fClass.mvidyear, 'Year mismatch');
-    CheckEqualsString('ES', fClass.mvidlanguage, 'Language mismatch');
+    CheckEquals('ES', fClass.mvidlanguage, 'Language mismatch');
   finally
     fClass.Free;
   end;
@@ -1157,13 +1157,13 @@ begin
     fClass.SetValuesFromTask(fFileCount, (fVideoRegion = 'PAL'), (fVideoRegion = 'NTSC'), fGenres);
 
     CheckEquals(50, fClass.mvidfiles, 'Filecount mismatch');
-    CheckEqualsString('x,y,z', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckEquals('x,y,z', fClass.mvidgenre.CommaText, 'genre mismatch');
     CheckTrue(fClass.mvidpal, 'PAL mismatch');
     CheckFalse(fClass.mvidntsc, 'NTSC mismatch');
     CheckFalse(fClass.mvidva, 'Various Artists mismatch');
     CheckTrue(fClass.mvidlive, 'LIVE mismatch');
     CheckEquals(2015, fClass.mvidyear, 'Year mismatch');
-    CheckEqualsString('EN', fClass.mvidlanguage, 'Language mismatch');
+    CheckEquals('EN', fClass.mvidlanguage, 'Language mismatch');
   finally
     fClass.Free;
   end;
@@ -1340,13 +1340,13 @@ begin
     fClass.SetValuesFromTask(fFileCount, (fVideoRegion = 'PAL'), (fVideoRegion = 'NTSC'), fGenres);
 
     CheckEquals(81, fClass.mvidfiles, 'Filecount mismatch');
-    CheckEqualsString('Heavy,Metal', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckEquals('Heavy,Metal', fClass.mvidgenre.CommaText, 'genre mismatch');
     CheckFalse(fClass.mvidpal, 'PAL mismatch');
     CheckTrue(fClass.mvidntsc, 'NTSC mismatch');
     CheckFalse(fClass.mvidva, 'Various Artists mismatch');
     CheckTrue(fClass.mvidlive, 'LIVE mismatch');
     CheckEquals(2016, fClass.mvidyear, 'Year mismatch');
-    CheckEqualsString('EN', fClass.mvidlanguage, 'Language mismatch');
+    CheckEquals('EN', fClass.mvidlanguage, 'Language mismatch');
   finally
     fClass.Free;
   end;
@@ -1492,13 +1492,13 @@ begin
     fClass.SetValuesFromTask(fFileCount, (fVideoRegion = 'PAL'), (fVideoRegion = 'NTSC'), fGenres);
 
     CheckEquals(90, fClass.mvidfiles, 'Filecount mismatch');
-    CheckEqualsString('Rock', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckEquals('Rock', fClass.mvidgenre.CommaText, 'genre mismatch');
     CheckFalse(fClass.mvidpal, 'PAL mismatch');
     CheckFalse(fClass.mvidntsc, 'NTSC mismatch');
     CheckFalse(fClass.mvidva, 'Various Artists mismatch');
     CheckFalse(fClass.mvidlive, 'LIVE mismatch');
     CheckEquals(2018, fClass.mvidyear, 'Year mismatch');
-    CheckEqualsString('EN', fClass.mvidlanguage, 'Language mismatch');
+    CheckEquals('EN', fClass.mvidlanguage, 'Language mismatch');
   finally
     fClass.Free;
   end;
@@ -1609,13 +1609,13 @@ begin
     fClass.SetValuesFromTask(fFileCount, (fVideoRegion = 'PAL'), (fVideoRegion = 'NTSC'), fGenres);
 
     CheckEquals(63, fClass.mvidfiles, 'Filecount mismatch');
-    CheckEqualsString('Classical,Concert,music,Musicals', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckEquals('Classical,Concert,music,Musicals', fClass.mvidgenre.CommaText, 'genre mismatch');
     CheckFalse(fClass.mvidpal, 'PAL mismatch');
     CheckFalse(fClass.mvidntsc, 'NTSC mismatch');
     CheckFalse(fClass.mvidva, 'Various Artists mismatch');
     CheckFalse(fClass.mvidlive, 'LIVE mismatch');
     CheckEquals(2012, fClass.mvidyear, 'Year mismatch');
-    CheckEqualsString('EN', fClass.mvidlanguage, 'Language mismatch');
+    CheckEquals('EN', fClass.mvidlanguage, 'Language mismatch');
   finally
     fClass.Free;
   end;
@@ -1745,13 +1745,13 @@ begin
     fClass.SetValuesFromTask(fFileCount, (fVideoRegion = 'PAL'), (fVideoRegion = 'NTSC'), fGenres);
 
     CheckEquals(52, fClass.mvidfiles, 'Filecount mismatch');
-    CheckEqualsString('', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckEquals('', fClass.mvidgenre.CommaText, 'genre mismatch');
     CheckFalse(fClass.mvidpal, 'PAL mismatch');
     CheckFalse(fClass.mvidntsc, 'NTSC mismatch');
     CheckFalse(fClass.mvidva, 'Various Artists mismatch');
     CheckFalse(fClass.mvidlive, 'LIVE mismatch');
     CheckEquals(2020, fClass.mvidyear, 'Year mismatch');
-    CheckEqualsString('EN', fClass.mvidlanguage, 'Language mismatch');
+    CheckEquals('EN', fClass.mvidlanguage, 'Language mismatch');
   finally
     fClass.Free;
   end;
@@ -1930,13 +1930,13 @@ begin
     fClass.SetValuesFromTask(fFileCount, (fVideoRegion = 'PAL'), (fVideoRegion = 'NTSC'), fGenres);
 
     CheckEquals(1, fClass.mvidfiles, 'Filecount mismatch');
-    CheckEqualsString('Pop', fClass.mvidgenre.CommaText, 'genre mismatch');
+    CheckEquals('Pop', fClass.mvidgenre.CommaText, 'genre mismatch');
     CheckFalse(fClass.mvidpal, 'PAL mismatch');
     CheckTrue(fClass.mvidntsc, 'NTSC mismatch');
     CheckTrue(fClass.mvidva, 'Various Artists mismatch');
     CheckFalse(fClass.mvidlive, 'LIVE mismatch');
     CheckEquals(2017, fClass.mvidyear, 'Year mismatch');
-    CheckEqualsString('EN', fClass.mvidlanguage, 'Language mismatch');
+    CheckEquals('EN', fClass.mvidlanguage, 'Language mismatch');
   finally
     fClass.Free;
   end;

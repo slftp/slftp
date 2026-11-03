@@ -1568,16 +1568,23 @@ begin
 
     if ((not direct_echo) and (MilliSecondsBetween(Now, irc_last_written) > flood)) then
     begin
+      fEchoItem := nil;
       fEchoQueueList := PendingMessagesQueue.LockList;
       try
         if fEchoQueueList.Count > 0 then
-        begin
           fEchoItem := fEchoQueueList.Extract(fEchoQueueList.First);
-          IrcSendPrivMessage(fEchoItem.Channel, fEchoItem.Message);
-          fEchoItem.Free;
-        end;
       finally
         PendingMessagesQueue.UnlockList;
+      end;
+
+      // encrypt and send without holding the lock: every thread that adds a message waits for it
+      if fEchoItem <> nil then
+      begin
+        try
+          IrcSendPrivMessage(fEchoItem.Channel, fEchoItem.Message);
+        finally
+          fEchoItem.Free;
+        end;
       end;
     end;
 

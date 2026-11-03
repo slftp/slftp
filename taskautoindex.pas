@@ -17,7 +17,7 @@ implementation
 
 uses
   SyncObjs, Classes, DateUtils, Contnrs, configunit, mainthread, sitesunit, precatcher, kb, queueunit,
-  mystrings, dirlist, SysUtils, irc, debugunit, indexer, Regexpr;
+  mystrings, dirlist, SysUtils, irc, debugunit, indexer, Regexpr, Generics.Collections;
 
 const
   rsections = 'indexer';
@@ -65,27 +65,32 @@ var
   procedure DoActualIndexing;
   var
     deInner: TDirListEntry;
+    fReleases: TList<String>;
   begin
-    dl.dirlist_lock.Enter('TAutoIndexTask.DoIndexing');
+    fReleases := TList<String>.Create;
     try
-      for deInner in dl.entries.Values do
-      begin
-        try
+      dl.dirlist_lock.Enter('TAutoIndexTask.DoIndexing');
+      try
+        for deInner in dl.entries.Values do
+        begin
           if deInner.Directory then
-          begin
-            indexerAddRelease(deInner.filename, site1, sectionname, path);
-            inc(Result);
-          end;
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, rsections, Format('[EXCEPTION] DoActualIndexing: %s', [e.Message]));
-            Break;
-          end;
+            fReleases.Add(deInner.filename);
+        end;
+      finally
+        dl.dirlist_lock.Leave;
+      end;
+
+      try
+        indexerAddReleases(fReleases.ToArray, site1, sectionname, path);
+        inc(Result, fReleases.Count);
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, rsections, Format('[EXCEPTION] DoActualIndexing: %s', [e.Message]));
         end;
       end;
     finally
-      dl.dirlist_lock.Leave;
+      fReleases.Free;
     end;
   end;
 begin

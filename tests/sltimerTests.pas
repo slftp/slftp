@@ -4,21 +4,13 @@ interface
 
 uses
   {$IFDEF FPC}
-    TestFramework;
+    fpcunit, testregistry;
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility;
   {$ENDIF}
 
 type
   TTestSLTimer = class(TTestCase)
-  protected
-    {$IFDEF FPC}
-      procedure SetUpOnce; override;
-      procedure TeardownOnce; override;
-    {$ELSE}
-      procedure SetUp; override;
-      procedure Teardown; override;
-    {$ENDIF}
   published
     procedure TestElapsedTimeInMilliseconds;
     procedure TestElapsedTimeInMicroseconds;
@@ -31,16 +23,6 @@ uses
   sltimer, SysUtils;
 
 { TTestSLTimer }
-
-procedure TTestSLTimer.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
-begin
-
-end;
-
-procedure TTestSLTimer.{$IFDEF FPC}TeardownOnce{$ELSE}Teardown{$ENDIF};
-begin
-
-end;
 
 procedure TTestSLTimer.TestElapsedTimeInMilliseconds;
 var

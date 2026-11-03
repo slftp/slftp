@@ -4,7 +4,7 @@ interface
 
 uses
   {$IFDEF FPC}
-    TestFramework;
+    fpcunit, testregistry;
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility;
   {$ENDIF}
@@ -372,8 +372,8 @@ begin
   fExpectedRatio := 'Unlimited';
   parseSTATLine(fStatLine, fCredits, fRatio);
 
-  CheckEqualsString(fExpectedCredits, fCredits);
-  CheckEqualsString(fExpectedRatio, fRatio);
+  CheckEquals(fExpectedCredits, fCredits);
+  CheckEquals(fExpectedRatio, fRatio);
 end;
 
 procedure TTestMyStrings.TestParseSTATLine2;
@@ -386,8 +386,8 @@ begin
   fExpectedRatio := '1:3';
   parseSTATLine(fStatLine, fCredits, fRatio);
 
-  CheckEqualsString(fExpectedCredits, fCredits);
-  CheckEqualsString(fExpectedRatio, fRatio);
+  CheckEquals(fExpectedCredits, fCredits);
+  CheckEquals(fExpectedRatio, fRatio);
 end;
 
 procedure TTestMyStrings.TestParseSTATLine3;
@@ -400,8 +400,8 @@ begin
   fExpectedRatio := '1:3';
   parseSTATLine(fStatLine, fCredits, fRatio);
 
-  CheckEqualsString(fExpectedCredits, fCredits);
-  CheckEqualsString(fExpectedRatio, fRatio);
+  CheckEquals(fExpectedCredits, fCredits);
+  CheckEquals(fExpectedRatio, fRatio);
 end;
 
 procedure TTestMyStrings.TestParseSTATLine4;
@@ -414,8 +414,8 @@ begin
   fExpectedRatio := '1:3';
   parseSTATLine(fStatLine, fCredits, fRatio);
 
-  CheckEqualsString(fExpectedCredits, fCredits);
-  CheckEqualsString(fExpectedRatio, fRatio);
+  CheckEquals(fExpectedCredits, fCredits);
+  CheckEquals(fExpectedRatio, fRatio);
 end;
 
 procedure TTestMyStrings.TestParseSTATLine5;
@@ -428,8 +428,8 @@ begin
   fExpectedRatio := '1:3';
   parseSTATLine(fStatLine, fCredits, fRatio);
 
-  CheckEqualsString(fExpectedCredits, fCredits);
-  CheckEqualsString(fExpectedRatio, fRatio);
+  CheckEquals(fExpectedCredits, fCredits);
+  CheckEquals(fExpectedRatio, fRatio);
 end;
 
 procedure TTestMyStrings.TestParseSTATLine6;
@@ -442,8 +442,8 @@ begin
   fExpectedRatio := '1:3';
   parseSTATLine(fStatLine, fCredits, fRatio);
 
-  CheckEqualsString(fExpectedCredits, fCredits);
-  CheckEqualsString(fExpectedRatio, fRatio);
+  CheckEquals(fExpectedCredits, fCredits);
+  CheckEquals(fExpectedRatio, fRatio);
 end;
 
 procedure TTestMyStrings.TestParseSTATLine7;
@@ -456,8 +456,8 @@ begin
   fExpectedRatio := 'Unlimited';
   parseSTATLine(fStatLine, fCredits, fRatio);
 
-  CheckEqualsString(fExpectedCredits, fCredits);
-  CheckEqualsString(fExpectedRatio, fRatio);
+  CheckEquals(fExpectedCredits, fCredits);
+  CheckEquals(fExpectedRatio, fRatio);
 end;
 
 procedure TTestMyStrings.TestParseSTATLine8;
@@ -470,8 +470,8 @@ begin
   fExpectedRatio := '1:3';
   parseSTATLine(fStatLine, fCredits, fRatio);
 
-  CheckEqualsString(fExpectedCredits, fCredits);
-  CheckEqualsString(fExpectedRatio, fRatio);
+  CheckEquals(fExpectedCredits, fCredits);
+  CheckEquals(fExpectedRatio, fRatio);
 end;
 
 procedure TTestMyStrings.TestParseSTATLine9;
@@ -484,8 +484,8 @@ begin
   fExpectedRatio := '1:3';
   parseSTATLine(fStatLine, fCredits, fRatio);
 
-  CheckEqualsString(fExpectedCredits, fCredits);
-  CheckEqualsString(fExpectedRatio, fRatio);
+  CheckEquals(fExpectedCredits, fCredits);
+  CheckEquals(fExpectedRatio, fRatio);
 end;
 
 procedure TTestMyStrings.TestParseSTATLine10;
@@ -498,8 +498,8 @@ begin
   fExpectedRatio := 'Unlimited';
   parseSTATLine(fStatLine, fCredits, fRatio);
 
-  CheckEqualsString(fExpectedCredits, fCredits);
-  CheckEqualsString(fExpectedRatio, fRatio);
+  CheckEquals(fExpectedCredits, fCredits);
+  CheckEquals(fExpectedRatio, fRatio);
 end;
 
 procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars1;
@@ -511,7 +511,7 @@ begin
   fExpectedStr := 'Ein Laecheln nachts um vier';
   fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
 
-  CheckEqualsString(fExpectedStr, fAsciiToScene);
+  CheckEquals(fExpectedStr, fAsciiToScene);
 end;
 
 procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars2;
@@ -523,7 +523,7 @@ begin
   fExpectedStr := 'The Drew Carey Show Bananas Part 2';
   fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
 
-  CheckEqualsString(fExpectedStr, fAsciiToScene);
+  CheckEquals(fExpectedStr, fAsciiToScene);
 end;
 
 procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars3;
@@ -535,7 +535,7 @@ begin
   fExpectedStr := 'Crack Cocaine Corruption Conspiracy';
   fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
 
-  CheckEqualsString(fExpectedStr, fAsciiToScene);
+  CheckEquals(fExpectedStr, fAsciiToScene);
 end;
 
 procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars4;
@@ -547,7 +547,7 @@ begin
   fExpectedStr := 'Cinematic Venom Presents 1001 Movies You Must See Before You Die Whiplash';
   fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
 
-  CheckEqualsString(fExpectedStr, fAsciiToScene, 'Check if file mystringsTests.pas and mystrings.pas have encoding UTF-8 and not UTF-8-BOM if this fails.');
+  CheckEquals(fExpectedStr, fAsciiToScene, 'Check if file mystringsTests.pas and mystrings.pas have encoding UTF-8 and not UTF-8-BOM if this fails.');
 end;
 
 procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars5;
@@ -559,7 +559,7 @@ begin
   fExpectedStr := 'Matthew Bournes Romeo and Juliet';
   fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
 
-  CheckEqualsString(fExpectedStr, fAsciiToScene);
+  CheckEquals(fExpectedStr, fAsciiToScene);
 end;
 
 procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars6;
@@ -571,7 +571,7 @@ begin
   fExpectedStr := '37 Grad Auf der Spur der Taeter Delikt Kinderpornografie';
   fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
 
-  CheckEqualsString(fExpectedStr, fAsciiToScene);
+  CheckEquals(fExpectedStr, fAsciiToScene);
 end;
 
 procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars7;
@@ -583,7 +583,7 @@ begin
   fExpectedStr := 'War for the Planet of the Apes';
   fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
 
-  CheckEqualsString(fExpectedStr, fAsciiToScene);
+  CheckEquals(fExpectedStr, fAsciiToScene);
 end;
 
 procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars8;
@@ -595,7 +595,7 @@ begin
   fExpectedStr := 'Batman Soul of the Dragon';
   fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
 
-  CheckEqualsString(fExpectedStr, fAsciiToScene);
+  CheckEquals(fExpectedStr, fAsciiToScene);
 end;
 
 procedure TTestMyStrings.TestParseSiteSearchResult1;

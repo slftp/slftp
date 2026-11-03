@@ -5,7 +5,7 @@ interface
 uses
   ircchansettingsTests,
   {$IFDEF FPC}
-    TestFramework;
+    fpcunit, testregistry;
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility, DUnitX.Assert;
   {$ENDIF}
@@ -86,7 +86,7 @@ begin
           CheckNotEquals(0, Length(fResult), 'Length of encrypted text should be longer than 0 for chan ' + fChanSettingsObj.Channel);
           // message always vary for CBC, so decrypt it and check if we get the same result 
           fResult := fChanSettingsObj.DecryptMessage(fResult.Remove(0, 5));
-          CheckEqualsString(TestValues1[i]._dText, fResult, 'Resulting decrypted text does not match previous encrypted text for chan ' + fChanSettingsObj.Channel);
+          CheckEquals(TestValues1[i]._dText, fResult, 'Resulting decrypted text does not match previous encrypted text for chan ' + fChanSettingsObj.Channel);
         end;
       end
       else if (fChanSettingsObj.Channel = '#sltesting') then
@@ -97,7 +97,7 @@ begin
           CheckNotEquals(0, Length(fResult), 'Length of encrypted text should be longer than 0 for chan ' + fChanSettingsObj.Channel);
           // message always vary for CBC, so decrypt it and check if we get the same result 
           fResult := fChanSettingsObj.DecryptMessage(fResult.Remove(0, 5));
-          CheckEqualsString(TestValues2[i]._dText, fResult, 'Resulting decrypted text does not match previous encrypted text for chan ' + fChanSettingsObj.Channel);
+          CheckEquals(TestValues2[i]._dText, fResult, 'Resulting decrypted text does not match previous encrypted text for chan ' + fChanSettingsObj.Channel);
         end;
       end;
     end;
@@ -122,7 +122,7 @@ begin
         begin
           fResult := fChanSettingsObj.DecryptMessage(TestValues1[i]._eText.Remove(0, 5));
           CheckNotEquals(0, Length(fResult), 'Length of decrypted text should be longer than 0 for chan ' + fChanSettingsObj.Channel);
-          CheckEqualsString(TestValues1[i]._dText, fResult, 'Decrypted text does not match for chan ' + fChanSettingsObj.Channel);
+          CheckEquals(TestValues1[i]._dText, fResult, 'Decrypted text does not match for chan ' + fChanSettingsObj.Channel);
         end;
       end
       else if (fChanSettingsObj.Channel = '#sltesting') then
@@ -131,7 +131,7 @@ begin
         begin
           fResult := fChanSettingsObj.DecryptMessage(TestValues2[i]._eText.Remove(0, 5));
           CheckNotEquals(0, Length(fResult), 'Length of decrypted text should be longer than 0 for chan ' + fChanSettingsObj.Channel);
-          CheckEqualsString(TestValues2[i]._dText, fResult, 'Decrypted text does not match for chan ' + fChanSettingsObj.Channel);
+          CheckEquals(TestValues2[i]._dText, fResult, 'Decrypted text does not match for chan ' + fChanSettingsObj.Channel);
         end;
       end;
     end;

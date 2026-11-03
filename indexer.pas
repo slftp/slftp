@@ -8,7 +8,14 @@ procedure indexerUninit;
 function indexerQuery(var aRls: String): String;
 function indexerQueryPartially(var aRls: String; const aLimit: Integer): String;
 function indexerStat: String;
-procedure indexerAddRelease(const rls, site, section, path: String);
+{ Adds releases to the index in a single transaction, so the lock is taken and the database is written
+  to disk only once per call instead of once per release. If one release cannot be added, none of them are added
+  and the exception is raised again
+  @param(aReleases names of the releases)
+  @param(aSite name of the site)
+  @param(aSection name of the section)
+  @param(aPath path on the site in which the releases are located) }
+procedure indexerAddReleases(const aReleases: TArray<String>; const aSite, aSection, aPath: String);
 procedure indexerRemoveSiteSection(const site, section: String);
 function IndexerAlive: boolean;
 
@@ -16,7 +23,7 @@ implementation
 
 uses
   configunit, debugunit, DateUtils, SysUtils, console, slvision, slblowfish,
-  StrUtils, Classes, SyncObjs, dbhandler, mormot.db.sql.sqlite3, slcriticalsection2;
+  StrUtils, Classes, SyncObjs, dbhandler, mormot.db.sql.sqlite3, mormot.db.raw.sqlite3, slcriticalsection2;
 
 const
   section = 'indexer';
@@ -33,27 +40,46 @@ begin
     result := True;
 end;
 
-procedure indexerAddRelease(const rls, site, section, path: String);
+procedure indexerAddReleases(const aReleases: TArray<String>; const aSite, aSection, aPath: String);
 var
+  fConnection: TSqlDBSQLite3Connection;
   fQuery: TSqlDBSQLite3Statement;
+  fRls: String;
 begin
-  SQLite3Lock.Enter('indexerAddRelease');
+  if Length(aReleases) = 0 then
+    exit;
+
+  SQLite3Lock.Enter('indexerAddReleases');
   try
-    fQuery := TSqlDBSQLite3Statement.Create(indexesSQLite3DBCon.ThreadSafeConnection);
+    fConnection := indexesSQLite3DBCon.ThreadSafeConnection as TSqlDBSQLite3Connection;
+    fQuery := TSqlDBSQLite3Statement.Create(fConnection);
     try
       fQuery.Prepare('INSERT INTO rls (rls, sitename, section, path) VALUES (?, ?, ?, ?)');
-      fQuery.BindTextS(1, rls);
-      fQuery.BindTextS(2, site);
-      fQuery.BindTextS(3, section);
-      fQuery.BindTextS(4, path);
       try
-        fQuery.ExecutePrepared;
-      except
-        on e: Exception do
+        // plain SQL instead of StartTransaction/Commit/Rollback of the connection, see SQLite3RollbackIfActive.
+        // Inside the try: if a transaction was left open, BEGIN fails and the rollback below closes it
+        fConnection.DB.Execute('BEGIN TRANSACTION;');
+        for fRls in aReleases do
         begin
-          Debug(dpError, section, Format('[EXCEPTION] indexerAddRelease: %s', [e.Message]));
-          exit;
+          fQuery.BindTextS(1, fRls);
+          fQuery.BindTextS(2, aSite);
+          fQuery.BindTextS(3, aSection);
+          fQuery.BindTextS(4, aPath);
+          fQuery.ExecutePrepared;
+          fQuery.Reset;
         end;
+        fConnection.DB.Execute('COMMIT TRANSACTION;');
+      except
+        // one failed release drops the releases of the whole call: acceptable, as each autoindex run clears the
+        // section and indexes it again from scratch
+        try
+          SQLite3RollbackIfActive(fConnection.DB);
+        except
+          // only log it, the caller needs the original exception
+          on e: Exception do
+            Debug(dpError, section, Format('[EXCEPTION] indexerAddReleases rollback: %s', [e.Message]));
+        end;
+        raise;
       end;
     finally
       fQuery.free;
@@ -109,6 +135,8 @@ begin
   db_name := Trim(config.ReadString(section, 'database', 'indexes.db'));
 
   indexesSQLite3DBCon := CreateSQLite3DbConn(db_name, '');
+  // in WAL mode a commit then no longer waits for the disk; a power loss can only drop the last commits
+  indexesSQLite3DBCon.MainSQLite3DB.Synchronous := smNormal;
 
   indexesSQLite3DBCon.MainSQLite3DB.Execute(
     'CREATE TABLE IF NOT EXISTS rls (' +
