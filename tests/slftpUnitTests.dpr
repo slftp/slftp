@@ -80,18 +80,22 @@ uses
   slmasksTests,
   dirlist.helpersTests,
   dirlistTests,
+  pazo.rankTests,
   precatcher.helpersTests,
   kb.releaseinfo.MP3Tests,
   kb.releaseinfo.NullDayTests,
   kb.releaseinfo.MVIDTests,
   taskhttpimdbTests,
   sitesunitTests,
+  queueunitTests,
   precatcherTests,
   slcriticalsection2Tests,
   dbhandlerTests,
   indexerTests,
   variantCacheTests,
-  sltimerTests;
+  sltimerTests,
+  raceperfunitTests,
+  tasksunitTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}

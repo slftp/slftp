@@ -47,6 +47,7 @@ uses
   slmasksTests,
   dirlist.helpersTests,
   dirlistTests,
+  pazo.rankTests,
   precatcher.helpersTests,
   kb.releaseinfo.MP3Tests,
   kb.releaseinfo.NullDayTests,
@@ -55,13 +56,16 @@ uses
   slsslTests,
   sltcpTests,
   sitesunitTests,
+  queueunitTests,
+  {$IFDEF LINUX}slclockTests,{$ENDIF}
   precatcherTests,
   slcriticalsection2Tests,
   dbhandlerTests,
   indexerTests,
   variantCacheTests,
-  {$IFDEF LINUX}slclockTests,{$ENDIF}
-  sltimerTests;
+  sltimerTests,
+  raceperfunitTests,
+  tasksunitTests;
 
 {* returns the value of the --junit=<filename> command line option
    @returns(the file name, or empty string if the option is not present) *}
