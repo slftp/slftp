@@ -14,6 +14,7 @@ type
   published
     procedure TestCompleteTag1;
     procedure TestCompleteTag2;
+    procedure TestListedFileClearsMkdirRequirement;
   end;
 
 implementation
@@ -81,6 +82,24 @@ begin
     end;
 end;
 
+
+procedure TTestDirlist.TestListedFileClearsMkdirRequirement;
+var
+  fDirlist: TDirList;
+begin
+  fDirlist := TDirList.Create('DST', nil, nil, '');
+  try
+    CheckTrue(fDirlist.need_mkdir);
+    CheckEquals('', fDirlist.dependency_mkdir);
+    fDirlist.ParseDirlist('total 1' + #13 +
+      '-rw-r--r--   1 testuser testgrp         0 Apr 18 23:49 A.rar' + #13 +
+      '213 End of Status');
+    CheckEquals(1, fDirlist.entries.Count);
+    CheckFalse(fDirlist.need_mkdir, 'A listed file confirms the destination directory exists');
+  finally
+    fDirlist.Free;
+  end;
+end;
 
 initialization
   {$IFDEF FPC}
