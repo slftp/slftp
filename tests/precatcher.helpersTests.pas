@@ -4,7 +4,7 @@ interface
 
 uses
   {$IFDEF FPC}
-    TestFramework;
+    fpcunit, testregistry;
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility;
   {$ENDIF}
@@ -43,7 +43,7 @@ begin
   fExpectedResultStr := 'NEW  > tv-hd720 < Life.and.Birth.S01E04.1080p.HDTV.x264-FTP by sltrader BiS0N.';
 
   fOutputStr := RemoveSpecialCharsAndBareIt(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
 end;
 
 procedure TTestPrecatcherHelpers.TestRemoveSpecialCharsAndBareIt2;
@@ -54,7 +54,7 @@ begin
   fExpectedResultStr := 'NEW in games  Bandit.Point.VR-VREX by poseid0n iND';
 
   fOutputStr := RemoveSpecialCharsAndBareIt(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
 end;
 
 procedure TTestPrecatcherHelpers.TestRemoveSpecialCharsAndBareIt3;
@@ -65,7 +65,7 @@ begin
   fExpectedResultStr := '  tv-hd-swe > A new car Trolljagarna.S04E08.SWEDiSH.1080p.WEB.H264-EXECUTION discovered on streets';
 
   fOutputStr := RemoveSpecialCharsAndBareIt(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
 end;
 
 procedure TTestPrecatcherHelpers.TestRemoveSpecialCharsAndBareIt4;
@@ -76,7 +76,7 @@ begin
   fExpectedResultStr := 'NEW in hd-mov  -> Klovn.The.Final.2020.DANISH.1080p.BluRay.x264-CONDITION by winner SLDev';
 
   fOutputStr := RemoveSpecialCharsAndBareIt(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
 end;
 
 procedure TTestPrecatcherHelpers.TestStripNoValidChars1;
@@ -87,7 +87,7 @@ begin
   fExpectedResultStr := 'NEW  > tv-hd720 < Life.and.Birth.S01E04.1080p.HDTV.x264-FTP by sltrader/BiS0N.';
 
   fOutputStr := StripNoValidChars(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
 end;
 
 procedure TTestPrecatcherHelpers.TestStripNoValidChars2;
@@ -98,7 +98,7 @@ begin
   fExpectedResultStr := 'NEW in games: Bandit.Point.VR-VREX by poseid0n/iND';
 
   fOutputStr := StripNoValidChars(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
 end;
 
 procedure TTestPrecatcherHelpers.TestStripNoValidChars3;
@@ -109,7 +109,7 @@ begin
   fExpectedResultStr := '+ tv-hd-swe > A new car Trolljagarna.S04E08.SWEDiSH.1080p.WEB.H264-EXECUTION discovered on streets';
 
   fOutputStr := StripNoValidChars(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
 end;
 
 procedure TTestPrecatcherHelpers.TestStripNoValidChars4;
@@ -120,7 +120,7 @@ begin
   fExpectedResultStr := 'NEW in hd-mov: -> Klovn.The.Final.2020.DANISH.1080p.BluRay.x264-CONDITION by winner/SLDev';
 
   fOutputStr := StripNoValidChars(fInputStr);
-  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
+  CheckEquals(fExpectedResultStr, fOutputStr, 'Cleaning failed!');
 end;
 
 procedure TTestPrecatcherHelpers.TestIsLineCommentedOut1;
@@ -154,7 +154,7 @@ var
 begin
   // original: [info][mp3] Keller_Williams_Kwahtro-Sync-WEB-2017-ENTiTLED remaining(122.4MB) Rock(2017)
   fInputStr := '[info][mp3]  remaining(122.4MB) Rock(2017)';
-  CheckEqualsString('Rock', TryToExtractMP3GenreFromSitebotAnnounce(fInputStr), 'Getting MP3 Genre failed!');
+  CheckEquals('Rock', TryToExtractMP3GenreFromSitebotAnnounce(fInputStr), 'Getting MP3 Genre failed!');
 end;
 
 procedure TTestPrecatcherHelpers.TestTryToExtractMP3GenreFromSitebotAnnounce2;
@@ -163,7 +163,7 @@ var
 begin
   // original: ( MP3 )-( Presk_-_2BXPRZD-(SOHASOMRGWLD01)-WEB-2017-HQEM )-( Expecting 4F of 320kbps Techno from 2017 )
   fInputStr := '( MP3 )-(  )-( Expecting 4F of 320kbps Techno from 2017 )';
-  CheckEqualsString('Techno', TryToExtractMP3GenreFromSitebotAnnounce(fInputStr), 'Getting MP3 Genre failed!');
+  CheckEquals('Techno', TryToExtractMP3GenreFromSitebotAnnounce(fInputStr), 'Getting MP3 Genre failed!');
 end;
 
 procedure TTestPrecatcherHelpers.TestTryToExtractMP3GenreFromSitebotAnnounce3;
@@ -172,7 +172,7 @@ var
 begin
   // original: [new]-{mp3} Juan_Mejia--The_Juice_(Remixed)-(DUTCHIEWW108)-WEB-2021-OMA starts by username (tagline)
   fInputStr := '[new]-{mp3}  starts by username (tagline)';
-  CheckEqualsString('', TryToExtractMP3GenreFromSitebotAnnounce(fInputStr), 'Getting MP3 Genre failed!');
+  CheckEquals('', TryToExtractMP3GenreFromSitebotAnnounce(fInputStr), 'Getting MP3 Genre failed!');
 end;
 
 initialization
