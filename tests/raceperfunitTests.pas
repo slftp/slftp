@@ -4,7 +4,7 @@ interface
 
 uses
   {$IFDEF FPC}
-    TestFramework;
+    fpcunit, testregistry;
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility;
   {$ENDIF}
@@ -280,11 +280,11 @@ begin
           end;
         end;
         CheckEquals(5, fSiteNames.Count, fLines.Text);
-        CheckEqualsString('alpha', fSiteNames[0]);
-        CheckEqualsString('Beta', fSiteNames[1]);
-        CheckEqualsString('Zulu', fSiteNames[2]);
-        CheckEqualsString('NeverA', fSiteNames[3]);
-        CheckEqualsString('NeverZ', fSiteNames[4]);
+        CheckEquals('alpha', fSiteNames[0]);
+        CheckEquals('Beta', fSiteNames[1]);
+        CheckEquals('Zulu', fSiteNames[2]);
+        CheckEquals('NeverA', fSiteNames[3]);
+        CheckEquals('NeverZ', fSiteNames[4]);
       finally
         fSiteNames.Free;
       end;

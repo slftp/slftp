@@ -6,7 +6,7 @@ interface
 
 uses
   {$IFDEF FPC}
-    TestFramework;
+    fpcunit, testregistry;
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility;
   {$ENDIF}
@@ -17,13 +17,8 @@ type
   private
     FConsoleQueueDisabled: Boolean;
   protected
-    {$IFDEF FPC}
-      procedure SetUpOnce; override;
-      procedure TearDownOnce; override;
-    {$ELSE}
-      procedure SetUp; override;
-      procedure TearDown; override;
-    {$ENDIF}
+    procedure SetUp; override;
+    procedure TearDown; override;
   published
     procedure TestSignalBeforeWaitAndBurstCoalescing;
     procedure TestInsertionSignalsAndExplicitBatch;
@@ -209,14 +204,14 @@ begin
   FDone.SetEvent;
 end;
 
-procedure TTestQueueUnit.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
+procedure TTestQueueUnit.SetUp;
 begin
   FConsoleQueueDisabled := no_console_queue;
   no_console_queue := True;
   QueueInit;
 end;
 
-procedure TTestQueueUnit.{$IFDEF FPC}TearDownOnce{$ELSE}TearDown{$ENDIF};
+procedure TTestQueueUnit.TearDown;
 begin
   QueueUninit;
   no_console_queue := FConsoleQueueDisabled;
@@ -497,7 +492,7 @@ begin
     fTargets.RegisterSite('SOURCE-C');
     fSites := fTargets.TakeSites;
     CheckEquals(1, Length(fSites), 'Registration after a notification must survive for the next completion');
-    CheckEqualsString('SOURCE-C', fSites[0]);
+    CheckEquals('SOURCE-C', fSites[0]);
   finally
     fTargets.Free;
   end;
@@ -681,7 +676,7 @@ begin
     fDiagnostics.Measure(qtSort, 20);
     fDiagnostics.Measure(qtSort, 40);
     fDiagnostics.Measure(qtSort, -1);
-    CheckEqualsString('', fDiagnostics.Snapshot('PROBE', fNowUs, 3, 0, 1, 2, 100));
+    CheckEquals('', fDiagnostics.Snapshot('PROBE', fNowUs, 3, 0, 1, 2, 100));
     fReport := fDiagnostics.Snapshot('PROBE', fNowUs + 10000000, 3, 0, 1, 2, 100);
     CheckTrue(Pos('sorts=3 ', fReport) > 0, 'Early reads must not reset counters');
     CheckTrue(Pos('completed_declared_bytes=5368709120 ', fReport) > 0, 'Bytes require 64-bit counters');

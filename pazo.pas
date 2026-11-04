@@ -733,6 +733,12 @@ begin
                 Continue;
               end;
 
+              if dst.HasActiveTransfer(dir + '/' + de.filename) then
+              begin
+                Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Skipping %s, transfer already active', [fd, Name, dst.Name, de.filename]);
+                Continue;
+              end;
+
               if fSourceSite.HasPendingRace(pazo.pazo_id, dst.Name, dir, de.filename) then
               begin
                 Inc(fRejectPendingRace);

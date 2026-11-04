@@ -3,7 +3,7 @@ unit tasksunitTests;
 interface
 
 uses
-  {$IFDEF FPC}TestFramework;{$ELSE}DUnitX.TestFramework, DUnitX.DUnitCompatibility;{$ENDIF}
+  {$IFDEF FPC}fpcunit, testregistry;{$ELSE}DUnitX.TestFramework, DUnitX.DUnitCompatibility;{$ENDIF}
 
 type
   { Tests disabled-site policy and task ownership without starting FTP workers. }
@@ -124,12 +124,12 @@ end;
 
 procedure TTestTaskSiteDown.TestSitePolicyKeepsTemporaryRecovery;
 begin
-  CheckEqualsString('', GetAutomaticTaskDownReason(sstUp, False));
-  CheckEqualsString('', GetAutomaticTaskDownReason(sstUnknown, False));
-  CheckEqualsString('', GetAutomaticTaskDownReason(sstTempDown, False));
-  CheckEqualsString('site_marked_down', GetAutomaticTaskDownReason(sstMarkedAsDownByUser, False));
-  CheckEqualsString('site_down', GetAutomaticTaskDownReason(sstDown, False));
-  CheckEqualsString('site_permdown', GetAutomaticTaskDownReason(sstUp, True));
+  CheckEquals('', GetAutomaticTaskDownReason(sstUp, False));
+  CheckEquals('', GetAutomaticTaskDownReason(sstUnknown, False));
+  CheckEquals('', GetAutomaticTaskDownReason(sstTempDown, False));
+  CheckEquals('site_marked_down', GetAutomaticTaskDownReason(sstMarkedAsDownByUser, False));
+  CheckEquals('site_down', GetAutomaticTaskDownReason(sstDown, False));
+  CheckEquals('site_permdown', GetAutomaticTaskDownReason(sstUp, True));
 end;
 
 procedure TTestTaskSiteDown.TestProductionTaskClassification;
@@ -199,7 +199,7 @@ begin
     CheckTrue(fTask.CancelIfSiteDown, 'Delayed automatic work must also be cancelled');
     CheckTrue(fTask.ready);
     CheckFalse(fTask.readyerror, 'Administrative cancellation must not fail the release');
-    CheckEqualsString('', fTask.response, 'Cancellation must not replace task result data');
+    CheckEquals('', fTask.response, 'Cancellation must not replace task result data');
     CheckFalse(fTask.CancelIfSiteDown, 'Cancellation must be idempotent');
   finally
     fTask.Free;
@@ -217,7 +217,7 @@ begin
   fTask := TPolicyTask.Create(fSource, fTarget);
   try
     CheckTrue(fTask.CancelIfSiteDown, 'A live source must not bypass the disabled target');
-    CheckEqualsString('', fTask.response, 'Cancellation must not replace task result data');
+    CheckEquals('', fTask.response, 'Cancellation must not replace task result data');
   finally
     fTask.Free;
     fTarget.Free;
