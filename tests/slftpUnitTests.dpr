@@ -59,8 +59,11 @@ uses
   Classes,
   SysUtils,
   mrdohutils,
+  // slftp loads SQLite dynamically at startup, the tests link it statically instead
+  mormot.db.raw.sqlite3.static,
   slftpUnitTestsSetup,
   slsslTests,
+  sltcpTests,
   mystringsTests,
   mystringsTests.Base64,
   httpTests,
@@ -77,20 +80,18 @@ uses
   slmasksTests,
   dirlist.helpersTests,
   dirlistTests,
-  pazo.rankTests,
   precatcher.helpersTests,
   kb.releaseinfo.MP3Tests,
   kb.releaseinfo.NullDayTests,
   kb.releaseinfo.MVIDTests,
   taskhttpimdbTests,
   sitesunitTests,
-  queueunitTests,
   precatcherTests,
   slcriticalsection2Tests,
+  dbhandlerTests,
+  indexerTests,
   variantCacheTests,
-  sltimerTests,
-  raceperfunitTests,
-  tasksunitTests;
+  sltimerTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}

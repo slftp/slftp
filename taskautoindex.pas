@@ -11,15 +11,13 @@ type
   public
     function Execute(slot: Pointer): Boolean; override;
     function Name: String; override;
-    { Periodic automatic work must respect explicit site disablement. }
-    function RequiresAvailableSite: Boolean; override;
   end;
 
 implementation
 
 uses
   SyncObjs, Classes, DateUtils, Contnrs, configunit, mainthread, sitesunit, precatcher, kb, queueunit,
-  mystrings, dirlist, SysUtils, irc, debugunit, indexer, Regexpr;
+  mystrings, dirlist, SysUtils, irc, debugunit, indexer, Regexpr, Generics.Collections;
 
 const
   rsections = 'indexer';
@@ -67,27 +65,32 @@ var
   procedure DoActualIndexing;
   var
     deInner: TDirListEntry;
+    fReleases: TList<String>;
   begin
-    dl.dirlist_lock.Enter('TAutoIndexTask.DoIndexing');
+    fReleases := TList<String>.Create;
     try
-      for deInner in dl.entries.Values do
-      begin
-        try
+      dl.dirlist_lock.Enter('TAutoIndexTask.DoIndexing');
+      try
+        for deInner in dl.entries.Values do
+        begin
           if deInner.Directory then
-          begin
-            indexerAddRelease(deInner.filename, site1, sectionname, path);
-            inc(Result);
-          end;
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, rsections, Format('[EXCEPTION] DoActualIndexing: %s', [e.Message]));
-            Break;
-          end;
+            fReleases.Add(deInner.filename);
+        end;
+      finally
+        dl.dirlist_lock.Leave;
+      end;
+
+      try
+        indexerAddReleases(fReleases.ToArray, site1, sectionname, path);
+        inc(Result, fReleases.Count);
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, rsections, Format('[EXCEPTION] DoActualIndexing: %s', [e.Message]));
         end;
       end;
     finally
-      dl.dirlist_lock.Leave;
+      fReleases.Free;
     end;
   end;
 begin
@@ -162,11 +165,6 @@ begin
   end;
 end;
 
-function TAutoIndexTask.RequiresAvailableSite: Boolean;
-begin
-  Result := True;
-end;
-
 function TAutoIndexTask.Execute(slot: Pointer): Boolean;
 var
   s: TSiteSlot;
@@ -178,14 +176,14 @@ var
   procedure ReAddTask;
   begin
     // fInterval > 0: feature is enabled and new task will be executed in fInterval seconds
-    if (s.site.AutomaticTaskDownReason = '') and (fInterval > 0) then
+    if fInterval > 0 then
     begin
       try
         l := TAutoIndexTask.Create(netname, channel, site1);
         l.startat := IncSecond(Now, fInterval);
         l.dontremove := True;
-        s.site.NextAutoIndexDateTime := l.startat;
         AddTask(l);
+        s.site.NextAutoIndexDateTime := l.startat;
       except
         on e: Exception do
         begin
