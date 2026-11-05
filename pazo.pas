@@ -238,6 +238,10 @@ type
     function RoutesText: String;
     { @abstract(Returns true if UDP announce is enabled and configured) }
     function IsUDPEnabled: Boolean;
+    { Checks whether no work is pending for this pazo. With UDP announce enabled cbftp handles the
+      transfers, so no task ever sets @link(ready) and only queued tasks keep the pazo busy.
+      @returns(@true if @link(ready) is set or UDP announce is enabled and no task is queued) }
+    function IsFinished: Boolean;
     function Stats(const console: boolean; withdirlist: boolean = True): String;
     { Generate site completion times statistics relative to pazo added time
       @param(console @true if output is for console, @false for IRC)
@@ -499,8 +503,13 @@ begin
 end;
 
 procedure CbftpLatencyAdd(const aRelease: String; const aPreTime, aUdpTime: TDateTime; const aLatencyMs: Int64);
+const
+  CCbftpLatencyMaxEntries = 1000;
 var
   fEntry: TCbftpLatencyEntry;
+  fPair: TPair<String, TCbftpLatencyEntry>;
+  fStale: TList<String>;
+  fKey: String;
 begin
   GCbftpLatencyLock.Enter('CbftpLatencyAdd');
   try
@@ -508,6 +517,19 @@ begin
     fEntry.UdpTime := aUdpTime;
     fEntry.LatencyMs := aLatencyMs;
     GCbftpLatencyMap.AddOrSetValue(aRelease, fEntry);
+    if GCbftpLatencyMap.Count > CCbftpLatencyMaxEntries then
+    begin
+      fStale := TList<String>.Create;
+      try
+        for fPair in GCbftpLatencyMap do
+          if HoursBetween(Now, fPair.Value.UdpTime) >= 24 then
+            fStale.Add(fPair.Key);
+        for fKey in fStale do
+          GCbftpLatencyMap.Remove(fKey);
+      finally
+        fStale.Free;
+      end;
+    end;
   finally
     GCbftpLatencyLock.Leave;
   end;
@@ -1078,6 +1100,11 @@ begin
   if not FUDPConfigLoaded then
     LoadUDPConfig;
   Result := FUDPEnabled;
+end;
+
+function TPazo.IsFinished: Boolean;
+begin
+  Result := ready or (IsUDPEnabled and (queuenumber.Value <= 0));
 end;
 
 constructor TPazo.Create(const rls: TRelease; const pazo_id: integer);

@@ -92,7 +92,8 @@ uses
   indexerTests,
   variantCacheTests,
   sltimerTests,
-  ruleconditions.tvTests;
+  ruleconditions.tvTests,
+  pazoTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
