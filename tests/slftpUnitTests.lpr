@@ -64,6 +64,7 @@ uses
   sltimerTests,
   watchdogTests,
   ruleconditions.tvTests,
+  pazoTests,
   mycryptoTests,
   mormot.db.sql.sqlite3;
 
