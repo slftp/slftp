@@ -161,3 +161,13 @@ one standalone probe, the `queue_wait_probe` Makefile target, and one CI job;
 remove these together with the diagnostic hooks. The production clock fix in the
 vendored library must remain. No sample-config changes are required. Diagnostic
 clock reads run only in diagnostic builds.
+
+
+## A/B measurement switches
+
+Build the same source revision with one switch at a time:
+
+- `DISABLE_QUEUE_DIAGNOSTICS` omits the queue diagnostic hooks and reporting. `queuediagnostics.inc` enables them by default unless this define is supplied.
+- `DISABLE_RACE_PERF` keeps the `TRacePerf` API available but skips its per-release counters, dictionaries, lock, and report data. Race behavior is unchanged; `!releaseperf` has no collected detail in this build. Call-site timing and argument evaluation remain, so this isolates the recorder's storage/lock cost rather than removing every instrumentation instruction.
+
+For a clean comparison, keep the revision, configuration, sites, and run duration fixed. First compare queue diagnostics on/off; then compare RacePerf on/off while restoring the queue-diagnostics setting. Do not disable both for the first pair, so each result attributes a single cost.

@@ -343,9 +343,11 @@ constructor TRacePerf.Create(const aDetectedUs: Int64; const aDetectedInfo: Stri
 begin
   fDetectedUs := aDetectedUs;
   fDetectedInfo := aDetectedInfo;
+  {$IFNDEF DISABLE_RACE_PERF}
   fLock := TSlCriticalSection2.Create('raceperf_' + IntToHex(NativeUInt(Self), SizeOf(Pointer) * 2));
   fSites := TObjectDictionary<String, TRacePerfSiteInfo>.Create([doOwnsValues]);
   fStartupDirlistTraces := TList<TRacePerfDirlistStartupTrace>.Create;
+  {$ENDIF}
   inherited Create;
 end;
 
@@ -359,6 +361,7 @@ end;
 
 function TRacePerf.GetSiteLocked(const aSiteName: String): TRacePerfSiteInfo;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Result := nil; Exit;{$ENDIF}
   if not fSites.TryGetValue(UpperCase(aSiteName), Result) then
   begin
     Result := TRacePerfSiteInfo.Create;
@@ -369,6 +372,7 @@ end;
 
 function TRacePerf.GetDirLocked(const aSite: TRacePerfSiteInfo; const aDir: String): TRacePerfDirInfo;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Result := nil; Exit;{$ENDIF}
   if not aSite.FDirInfos.TryGetValue(UpperCase(aDir), Result) then
   begin
     Result := TRacePerfDirInfo.Create;
@@ -381,6 +385,7 @@ function TRacePerf.FormatRelUs(const aUs: Int64): String;
 var
   fDelta: Int64;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Result := ''; Exit;{$ENDIF}
   if ((aUs = 0) or (fDetectedUs = 0)) then
   begin
     Result := '-';
@@ -400,6 +405,7 @@ end;
 procedure TRacePerf.MarkStartupStage(const aStage: TRacePerfStartupStage; const aNowUs: Int64);
 var fNowUs: Int64;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fNowUs := aNowUs;
     if fNowUs = 0 then fNowUs := NowMicroSeconds;
@@ -414,6 +420,7 @@ function TRacePerf.FindStartupDirlistTraceLocked(const aTraceId: integer): integ
 var
   fIndex: integer;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Result := 0; Exit;{$ENDIF}
   Result := -1;
   for fIndex := 0 to fStartupDirlistTraces.Count - 1 do
     if fStartupDirlistTraces[fIndex].Id = aTraceId then
@@ -425,6 +432,7 @@ var
   fNowUs: Int64;
   fTrace: TRacePerfDirlistStartupTrace;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Result := 0; Exit;{$ENDIF}
   Result := 0;
   try
     fNowUs := aNowUs;
@@ -462,6 +470,7 @@ var
   fIndex: integer;
   fTrace: TRacePerfDirlistStartupTrace;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   if aTraceId = 0 then Exit;
   try
     fNowUs := aNowUs;
@@ -487,6 +496,7 @@ var
   fIndex: integer;
   fTrace: TRacePerfDirlistStartupTrace;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   if aTraceId = 0 then Exit;
   try
     fLock.Enter('MarkDirlistStartupScan');
@@ -511,6 +521,7 @@ var
   fIndex: integer;
   fTrace: TRacePerfDirlistStartupTrace;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   if aTraceId = 0 then Exit;
   try
     fLock.Enter('MarkDirlistStartupSort');
@@ -534,6 +545,7 @@ var
   fIndex: integer;
   fTrace: TRacePerfDirlistStartupTrace;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   if aTraceId = 0 then Exit;
   try
     fLock.Enter('MarkDirlistStartupTuzelj');
@@ -556,6 +568,7 @@ end;
 procedure TRacePerf.MarkStartupLockTiming(const aKind: TRacePerfStartupLock; const aWaitStartedUs, aAcquiredUs, aReleasedUs: Int64);
 var fCutoffUs, fWaitUs, fHoldUs: Int64;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fLock.Enter('MarkStartupLockTiming');
     try
@@ -578,6 +591,7 @@ end;
 procedure TRacePerf.MarkRuleStage(const aStage: TRacePerfRuleStage; const aElapsedUs, aLockWaitUs, aLockHoldUs, aFinishedUs: Int64; const aCalls: integer;
   const aEvent, aSite: String; const aEntryUs, aStartedUs, aLock1WaitUs, aLock1HoldUs, aLock2WaitUs, aLock2HoldUs: Int64);
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fLock.Enter('MarkRuleStage');
     try
@@ -612,6 +626,7 @@ var
   fNow: Int64;
   fSite: TRacePerfSiteInfo;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fNow := aNowUs;
     if fNow = 0 then
@@ -653,6 +668,7 @@ var
   fNow: Int64;
   fSite: TRacePerfSiteInfo;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fNow := aNowUs;
     if fNow = 0 then
@@ -684,6 +700,7 @@ var
   fNow: Int64;
   fSite: TRacePerfSiteInfo;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fNow := aNowUs;
     if fNow = 0 then
@@ -709,6 +726,7 @@ procedure TRacePerf.MarkDirlistDupDropped(const aSiteName: String; const aDir: S
 var
   fSite: TRacePerfSiteInfo;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fLock.Enter('MarkDirlistDupDropped');
     try
@@ -728,6 +746,7 @@ procedure TRacePerf.MarkDirlistError(const aSiteName: String; const aDir: String
 var
   fSite: TRacePerfSiteInfo;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fLock.Enter('MarkDirlistError');
     try
@@ -747,6 +766,7 @@ procedure TRacePerf.MarkDirlistCommandSent(const aSiteName, aDir: String; const 
 var
   fSite: TRacePerfSiteInfo;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fLock.Enter('MarkDirlistCommandSent');
     try
@@ -774,6 +794,7 @@ procedure TRacePerf.MarkDirlistCommandDone(const aSiteName, aDir: String; const 
 var
   fSite: TRacePerfSiteInfo;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fLock.Enter('MarkDirlistCommandDone');
     try
@@ -793,6 +814,7 @@ end;
 
 procedure TRacePerf.MarkDirlistReadd(const aSiteName, aDir: String; const aBaseMs, aDelayMs: integer);
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fLock.Enter('MarkDirlistReadd');
     try
@@ -822,6 +844,7 @@ end;
 
 procedure TRacePerf.MarkDirectoryUsable(const aSiteName, aDir: String; const aNowUs: Int64);
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fLock.Enter('MarkDirectoryUsable');
     try
@@ -839,6 +862,7 @@ end;
 
 procedure TRacePerf.MarkRacePrecheckDrop(const aSiteName: String);
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fLock.Enter('MarkRacePrecheckDrop');
     try
@@ -856,6 +880,7 @@ procedure TRacePerf.MarkRaceSkipped(const aSiteName: String; const aZeroByte, aB
 var
   fSite: TRacePerfSiteInfo;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fLock.Enter('MarkRaceSkipped');
     try
@@ -879,6 +904,7 @@ var
   fText: String;
   fChar: Char;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fLock.Enter('MarkMkdirReply');
     try
@@ -911,6 +937,7 @@ procedure TRacePerf.MarkMkdirCreated(const aSiteName: String; const aInfo: Strin
 var
   fNow: Int64;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fNow := aNowUs;
     if fNow = 0 then
@@ -942,6 +969,7 @@ procedure TRacePerf.MarkMkdirStarted(const aSiteName: String; const aNowUs: Int6
 var
   fNow: Int64;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fNow := aNowUs;
     if fNow = 0 then
@@ -969,6 +997,7 @@ procedure TRacePerf.MarkMkdirDone(const aSiteName: String; const aNowUs: Int64; 
 var
   fNow: Int64;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fNow := aNowUs;
     if fNow = 0 then
@@ -994,6 +1023,7 @@ end;
 
 procedure TRacePerf.MarkMkdirError(const aSiteName: String; const aDir: String);
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fLock.Enter('MarkMkdirError');
     try
@@ -1015,6 +1045,7 @@ procedure TRacePerf.MarkRaceTaskCreated(const aSiteName: String; const aNowUs: I
 var
   fNow: Int64;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fNow := aNowUs;
     if fNow = 0 then
@@ -1050,6 +1081,7 @@ end;
 
 procedure TRacePerf.MarkRaceTaskDupDropped(const aSiteName: String);
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fLock.Enter('MarkRaceTaskDupDropped');
     try
@@ -1067,6 +1099,7 @@ procedure TRacePerf.MarkRaceAssigned(const aSiteName: String; const aNowUs: Int6
 var
   fNow: Int64;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fNow := aNowUs;
     if fNow = 0 then
@@ -1091,6 +1124,7 @@ procedure TRacePerf.MarkRaceStarted(const aSiteName: String; const aNowUs: Int64
 var
   fNow: Int64;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fNow := aNowUs;
     if fNow = 0 then
@@ -1113,6 +1147,7 @@ end;
 
 procedure TRacePerf.MarkRaceFinished(const aSiteName: String; const aSuccess: boolean);
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fLock.Enter('MarkRaceFinished');
     try
@@ -1131,6 +1166,7 @@ end;
 
 procedure TRacePerf.MarkAssignBlockedNoSlot(const aSiteName: String; const aReason: TRacePerfSlotReason; const aRole: TRacePerfRole);
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fLock.Enter('MarkAssignBlockedNoSlot');
     try
@@ -1150,6 +1186,7 @@ end;
 
 procedure TRacePerf.MarkAssignBlockedBusy(const aSiteName: String; const aReason: TRacePerfBusyReason);
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fLock.Enter('MarkAssignBlockedBusy');
     try
@@ -1171,6 +1208,7 @@ procedure TRacePerf.MarkComplete(const aSiteName: String; const aNowUs: Int64; c
 var
   fNow: Int64;
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fNow := aNowUs;
     if fNow = 0 then
@@ -1194,6 +1232,7 @@ end;
 
 procedure TRacePerf.MarkAllTasksIdle(const aNowUs: Int64);
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fLock.Enter('MarkAllTasksIdle');
     try
@@ -1215,6 +1254,7 @@ end;
 
 procedure TRacePerf.MarkTuzeljDone(const aDurationUs: Int64);
 begin
+  {$IFDEF DISABLE_RACE_PERF}Exit;{$ENDIF}
   try
     fLock.Enter('MarkTuzeljDone');
     try
@@ -1276,6 +1316,7 @@ var
   end;
 
 begin
+  {$IFDEF DISABLE_RACE_PERF}Result := TStringList.Create; Exit;{$ENDIF}
   Result := TStringList.Create;
   fSiteInfos := nil;
   fLock.Enter('AsStrings');
