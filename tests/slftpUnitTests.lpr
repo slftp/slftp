@@ -52,6 +52,7 @@ uses
   kb.releaseinfo.NullDayTests,
   kb.releaseinfo.MVIDTests,
   taskhttpimdbTests,
+  tasktvinfolookupTests,
   slsslTests,
   sltcpTests,
   sitesunitTests,

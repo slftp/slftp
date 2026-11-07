@@ -28,47 +28,264 @@ type
   end;
 
 function parseTVMazeInfos(const jsonStr, Showname, uurl: String): TTVInfoDB;
-function findTVMazeIDByName(const name: String; Netname: String = ''; Channel: String = ''): String;
+{ Pure helpers are exposed so the TVMaze matching rules can be tested without HTTP. }
+function TVMazeReduceShowNameByOneWord(var aName: String): Boolean;
+function TVMazeIsSafePrefixMatch(const aOriginalName, aCandidateName: String; const aScore: Double): Boolean;
+function findTVMazeIDByName(const name: String; Netype
+  TTVMazeSearchStatus = (tvssError, tvssNoMatch, tvssMatched);
 
-implementation
-
-uses
-  DateUtils, Contnrs, SysUtils, queueunit, debugunit, configunit, mystrings, kb.releaseinfo,
-  kb, http, RegExpr, irc, mrdohutils, uLkJSON, news, sitesunit;
-
-const
-  section = 'tasktvinfo';
-
-function findTVMazeIDByName(const name: String; Netname: String = ''; Channel: String = ''): String;
+function TVMazeReduceShowNameByOneWord(var aName: String): Boolean;
 var
-  showA, showB, resp: String;
-  x: TRegExpr;
-  i: integer;
-  ddate, res: TStringlist;
-  fromIRC, hadYear, hadCountry: boolean;
-  tv_country, showName, year, country: String;
-  jl: TlkJSONlist;
-  fHttpGetErrMsg: String;
+  i: Integer;
 begin
-  result := 'FAILED';
+  Result := False;
+  aName := TrimRight(aName);
+  i := Length(aName);
+  while (i > 0) and not CharInSet(aName[i], [' ', '.', '_', '-']) do
+    Dec(i);
+  if i <= 0 then
+    Exit;
+  aName := TrimRight(Copy(aName, 1, i - 1));
+  Result := aName <> '';
+end;
+
+function TVMazeIsSafePrefixMatch(const aOriginalName, aCandidateName: String; const aScore: Double): Boolean;
+var
+  originalAlpha, candidateAlpha: String;
+begin
+  originalAlpha := onlyEnglishAlpha(replaceTVShowChars(ReplaceText(aOriginalName, '.', ' ')));
+  candidateAlpha := onlyEnglishAlpha(replaceTVShowChars(ReplaceText(aCandidateName, '.', ' ')));
+  Result := (aScore >= 0.7) and (Length(candidateAlpha) >= 4) and
+    (Length(candidateAlpha) < Length(originalAlpha)) and
+    AnsiStartsText(candidateAlpha, originalAlpha);
+end;
+
+{ Performs one TVMaze search. tvssNoMatch means the request succeeded but no
+  candidate met the matching rules; tvssError is reserved for transport/parse
+  failures so the caller can retry reductions only for real misses. }
+function _TVMazeSearchOnce(const aQueryName, aOriginalName, aYear, aCountry: String;
+  aHadYear, aHadCountry, aFromIRC: Boolean; aRes: TStringList; out aShowId: String): TTVMazeSearchStatus;
+var
+  resp, fHttpGetErrMsg: String;
+  jl: TlkJSONlist;
+  ddate: TStringList;
+  i: Integer;
+  showA, showB, tv_country, premiered, candidateId: String;
+  tvScore: Double;
+  exactMatch, prefixMatch, yearMatch, countryMatch: Boolean;
+  exactShowId, prefixShowId: String;
+  exactAmbiguous, prefixAmbiguous: Boolean;
+begin
+  Result := tvssError;
+  aShowId := '';
+  if not HttpGetUrl('https://api.tvmaze.com/search/shows?q=' + replaceTVShowChars(aQueryName, True), resp, fHttpGetErrMsg) then
+  begin
+    Debug(dpError, section, Format('[FAILED] TVMAZE API search by Name for %s --> %s',
+      [replaceTVShowChars(aQueryName, True), fHttpGetErrMsg]));
+    Exit;
+  end;
+
+  if (resp = '') or (resp = '[]') then
+  begin
+    Result := tvssNoMatch;
+    Exit;
+  end;
+
+  jl := nil;
+  try
+    try
+      jl := TlkJSON.ParseText(AnsiString(resp)) as TlkJSONlist;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, '[EXCEPTION] _TVMazeSearchOnce parse: %s', [e.Message]);
+        Exit;
+      end;
+    end;
+
+    if jl = nil then
+    begin
+      Result := tvssNoMatch;
+      Exit;
+    end;
+
+    ddate := TStringList.Create;
+    try
+      showA := onlyEnglishAlpha(replaceTVShowChars(ReplaceText(aQueryName, '.', ' ')));
+      exactShowId := '';
+      prefixShowId := '';
+      exactAmbiguous := False;
+      prefixAmbiguous := False;
+
+      for i := 0 to jl.Count - 1 do
+      begin
+        showB := onlyEnglishAlpha(replaceTVShowChars(jl.Child[i].Field['show'].Field['name'].Value));
+        exactMatch := CompareText(showA, showB) = 0;
+        prefixMatch := False;
+        tvScore := 0;
+        try
+          tvScore := jl.Child[i].Field['score'].Value;
+        except
+          // Missing or malformed API scores cannot authorize a fuzzy prefix match.
+        end;
+
+        if not exactMatch and not aFromIRC and not aHadYear and not aHadCountry then
+          prefixMatch := TVMazeIsSafePrefixMatch(aOriginalName,
+            String(jl.Child[i].Field['show'].Field['name'].Value), tvScore);
+
+        if aFromIRC then
+        begin
+          // Keep interactive search explicit: list all API results without tags,
+          // and require an exact title when the user supplied a year or country.
+          if (not aHadYear) and (not aHadCountry) then
+            aRes.Add(Format('<b>%s</b>: %s => %saddtvinfo %s %s',
+              [String(jl.Child[i].Field['show'].Field['name'].Value),
+               String(jl.Child[i].Field['show'].Field['url'].Value), irccmdprefix,
+               String(jl.Child[i].Field['show'].Field['id'].Value), ReplaceText(aOriginalName, '.', ' ')]))
+          else if exactMatch then
+          begin
+            if aHadCountry then
+            begin
+              tv_country := '';
+              if jl.Child[i].Field['show'].Field['network'].SelfType <> jsNull then
+                if jl.Child[i].Field['show'].Field['network'].Field['country'].SelfType <> jsNull then
+                  tv_country := String(jl.Child[i].Field['show'].Field['network'].Field['country'].Field['code'].Value);
+              if jl.Child[i].Field['show'].Field['webChannel'].SelfType <> jsNull then
+                if jl.Child[i].Field['show'].Field['webChannel'].Field['country'].SelfType <> jsNull then
+                  tv_country := String(jl.Child[i].Field['show'].Field['webChannel'].Field['country'].Field['code'].Value);
+              if tv_country = 'GB' then
+                tv_country := 'UK';
+              aRes.Add(Format('<b>%s %s</b>: %s => %saddtvinfo %s %s %s',
+                [String(jl.Child[i].Field['show'].Field['name'].Value), tv_country,
+                 String(jl.Child[i].Field['show'].Field['url'].Value), irccmdprefix,
+                 String(jl.Child[i].Field['show'].Field['id'].Value),
+                 ReplaceText(aOriginalName, '.', ' '), aCountry]));
+            end
+            else
+            begin
+              premiered := '1970-01-01';
+              if jl.Child[i].Field['show'].Field['premiered'].SelfType <> jsNull then
+                premiered := String(jl.Child[i].Field['show'].Field['premiered'].Value);
+              ddate.Delimiter := '-';
+              ddate.DelimitedText := premiered;
+              aRes.Add(Format('<b>%s %s</b>: %s => %saddtvinfo %s %s %s',
+                [String(jl.Child[i].Field['show'].Field['name'].Value), ddate.Strings[0],
+                 String(jl.Child[i].Field['show'].Field['url'].Value), irccmdprefix,
+                 String(jl.Child[i].Field['show'].Field['id'].Value),
+                 ReplaceText(aOriginalName, '.', ' '), aYear]));
+            end;
+          end;
+          Continue;
+        end;
+
+        if not exactMatch and not prefixMatch then
+          Continue;
+
+        yearMatch := True;
+        if aHadYear then
+        begin
+          premiered := '1970-01-01';
+          if jl.Child[i].Field['show'].Field['premiered'].SelfType <> jsNull then
+            premiered := String(jl.Child[i].Field['show'].Field['premiered'].Value);
+          ddate.Delimiter := '-';
+          ddate.DelimitedText := premiered;
+          yearMatch := aYear = ddate.Strings[0];
+        end;
+
+        countryMatch := True;
+        if aHadCountry then
+        begin
+          tv_country := '';
+          if jl.Child[i].Field['show'].Field['network'].SelfType <> jsNull then
+            if jl.Child[i].Field['show'].Field['network'].Field['country'].SelfType <> jsNull then
+              tv_country := String(jl.Child[i].Field['show'].Field['network'].Field['country'].Field['code'].Value);
+          if jl.Child[i].Field['show'].Field['webChannel'].SelfType <> jsNull then
+            if jl.Child[i].Field['show'].Field['webChannel'].Field['country'].SelfType <> jsNull then
+              tv_country := String(jl.Child[i].Field['show'].Field['webChannel'].Field['country'].Field['code'].Value);
+          if tv_country = 'GB' then
+            tv_country := 'UK';
+          countryMatch := SameText(tv_country, aCountry);
+        end;
+
+        if not yearMatch or not countryMatch then
+          Continue;
+
+        candidateId := String(jl.Child[i].Field['show'].Field['id'].Value);
+        if exactMatch then
+        begin
+          if (exactShowId <> '') and (exactShowId <> candidateId) then
+            exactAmbiguous := True
+          else
+            exactShowId := candidateId;
+        end
+        else if prefixMatch then
+        begin
+          if (prefixShowId <> '') and (prefixShowId <> candidateId) then
+            prefixAmbiguous := True
+          else
+            prefixShowId := candidateId;
+        end;
+      end;
+    finally
+      ddate.Free;
+    end;
+
+    if exactShowId <> '' then
+    begin
+      if not exactAmbiguous then
+      begin
+        aShowId := exactShowId;
+        Result := tvssMatched;
+      end
+      else
+        Result := tvssNoMatch; // fail closed when duplicate exact titles are ambiguous
+    end
+    else if prefixShowId <> '' then
+    begin
+      if not prefixAmbiguous then
+      begin
+        aShowId := prefixShowId;
+        Result := tvssMatched;
+      end
+      else
+        Result := tvssNoMatch; // never guess between multiple qualifying shows
+    end
+    else if aFromIRC and (aRes.Count > 0) then
+      Result := tvssMatched
+    else
+      Result := tvssNoMatch;
+  finally
+    jl.Free;
+  end;
+end;
+
+function findTVMazeIDByName(const name: String; Netname: String = ''; Channel: String = ''): String;
+const
+  C_MAX_SEARCH_ATTEMPTS = 5; // initial query plus up to four reductions
+  C_RETRY_DELAY_MS = 300; // spaces retries for this lookup; not a global rate limiter
+var
+  showName, year, country, showId: String;
+  fromIRC, hadYear, hadCountry: Boolean;
+  x: TRegExpr;
+  res: TStringList;
+  reducedName: String;
+  attempt: Integer;
+  searchStatus: TTVMazeSearchStatus;
+begin
+  Result := 'FAILED';
   hadYear := False;
   hadCountry := False;
   fromIRC := Boolean((Netname <> '') and (Channel <> ''));
-
   showName := name;
 
   x := TRegExpr.Create;
   try
     x.ModifierI := False;
     x.ModifierM := True;
-
-    // Cut off Year tag
     x.Expression := '[-._\s]((19|20)\d{2})[\s._-]?$';
     if x.Exec(showName) then
     begin
       year := x.Match[1];
-
-      //we add 10 years to current year
       if StrToInt(year) < (StrToInt(FormatDateTime('yyyy', Now)) + 10) then
       begin
         showName := x.Replace(showName, '', False);
@@ -76,7 +293,6 @@ begin
       end;
     end;
 
-    // Cut off Country tag
     x.Expression := '[-._\s](US|UK|AU|CA|NZ)[\s._-]?$';
     if x.Exec(showName) then
     begin
@@ -85,111 +301,75 @@ begin
       hadCountry := True;
     end;
   finally
-    x.free;
+    x.Free;
   end;
 
-  if not HttpGetUrl('https://api.tvmaze.com/search/shows?q=' + replaceTVShowChars(showName, True), resp, fHttpGetErrMsg) then
-  begin
-    irc_Adderror(Format('<c4>[FAILED]</c> TVMAZE API search by Name for %s --> %s', [replaceTVShowChars(showName, True), fHttpGetErrMsg]));
-    Debug(dpError, section, Format('[FAILED] TVMAZE API search by Name for %s --> %s ', [replaceTVShowChars(showName, True), fHttpGetErrMsg]));
-    exit;
-  end;
-
-  if ((resp = '') or (resp = '[]')) then
-  begin
-    irc_addtext(Netname, Channel, '<c5><b>TVInfo</c></b>: No search result for %s ( %s )', [ReplaceText(showName, '.', ' '), replaceTVShowChars(showName, true)]);
-    Exit;
-  end;
-
-  jl := TlkJSONlist.Create;
+  res := TStringList.Create;
   try
-    try
-      jl := TlkJSON.ParseText(AnsiString(resp)) as TlkJSONlist;
-    except
-      on e: Exception do
+    if fromIRC then
+    begin
+      searchStatus := _TVMazeSearchOnce(showName, showName, year, country,
+        hadYear, hadCountry, True, res, showId);
+      if searchStatus = tvssError then
       begin
-        irc_AddText(Netname, Channel, '<c4>[EXCEPTION]</c> findTVMazeIDByName (parsing): %s', [e.Message]);
-        Debug(dpError, section, '[EXCEPTION] findTVMazeIDByName (parsing): %s', [e.Message]);
+        irc_AddText(Netname, Channel, '<c4>[FAILED]</c> TVMAZE API search by Name for %s',
+          [replaceTVShowChars(showName, True)]);
         Exit;
+      end;
+      if searchStatus = tvssNoMatch then
+      begin
+        irc_addtext(Netname, Channel, '<c5><b>TVInfo</c></b>: No search result for %s ( %s )',
+          [ReplaceText(showName, '.', ' '), replaceTVShowChars(showName, True)]);
+        Exit;
+      end;
+      if res.Count > 0 then
+        Result := res.CommaText;
+      Exit;
+    end;
+
+    reducedName := showName;
+    for attempt := 0 to C_MAX_SEARCH_ATTEMPTS - 1 do
+    begin
+      if attempt > 0 then
+        Sleep(C_RETRY_DELAY_MS);
+
+      searchStatus := _TVMazeSearchOnce(reducedName, showName, year, country,
+        hadYear, hadCountry, False, nil, showId);
+      if searchStatus = tvssMatched then
+      begin
+        Result := showId;
+        if attempt > 0 then
+          Debug(dpSpam, section, 'TVMAZE matched after %d reduction(s): "%s" -> id=%s',
+            [attempt, reducedName, Result]);
+        Exit;
+      end;
+      if searchStatus = tvssError then
+      begin
+        irc_Adderror(Format('<c4>[FAILED]</c> TVMAZE API search by Name for %s',
+          [replaceTVShowChars(reducedName, True)]));
+        Exit;
+      end;
+
+      if attempt < C_MAX_SEARCH_ATTEMPTS - 1 then
+      begin
+        if not TVMazeReduceShowNameByOneWord(reducedName) then
+        begin
+          Debug(dpSpam, section, 'TVMAZE no further reduction possible for "%s" after %d attempt(s)',
+            [showName, attempt + 1]);
+          Break;
+        end;
+        Debug(dpSpam, section, 'TVMAZE no acceptable match, reducing query to "%s" (attempt %d/%d)',
+          [reducedName, attempt + 1, C_MAX_SEARCH_ATTEMPTS]);
       end;
     end;
 
-    res := TStringlist.Create;
-    ddate := TStringlist.Create;
-    try
-      for I := 0 to jl.Count - 1 do
-      begin
-        showA := onlyEnglishAlpha(replaceTVShowChars(ReplaceText(showName, '.', ' ')));
-        showB := onlyEnglishAlpha(replaceTVShowChars(jl.Child[i].Field['show'].Field['name'].Value));
+    Debug(dpSpam, section, 'TVMAZE no safe match for "%s" after progressive search', [showName]);
+  finally
+    res.Free;
+  end;
+end;
 
-        if (CompareText(showA,showB)= 0) then
-        begin
-          if hadCountry then
-          begin
-            if jl.Child[i].Field['show'].Field['network'].SelfType <> jsNull then
-            begin
-              if jl.Child[i].Field['show'].Field['network'].Field['country'].SelfType <> jsNull then
-                tv_country := String(jl.Child[i].Field['show'].Field['network'].Field['country'].Field['code'].Value);
-            end;
-
-            if jl.Child[i].Field['show'].Field['webChannel'].SelfType <> jsNull then
-            begin
-              if jl.Child[i].Field['show'].Field['webChannel'].Field['country'].SelfType <> jsNull then
-                tv_country := String(jl.Child[i].Field['show'].Field['webChannel'].Field['country'].Field['code'].Value);
-            end;
-
-            if tv_country = 'GB' then
-              tv_country := 'UK';
-
-            if UpperCase(tv_country) = UpperCase(country) then
-            begin
-              if not fromIRC then
-              begin
-                result := String(jl.Child[i].Field['show'].Field['id'].Value);
-                Break;
-              end;
-            end;
-            res.Add(Format('<b>%s %s</b>: %s => %saddtvinfo %s %s %s', [String(jl.Child[i].Field['show'].Field['name'].Value),
-              tv_country, String(jl.Child[i].Field['show'].Field['url'].Value), irccmdprefix,
-              String(jl.Child[i].Field['show'].Field['id'].Value), ReplaceText(showName, '.', ' '), country])
-            );
-          end;
-
-          if hadYear then
-          begin
-            ddate.Delimiter := '-';
-            if jl.Child[i].Field['show'].Field['premiered'].SelfType <> jsNull then
-              ddate.DelimitedText := String(jl.Child[i].Field['show'].Field['premiered'].Value)
-            else
-              ddate.DelimitedText := '1970-01-01';
-            if year = ddate.Strings[0] then
-            begin
-              if not fromIRC then
-              begin
-                result := String(jl.Child[i].Field['show'].Field['id'].Value);
-                Break;
-              end;
-            end;
-            res.Add(Format('<b>%s %s</b>: %s => %saddtvinfo %s %s %s', [String(jl.Child[i].Field['show'].Field['name'].Value),
-              ddate.Strings[0], String(jl.Child[i].Field['show'].Field['url'].Value), irccmdprefix,
-              String(jl.Child[i].Field['show'].Field['id'].Value), ReplaceText(showName, '.', ' '), year])
-            );
-          end;
-        end;
-
-        if ((not hadYear) and (not hadCountry)) then
-        begin
-          if not fromIRC then
-          begin
-            result := String(jl.Child[i].Field['show'].Field['id'].Value);
-            Break;
-          end;
-
-            res.Add(Format('<b>%s</b>: %s => %saddtvinfo %s %s', [String(jl.Child[i].Field['show'].Field['name'].Value),
-              String(jl.Child[i].Field['show'].Field['url'].Value), irccmdprefix,
-              String(jl.Child[i].Field['show'].Field['id'].Value), ReplaceText(showName, '.', ' ')])
-            );
-        end;
+  end;
       end;
 
       if fromIRC then
