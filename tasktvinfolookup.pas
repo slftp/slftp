@@ -70,7 +70,7 @@ var
   jl: TlkJSONlist;
   ddate: TStringList;
   i: Integer;
-  showA, showB, tv_country, premiered, candidateId: String;
+  originalAlpha, showB, tv_country, premiered, candidateId: String;
   tvScore: Double;
   exactMatch, prefixMatch, yearMatch, countryMatch: Boolean;
   exactShowId, prefixShowId: String;
@@ -111,7 +111,7 @@ begin
 
     ddate := TStringList.Create;
     try
-      showA := onlyEnglishAlpha(replaceTVShowChars(ReplaceText(aQueryName, '.', ' ')));
+      originalAlpha := onlyEnglishAlpha(replaceTVShowChars(ReplaceText(aOriginalName, '.', ' ')));
       exactShowId := '';
       prefixShowId := '';
       exactAmbiguous := False;
@@ -120,7 +120,7 @@ begin
       for i := 0 to jl.Count - 1 do
       begin
         showB := onlyEnglishAlpha(replaceTVShowChars(jl.Child[i].Field['show'].Field['name'].Value));
-        exactMatch := CompareText(showA, showB) = 0;
+        exactMatch := CompareText(originalAlpha, showB) = 0;
         prefixMatch := False;
         tvScore := 0;
         try
