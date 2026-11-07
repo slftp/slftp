@@ -48,7 +48,6 @@ public
 
 
 procedure QueueFire;
-procedure QueueSiteBecameAvailable(const aSiteName: String);
 procedure QueueStart;
 procedure AddTask(t: TTask);
 procedure QueueEmpty(const sitename: String);
@@ -83,6 +82,8 @@ property QueueLastRun: TDateTime read queue_last_run;
 property QueueCleanLastRun: TDateTime read queueclean_last_run;
 
   end;
+
+procedure QueueSiteBecameAvailable(const aSiteName: String);
 procedure QueueInit;
 procedure QueueUninit;
 procedure QueueStatAll;
