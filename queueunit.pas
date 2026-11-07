@@ -48,6 +48,7 @@ public
 
 
 procedure QueueFire;
+procedure QueueSiteBecameAvailable(const aSiteName: String);
 procedure QueueStart;
 procedure AddTask(t: TTask);
 procedure QueueEmpty(const sitename: String);
@@ -126,6 +127,11 @@ begin
       exit;
     end;
   end;
+end;
+
+procedure QueueSiteBecameAvailable(const aSiteName: String);
+begin
+  KBSiteBecameAvailable(aSiteName);
 end;
 
 function QueueSorter(Item1, Item2: Pointer): integer;
@@ -480,6 +486,8 @@ begin
   try
     s1 := TSite(t.ssite1);
     s2 := TSite(t.ssite2);
+    if (not s1.IsUp) or s1.PermDown or (not s2.IsUp) or s2.PermDown then
+      exit;
     if s1.freeslots = 0 then
       exit;
     if s2.freeslots = 0 then
@@ -564,6 +572,9 @@ begin
     end;
 
     try
+      if (not s1.IsUp) or s1.PermDown or (not s2.IsUp) or s2.PermDown then
+        exit;
+
       // check again now that we have the lock at the destination
       if s2.num_up >= s2.max_up then
         exit;

@@ -20,6 +20,8 @@ type
     procedure TestParseSiteSoftwareIOFTPDVERS1;
     procedure TestParseSiteSoftwareRaidenFTPDBANNER1;
     procedure TestParseSiteSoftwarePureFTPDBANNER1;
+    procedure TestSiteCanJoinPazo;
+    procedure TestSiteStatusIsUp;
   end;
 
 implementation
@@ -149,6 +151,25 @@ begin
 
   fSiteSoftware := StringToSiteSoftWare(fText);
   CheckEquals(SiteSoftWareToString(sswPureFTPd), SiteSoftWareToString(fSiteSoftware));
+end;
+
+procedure TTestSitesunit.TestSiteCanJoinPazo;
+begin
+  CheckTrue(SiteCanJoinPazo(sstUnknown, False));
+  CheckTrue(SiteCanJoinPazo(sstUp, False));
+  CheckTrue(SiteCanJoinPazo(sstTempDown, False));
+  CheckFalse(SiteCanJoinPazo(sstDown, False));
+  CheckFalse(SiteCanJoinPazo(sstMarkedAsDownByUser, False));
+  CheckFalse(SiteCanJoinPazo(sstUp, True));
+end;
+
+procedure TTestSitesunit.TestSiteStatusIsUp;
+begin
+  CheckTrue(SiteStatusIsUp(sstUp));
+  CheckFalse(SiteStatusIsUp(sstUnknown));
+  CheckFalse(SiteStatusIsUp(sstTempDown));
+  CheckFalse(SiteStatusIsUp(sstDown));
+  CheckFalse(SiteStatusIsUp(sstMarkedAsDownByUser));
 end;
 
 initialization

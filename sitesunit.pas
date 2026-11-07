@@ -727,6 +727,12 @@ function ParseSiteSoftwareVersionFromString(aSiteSoftWare: TSiteSw; const aText:
   @returns(the given @link(TSlotStatus) as string) }
 function SlotStatusToString(const aSlotStatus: TSlotStatus): String;
 
+{ Returns @true when a site status is eligible to join a Pazo. }
+function SiteCanJoinPazo(const aWorkingStatus: TSiteStatus; const aPermDown: Boolean): Boolean;
+
+{ Returns @true only when the site status represents an online site. }
+function SiteStatusIsUp(const aWorkingStatus: TSiteStatus): Boolean;
+
 { Checks the site's and its slot's status and adds a login task if necessary before starting to create race tasks
   @param(aSite The site to check) }
 procedure CheckSiteSlots(const aSite: TSite); overload;
@@ -3436,6 +3442,8 @@ begin
 end;
 
 procedure TSite.SetWorking(const Value: TSiteStatus);
+var
+  fPreviousWorkingStatus: TSiteStatus;
 begin
   if Value <> FWorkingStatus then
   begin
@@ -3445,6 +3453,7 @@ begin
     if (Value = sstTempDown) and (FWorkingStatus in [sstDown, sstMarkedAsDownByUser]) then
       exit;
 
+    fPreviousWorkingStatus := FWorkingStatus;
     FWorkingStatus := Value;
 
     if Name = getAdminSiteName then
@@ -3471,6 +3480,10 @@ begin
             AutoRules;
           if AutoDirlistInterval <> 0 then
             AutoDirlist;
+
+          QueueFire;
+          if fPreviousWorkingStatus <> sstUp then
+            QueueSiteBecameAvailable(Name);
         end;
       sstDown, sstMarkedAsDownByUser:
         begin
@@ -4505,6 +4518,9 @@ begin
   // check if the destination site and its slots are ready
   if aSite <> nil then
   begin
+    if aSite.WorkingStatus = sstTempDown then
+      Exit;
+
     begin
 
       //if the site has a max idle time, login only one slot. when we login all slots, not needed slots
@@ -4613,7 +4629,17 @@ end;
 
 function TSite.GetIsUp: boolean;
 begin
-  Result := WorkingStatus = sstUp;
+  Result := SiteStatusIsUp(WorkingStatus);
+end;
+
+function SiteCanJoinPazo(const aWorkingStatus: TSiteStatus; const aPermDown: Boolean): Boolean;
+begin
+  Result := (not aPermDown) and (aWorkingStatus in [sstUnknown, sstUp, sstTempDown]);
+end;
+
+function SiteStatusIsUp(const aWorkingStatus: TSiteStatus): Boolean;
+begin
+  Result := aWorkingStatus = sstUp;
 end;
 
 function TSite.GetAutoRulesStatus: integer;
