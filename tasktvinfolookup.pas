@@ -28,10 +28,21 @@ type
   end;
 
 function parseTVMazeInfos(const jsonStr, Showname, uurl: String): TTVInfoDB;
-{ Pure helpers are exposed so the TVMaze matching rules can be tested without HTTP. }
+{ Pure helpers are exposed so TVMaze matching can be tested without HTTP. }
 function TVMazeReduceShowNameByOneWord(var aName: String): Boolean;
 function TVMazeIsSafePrefixMatch(const aOriginalName, aCandidateName: String; const aScore: Double): Boolean;
-function findTVMazeIDByName(const name: String; Netype
+function findTVMazeIDByName(const name: String; Netname: String = ''; Channel: String = ''): String;
+
+implementation
+
+uses
+  DateUtils, Contnrs, SysUtils, queueunit, debugunit, configunit, mystrings, kb.releaseinfo,
+  kb, http, RegExpr, irc, mrdohutils, uLkJSON, news, sitesunit;
+
+const
+  section = 'tasktvinfo';
+
+type
   TTVMazeSearchStatus = (tvssError, tvssNoMatch, tvssMatched);
 
 function TVMazeReduceShowNameByOneWord(var aName: String): Boolean;
@@ -160,8 +171,8 @@ begin
                  String(jl.Child[i].Field['show'].Field['url'].Value), irccmdprefix,
                  String(jl.Child[i].Field['show'].Field['id'].Value),
                  ReplaceText(aOriginalName, '.', ' '), aCountry]));
-            end
-            else
+            end;
+            if aHadYear then
             begin
               premiered := '1970-01-01';
               if jl.Child[i].Field['show'].Field['premiered'].SelfType <> jsNull then
@@ -238,7 +249,7 @@ begin
         Result := tvssMatched;
       end
       else
-        Result := tvssNoMatch; // fail closed when duplicate exact titles are ambiguous
+        Result := tvssNoMatch;
     end
     else if prefixShowId <> '' then
     begin
@@ -248,7 +259,7 @@ begin
         Result := tvssMatched;
       end
       else
-        Result := tvssNoMatch; // never guess between multiple qualifying shows
+        Result := tvssNoMatch;
     end
     else if aFromIRC and (aRes.Count > 0) then
       Result := tvssMatched
@@ -366,25 +377,6 @@ begin
     Debug(dpSpam, section, 'TVMAZE no safe match for "%s" after progressive search', [showName]);
   finally
     res.Free;
-  end;
-end;
-
-  end;
-      end;
-
-      if fromIRC then
-      begin
-        if (res.Count = 0) then
-          result := 'FAILED'
-        else
-          result := res.CommaText;
-      end;
-    finally
-      ddate.free;
-      res.free;
-    end;
-  finally
-    jl.free;
   end;
 end;
 
