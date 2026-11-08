@@ -59,8 +59,11 @@ uses
   Classes,
   SysUtils,
   mrdohutils,
+  // slftp loads SQLite dynamically at startup, the tests link it statically instead
+  mormot.db.raw.sqlite3.static,
   slftpUnitTestsSetup,
   slsslTests,
+  sltcpTests,
   mystringsTests,
   mystringsTests.Base64,
   httpTests,
@@ -85,6 +88,8 @@ uses
   sitesunitTests,
   precatcherTests,
   slcriticalsection2Tests,
+  dbhandlerTests,
+  indexerTests,
   variantCacheTests,
   sltimerTests;
 

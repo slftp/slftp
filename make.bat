@@ -21,12 +21,25 @@ REM
 set OPENSSL_NAME=openssl-3.5
 
 REM
-REM Inject git commit into slftp.inc if .git exists
+REM Inject git commit into slftp.inc if .git exists and remove it again after the build, also when it fails.
+REM Targets end with "goto :eof" or "exit /b", which only leave :build here and never skip the reset.
 REM
-if exist .git\ (
-  powershell "& {$gitrevv = git rev-parse --short HEAD; (Get-Content .\slftp.inc) -replace \"SL_REV: string.*\", \"SL_REV: string = '$gitrevv';\" | Set-Content .\slftp.inc }"
+if exist "%~dp0.git\" (
+  for /f %%r in ('git rev-parse --short HEAD') do call :set_rev %%r
 )
+call :build %1
+set BUILD_RC=%errorlevel%
+if exist "%~dp0.git\" call :set_rev
+exit /b %BUILD_RC%
 
+REM
+REM Set SL_REV in slftp.inc to %1 (empty if not given), keeping line endings and encoding unchanged
+REM
+:set_rev
+powershell -NoProfile -Command "$f = '%~dp0slftp.inc'; [IO.File]::WriteAllText($f, ([IO.File]::ReadAllText($f) -replace 'SL_REV: string[^\r\n]*', 'SL_REV: string = ''%~1'';'))"
+goto :eof
+
+:build
 REM
 REM default: 64bit (2018!)
 REM
@@ -53,7 +66,7 @@ if errorlevel 1 (
    echo Failure reason given is %errorlevel%
    exit /b %errorlevel%
 )
-goto :eof;
+goto :eof
 
 :slftp_64
 del /q /s *slftp*.exe *.dcu
@@ -64,7 +77,7 @@ if errorlevel 1 (
    echo Failure reason given is %errorlevel%
    exit /b %errorlevel%
 )
-goto :eof;
+goto :eof
 
 :slftp_32_debug
 del /q /s *slftp*.exe *.dcu
@@ -75,7 +88,7 @@ if errorlevel 1 (
    echo Failure reason given is %errorlevel%
    exit /b %errorlevel%
 )
-goto :eof;
+goto :eof
 
 :slftp_64_debug
 del /q /s *slftp*.exe *.dcu
@@ -86,12 +99,12 @@ if errorlevel 1 (
    echo Failure reason given is %errorlevel%
    exit /b %errorlevel%
 )
-goto :eof;
+goto :eof
 
 :clean
 echo --- Cleaning files ---
 del /q /s *slftp*.exe *.dcu *.res
-goto :eof;
+goto :eof
 
 :test_32
 del /q /s *slftp*.exe *.dcu *.dll
@@ -197,13 +210,4 @@ goto :clean;
 echo Unknown target!
 echo Valid targets: slftp slftp_debug slftp_32 slftp_64 slftp_32_debug slftp_64_debug clean test test_32 test_64
 echo Default: slftp_64
-goto :eof;
-
-REM
-REM Remove injected build rev from slftp.inc
-REM
-:eof
-if exist .git\ (
-  powershell "& {(Get-Content .\slftp.inc) -replace \"SL_REV: string.*\", \"SL_REV: string = '';\" | Set-Content .\slftp.inc }"
-)
-exit /B
+goto :eof

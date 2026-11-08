@@ -63,6 +63,8 @@ function slClose( var s: TslSocket ): Integer;
 function slSetnonblocking(s: TslSocket; var error: String): Boolean;
 function slSetblocking(s: TslSocket; var error: String): Boolean;
 function slGetHostByName(AHostName: String; var error: String): String; overload;
+{ Drops host from the resolver cache so the next connect resolves it again, e.g. after its IP changed }
+procedure slFlushResolvedHost(const host: String);
 function slResolve(host: String; var error: String): String;
 function slConvertIp(host: String): String;
 function slBind(var slSocket: TslSocket; ip: String; port: Word; var error: String): Boolean;
@@ -93,7 +95,9 @@ procedure slDebug(s: String);
 
 implementation
 
-uses slhelper, StrUtils, IdStack;
+uses slhelper, StrUtils, mormot.net.sock,
+  mormot.net.dns, //< not called directly: registers the DNS resolver and its cache used by TNetAddr.SetFrom
+  mormot.core.base;
 
 function slStackInit(var error: String): Boolean;
 begin
@@ -256,20 +260,33 @@ begin
 end;
 
 function slGetHostByName(AHostName: String; var error: String): String; overload;
+var
+  fAddr: TNetAddr;
 begin
   Result := '';
 
-  TIdStack.IncUsage;
+  // unlike a plain DnsLookup, TNetAddr.SetFrom honours the hosts file and caches
+  // DNS results for ~32 seconds before falling back to the OS resolver
   try
-    Result := GStack.ResolveHost(AHostName);
-  finally
-    TIdStack.DecUsage;
+    if (fAddr.SetFrom(RawUtf8(AHostName), '0', nlTcp) = nrOk) and (fAddr.Family = nfIP4) then
+      Result := string(fAddr.IP);
+  except
+    on e: Exception do
+    begin
+      error := 'Cannot resolve ' + AHostName + ': ' + e.Message;
+      exit;
+    end;
   end;
 
   if (Result = '') then
   begin
-    error := 'Cannot resolve '+ AHostName;
+    error := 'Cannot resolve ' + AHostName;
   end;
+end;
+
+procedure slFlushResolvedHost(const host: String);
+begin
+  NetAddrFlush(RawUtf8(host));
 end;
 
 function slResolve(host: String; var error: String): String;
@@ -309,28 +326,21 @@ end;
 
 function PopulateLocalAddresses(l: TStringList; var error: String): Boolean;
 var
-  fHost, fHostName: String;
+  fHost, fHostName, fError: String;
 begin
   Result := False;
 
-  fHost := '';
-  fHostName := slGetHostName;
-
-  try
-    TIdStack.IncUsage;
-    try
-      fHost := GStack.ResolveHost(fHostName);
-    finally
-      TIdStack.DecUsage;
-    end;
-  except
-    on e: Exception do
-    begin
-      // the debug unit and the admin console are not yet available here, so just log this to the console
-      WriteLn(Format('Warning: unable to resolve host %s: %s', [fHostName, e.Message]));
-      // sleep so the user can actually read this message
-      Sleep(3000);
-    end;
+  fHostName := string(slGetHostName);
+  // DNS servers often don't know the local hostname, but the OS resolver
+  // fallback in slGetHostByName does
+  fHost := slGetHostByName(fHostName, fError);
+  if fError <> '' then
+  begin
+    // the debug unit and the admin console are not yet available here, so just log this to the console
+    // fError already reads 'Cannot resolve <host>[: <reason>]'
+    WriteLn('Warning: ' + fError);
+    // sleep so the user can actually read this message
+    Sleep(3000);
   end;
 
   l.Clear;
