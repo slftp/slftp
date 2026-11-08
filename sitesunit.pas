@@ -2961,6 +2961,7 @@ var
   host: String;
   port: Integer;
   fSession: PSSL_SESSION;
+  sslReadStats: TSSLReadStats;
 begin
   Result := -1;
   idTCP := nil;
@@ -3094,7 +3095,12 @@ begin
       Result := 1;
     finally
       if idTCP <> nil then
+      begin
+        sslReadStats := idTCP.TakeSSLReadStats;
+        if todotask is TPazoTask then
+          TPazoTask(todotask).mainpazo.AddSSLReadStats(sslReadStats);
         idTCP.Free;
+      end;
 
       // release reserved download slot
       self.DownloadingFrom := False;

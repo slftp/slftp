@@ -22,6 +22,14 @@ const
 
 type
 
+  TSSLReadStats = record
+    ReadCalls: Int64;
+    ReadinessChecks: Int64;
+    PendingHits: Int64;
+    PendingBytes: Int64;
+    BytesRead: Int64;
+  end;
+
   TslSocks5 = class
     enabled: Boolean;
     username: {$IFDEF UNICODE}RawByteString{$ELSE}AnsiString{$ENDIF};
@@ -36,6 +44,7 @@ type
   private
     fss: TStringStream;
     fSSL: PSSL;
+    FSSLReadStats: TSSLReadStats;
     fSSLCTX: PSSL_CTX;
     fBindIp: String;
     fBindPort: Integer;
@@ -59,6 +68,7 @@ type
 
     socks5: TslSocks5;
 
+    function TakeSSLReadStats: TSSLReadStats;
     function IsWriteAble(timeout: Integer): Boolean;
     function IsReadAble(timeout: Integer): Boolean;
     function connected: Boolean;
@@ -1100,7 +1110,8 @@ end;
 
 function TslTCPSocket.Read(s: TStream; timeout: Integer = slDefaultTimeout; maxolvasas: Integer = 0; untilDisconnects: Boolean = False): Boolean;
 var buffer: array[1..slBufferSize] of AnsiChar;
-    aktolvasas, osszesolvasva, olvasva: Integer;
+    aktolvasas, osszesolvasva, olvasva, sslPending: Integer;
+    sslPendingRead: Boolean;
 begin
   Result:= False;
   try
@@ -1121,8 +1132,27 @@ begin
     error:= '';
     osszesolvasva:= 0;
   //debug(dpSpam, 'isreadable elott');
-    while (IsReadAble(timeout)) do
+    while True do
     begin
+      sslPendingRead := False;
+      if fSSL <> nil then
+      begin
+        sslPending := SSL_pending(fSSL);
+        if sslPending > 0 then
+        begin
+          Inc(FSSLReadStats.PendingHits);
+          sslPendingRead := True;
+        end
+        else
+        begin
+          Inc(FSSLReadStats.ReadinessChecks);
+          if not IsReadAble(timeout) then
+            Break;
+        end;
+      end
+      else if not IsReadAble(timeout) then
+        Break;
+
       aktolvasas:= slBufferSize;
       if ((maxolvasas > 0) and (osszesolvasva + aktolvasas > maxolvasas)) then
         aktolvasas:= maxolvasas - osszesolvasva;
@@ -1130,7 +1160,16 @@ begin
   //debug(dpSpam, 'slrecv elott');
 
       if fSSL <> nil then
-        olvasva:= slRecv(fSSL, buffer, aktolvasas, error)
+      begin
+        Inc(FSSLReadStats.ReadCalls);
+        olvasva:= slRecv(fSSL, buffer, aktolvasas, error);
+        if olvasva > 0 then
+        begin
+          Inc(FSSLReadStats.BytesRead, olvasva);
+          if sslPendingRead then
+            Inc(FSSLReadStats.PendingBytes, olvasva);
+        end;
+      end
       else
         olvasva:= slRecv(slSocket, buffer, aktolvasas, error);
 
@@ -1169,6 +1208,12 @@ begin
       Result:= False;
     end;
   end;
+end;
+
+function TslTCPSocket.TakeSSLReadStats: TSSLReadStats;
+begin
+  Result := FSSLReadStats;
+  FillChar(FSSLReadStats, SizeOf(FSSLReadStats), 0);
 end;
 
 function TslTCPSocket.IsReadAble(timeout: Integer): Boolean;
