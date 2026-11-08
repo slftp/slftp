@@ -3098,7 +3098,9 @@ begin
       begin
         sslReadStats := idTCP.TakeSSLReadStats;
         if todotask is TPazoTask then
-          TPazoTask(todotask).mainpazo.AddSSLReadStats(sslReadStats);
+          TPazoTask(todotask).mainpazo.AddSSLReadStats(
+            sslReadStats.ReadCalls, sslReadStats.ReadinessChecks, sslReadStats.PendingHits,
+            sslReadStats.PendingBytes, sslReadStats.BytesRead);
         idTCP.Free;
       end;
 

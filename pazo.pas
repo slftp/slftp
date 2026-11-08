@@ -5,7 +5,7 @@ unit pazo;
 interface
 
 uses
-  Classes, kb.releaseinfo, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections, IniFiles, sfv, slcriticalsection2, sltcp,
+  Classes, kb.releaseinfo, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections, IniFiles, sfv, slcriticalsection2,
   routeconfig;
 
 type
@@ -237,7 +237,7 @@ type
       @param(console @true if output is for console, @false for IRC)
       @returns(Formatted string with site completion times) }
     function SiteCompleteTimesStats(const console: boolean): String;
-    procedure AddSSLReadStats(const aStats: TSSLReadStats);
+    procedure AddSSLReadStats(const aReadCalls, aReadinessChecks, aPendingHits, aPendingBytes, aBytesRead: Int64);
     function SSLReadStats: String;
     constructor Create(const rls: TRelease; const pazo_id: integer);
     destructor Destroy; override;
@@ -894,18 +894,18 @@ begin
   end;
 end;
 
-procedure TPazo.AddSSLReadStats(const aStats: TSSLReadStats);
+procedure TPazo.AddSSLReadStats(const aReadCalls, aReadinessChecks, aPendingHits, aPendingBytes, aBytesRead: Int64);
 begin
-  if aStats.ReadCalls = 0 then
+  if aReadCalls = 0 then
     Exit;
 
   FSSLReadStatsCS.Enter;
   try
-    Inc(FSSLReadCalls, aStats.ReadCalls);
-    Inc(FSSLReadinessChecks, aStats.ReadinessChecks);
-    Inc(FSSLPendingHits, aStats.PendingHits);
-    Inc(FSSLPendingBytes, aStats.PendingBytes);
-    Inc(FSSLBytesRead, aStats.BytesRead);
+    Inc(FSSLReadCalls, aReadCalls);
+    Inc(FSSLReadinessChecks, aReadinessChecks);
+    Inc(FSSLPendingHits, aPendingHits);
+    Inc(FSSLPendingBytes, aPendingBytes);
+    Inc(FSSLBytesRead, aBytesRead);
   finally
     FSSLReadStatsCS.Leave;
   end;
