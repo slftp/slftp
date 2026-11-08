@@ -176,7 +176,8 @@ type
     FSSLReadinessChecks: Int64;
     FSSLPendingHits: Int64;
     FSSLPendingBytes: Int64;
-    FSSLBytesRead: Int64; //< Critical section for Add calls to @link(FUniqueFileListOfRelease)
+    FSSLBytesRead: Int64;
+    FSSLReadStatsAnnounced: Boolean; //< Critical section for Add calls to @link(FUniqueFileListOfRelease)
     FUniqueFileListOfRelease: TDictionary<String, Int64>; //< Dictionary with files (including subdirs) and corresponding filesize (biggest value seen on any site) for this release, Key="dir + '/' + filename" and Value=filesize
     FPazoSFV: TPazoSFV;
 
@@ -839,6 +840,7 @@ begin
   lastTouch := Now();
   FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_' + rls.Name + '_' + IntToStr(pazo_id));
   FSSLReadStatsCS := TCriticalSection.Create;
+  FSSLReadStatsAnnounced := False;
   FUniqueFileListOfRelease := TDictionary<String, Int64>.Create;
 
   self.stated := False;
@@ -959,10 +961,7 @@ begin
           irc_AddstatsB(Stats(False, True));
           lastannounceirc := s;
 
-          s := SSLReadStats;
-          if s <> '' then
-            irc_addstats(Format('<c10>[<b>TLS DATA READ</b>]</c> %s %s: %s',
-              [rls.section, rls.rlsname, s]));
+
 
           if glShowCompleteTimeStats then
           begin
@@ -972,6 +971,16 @@ begin
               irc_addstats(Format('<c10>[<b>COMPLETE TIME AFTER ADDPRE</b>]</c> %s %s (%d):', [rls.section, rls.rlsname, GetCountOfCachedFiles]));
               irc_addstats(s);
             end;
+          end;
+        end;
+        if not FSSLReadStatsAnnounced then
+        begin
+          s := SSLReadStats;
+          if s <> '' then
+          begin
+            irc_addstats(Format('<c10>[<b>TLS DATA READ</b>]</c> %s %s: %s',
+              [rls.section, rls.rlsname, s]));
+            FSSLReadStatsAnnounced := True;
           end;
         end;
       end
