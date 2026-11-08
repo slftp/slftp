@@ -913,13 +913,11 @@ end;
 
 function TPazo.SSLReadStats: String;
 begin
-  Result := '';
   FSSLReadStatsCS.Enter;
   try
-    if FSSLReadCalls > 0 then
-      Result := Format('read_calls=%s bytes=%s readiness_checks=%s pending_hits=%s pending_bytes=%s',
-        [IntToStr(FSSLReadCalls), IntToStr(FSSLBytesRead), IntToStr(FSSLReadinessChecks),
-         IntToStr(FSSLPendingHits), IntToStr(FSSLPendingBytes)]);
+    Result := Format('read_calls=%s bytes=%s readiness_checks=%s pending_hits=%s pending_bytes=%s',
+      [IntToStr(FSSLReadCalls), IntToStr(FSSLBytesRead), IntToStr(FSSLReadinessChecks),
+       IntToStr(FSSLPendingHits), IntToStr(FSSLPendingBytes)]);
   finally
     FSSLReadStatsCS.Leave;
   end;
@@ -975,13 +973,9 @@ begin
         end;
         if not FSSLReadStatsAnnounced then
         begin
-          s := SSLReadStats;
-          if s <> '' then
-          begin
-            irc_addstats(Format('<c10>[<b>TLS DATA READ</b>]</c> %s %s: %s',
-              [rls.section, rls.rlsname, s]));
-            FSSLReadStatsAnnounced := True;
-          end;
+          irc_addstats(Format('<c10>[<b>TLS DATA READ</b>]</c> %s %s: %s',
+            [rls.section, rls.rlsname, SSLReadStats]));
+          FSSLReadStatsAnnounced := True;
         end;
       end
       else
