@@ -382,6 +382,8 @@ begin
   Result := UTF8ToString(fErrorMessage);
 end;
 
+initialization
+
 finalization
   FreeAndNil(glSslSessionLib);
 end.
