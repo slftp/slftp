@@ -77,7 +77,6 @@ uses
   globalskipunitTests,
   irccolorunitTests,
   ircparsingTests,
-  ircnetworkconfigTests,
   slmasksTests,
   dirlist.helpersTests,
   dirlistTests,

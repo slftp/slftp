@@ -251,7 +251,8 @@ begin
   if ident = '' then
     ident := config.ReadString('irc', 'realname', 'slftp');
 
-  IrcWritePrimaryServerConfig(nn, host, port);
+  sitesdat.WriteString('ircnet-' + nn, 'host', host);
+  sitesdat.WriteInteger('ircnet-' + nn, 'port', port);
   sitesdat.WriteBool('ircnet-' + nn, 'ssl', boolean(ssl));
   sitesdat.WriteString('ircnet-' + nn, 'password', password);
   sitesdat.WriteString('ircnet-' + nn, 'nick', nick);
