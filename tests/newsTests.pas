@@ -28,13 +28,15 @@ type
     procedure TestDeleteCategoryRemovesOnlyThatCategory;
     procedure TestDeleteNumberRemovesEntry;
     procedure TestAddWithDupecheckAddsMessageOnlyOnce;
+    procedure TestDupecheckSkipsRecentDuplicate;
+    procedure TestDupecheckReplacesOldDuplicate;
     procedure TestCorruptFileIsBackedUpAndNewsStartEmpty;
   end;
 
 implementation
 
 uses
-  Classes, SysUtils, news;
+  Classes, SysUtils, configunit, encinifile, news;
 
 { TTestNews }
 
@@ -135,6 +137,37 @@ begin
 
   SaveAndReload;
   CheckTrue(Pos('overall <b>2</b>', SlftpNewsStatus) > 0, SlftpNewsStatus);
+end;
+
+procedure TTestNews.TestDupecheckSkipsRecentDuplicate;
+begin
+  SlftpNewsAdd('TVMAZE', 'same message', True);
+  SlftpNewsAdd('IRC', 'other message');
+  SlftpNewsAdd('TVMAZE', 'same message', True);
+
+  // entries are stored newest first: the skipped duplicate keeps the IRC entry as number 1
+  SlftpNewsDelete('', '', 1, False);
+  SlftpNewsDelete('', '', 'TVMAZE', False);
+  CheckTrue(Pos('overall <b>0</b>', SlftpNewsStatus) > 0, 'the duplicate must not be added again: ' + SlftpNewsStatus);
+end;
+
+procedure TTestNews.TestDupecheckReplacesOldDuplicate;
+var
+  fFile: TEncStringList;
+begin
+  NewsUnInit;
+  fFile := TEncStringList.Create(passphrase);
+  try
+    fFile.Add('!READ!,"01-1-20 10:00",TVMAZE,"same message"');
+    fFile.SaveToFile(FFileName);
+  finally
+    fFile.Free;
+  end;
+  NewsInit;
+
+  SlftpNewsAdd('TVMAZE', 'same message', True);
+  CheckTrue(Pos('<b>1</b> unread from overall <b>1</b>', SlftpNewsStatus) > 0,
+    'the old duplicate must be replaced by a new unread entry: ' + SlftpNewsStatus);
 end;
 
 procedure TTestNews.TestCorruptFileIsBackedUpAndNewsStartEmpty;
