@@ -51,3 +51,37 @@ As an example, you can use a rule like this:
 For sites, which allow everything except docus, you probably want a rule like this
 instead of a "default" rule at the end of the ruleset:
   !ruleadd sitename tv if tvscripted then ALLOW
+
+Automatic lookup and diagnostics:
+The database is checked first. On a miss, the automatic TVMaze search can remove
+one trailing word at a time, with at most five queries per attempt. Each query
+is a separate queued task; the admin slot is released during the 300 ms pause.
+An HTTP error retries the attempt later via [tasktvinfo] readd_interval and
+readd_attempts. A search with no usable result may also retry; ambiguity stops
+the lookup instead of broadening it. Query results are always checked against
+the original title, including its year/country constraints.
+
+With stop_on_englishcheck=1, only normalized exact titles are accepted.
+With =0, an untagged title may also match a unique prefix (score >= 0.7).
+An exact match takes precedence. The supplied INI uses 0; a missing key defaults
+to 1. Interactive search remains a single request with explicit result choices.
+
+Successful automatic lookups emit [TVINFO PERF] through the configured STATS
+IRC route, including database hits. ADDTVMAZEECHO remains machine-readable and
+unchanged. Unsuccessful terminal lookups emit the same timing fields to the
+tasktvinfo log, with outcome=no_match, ambiguous, search_error, etc.
+
+start/end are local wall-clock timestamps. Durations use a monotonic clock;
+millisecond units do not imply exact millisecond resolution.
+  source=db/api: where the metadata came from
+  total_ms: creation of the original task through metadata application
+  queue_ms: wait for task execution, excluding the configured delays
+  backoff_ms: intentional delays between queries/attempts
+  search_ms: accumulated search requests, including HTTP transport retries
+  fetch_ms: fetching and parsing show details
+  db_ms: database lookups and saving the result
+  apply_ms: applying metadata and, for API results, triggering rule evaluation
+  searches/reductions: logical search calls and shortened queries
+Counters accumulate over queued retries. Total also contains bookkeeping time;
+queue_ms includes any delay beyond the requested backoff (for example, occupied
+admin slots or scheduling delay). These are lookup timings, not FXP timings.
