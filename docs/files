@@ -49,7 +49,8 @@ This file describes what the purpose is of the several files of slFtp.
 - slftp.news
   news entries are stored in this file; slftp loads it on startup and saves
   changes every minute and on exit, so changes to the file while slftp is
-  running get lost
+  running get lost. If the file can't be loaded, slftp renames it to
+  slftp.news.corrupt_<timestamp> and starts without news entries
 
 - slftp.nukequeue
   the queue of rips to be nuked are stored in this file

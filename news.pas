@@ -6,7 +6,8 @@ uses
   SysUtils;
 
 { Just a helper function to set @link(SlftpNewsFilename) on startup, initialize @link(NewsMultiReadSingleWriteLock)
-  and load all entries from the news file into memory }
+  and load all entries from the news file into memory. A news file which can't be loaded is renamed to
+  slftp.news.corrupt_<timestamp> and slFtp starts without news entries. }
 procedure NewsInit;
 
 { Saves changed entries with @link(NewsSave) and frees @link(NewsMultiReadSingleWriteLock) }
@@ -65,7 +66,7 @@ implementation
 
 uses
   // PasMP does not compile on BSD, so don't use it and don't use the news unit
-  Classes, StrUtils, DateUtils, encinifile, configunit, irc, mystrings, debugunit, RegExpr{$IFNDEF BSD}, PasMP{$ENDIF};
+  Classes, StrUtils, DateUtils, encinifile, configunit, irc, console, mystrings, debugunit, RegExpr{$IFNDEF BSD}, PasMP{$ENDIF};
 
 const
   section = 'news';
@@ -90,6 +91,34 @@ var
 {$ENDIF}
 
 
+{$IFNDEF BSD}
+{ Loads the news file into @link(glNewsEntries). If it can't be loaded, e.g. because it is corrupt, it is renamed to
+  slftp.news.corrupt_<timestamp> so that the next save doesn't overwrite it, and @link(glNewsEntries) stays empty. }
+procedure _LoadNewsFile;
+var
+  fBackupFilename, fMessage: String;
+begin
+  try
+    glNewsEntries.LoadFromFile(SlftpNewsFilename);
+  except
+    on e: Exception do
+    begin
+      glNewsEntries.Clear;
+      fBackupFilename := SlftpNewsFilename + '.corrupt_' + FormatDateTime('yyyymmdd-hhnnss', Now);
+      if RenameFile(SlftpNewsFilename, fBackupFilename) then
+        fMessage := Format('Could not load %s (%s), renamed it to %s and started without news entries.',
+          [SlftpNewsFilename, e.Message, fBackupFilename])
+      else
+        fMessage := Format('Could not load %s (%s) and could not rename it to %s, started without news entries. ' +
+          'The file gets overwritten with the next save.', [SlftpNewsFilename, e.Message, fBackupFilename]);
+
+      Debug(dpError, section, fMessage);
+      console_addline('Admin', fMessage, True);
+    end;
+  end;
+end;
+{$ENDIF}
+
 procedure NewsInit;
 begin
 {$IFNDEF BSD}
@@ -99,7 +128,7 @@ begin
   news_last_save := Now;
 
   glNewsEntries := TEncStringList.Create(passphrase);
-  glNewsEntries.LoadFromFile(SlftpNewsFilename);
+  _LoadNewsFile;
   glNewsChanged := False;
 {$ENDIF}
 end;

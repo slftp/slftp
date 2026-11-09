@@ -91,7 +91,8 @@
     {^} Reduce CPU load and lock contention with many sites: faster IRC Blowfish ECB encryption, socket read
         buffers are reused, IRC echo messages are sent without blocking other threads, FPC builds use FPCMM_BOOST
     {^} Keep news entries in memory and save slftp.news every minute instead of on every change; adding news (e.g.
-        forwarded private messages) no longer blocks IRC threads
+        forwarded private messages) no longer blocks IRC threads. An unreadable slftp.news is renamed to
+        slftp.news.corrupt_<timestamp> and slftp starts without news entries
     {-} The routelock command has been removed. Use routeset with option -l instead.
         Existing route locks will be migrated, if you revert to an older version, you will need to set those routes again.
 
