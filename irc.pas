@@ -168,6 +168,11 @@ function FindIrcnetwork(const netname: String): TMyIrcThread;
 
 procedure IrcInit;
 procedure IrcStart;
+{ Writes the primary server address for an IRC network in the current sites.dat format.
+  @param(aNetname IRC network name)
+  @param(aHost Server host name)
+  @param(aPort Server port) }
+procedure IrcWritePrimaryServerConfig(const aNetname, aHost: String; const aPort: Integer);
 procedure IrcUninit;
 procedure ircStop;
 
@@ -578,6 +583,12 @@ end;
 
 { TMyIrcThread }
 
+procedure IrcWritePrimaryServerConfig(const aNetname, aHost: String; const aPort: Integer);
+begin
+  sitesdat.WriteString('ircnet-' + aNetname, 'bnc_host-0', aHost);
+  sitesdat.WriteInteger('ircnet-' + aNetname, 'bnc_port-0', aPort);
+end;
+
 constructor TMyIrcThread.Create(const aNetname: String);
 begin
   inherited Create(aNetname, False);
@@ -599,15 +610,6 @@ begin
   flood := RCInt('flood', 333);
   console_add_ircwindow(aNetname);
 
-  // TODO: remove this as its not needed anymore
-  if sitesdat.ReadString('ircnet-' + aNetname, 'host', '') <> '' then
-  begin
-    // converting old entries to new
-    sitesdat.WriteString('ircnet-' + aNetname, 'bnc_host-0', sitesdat.ReadString('ircnet-' + aNetname, 'host', ''));
-    sitesdat.WriteInteger('ircnet-' + aNetname, 'bnc_port-0', sitesdat.ReadInteger('ircnet-' + aNetname, 'port', 0));
-    sitesdat.DeleteKey('ircnet-' + aNetname, 'host');
-    sitesdat.DeleteKey('ircnet-' + aNetname, 'port');
-  end;
 end;
 
 destructor TMyIrcThread.Destroy;
