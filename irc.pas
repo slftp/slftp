@@ -34,6 +34,7 @@ type
     irc_last_read: TDateTime;
     registered: Boolean;
     irc_last_written: tdatetime;
+    FLastWriteTime: TDateTime; //< time when the last line has been sent to the server, see @link(SendKeepAlivePing)
     lastservername: String;
     FCurrentIrcNick: String;
     flood: integer;
@@ -61,6 +62,9 @@ type
     function IrcProcessLine(s: String): Boolean;
     function IrcProcess: Boolean;
     function IrcPing(cumo: String): Boolean;
+    { Sends a PING to the server if nothing has been sent to it for 60 seconds. Bouncers like ZNC drop a client
+      they haven't received anything from for a while, even if the client is still busy reading a backlog. }
+    procedure SendKeepAlivePing;
     procedure IrcPrivMsg(const s: String);
     function ShouldJoinGame: Boolean;
     procedure ClearSiteInvited;
@@ -655,6 +659,7 @@ begin
   FSocketWriteLock.Enter('IrcWrite');
   try
     irc_last_read := Now();
+    FLastWriteTime := Now();
     try
       Result := WriteLn(Copy(s, 1, MaxInt));
     except on E: Exception do
@@ -735,6 +740,12 @@ function TMyIrcThread.IrcPing(cumo: String): Boolean;
 begin
   Result := IrcWrite('PONG ' + cumo);
   lastservername := cumo;
+end;
+
+procedure TMyIrcThread.SendKeepAlivePing;
+begin
+  if ((SecondsBetween(Now, FLastWriteTime) > 60) and (lastservername <> '')) then
+    IrcWrite('PING ' + lastservername);
 end;
 
 function CommandAuthorized(const netname, channel, cmd: String): Boolean;
@@ -1554,6 +1565,9 @@ begin
           Break;
         if not IrcProcessLine(s) then
           break;
+        // this loop only ends when no more data arrives, so check here as well: while the lines are processed
+        // slower than they arrive, the check below the loop is never reached
+        SendKeepAlivePing;
       end;
     except
       on e: Exception do
@@ -1588,8 +1602,7 @@ begin
       end;
     end;
 
-    if ((SecondsBetween(Now, irc_last_read) > 60) and (lastservername <> '')) then
-      ircwrite('PING ' + lastservername);
+    SendKeepAlivePing;
 
     if SecondsBetween(Now, irc_last_read) > irc_timeout then
     begin

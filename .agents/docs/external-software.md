@@ -45,6 +45,13 @@ encryption**, in both ECB and CBC mode (`ircblowfish.ECB.pas`, `ircblowfish.CBC.
 client-side convention (shared by mIRC scripts, irssi plugins, etc.), not an ircd feature — any ircd
 works as long as it relays the encrypted `PRIVMSG`/`NOTICE` payload unchanged.
 
+Operators often connect through a **[ZNC](https://znc.in/)** bouncer. ZNC drops a client from which it
+has received nothing for the user's `NoTrafficTimeout` (default 180 s); its own sending doesn't count.
+Normally a client answers ZNC's `PING` (sent after half that time) or sends its own keepalive, so this
+only happens when an IRC thread falls far behind with reading: then ZNC's `PING` waits in the backlog.
+That's why `TMyIrcThread.SendKeepAlivePing` is also called from inside the read loop of
+`TMyIrcThread.IrcProcess`.
+
 ## Libraries
 
 See [Libraries](architecture.md#libraries-libs) in the architecture map for the code vendored under
