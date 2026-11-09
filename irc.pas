@@ -1558,6 +1558,7 @@ var
   s, osszes: String;
   fEchoQueueList: TList<TIrcEchoItem>;
   fEchoItem: TIrcEchoItem;
+  fReadStart: TDateTime;
 begin
   Result := False;
   while ((not shouldrestart) and (not shouldquit)) do
@@ -1566,15 +1567,17 @@ begin
       ShouldJoinGame();
 
     try
+      fReadStart := Now;
       while ReadLn(s, osszes, 100) do
       begin
         if (s = '') then
           Break;
         if not IrcProcessLine(s) then
           break;
-        // this loop only ends when no more data arrives, so check here as well: while the lines are processed
-        // slower than they arrive, the check below the loop is never reached
-        SendKeepAlivePing;
+        // while lines arrive faster than they are processed, ReadLn never runs out of data: leave the loop
+        // regularly so that the checks below still run, at least as often as an echo message may be sent
+        if MilliSecondsBetween(Now, fReadStart) > flood then
+          Break;
       end;
     except
       on e: Exception do

@@ -49,8 +49,8 @@ Operators often connect through a **[ZNC](https://znc.in/)** bouncer. ZNC drops 
 has received nothing for the user's `NoTrafficTimeout` (default 180 s); its own sending doesn't count.
 Normally a client answers ZNC's `PING` (sent after half that time) or sends its own keepalive, so this
 only happens when an IRC thread falls far behind with reading: then ZNC's `PING` waits in the backlog.
-That's why `TMyIrcThread.SendKeepAlivePing` is also called from inside the read loop of
-`TMyIrcThread.IrcProcess`.
+That's why the read loop of `TMyIrcThread.IrcProcess` must not run until the data runs out: it is left
+after a time limit, so that `TMyIrcThread.SendKeepAlivePing` and the other checks below it still run.
 
 ## Libraries
 
