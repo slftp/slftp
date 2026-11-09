@@ -33,7 +33,7 @@ type
 
     irc_last_read: TDateTime;
     registered: Boolean;
-    irc_last_written: tdatetime;
+    irc_last_written: tdatetime; //< time when @link(IrcSendPrivMessage) sent the last message, only used to pace the echo messages; unlike @link(FLastWriteTime), other writes don't update it
     FLastWriteTime: TDateTime; //< time when the last line has been sent to the server, see @link(SendKeepAlivePing)
     lastservername: String;
     FCurrentIrcNick: String;
@@ -63,7 +63,8 @@ type
     function IrcProcess: Boolean;
     function IrcPing(cumo: String): Boolean;
     { Sends a PING to the server if nothing has been sent to it for 60 seconds. Bouncers like ZNC drop a client
-      they haven't received anything from for a while, even if the client is still busy reading a backlog. }
+      they haven't received anything from for a while, even if the client is still busy reading a backlog.
+      The PING carries the token of the last server PING, or a fixed token if none has been processed yet. }
     procedure SendKeepAlivePing;
     procedure IrcPrivMsg(const s: String);
     function ShouldJoinGame: Boolean;
@@ -744,8 +745,14 @@ end;
 
 procedure TMyIrcThread.SendKeepAlivePing;
 begin
-  if ((SecondsBetween(Now, FLastWriteTime) > 60) and (lastservername <> '')) then
-    IrcWrite('PING ' + lastservername);
+  if SecondsBetween(Now, FLastWriteTime) <= 60 then
+    exit;
+
+  // don't wait for the first server PING: a thread that is behind right after connecting might not reach it in time
+  if lastservername <> '' then
+    IrcWrite('PING ' + lastservername)
+  else
+    IrcWrite('PING :slftp');
 end;
 
 function CommandAuthorized(const netname, channel, cmd: String): Boolean;
