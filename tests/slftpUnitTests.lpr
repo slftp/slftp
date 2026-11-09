@@ -61,7 +61,8 @@ uses
   indexerTests,
   variantCacheTests,
   {$IFDEF LINUX}slclockTests,{$ENDIF}
-  sltimerTests;
+  sltimerTests,
+  newsTests;
 
 {* returns the value of the --junit=<filename> command line option
    @returns(the file name, or empty string if the option is not present) *}
