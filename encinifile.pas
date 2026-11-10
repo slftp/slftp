@@ -107,7 +107,6 @@ type
     function GetCaseSensitive: Boolean;
     procedure LoadValues;
     procedure SetCaseSensitive(Value: Boolean);
-    procedure MoveAndOverwriteFile(const aSourceFileName, aDestinationFileName: string);
   public
     AutoUpdate: Boolean;
     constructor Create(const FileName, Passphrase: String; autoupdate: Boolean = False; compression: Boolean = True); overload;
@@ -133,10 +132,34 @@ type
 
 implementation
 
-uses SysUtils, slblowfish, configunit, debugunit;
+uses {$IFDEF MSWINDOWS}Windows, {$ENDIF}SysUtils, slblowfish, configunit, debugunit;
 
 const
   section = 'encinifile';
+
+{ Replaces a file with another one in a single step, so the destination always exists either with its old or its
+  new content; used to save to a temp file first and then overwrite the real file, which avoids corrupted files
+  when the process crashes or gets killed while saving
+  @param(aSourceFileName file which gets renamed)
+  @param(aDestinationFileName file which gets replaced) }
+procedure _MoveAndOverwriteFile(const aSourceFileName, aDestinationFileName: string);
+var
+  fError: Integer;
+begin
+{$IFDEF MSWINDOWS}
+  // RenameFile fails on Windows if the destination exists
+  if MoveFileEx(PChar(aSourceFileName), PChar(aDestinationFileName), MOVEFILE_REPLACE_EXISTING) then
+    exit;
+  fError := GetLastError;
+{$ELSE}
+  // rename() replaces an existing destination atomically
+  if RenameFile(aSourceFileName, aDestinationFileName) then
+    exit;
+  fError := GetLastOSError;
+{$ENDIF}
+  raise Exception.CreateFmt('Cannot move file from %s to %s: %s',
+    [aSourceFileName, aDestinationFileName, SysErrorMessage(fError)]);
+end;
 
 { TStringHash }
 
@@ -653,21 +676,6 @@ begin
   Result := FSections.CaseSensitive;
 end;
 
-procedure TEncIniFile.MoveAndOverwriteFile(const aSourceFileName, aDestinationFileName: string);
-begin
-  // Check if the destination file exists
-  if FileExists(aDestinationFileName) then
-  begin
-    // Delete the existing destination file
-    if not DeleteFile(aDestinationFileName) then
-      raise Exception.CreateFmt('Cannot delete existing destination file: %s', [aDestinationFileName]);
-  end;
-
-  // Rename (move) the source file to the destination
-  if not RenameFile(aSourceFileName, aDestinationFileName) then
-    raise Exception.CreateFmt('Cannot move file from %s to %s', [aSourceFileName, aDestinationFileName]);
-end;
-
 procedure TEncIniFile.GetStrings(List: TStrings);
 var
   I, J: Integer;
@@ -723,7 +731,7 @@ begin
 
             // save to temp file and then overwrite to avoid corrupted files when the process crashes or gets killed
             ListSplitFile.SaveToFile(S + '.sltmp');
-            MoveAndOverwriteFile(S + '.sltmp', S);
+            _MoveAndOverwriteFile(S + '.sltmp', S);
           finally
             ListSplitFile.Free;
           end;
@@ -959,7 +967,7 @@ begin
       list.SaveToFile(fFilename + '.sltmp');
 
     // save to temp file and then overwrite to avoid corrupted files when the process crashes or gets killed
-    MoveAndOverwriteFile(fFilename + '.sltmp', fFilename);
+    _MoveAndOverwriteFile(fFilename + '.sltmp', fFilename);
   finally
     il.Leave;
     List.Free;
@@ -1114,7 +1122,9 @@ begin
   s := TStringStream.Create( GetTextStr );
   try
     s.Position:= 0;
-    EncryptStreamToFile(s, FileName, fPassHash, true);
+    // save to temp file and then overwrite to avoid corrupted files when the process crashes or gets killed
+    EncryptStreamToFile(s, FileName + '.sltmp', fPassHash, true);
+    _MoveAndOverwriteFile(FileName + '.sltmp', FileName);
   finally
     s.Free;
   end;

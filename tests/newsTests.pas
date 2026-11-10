@@ -25,6 +25,7 @@ type
   published
     procedure TestAddWritesFileOnlyOnSave;
     procedure TestNewsSaveWithoutChangesDoesNotWriteFile;
+    procedure TestNewsSaveReplacesFileWithoutTempFile;
     procedure TestDeleteCategoryRemovesOnlyThatCategory;
     procedure TestDeleteNumberRemovesEntry;
     procedure TestAddWithDupecheckAddsMessageOnlyOnce;
@@ -97,6 +98,18 @@ procedure TTestNews.TestNewsSaveWithoutChangesDoesNotWriteFile;
 begin
   NewsSave;
   CheckFalse(FileExists(FFileName));
+end;
+
+procedure TTestNews.TestNewsSaveReplacesFileWithoutTempFile;
+begin
+  SlftpNewsAdd('IRC', 'irc 1');
+  NewsSave;
+  SlftpNewsAdd('IRC', 'irc 2');
+  NewsSave;
+  CheckFalse(FileExists(FFileName + '.sltmp'), 'the temp file must be renamed to the news file');
+
+  SaveAndReload;
+  CheckTrue(Pos('overall <b>2</b>', SlftpNewsStatus) > 0, SlftpNewsStatus);
 end;
 
 procedure TTestNews.TestDeleteCategoryRemovesOnlyThatCategory;

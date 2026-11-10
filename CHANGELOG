@@ -61,7 +61,8 @@
 --=============================( SLFTP v1.5.11 )==================================-
     {#} Fix error when trying to install openssl 1.1.1w via the libinstaller
     {#} Fix build on BSD
-    {#} Fix corrupted sites.dat and rtpl/SITE.setting files when the process gets killed or crashes
+    {#} Fix corrupted sites.dat, rtpl/SITE.setting and other data files (e.g. slftp.news, slftp.ranks,
+        slftp.speedstats) when the process gets killed or crashes
     {#} Fix REQUEST precatcher event firing when it should not
     {#} Fix news dupecheck re-adding duplicates younger than 7 days as unread, e.g. TVMaze messages
     {+} Enable SFV check to avoid sending wrong files. Set sections in SFVRelease in [taskrace] of slftp.ini
