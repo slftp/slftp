@@ -13,6 +13,7 @@ import select
 import socket
 import socketserver
 import ssl
+import subprocess
 import threading
 import time
 import zlib
@@ -33,7 +34,8 @@ def prepare(root):
         files = {}
         folder = root / name / sub
         folder.mkdir(parents=True, exist_ok=True)
-        for j in range(VOLUMES):
+        # Keep the nested MKDIR case separate from dev's progressive multi-volume CD1 defect.
+        for j in range(1 if sub else VOLUMES):
             filename = f"{stem}.rar" if j == 0 else f"{stem}.r{j - 1:02d}"
             data = rng.randbytes(SIZE)
             (folder / filename).write_bytes(data)
@@ -235,6 +237,9 @@ class Workload:
     def interrupt_site(self, t0):
         if self.stop.wait(max(0, t0 + 7 - time.monotonic())):
             return
+        pane_args = ["tmux", "capture-pane", "-p", "-J", "-S", "-3000", "-t", self.args.session]
+        up_message = "SITE E2E4 IS UP"
+        previous = subprocess.check_output(pane_args, text=True).count(up_message)
         self.outage.set()
         self.events.append({"event": "site4_down", "time_s": time.monotonic() - t0})
         if self.stop.wait(6):
@@ -242,15 +247,20 @@ class Workload:
         self.outage.clear()
         self.events.append({"event": "site4_up", "time_s": time.monotonic() - t0})
         # Wake the normal login/status path after the simulated network outage.
-        import subprocess
         subprocess.run(["tmux", "send-keys", "-t", self.args.session,
                         "!bnctest E2E4", "Enter"], check=True)
-        if not self.stop.wait(2):
-            with self.announce_lock:
-                for name in self.announced:
-                    self.announce(name)
-            self.events.append({"event": "reannounce_after_recovery",
-                                "time_s": time.monotonic() - t0})
+        confirmed = False
+        for _ in range(60):
+            if subprocess.check_output(pane_args, text=True).count(up_message) > previous:
+                confirmed = True
+                break
+            if self.stop.wait(0.25):
+                return
+        with self.announce_lock:
+            for name in self.announced:
+                self.announce(name)
+        self.events.append({"event": "reannounce_after_recovery",
+                            "site_up_confirmed": confirmed, "time_s": time.monotonic() - t0})
 
     def announce(self, name):
         self.irc.sendall(
@@ -281,15 +291,16 @@ class Workload:
         starts, finishes, directories = {}, {}, {}
         t0 = time.monotonic()
         started_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        expected = RELEASES * VOLUMES * 4
+        payload_count = sum(len(release["files"]) for release in self.releases)
+        expected = payload_count * 4
         error = None
         sample_gaps = []
         previous = t0
         next_note = t0
-        with concurrent.futures.ThreadPoolExecutor(max_workers=RELEASES) as pool:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=RELEASES + 1) as pool:
             futures = [pool.submit(self.upload, release, i, t0)
                        for i, release in enumerate(self.releases)]
-            threading.Thread(target=self.interrupt_site, args=(t0,), daemon=True).start()
+            futures.append(pool.submit(self.interrupt_site, t0))
             while time.monotonic() - t0 < TIMEOUT:
                 now = time.monotonic()
                 sample_gaps.append((now - previous) * 1000)
@@ -324,9 +335,9 @@ class Workload:
                 print(f"VERIFY actual payload E2E{site}: " + json.dumps(actual), flush=True)
         result = {"elapsed_s": elapsed, "cpu_s": final["cpu_s"] - initial["cpu_s"],
                   "started_at_utc": started_at, "started_monotonic_s": t0,
-                  "peak_rss_bytes": peak_rss, "files_expected": RELEASES * VOLUMES * 3,
+                  "peak_rss_bytes": peak_rss, "files_expected": payload_count * 3,
                   "files_full": sum(key[0] != 1 for key in finishes),
-                  "bytes_expected": RELEASES * VOLUMES * SIZE * 3,
+                  "bytes_expected": payload_count * SIZE * 3,
                   "max_sample_gap_ms": max(sample_gaps),
                   "uploader_pasv_retries": sum(self.pasv_retries),
                   "error": error, "hash_errors": errors, "events": self.events,

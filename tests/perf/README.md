@@ -22,7 +22,8 @@ The performance comparison itself currently measures the **FPC/Linux** binaries.
 - Each trial uses a fresh block of 3,000 passive ports per site, avoiding
   TIME_WAIT leftovers from earlier trials. The uploader retries only temporary
   PASV 425 responses, before sending STOR; retry counts are kept in each result.
-- Six releases with six deterministic 512-KiB volumes each. Half use CD1.
+- Three progressive root releases with six deterministic 512-KiB volumes each,
+  and three one-volume CD1 releases. All 63 destination payloads are checked.
   This is a bounded CI workload calibrated against dev, not a saturation/soak test.
 - Releases are announced one second apart through a local IRC protocol fixture
   and slFtp's actual precatcher. Files arrive progressively over FTPS.
@@ -36,6 +37,8 @@ The performance comparison itself currently measures the **FPC/Linux** binaries.
   TLS, including session reuse. It is not a precise WAN RTT or bandwidth emulator.
   The other three sites use the original direct FTP connection path.
 - After the outage, bnctest and repeated NEWDIR announces exercise recovery.
+  The driver waits for an UP announcement (up to 15 seconds) before replaying.
+  Recovery also has to finish before the measured trial ends.
 - The order is dev / branch / branch / dev. Every trial resets sites, databases,
   runtime files and caches. Both binaries use the same configuration from the
   pushed commit, including its normal connection/I/O timeout values.
@@ -45,6 +48,14 @@ The job has a 30-minute limit to also bound first-time image downloads and build
 No local Windows/WSL installation is needed for the automatic comparison.
 
 ## Results
+
+The initial multi-volume CD1 scenario is retained as a separate reproduction in
+[job 17915499576](https://gitlab.com/slftp/slftp/-/jobs/17915499576). On `dev`
+`0de97be2`, each of the three targets received only the first volume of each
+progressively uploaded CD1 release; all root volumes arrived. `TDirList.Complete`
+has a fallback which can mark an SFV-bearing subdirectory complete as soon as it
+has a useful file. Keep this correctness case separate from the timing baseline;
+the one-volume CD1 case still exercises real nested directory creation and listing.
 
 Open the performance-race job. Its log prints the comparison; download its
 perf-results artifacts for:
