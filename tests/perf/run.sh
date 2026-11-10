@@ -1,28 +1,31 @@
 #!/bin/bash
 # Inside the disposable CI worker: same fixture, toolchain, observer and config for A/B/B/A.
-set -eo pipefail
+set -Eeo pipefail
 baseline_sha="$1"
 branch_sha="$2"
 root=/work/branch
 out=/work/results
 mkdir -p "$out"
 exec > >(tee "$out/run.log") 2>&1
+trap 'echo "ERROR: benchmark driver line $LINENO: $BASH_COMMAND"' ERR
 bash -n "$root/tests/perf/run.sh" "$root/tests/perf/ci.sh" "$root/.agents/skills/glftpd-e2e/e2e.sh"
 python3 -m unittest discover -s "$root/tests/perf" -p 'test_*.py'
 python3 "$root/tests/perf/workload.py" --prepare /work/payload
+cp /work/payload/manifest.json "$out/manifest.json"
 
 # Reuse the pinned glftpd image and console helpers of the E2E test.
 . "$root/.agents/skills/glftpd-e2e/e2e.sh"
 cleanup() { slftp_kill || true; stop_sites || true; }
 trap cleanup EXIT INT TERM
-slftp_check_env
-prepare_image
+slftp_check_env || exit 1
+prepare_image || exit 1
 
 for variant in baseline branch; do
   src="/work/$variant"
   build="/work/build-$variant"
   mkdir -p "$build"
-  (cd "$src" && make slftp_64) > "$out/build-$variant.log" 2>&1 || {
+  if [ "$variant" = baseline ]; then source_sha="$baseline_sha"; else source_sha="$branch_sha"; fi
+  (cd "$src" && perl replace_git_commit.pl "$source_sha" && make slftp_64) > "$out/build-$variant.log" 2>&1 || {
     tail -40 "$out/build-$variant.log"; exit 1;
   }
   cp "$src/slftp" "$build/"
@@ -30,6 +33,7 @@ for variant in baseline branch; do
   cp -r "$root/config/." "$build/"
   cp /usr/lib/x86_64-linux-gnu/libcrypto.so.3 /usr/lib/x86_64-linux-gnu/libssl.so.3 "$build/"
   cp /usr/lib/x86_64-linux-gnu/ossl-modules/legacy.so "$build/"
+  sha256sum "$build/slftp" >> "$out/binaries.txt"
 done
 trial=0
 for variant in baseline branch branch baseline; do
@@ -47,8 +51,8 @@ for variant in baseline branch branch baseline; do
     find "$site" -mindepth 1 -delete
     chmod 777 "$site"
   done
-  start_sites
-  slftp_prepare "$build"
+  start_sites || exit 1
+  slftp_prepare "$build" || exit 1
   # No network metadata lookups: a dedicated synthetic section with the common defaults.
   python3 - "$run_dir" <<'PY'
 import pathlib, sys
@@ -69,7 +73,7 @@ for line in text.splitlines():
     lines.append(line)
 path.write_text("\n".join(lines) + "\n")
 PY
-  slftp_start
+  slftp_start || { pane; exit 1; }
   pane_pid=$(tmux display -p -t "$session" '#{pane_pid}')
   pid=$(pgrep -P "$pane_pid" -x slftp)
   [ -n "$pid" ] || { echo 'ERROR: slFtp PID not found'; exit 1; }
@@ -105,8 +109,8 @@ PY
   pane > "$trial_out/console.txt"
   cp "$run_dir/slftp.log" "$trial_out/slftp.log"
   # Stop outside the timed interval, retaining the known shutdown notes in run.log.
-  slftp_stop
-  stop_sites
+  slftp_stop || exit 1
+  stop_sites || exit 1
   if [ "$rc" -ne 0 ]; then
     cat "$trial_out/workload.log"
     echo "ERROR: trial $trial ($variant) failed"

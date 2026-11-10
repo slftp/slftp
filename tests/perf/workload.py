@@ -2,6 +2,7 @@
 """Deterministic four-site load; measures slFtp externally without changing its binary."""
 import argparse
 import concurrent.futures
+import datetime
 import ftplib
 import hashlib
 import json
@@ -255,6 +256,7 @@ class Workload:
         peak_rss = initial["rss_bytes"]
         starts, finishes, directories = {}, {}, {}
         t0 = time.monotonic()
+        started_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
         expected = RELEASES * VOLUMES * 4
         error = None
         sample_gaps = []
@@ -282,11 +284,17 @@ class Workload:
         self.stop.set()
         errors = self.verify()  # Hashing is outside the measured interval.
         result = {"elapsed_s": elapsed, "cpu_s": final["cpu_s"] - initial["cpu_s"],
+                  "started_at_utc": started_at, "started_monotonic_s": t0,
                   "peak_rss_bytes": peak_rss, "files_expected": RELEASES * VOLUMES * 3,
                   "files_full": sum(key[0] != 1 for key in finishes),
                   "bytes_expected": RELEASES * VOLUMES * SIZE * 3,
                   "max_sample_gap_ms": max(sample_gaps),
-                  "error": error, "hash_errors": errors, "events": self.events}
+                  "error": error, "hash_errors": errors, "events": self.events,
+                  "directories": [
+                      {"site": site, "release": name, "first_seen_s": stamp,
+                       "ready_after_announce_ms": max(0, stamp - self.announced[name]) * 1000,
+                       "already_present_at_announce": stamp < self.announced[name]}
+                      for (site, name), stamp in directories.items() if name in self.announced]}
         if not error and not errors:
             latency, completion, transfers = transfer_metrics(
                 self.releases, self.announced, starts, finishes)

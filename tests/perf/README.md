@@ -54,7 +54,7 @@ slFtp process. Hash checks happen after the measured interval.
 
 Incorrect/missing payloads, timeouts or an unavailable environment fail the job
 and invalidate the speed comparison. Performance deltas alone do not fail it.
-The statistical tests of the report calculation run in the worker before the load.
+The unit tests of the report calculation run in the worker before the load.
 
 The producer's fixed arrival schedule can limit throughput; this is a scheduling/
 CPU comparison, not a maximum network bandwidth benchmark. Shared CI hardware is
