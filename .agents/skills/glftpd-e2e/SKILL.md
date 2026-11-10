@@ -117,6 +117,8 @@ Pitfalls found so far:
 - slFtp only allows a release on a site when a rule matches, e.g. `!ruleadd * <section> if default
   then ALLOW`, and only spreads along routes (`!routeset`).
 - `!routeset` accepts the complete wildcard `*`, not partial patterns such as `E2E*`.
+- A fresh profile has auto trading disabled. Announce-driven scenarios need `!auto 1`;
+  the existing manual `!spread` scenario works independently of this switch.
 - `!spread` reports `successfully finished` also when it sent nothing, e.g. when the release is not
   allowed anywhere or the section directory is missing on the destination. Always check the files on
   the sites as well.

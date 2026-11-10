@@ -25,6 +25,8 @@ The performance comparison itself currently measures the **FPC/Linux** binaries.
 - Twelve releases with 32 deterministic 512-KiB volumes each. Half use CD1.
 - Releases are announced one second apart through a local IRC protocol fixture
   and slFtp's actual precatcher. Files arrive progressively over FTPS.
+  Setup explicitly enables the autotrader with !auto 1 and checks its confirmation;
+  a fresh profile otherwise ignores automatic announcements.
 - E2E2 already has some of the destination directories.
 - E2E3 has one slot and the highest fixed route rank; other sites have six slots.
 - E2E4 has a transparent TCP proxy that delays server-to-client control chunks by

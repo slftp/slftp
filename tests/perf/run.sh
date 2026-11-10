@@ -113,6 +113,8 @@ PY
   console '!ircnetadd PERF 127.0.0.1:16667 0'
   console '!ircchanadd PERF #race'
   console '!catchadd E2E1 PERF #race perfbot NEWDIR NEW RACE'
+  console '!auto 1'
+  wait_console 'Auto is enabled [1] now!' 1 5
   console '!bnctest'
   for n in 1 2 3 4; do wait_console "SITE E2E$n IS UP" 1 40; done
   console_ok || { pane | tee "$trial_out/console.txt"; echo 'ERROR: setup command failed'; exit 1; }
