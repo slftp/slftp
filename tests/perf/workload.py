@@ -312,6 +312,16 @@ class Workload:
             elapsed = time.monotonic() - t0
         self.stop.set()
         errors = self.verify()  # Hashing is outside the measured interval.
+        if errors:
+            print("VERIFY missing/corrupt examples: " + json.dumps(errors[:12]), flush=True)
+            for site in range(1, 5):
+                base = self.args.sites / str(site) / "RACE"
+                actual = [(str(path.relative_to(base)), path.stat().st_size)
+                          for path in sorted(base.rglob("*"))
+                          if path.is_file() and
+                          (path.suffix == ".rar" or
+                           (len(path.suffix) == 4 and path.suffix[1] == "r" and path.suffix[2:].isdigit()))]
+                print(f"VERIFY actual payload E2E{site}: " + json.dumps(actual), flush=True)
         result = {"elapsed_s": elapsed, "cpu_s": final["cpu_s"] - initial["cpu_s"],
                   "started_at_utc": started_at, "started_monotonic_s": t0,
                   "peak_rss_bytes": peak_rss, "files_expected": RELEASES * VOLUMES * 3,
