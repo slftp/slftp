@@ -166,7 +166,7 @@ start_sites() {
       volume_args=(-v "$site_volume_prefix-$i:/glftpd/site")
     fi
     docker run -d --name "$image-$i" "${volume_args[@]}" --network host -e PORT="$port" \
-      -e PASV_PORTS="$(site_pasv "$i")" "$image_tag" >/dev/null || return
+      -e PASV_PORTS="$(site_pasv "$i")" -e MAX_USERS="$site_max_users" "$image_tag" >/dev/null || return
     for section in $sections; do site_exec "$i" "mkdir -m777 /glftpd/site/$section" || return; done
   done
   for i in $(seq 1 "$sites"); do

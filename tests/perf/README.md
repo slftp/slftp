@@ -17,6 +17,8 @@ The performance comparison itself currently measures the **FPC/Linux** binaries.
 ## Workload
 
 - Four real glftpd sites, TLS on control and data connections and SSL FXP.
+  The fixture allows 100 concurrent site logins (50 for the test user), so its
+  packaged 15-user site limit does not reject the progressive upload producers.
 - Twelve releases with 32 deterministic 512-KiB volumes each. Half use CD1.
 - Releases are announced one second apart through a local IRC protocol fixture
   and slFtp's actual precatcher. Files arrive progressively over FTPS.

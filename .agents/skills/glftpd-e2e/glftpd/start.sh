@@ -8,4 +8,8 @@ for node in null:3 zero:5 urandom:9; do
   [ -e "/glftpd/dev/${node%:*}" ] || mknod -m 666 "/glftpd/dev/${node%:*}" c 1 "${node#*:}"
 done
 { cat /etc/glftpd.conf.base; echo "pasv_ports $PASV_PORTS"; } > /etc/glftpd.conf
+# Stress scenarios can raise the packaged site-wide login limit before the first login.
+if [ -n "$MAX_USERS" ]; then
+  sed -i "s/^max_users .*/max_users $MAX_USERS 0/" /etc/glftpd.conf
+fi
 exec socat -d TCP-LISTEN:"$PORT",bind=127.0.0.1,reuseaddr,fork EXEC:"/glftpd/bin/glftpd -l -o -i -r /etc/glftpd.conf",nofork

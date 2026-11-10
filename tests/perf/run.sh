@@ -47,6 +47,7 @@ for variant in baseline branch branch baseline; do
   sites=4
   sections=RACE
   site_volume_prefix=perf-site
+  site_max_users=100
   for site in /sites/1 /sites/2 /sites/3 /sites/4; do
     find "$site" -mindepth 1 -delete
     chmod 777 "$site"
