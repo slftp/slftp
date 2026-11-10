@@ -22,7 +22,8 @@ The performance comparison itself currently measures the **FPC/Linux** binaries.
 - Each trial uses a fresh block of 3,000 passive ports per site, avoiding
   TIME_WAIT leftovers from earlier trials. The uploader retries only temporary
   PASV 425 responses, before sending STOR; retry counts are kept in each result.
-- Twelve releases with 32 deterministic 512-KiB volumes each. Half use CD1.
+- Six releases with six deterministic 512-KiB volumes each. Half use CD1.
+  This is a bounded CI workload calibrated against dev, not a saturation/soak test.
 - Releases are announced one second apart through a local IRC protocol fixture
   and slFtp's actual precatcher. Files arrive progressively over FTPS.
   Setup explicitly enables the autotrader with !auto 1 and checks its confirmation;

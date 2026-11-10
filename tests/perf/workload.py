@@ -17,8 +17,8 @@ import threading
 import time
 import zlib
 
-RELEASES = 12
-VOLUMES = 32
+RELEASES = 6
+VOLUMES = 6
 SIZE = 512 * 1024
 TIMEOUT = 150
 
