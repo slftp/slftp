@@ -95,14 +95,14 @@ PY
   done
   console '!slots E2E3 1'
   console '!ruleadd * RACE if default then ALLOW'
-  console '!routeset E2E* E2E* 5 -a -l'
-  console '!routeset E2E* E2E3 9 -a -l'
+  console '!routeset * * 5 -a -l'
+  console '!routeset * E2E3 9 -a -l'
   console '!ircnetadd PERF 127.0.0.1:16667 0'
   console '!ircchanadd PERF #race'
   console '!catchadd E2E1 PERF #race perfbot NEWDIR NEW RACE'
   console '!bnctest'
   for n in 1 2 3 4; do wait_console "SITE E2E$n IS UP" 1 40; done
-  console_ok || { pane > "$trial_out/console.txt"; exit 1; }
+  console_ok || { pane | tee "$trial_out/console.txt"; echo 'ERROR: setup command failed'; exit 1; }
   touch "$trial_out/go"
   rc=0
   wait "$load_pid" || rc=$?
