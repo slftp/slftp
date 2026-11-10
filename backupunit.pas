@@ -195,7 +195,7 @@ begin
       {$IFDEF MSWINDOWS}SysUtils.{$ENDIF}FindClose(sr);
 
       // remove oldest backups until we have reach the max backups we want to keep
-      while ((records.Count > 0) and (records.Count > config.ReadInteger(section, 'keep_backups', 10))) do
+      while ((records.Count > 0) and (records.Count > config_cached_integer(section, 'keep_backups', 10))) do
       begin
         oldest_record := records.First;
         for rec in records do

@@ -170,7 +170,7 @@ begin
       begin
         Result := StrToIntDef(aPreTimeStr, 0);
         if ((DaysBetween(Now(), UnixToDateTime(Result, False)) > 30) and
-          config.ReadBool('kb', 'skip_rip_older_then_one_month', False)) then
+          config_cached_bool('kb', 'skip_rip_older_then_one_month', False)) then
         begin
           irc_addtext('CONSOLE','ADMIN','Days higher then 30 days');
           Result := 0;

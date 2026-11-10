@@ -573,7 +573,7 @@ begin
 
   tr.FLookupDone := True;
 
-  if config.ReadBool(section, 'post_lookup_infos', False) then
+  if config_cached_bool(section, 'post_lookup_infos', False) then
     PostResults(rls_showname);
 end;
 
@@ -619,7 +619,7 @@ begin
     rls := rls_showname;
 
   try
-    if config.ReadBool(section, 'use_new_announce_style', True) then
+    if config_cached_bool(section, 'use_new_announce_style', True) then
     begin
       if tv_endedyear > 0 then
         toAnnounce.Add(Format('<c10>[<b>TVInfo</b>]</c> <b>%s</b> (%d - %d) - <b>TVMaze info</b> %s', [rls, tv_premiered_year, tv_endedyear, tv_url]))
@@ -1172,7 +1172,7 @@ begin
           SlftpNewsAdd('TVMAZE', Format('Possible mismatch for <b>%s</b> with TVMaze ID <b>%s</b>', [rls, tv_showid]), True);
         end;
       end
-      else if (DaysBetween(UnixToDateTime(dbtvinfo.last_updated), Now()) >= config.ReadInteger(section, 'days_between_last_update', 6)) then
+      else if (DaysBetween(UnixToDateTime(dbtvinfo.last_updated), Now()) >= config_cached_integer(section, 'days_between_last_update', 6)) then
       begin
         // UPDATE the show because our infos are too old
         if not dbtvinfo.Update then
@@ -1231,7 +1231,7 @@ begin
     if (ps <> nil) then
     begin
       try
-        if spamcfg.ReadBool('addinfo', 'tvinfoupdate', True) then
+        if spam_config_cached_bool('addinfo', 'tvinfoupdate', True) then
           irc_SendUPDATE(Format(msg, [p.rls.section, p.rls.rlsname, ps.Name]));
 
         kb_Add('', '', ps.Name, p.rls.section, '', kbeUPDATE, p.rls.rlsname, '');

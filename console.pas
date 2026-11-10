@@ -742,10 +742,10 @@ ujra:
     end;
   end;
 
-  if config.ReadBool('console', 'show_uptime', False) then
+  if config_cached_bool('console', 'show_uptime', False) then
     timers.Add( TslUptimeTimer.Create(l_uptime) );
 
-  if config.ReadBool('console', 'show_infos', False) then
+  if config_cached_bool('console', 'show_infos', False) then
     timers.Add( TslInfosTimer.Create(l_infos) );
 end;
 

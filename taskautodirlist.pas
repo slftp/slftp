@@ -108,7 +108,7 @@ var
 
     Result := ((notdown) and (aSite.Name <> getadminsitename) and (
       (aSite.isRouteableTo(site1)) or not
-      (config.ReadBool(rsections, 'only_use_routable_sites_on_reqfill', False))
+      (config_cached_bool(rsections, 'only_use_routable_sites_on_reqfill', False))
       ))
   end;
 
@@ -255,7 +255,7 @@ begin
       begin
         // Requested release is already indexed on this site
 
-        if config.ReadBool(rsections, 'create_already_on_site_in_directory', True) then
+        if config_cached_bool(rsections, 'create_already_on_site_in_directory', True) then
         begin
           ss := x.Values[x.Names[i]];
           ss := ReplaceText(ss, '/', '_');
@@ -265,7 +265,7 @@ begin
               s.Read('MKD Already_on_site_in_' + ss);
         end;
 
-        if not config.ReadBool(rsections, 'fill_already_on_site', False) then
+        if not config_cached_bool(rsections, 'fill_already_on_site', False) then
           Exit;
       end;
 
@@ -454,7 +454,7 @@ begin
             end
             else
             begin
-              if (SecondsBetween(Now(), de.timestamp) < config.readInteger(rsections, 'dropolder', 86400)) then
+              if (SecondsBetween(Now(), de.timestamp) < config_cached_integer(rsections, 'dropolder', 86400)) then
               begin
                 try
                   asection := PrecatcherSectionMapping(de.filename, section);
@@ -545,7 +545,7 @@ begin
         (sub-)dirs and if those are equal we set CachedCompleteResult on the dirlist to
         true to indicate the dirlist task can finish because the release is complete
       *)
-      if config.ReadBool(rsections, 'compare_files_for_reqfilled_fallback', True)
+      if config_cached_bool(rsections, 'compare_files_for_reqfilled_fallback', True)
         and ((TPazoSite(p.PazoSitesList[0]).dirlist.CompleteDirTag = '')
         and (TPazoSite(p.PazoSitesList[1]).dirlist.done > 0)
         and (TPazoSite(p.PazoSitesList[0]).dirlist.done = TPazoSite(p.PazoSitesList[1]).dirlist.done)) then
@@ -561,7 +561,7 @@ begin
 
       if (TPazoSite(p.PazoSitesList[0]).dirlist.Complete) then
       begin
-        reqfill_delay := config.ReadInteger(rsections, 'reqfill_delay', 60);
+        reqfill_delay := config_cached_integer(rsections, 'reqfill_delay', 60);
         irc_Addadmin(Format('<c8>[REQUEST]</c> Request for %s on %s is ready! Reqfill command will be executed in %ds', [p.rls.rlsname, TPazoSite(p.PazoSitesList[0]).Name, reqfill_delay]));
         rt := TRawTask.Create('', '', TPazoSite(p.PazoSitesList[0]).Name, secdir, 'SITE REQFILLED ' + rlsname);
         rt.startat := IncSecond(now, reqfill_delay);

@@ -170,12 +170,12 @@ ujra:
 
   if (nfofile = '') then
   begin
-    if attempt < config.readInteger(section, 'readd_attempts', 5) then
+    if attempt < config_cached_integer(section, 'readd_attempts', 5) then
     begin
       Debug(dpSpam, section, 'READD: nincs meg az nfo file...');
 
       r := TPazoGameTask.Create(netname, channel, ps1.name, mainpazo, attempt+1);
-      r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
+      r.startat := IncSecond(Now, config_cached_integer(section, 'readd_interval', 60));
       AddTask(r);
     end
     else
