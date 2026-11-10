@@ -10,6 +10,8 @@ matching `SKILL.md` completely.
 | Skill | Use when |
 |-------|----------|
 | [test-both-compilers](test-both-compilers/SKILL.md) | on Windows: build and test a change with FPC (via WSL) and Delphi |
+| [glftpd-e2e](glftpd-e2e/SKILL.md) | on Linux, or on Windows in WSL: run slFtp end to end against glftpd sites with pzs-ng, e.g. an FXP race |
+| [run-slftp](run-slftp/SKILL.md) | start slFtp, type commands into its console, read the screen and stop it, to try a change in the real program |
 
 ## Keeping skills correct
 
@@ -26,7 +28,7 @@ were actually run there (`metadata` in the frontmatter, see "Format"): `verified
   change doesn't affect it. Pure wording or typo fixes leave the status unchanged.
 - **Using a skill:** if a side is `unverified`, tell the user before you start and check every step
   against the files it names. If the steps worked as written on that side, set it to `verified`; if
-  not, fix them first. Commit that skill update on its own (one topic per commit).
+  not, fix them first. Commit that skill update on its own, as it is unrelated to the task.
 - Never set a side to `verified` that you did not run.
 
 ## Proposing a new skill
@@ -55,6 +57,9 @@ use it:
   ...             # optional supporting files (scripts, templates, references)
 ```
 
+A script that two or more skills use goes into `.agents/scripts/` instead, documented in its own
+header; a script only one skill uses stays in that skill's folder.
+
 `.agents/skills/` is the tool-neutral project location that agents with native skill support (e.g.
 Codex, Cursor, GitHub Copilot) scan on their own; agents without it use the index above. Keep skills
 there.
@@ -79,7 +84,7 @@ Rules:
 
 - Keep it short. Link to `.agents/docs/` for background instead of repeating it.
 - Keep it tool-neutral: describe *what* to do and which files and commands to use, not features of one
-  specific agent.
+  specific agent, and don't prescribe helper programs ([conventions](../docs/conventions.md#docs)).
 - Cover both compilers: where steps, files or commands differ between FPC (Linux) and Delphi (Windows),
   list both (e.g. `.lpr` and `.dpr`, `make` and `make.bat`). Never write a skill that only works for one.
   You can usually run only one side yourself, so take the other side's steps from the files that define

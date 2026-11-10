@@ -45,6 +45,7 @@ tests/*.log
 tests/dunitx-results.xml
 tests/fpcunit-junit.xml
 tests/*.so*
+tests/databases/
 
 # Visual Studio Code
 .vscode/*

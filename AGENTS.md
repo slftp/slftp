@@ -27,10 +27,13 @@ the config files the Windows tests need: [build-and-test](.agents/docs/build-and
 
 - **Support both compilers.** If you can only build and test with one, say which one and that the other
   is unverified: [compilers](.agents/docs/compilers.md).
-- **One topic per branch and per commit.** Unrelated fixes get their own branch off `dev`.
+- **One topic per branch.** Fixes to the same feature or area are one topic and need no split into several
+  commits, as MRs are squash-merged. Unrelated fixes get their own branch off `dev`.
 - **Reuse before writing:** slFtp helpers first, then mORMot2: [conventions](.agents/docs/conventions.md).
 - **Follow the conventions** for naming, PasDoc comments and commit messages: [conventions](.agents/docs/conventions.md).
-- **Test behavior changes.**
+- **Test behavior changes:** [writing-tests](.agents/docs/writing-tests.md).
+- **Offer a CHANGELOG entry** for changes operators notice: ask the user before finishing, never add one
+  unasked: [conventions](.agents/docs/conventions.md#changelog).
 - **Don't guess.** If behavior or intent is unclear, ask.
 - **Keep changes minimal and surgical:** [working-style](.agents/docs/working-style.md).
 
@@ -43,13 +46,15 @@ Read the doc that matches your task before changing code.
 | [.agents/docs/working-style.md](.agents/docs/working-style.md) | starting any task: assumptions, simplicity, surgical changes, verification |
 | [.agents/docs/architecture.md](.agents/docs/architecture.md) | finding your way around: units, tasks, locking, libraries        |
 | [.agents/docs/external-software.md](.agents/docs/external-software.md) | working on FTP daemon quirks (glFTPd/pzs-ng, DrFTPD, …) or IRC   |
-| [.agents/docs/compilers.md](.agents/docs/compilers.md)       | writing any code: FPC vs. Delphi differences, test framework, project files |
+| [.agents/docs/compilers.md](.agents/docs/compilers.md)       | writing any code: FPC vs. Delphi differences, project files, FPC defines |
+| [.agents/docs/writing-tests.md](.agents/docs/writing-tests.md) | writing unit tests that run with both fpcunit and DUnitX   |
 | [.agents/docs/build-and-test.md](.agents/docs/build-and-test.md) | building, running tests, dealing with build artifacts        |
 | [.agents/docs/wsl-fpc-setup.md](.agents/docs/wsl-fpc-setup.md) | setting up WSL so that a Windows machine can build with FPC   |
-| [.agents/docs/conventions.md](.agents/docs/conventions.md)   | writing code, docs or commit messages                            |
+| [.agents/docs/conventions.md](.agents/docs/conventions.md)   | writing code, docs, commit messages or CHANGELOG entries         |
 | [.agents/docs/databases.md](.agents/docs/databases.md)       | touching SQLite/MySQL code (mORMot2 parameter binding pitfall)   |
-| [.agents/docs/merge-requests.md](.agents/docs/merge-requests.md) | opening a merge request: GitLab/`glab` setup and usage       |
+| [.agents/docs/merge-requests.md](.agents/docs/merge-requests.md) | opening a merge request: `glab`, or REST API/push options without it |
 | [.agents/skills/](.agents/skills/README.md)                  | optional shortcuts for the most common tasks — check the index   |
+| [.agents/scripts/](.agents/scripts/)                         | changing a script that several skills share; each documents itself in its header |
 | [docs/](docs/)                                             | user/operator docs: runtime files, precatcher, chains, indexer, tvinfo, FAQ |
 
 ## Keeping agent instructions current
@@ -57,8 +62,9 @@ Read the doc that matches your task before changing code.
 These instructions are maintained by the agents that use them. As part of every task:
 
 - **Update** AGENTS.md or the matching doc in `.agents/docs/` when you change something they describe, or
-  when you learn something non-obvious that is missing. Updates that describe your own change belong to
-  your change. Corrections of unrelated wrong information are a separate topic and get their own commit.
+  when you learn something non-obvious that a future agent needs to do its task correctly (what belongs
+  in a doc: [conventions](.agents/docs/conventions.md#docs)). Updates that describe your own change belong
+  to your change. Corrections of unrelated wrong information are a separate topic and get their own commit.
 - **Fix** wrong or outdated information immediately — in docs and in skills — instead of working around it.
 - **Skills:** never add one on your own. Suggest it only if it is really worth it, list its advantages and
   disadvantages, and add it only after the user confirms. See [.agents/skills/](.agents/skills/README.md).

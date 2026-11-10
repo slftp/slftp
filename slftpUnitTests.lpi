@@ -53,7 +53,7 @@
       </SyntaxOptions>
     </Parsing>
     <Other>
-      <CustomOptions Value="-dNOPATCHRTL"/>
+      <CustomOptions Value="-dNOPATCHRTL -dFPCMM_BOOST"/>
     </Other>
   </CompilerOptions>
   <Debugging>
