@@ -72,6 +72,7 @@ uses
   tagsTests,
   ircblowfish.plaintextTests,
   dbtvinfoTests,
+  configunitTests,
   sllanguagebaseTests,
   mygrouphelpersTests,
   globalskipunitTests,

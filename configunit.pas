@@ -124,10 +124,8 @@ begin
   glIniIntegers := TStringList.Create;
   glIniStrings := TStringList.Create;
   glSpamBools := TStringList.Create;
-  glIniBools.Sorted := True;
-  glIniIntegers.Sorted := True;
-  glIniStrings.Sorted := True;
-  glSpamBools.Sorted := True;
+  // Values[] mutates entries and requires unsorted lists on Delphi.
+  // IndexOfName performs a linear lookup regardless of Sorted.
 
   _CacheInteger('config', 'connect', 20);
   _CacheInteger('config', 'io', 20);
