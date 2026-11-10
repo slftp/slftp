@@ -36,9 +36,10 @@ The performance comparison itself currently measures the **FPC/Linux** binaries.
   25 ms and drops control connections for six seconds. This preserves end-to-end
   TLS, including session reuse. It is not a precise WAN RTT or bandwidth emulator.
   The other three sites use the original direct FTP connection path.
-- After the outage, bnctest and repeated NEWDIR announces exercise recovery.
-  The driver waits for an UP announcement (up to 15 seconds) before replaying.
-  Recovery also has to finish before the measured trial ends.
+- A recovery preflight drops E2E4's control link for six seconds, marks the site down
+  and verifies the DOWN -> UP transition via bnctest before timing starts. New
+  races must then transfer on that site. This checks reconnect and new work;
+  resuming an already-running race across the outage is a separate correctness case.
 - The order is dev / branch / branch / dev. Every trial resets sites, databases,
   runtime files and caches. Both binaries use the same configuration from the
   pushed commit, including its normal connection/I/O timeout values.
@@ -56,6 +57,11 @@ progressively uploaded CD1 release; all root volumes arrived. `TDirList.Complete
 has a fallback which can mark an SFV-bearing subdirectory complete as soon as it
 has a useful file. Keep this correctness case separate from the timing baseline;
 the one-volume CD1 case still exercises real nested directory creation and listing.
+
+An active control outage also left already announced releases incomplete on E2E4
+in [job 17915686029](https://gitlab.com/slftp/slftp/-/jobs/17915686029). The other
+two targets completed all their files. That case is kept as a separate reproduction
+so recovery of existing races does not invalidate every healthy-path timing run.
 
 Open the performance-race job. Its log prints the comparison; download its
 perf-results artifacts for:

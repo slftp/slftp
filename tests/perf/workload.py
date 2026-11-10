@@ -234,33 +234,39 @@ class Workload:
                 self.irc.sendall(
                     f":perfbot!bot@localhost PRIVMSG #race :COMPLETE RACE {name}\r\n".encode())
 
-    def interrupt_site(self, t0):
-        if self.stop.wait(max(0, t0 + 7 - time.monotonic())):
-            return
+    def verify_recovery(self):
+        # Establish the same healthy starting state before timing. Resuming an
+        # existing race across a disconnect is a separate correctness case.
+        t0 = time.monotonic()
         pane_args = ["tmux", "capture-pane", "-p", "-J", "-S", "-3000", "-t", self.args.session]
-        up_message = "SITE E2E4 IS UP"
-        previous = subprocess.check_output(pane_args, text=True).count(up_message)
+        before = subprocess.check_output(pane_args, text=True)
+
+        def wait_status(status, limit):
+            message = f"SITE E2E4 IS {status}"
+            previous = before.count(message)
+            deadline = time.monotonic() + limit
+            while time.monotonic() < deadline:
+                if subprocess.check_output(pane_args, text=True).count(message) > previous:
+                    return
+                time.sleep(0.25)
+            raise TimeoutError(f"E2E4 did not confirm {status} during recovery preflight")
+
         self.outage.set()
-        self.events.append({"event": "site4_down", "time_s": time.monotonic() - t0})
-        if self.stop.wait(6):
-            return
-        self.outage.clear()
-        self.events.append({"event": "site4_up", "time_s": time.monotonic() - t0})
-        # Wake the normal login/status path after the simulated network outage.
+        try:
+            subprocess.run(["tmux", "send-keys", "-t", self.args.session,
+                            "!setdown E2E4", "Enter"], check=True)
+            wait_status("DOWN", 5)
+            self.events.append({"event": "site4_down", "phase": "preflight",
+                                "time_s": time.monotonic() - t0})
+            time.sleep(max(0, t0 + 6 - time.monotonic()))
+        finally:
+            self.outage.clear()
         subprocess.run(["tmux", "send-keys", "-t", self.args.session,
                         "!bnctest E2E4", "Enter"], check=True)
-        confirmed = False
-        for _ in range(60):
-            if subprocess.check_output(pane_args, text=True).count(up_message) > previous:
-                confirmed = True
-                break
-            if self.stop.wait(0.25):
-                return
-        with self.announce_lock:
-            for name in self.announced:
-                self.announce(name)
-        self.events.append({"event": "reannounce_after_recovery",
-                            "site_up_confirmed": confirmed, "time_s": time.monotonic() - t0})
+        wait_status("UP", 30)
+        self.events.append({"event": "site4_up", "phase": "preflight",
+                            "time_s": time.monotonic() - t0})
+        print("RECOVERY: E2E4 DOWN -> UP confirmed before timing", flush=True)
 
     def announce(self, name):
         self.irc.sendall(
@@ -286,6 +292,7 @@ class Workload:
             time.sleep(0.1)
         if not self.joined.wait(10):
             raise TimeoutError("slFtp did not join the benchmark IRC channel")
+        self.verify_recovery()
         initial = cpu_sample(self.args.pid)
         peak_rss = initial["rss_bytes"]
         starts, finishes, directories = {}, {}, {}
@@ -297,10 +304,9 @@ class Workload:
         sample_gaps = []
         previous = t0
         next_note = t0
-        with concurrent.futures.ThreadPoolExecutor(max_workers=RELEASES + 1) as pool:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=RELEASES) as pool:
             futures = [pool.submit(self.upload, release, i, t0)
                        for i, release in enumerate(self.releases)]
-            futures.append(pool.submit(self.interrupt_site, t0))
             while time.monotonic() - t0 < TIMEOUT:
                 now = time.monotonic()
                 sample_gaps.append((now - previous) * 1000)
