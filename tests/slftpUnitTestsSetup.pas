@@ -29,7 +29,6 @@ begin
   fDefaultPassword := 'nopw';
   ConfigInit(fDefaultPassword);
   InitmRdOHConfigFiles;
-  ConfigCacheInit;
 end;
 
 procedure InitialDebugSetup;
