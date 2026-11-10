@@ -182,6 +182,8 @@ class Workload:
 
     def serve(self):
         for site, port in enumerate(self.ports, 1):
+            if site != 4:
+                continue
             server = Server(("127.0.0.1", port + 2000), Relay)
             server.app, server.site = self, site
             self.servers.append(server)
@@ -226,6 +228,9 @@ class Workload:
                 with (self.args.payload / name / filename).open("rb") as stream:
                     ftp.storbinary("STOR " + Path(filename).name, stream)
             self.pasv_retries.append(ftp.pasv_retries)
+            with self.announce_lock:
+                self.irc.sendall(
+                    f":perfbot!bot@localhost PRIVMSG #race :COMPLETE RACE {name}\r\n".encode())
 
     def interrupt_site(self, t0):
         if self.stop.wait(max(0, t0 + 7 - time.monotonic())):

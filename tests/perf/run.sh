@@ -73,18 +73,6 @@ root = pathlib.Path(sys.argv[1])
 path = root / "slftp.precatcher"
 text = path.read_text().replace("[sections]", "[sections]\nRACE=RACE")
 path.write_text(text)
-path = root / "slftp.ini"
-text = path.read_text()
-# Preserve duplicate keys and the project's own INI syntax; edit only existing timeout keys.
-section = ""
-lines = []
-for line in text.splitlines():
-    if line.startswith("["):
-        section = line.strip().lower()
-    if section == "[timeout]" and line.split("=", 1)[0].strip() in ("connect", "io"):
-        line = line.split("=", 1)[0] + "=5"
-    lines.append(line)
-path.write_text("\n".join(lines) + "\n")
 PY
   slftp_start || { pane; exit 1; }
   pane_pid=$(tmux display -p -t "$session" '#{pane_pid}')
@@ -101,7 +89,9 @@ PY
   done
   [ -f "$trial_out/ready" ]
   for n in 1 2 3 4; do
-    console "!addsite E2E$n glftpd glftpd 127.0.0.1:$(($(site_port "$n") + 2000))"
+    connect_port=$(site_port "$n")
+    if [ "$n" -eq 4 ]; then connect_port=$((connect_port + 2000)); fi
+    console "!addsite E2E$n glftpd glftpd 127.0.0.1:$connect_port"
     console "!sslmethod E2E$n 3"
     console "!setdir E2E$n RACE /RACE"
     console "!slots E2E$n 6"
@@ -113,6 +103,7 @@ PY
   console '!ircnetadd PERF 127.0.0.1:16667 0'
   console '!ircchanadd PERF #race'
   console '!catchadd E2E1 PERF #race perfbot NEWDIR NEW RACE'
+  console '!catchadd E2E1 PERF #race perfbot COMPLETE COMPLETE RACE'
   console '!auto 1'
   wait_console 'Auto is enabled [1] now!' 1 5
   console '!bnctest'

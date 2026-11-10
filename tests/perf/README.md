@@ -26,6 +26,7 @@ The performance comparison itself currently measures the **FPC/Linux** binaries.
   This is a bounded CI workload calibrated against dev, not a saturation/soak test.
 - Releases are announced one second apart through a local IRC protocol fixture
   and slFtp's actual precatcher. Files arrive progressively over FTPS.
+  A real COMPLETE announce follows each finished source upload.
   Setup explicitly enables the autotrader with !auto 1 and checks its confirmation;
   a fresh profile otherwise ignores automatic announcements.
 - E2E2 already has some of the destination directories.
@@ -33,10 +34,11 @@ The performance comparison itself currently measures the **FPC/Linux** binaries.
 - E2E4 has a transparent TCP proxy that delays server-to-client control chunks by
   25 ms and drops control connections for six seconds. This preserves end-to-end
   TLS, including session reuse. It is not a precise WAN RTT or bandwidth emulator.
+  The other three sites use the original direct FTP connection path.
 - After the outage, bnctest and repeated NEWDIR announces exercise recovery.
 - The order is dev / branch / branch / dev. Every trial resets sites, databases,
   runtime files and caches. Both binaries use the same configuration from the
-  pushed commit, with connect/I/O timeouts shortened to five seconds.
+  pushed commit, including its normal connection/I/O timeout values.
 
 Each trial has a 150-second workload deadline, excluding preparation and shutdown.
 The job has a 30-minute limit to also bound first-time image downloads and builds.
