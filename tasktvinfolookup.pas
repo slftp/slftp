@@ -564,11 +564,11 @@ begin
   //Show is not found in the DB.
   if sid = 'FAILED' then
   begin
-    if attempt < config.readInteger(section, 'readd_attempts', 5) then
+    if attempt < config_cached_integer(section, 'readd_attempts', 5) then
     begin
       debug(dpSpam, section, 'READD: retrying TVMaze lookup for %s later', [tr.showname]);
       r := TPazoTVInfoLookupTask.Create(netname, channel, initial_site, mainpazo, attempt + 1);
-      r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
+      r.startat := IncSecond(Now, config_cached_integer(section, 'readd_interval', 60));
       try
         AddTask(r);
       except
@@ -627,7 +627,7 @@ begin
   showA := replaceTVShowChars(db_tvinfo.tv_showname);
   showB := replaceTVShowChars(tr.showname);
 
-  if ((config.ReadBool(section, 'stop_on_englishcheck', True)) and (onlyEnglishAlpha(showA) <> onlyEnglishAlpha(showB))) then
+  if ((config_cached_bool(section, 'stop_on_englishcheck', True)) and (onlyEnglishAlpha(showA) <> onlyEnglishAlpha(showB))) then
   begin
     Irc_AddError(Format('<c14><b>Info</b></c>: Alphanumeric check dont match! %s <> %s', [onlyEnglishAlpha(showA), onlyEnglishAlpha(showB)]));
     Result := True;
@@ -636,7 +636,7 @@ begin
   end;
 
   try
-    irc_Addtext_by_key('ADDTVMAZEECHO', Format('%s %s %s', [config.ReadString(section, 'addcmd', '!addtvmaze'), mainpazo.rls.rlsname, db_tvinfo.tvmaze_id]));
+    irc_Addtext_by_key('ADDTVMAZEECHO', Format('%s %s %s', [config_cached_string(section, 'addcmd', '!addtvmaze'), mainpazo.rls.rlsname, db_tvinfo.tvmaze_id]));
     db_tvinfo.Save;
     db_tvinfo.SetTVDbRelease(tr);
   except

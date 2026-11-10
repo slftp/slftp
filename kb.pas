@@ -485,17 +485,17 @@ begin
       // announce event on admin chan
       if (event = kbeADDPRE) then
       begin
-        if spamcfg.ReadBool('kb', 'new_rls', True) then
+        if spam_config_cached_bool('kb', 'new_rls', True) then
           irc_Addstats(Format('<c3>[ADDPRE]</c> %s %s @ <b>%s</b>', [section, rls, channel]));
       end
       else if (event = kbePRE) then
       begin
-        if spamcfg.ReadBool('kb', 'pre_rls', True) then
+        if spam_config_cached_bool('kb', 'pre_rls', True) then
           irc_Addstats(Format('<c9>[<b>PRE</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
       end
       else if (event = kbeSPREAD) then
       begin
-        if spamcfg.ReadBool('kb', 'spread_rls', True) then
+        if spam_config_cached_bool('kb', 'spread_rls', True) then
           irc_Addstats(Format('<c9>[<b>SPREAD</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
       end
       else
@@ -504,12 +504,12 @@ begin
         begin
           if TPretimeLookupMOde(taskpretime_mode) = plmNone then
           begin
-            if spamcfg.ReadBool('kb', 'new_rls', True) then
+            if spam_config_cached_bool('kb', 'new_rls', True) then
               irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b>', [section, rls, sitename]));
           end
           else
           begin
-            if spamcfg.ReadBool('kb', 'new_rls', True) then
+            if spam_config_cached_bool('kb', 'new_rls', True) then
               irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<c7><b>Not found in PreDB</b></c>)', [section, rls, sitename]));
 
             if GlTaskPretimeReaddAttempts > 0 then
@@ -522,7 +522,7 @@ begin
         end
         else
         begin
-          if spamcfg.ReadBool('kb', 'new_rls', True) then
+          if spam_config_cached_bool('kb', 'new_rls', True) then
             irc_Addstats(Format('<c3>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<b>%s</b>) (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, p.sl.sectionname, dbaddpre_GetPreduration(r.pretime), r.PretimeSource]));
         end;
       end;
@@ -531,7 +531,7 @@ begin
     begin
       if (event = kbePRE) then
       begin
-        if spamcfg.ReadBool('kb', 'pre_rls', True) then
+        if spam_config_cached_bool('kb', 'pre_rls', True) then
           irc_Addstats(Format('<c9>[<b>PRE</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
       end;
 
@@ -570,7 +570,7 @@ begin
           r.SetPretime;
           if (r.pretime <> 0) then
           begin
-            if spamcfg.ReadBool('kb', 'updated_rls', True) then
+            if spam_config_cached_bool('kb', 'updated_rls', True) then
               irc_SendUPDATE(Format('<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, dbaddpre_GetPreduration(r.pretime), r.PretimeSource]));
             p.AddSites;
           end;
@@ -600,7 +600,7 @@ begin
       s := FindSiteByName(netname, sitename);
 
       // site not found in pazo but we got an event ...
-      if spamcfg.ReadBool('kb', 'dont_match_rls', True) then
+      if spam_config_cached_bool('kb', 'dont_match_rls', True) then
       begin
         if (event = kbeNUKE) then
           exit;
@@ -726,12 +726,12 @@ begin
     // announce SKIP and DONT MATCH only if the site is not a PRE site
     if (psource <> nil) and (psource.status <> rssRealPre) then
     begin
-      if (rule_result = raDrop) and (spamcfg.ReadBool('kb', 'skip_rls', True)) then
+      if (rule_result = raDrop) and (spam_config_cached_bool('kb', 'skip_rls', True)) then
       begin
         irc_Addstats(Format('<c5>[SKIP]</c> : %s %s @ %s "%s" (%s)',
           [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, KBEventTypeToString(event)]));
       end
-      else if (rule_result = raDontmatch) and (spamcfg.ReadBool('kb', 'dont_match_rls', True)) then
+      else if (rule_result = raDontmatch) and (spam_config_cached_bool('kb', 'dont_match_rls', True)) then
       begin
         irc_Addstats(Format('<c5>[DONT MATCH]</c> : %s %s @ %s "%s" (%s)',
           [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, KBEventTypeToString(event)]));
