@@ -79,7 +79,7 @@ PY
   [ -n "$pid" ] || { echo 'ERROR: slFtp PID not found'; exit 1; }
   python3 "$root/tests/perf/workload.py" --payload /work/payload --out "$trial_out" \
     --ports "$(site_port 1),$(site_port 2),$(site_port 3),$(site_port 4)" \
-    --pid "$pid" --session "$session" > "$trial_out/workload.log" 2>&1 &
+    --pid "$pid" --session "$session" > >(tee "$trial_out/workload.log") 2>&1 &
   load_pid=$!
   for i in $(seq 1 100); do
     [ -f "$trial_out/ready" ] && break

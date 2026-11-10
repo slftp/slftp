@@ -170,10 +170,13 @@ start_sites() {
     for section in $sections; do site_exec "$i" "mkdir -m777 /glftpd/site/$section" || return; done
   done
   for i in $(seq 1 "$sites"); do
-    t=0
-    until curl -s --ssl-reqd -k --user glftpd:glftpd "ftp://127.0.0.1:$(site_port "$i")/" >/dev/null; do
-      t=$((t + 1))
-      [ $t -lt 50 ] || { fail "site $i does not answer on port $(site_port "$i")"; return; }
+    t=$((SECONDS + 30))
+    until curl --connect-timeout 2 --max-time 3 -s --ssl-reqd -k --user glftpd:glftpd "ftp://127.0.0.1:$(site_port "$i")/" >/dev/null; do
+      if [ "$SECONDS" -ge "$t" ]; then
+        docker logs "$image-$i" 2>&1 | tail -30
+        fail "site $i does not answer on port $(site_port "$i") within 30 s"
+        return 1
+      fi
       sleep 0.2
     done
     echo "E2E$i: glftpd on 127.0.0.1:$(site_port "$i")"

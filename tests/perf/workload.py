@@ -28,20 +28,21 @@ def prepare(root):
     releases = []
     for i in range(RELEASES):
         name = f"Perf.Load.Volume{i:02d}.2026.1080p.WEB.h264-E2EGRP"
+        stem = f"perf{i:02d}"
         sub = "CD1" if i % 2 else ""
         files = {}
         folder = root / name / sub
         folder.mkdir(parents=True, exist_ok=True)
         for j in range(VOLUMES):
-            filename = "e2egrp.rar" if j == 0 else f"e2egrp.r{j - 1:02d}"
+            filename = f"{stem}.rar" if j == 0 else f"{stem}.r{j - 1:02d}"
             data = rng.randbytes(SIZE)
             (folder / filename).write_bytes(data)
             files[str(Path(sub) / filename)] = hashlib.sha256(data).hexdigest()
         sfv = "".join(f"{Path(p).name} {zlib.crc32((root / name / p).read_bytes()):08X}\n"
                       for p in files)
-        (folder / "e2egrp.sfv").write_text(sfv)
-        (root / name / "e2egrp.nfo").write_text("Reproducible slFtp workload\n")
-        releases.append({"name": name, "sub": sub, "files": files})
+        (folder / f"{stem}.sfv").write_text(sfv)
+        (root / name / f"{stem}.nfo").write_text("Reproducible slFtp workload\n")
+        releases.append({"name": name, "stem": stem, "sub": sub, "files": files})
     (root / "manifest.json").write_text(json.dumps(releases))
 
 
@@ -178,6 +179,7 @@ class Workload:
     def upload(self, release, index, t0):
         time.sleep(max(0, t0 + index - time.monotonic()))
         name, sub = release["name"], release["sub"]
+        stem = release["stem"]
         # Half the destination directories already exist, including a nested case.
         if index % 3 == 0:
             folder = self.args.sites / "2" / "RACE" / name
@@ -192,13 +194,13 @@ class Workload:
             ftp.prot_p()
             ftp.mkd("/RACE/" + name)
             ftp.cwd("/RACE/" + name)
-            with (self.args.payload / name / "e2egrp.nfo").open("rb") as stream:
-                ftp.storbinary("STOR e2egrp.nfo", stream)
+            with (self.args.payload / name / f"{stem}.nfo").open("rb") as stream:
+                ftp.storbinary(f"STOR {stem}.nfo", stream)
             if sub:
                 ftp.mkd(sub)
                 ftp.cwd(sub)
-            with (self.args.payload / name / sub / "e2egrp.sfv").open("rb") as stream:
-                ftp.storbinary("STOR e2egrp.sfv", stream)
+            with (self.args.payload / name / sub / f"{stem}.sfv").open("rb") as stream:
+                ftp.storbinary(f"STOR {stem}.sfv", stream)
             # Announce an incomplete release, as in production, before the first volume.
             with self.announce_lock:
                 self.announced[name] = time.monotonic()
@@ -261,6 +263,7 @@ class Workload:
         error = None
         sample_gaps = []
         previous = t0
+        next_note = t0
         with concurrent.futures.ThreadPoolExecutor(max_workers=RELEASES) as pool:
             futures = [pool.submit(self.upload, release, i, t0)
                        for i, release in enumerate(self.releases)]
@@ -271,6 +274,10 @@ class Workload:
                 previous = now
                 publish_times(self.args.sites, self.releases, now, starts, finishes, directories)
                 peak_rss = max(peak_rss, cpu_sample(self.args.pid)["rss_bytes"])
+                if now >= next_note:
+                    counts = {site: sum(key[0] == site for key in finishes) for site in range(1, 5)}
+                    print(f"LOAD {now - t0:.1f}s full payload files by site: {counts}", flush=True)
+                    next_note = now + 10
                 for future in futures:
                     if future.done() and future.exception():
                         raise future.exception()
