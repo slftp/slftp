@@ -110,6 +110,36 @@ testlinux64:
   tags:
     - saas-linux-medium-amd64
 
+# Fixed dev/branch comparison on every pushed commit of the runtime-cache test branch.
+performance-race:
+  stage: test
+  image: docker:27.5.1-cli
+  services:
+    - name: docker:27.5.1-dind
+      alias: docker
+      command: ["--tls=false"]
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+    GIT_DEPTH: "0"
+  dependencies: []
+  resource_group: runtime-config-cache-performance
+  interruptible: false
+  timeout: 30 minutes
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "codex/runtime-config-cache" && ($CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "web")'
+  script:
+    - sh tests/perf/ci.sh
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths:
+      - perf-results/
+    reports:
+      junit: perf-results/junit.xml
+  tags:
+    - saas-linux-medium-amd64
+
 ### sourcecode documentation stage ###
 
 src-docs:

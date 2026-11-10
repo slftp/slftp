@@ -95,3 +95,12 @@ Both `make` and `make.bat` patch the current git hash into `SL_REV` in `slftp.in
 build, also when it fails. A modified `slftp.inc` during or after an aborted build is expected — revert it,
 never commit it.
 `SL_VERSION`/`HELP_VERSION` are only changed as part of the release process (see `CONTRIBUTING.md`).
+
+## Automated race performance comparison
+
+On pushes to `codex/runtime-config-cache`, the `performance-race` CI job compares the commit with
+`dev` pinned at job start. It runs real TLS-FXP races between four glftpd sites with deterministic,
+progressively arriving files in dev/branch/branch/dev order. Both binaries are FPC/Linux builds;
+the normal FPC and Delphi build/test jobs remain separate. The job artifacts contain the measured
+CPU, filesystem arrival timings, correctness checks and comparison. See
+[`tests/perf/README.md`](../../tests/perf/README.md) for workload and measurement limits.

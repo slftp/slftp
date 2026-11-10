@@ -20,7 +20,7 @@
 # Only one run at a time: another one exits with code 11. The slFtp build itself is done by
 # .agents/scripts/fpc-wsl.sh and shares its lock. Exit code 10: environment not set up.
 
-skill_dir="$(cd "$(dirname "$0")" && pwd)"
+skill_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fpc_script="$skill_dir/../../scripts/fpc-wsl.sh"
 work="$HOME/slftp-e2e"
 log_file="$work/e2e.log"
@@ -43,21 +43,24 @@ pzs_commit=d69bacaf1f4897ff76d72413e17da9356695be7e
 image_tag="$image:$({ echo "$gl_url $gl_sha512 $pzs_commit"; cat "$skill_dir"/glftpd/*; } |
   sha256sum | cut -c1-12)"
 
-mkdir -p "$work"
-run_query "$@"
-case "$1" in
-  --initialized) docker image inspect "$image_tag" >/dev/null 2>&1; exit ;;
-esac
-while [ $# -gt 0 ]; do
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  mkdir -p "$work"
+  run_query "$@"
   case "$1" in
-    --id) run_id="$2"; exitcode_file="$exitcode_file.$2"; shift 2 ;;
-    --baseline) baseline_ref="$2"; shift 2 ;;
-    --windows-build) windows_build="$(realpath -m "$2")"; slftp_windows=1; shift 2 ;;
-    *) break ;;
+    --initialized) docker image inspect "$image_tag" >/dev/null 2>&1; exit ;;
   esac
-done
-scenario="$1"
-ref="$2"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --id) run_id="$2"; exitcode_file="$exitcode_file.$2"; shift 2 ;;
+      --baseline) baseline_ref="$2"; shift 2 ;;
+      --windows-build) windows_build="$(realpath -m "$2")"; slftp_windows=1; shift 2 ;;
+      *) break ;;
+    esac
+  done
+  scenario="$1"
+  ref="$2"
+
+fi
 
 step() { echo; echo "=== $* ==="; }
 fail() { echo "ERROR: $*"; return 1; }
@@ -152,12 +155,17 @@ choose_ports() {
 # start_sites: starts E2E1..E2E<sites>, each with the scenario's section directories
 start_sites() {
   local i port section t
+  local -a volume_args
   step "start $sites glftpd sites"
   stop_sites
   choose_ports || return
   for i in $(seq 1 "$sites"); do
     port=$(site_port "$i")
-    docker run -d --name "$image-$i" --network host -e PORT="$port" \
+    volume_args=()
+    if [ -n "$site_volume_prefix" ]; then
+      volume_args=(-v "$site_volume_prefix-$i:/glftpd/site")
+    fi
+    docker run -d --name "$image-$i" "${volume_args[@]}" --network host -e PORT="$port" \
       -e PASV_PORTS="$(site_pasv "$i")" "$image_tag" >/dev/null || return
     for section in $sections; do site_exec "$i" "mkdir -m777 /glftpd/site/$section" || return; done
   done
@@ -333,4 +341,6 @@ main() {
   return $rc
 }
 
-run_locked "$work/e2e.lock" main
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  run_locked "$work/e2e.lock" main
+fi

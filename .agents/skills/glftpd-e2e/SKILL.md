@@ -94,6 +94,13 @@ A run, all on Linux or inside WSL (`~/slftp-e2e/`) except for the Delphi build:
 |----------|----------------|
 | `race` | `!spread` of a release from `E2E1` to `E2E2` with SSL FXP: pzs-ng marks it complete on both sites, both have the same files, slFtp reports success |
 
+## CI performance comparison
+
+The automated race benchmark in [tests/perf](../../../../tests/perf/README.md) reuses this
+fixture. Sourcing `e2e.sh` defines its helpers without starting a build or scenario. Its optional
+`site_volume_prefix` mounts `<prefix>-<n>` on each site's `/glftpd/site`, allowing the isolated
+CI worker to observe the same files through named Docker volumes.
+
 ## Adding a scenario
 
 A scenario is `scenarios/<name>.sh`, sourced by `e2e.sh`. Copy `race.sh` and add a row above. It sets
