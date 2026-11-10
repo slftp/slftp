@@ -1,9 +1,11 @@
 import tempfile
 from pathlib import Path
 import unittest
+import ftplib
+from unittest.mock import patch
 
 from report import compare, metrics, percentile, validate
-from workload import transfer_metrics
+from workload import transfer_metrics, RetryingFTPS
 
 
 class Measurements(unittest.TestCase):
@@ -48,6 +50,19 @@ class Measurements(unittest.TestCase):
             root = Path(directory)
             self.assertEqual(compare(root, "dev-sha", "branch-sha"), 1)
             self.assertIn("INVALID", (root / "summary.md").read_text())
+
+    def test_uploader_retries_only_temporary_pasv_failure(self):
+        with patch.object(ftplib.FTP_TLS, "makepasv",
+                          side_effect=[ftplib.error_temp("425 Busy"), ("127.0.0.1", 42)]), \
+                patch("workload.time.sleep"):
+            ftp = RetryingFTPS()
+            self.assertEqual(ftp.makepasv(), ("127.0.0.1", 42))
+            self.assertEqual(ftp.pasv_retries, 1)
+
+    def test_uploader_does_not_retry_other_errors(self):
+        with patch.object(ftplib.FTP_TLS, "makepasv", side_effect=ftplib.error_temp("421 Closed")):
+            with self.assertRaises(ftplib.error_temp):
+                RetryingFTPS().makepasv()
 
 
 if __name__ == "__main__":

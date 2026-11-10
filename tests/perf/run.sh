@@ -20,6 +20,18 @@ trap cleanup EXIT INT TERM
 slftp_check_env || exit 1
 prepare_image || exit 1
 
+# Fresh blocks per trial avoid reusing TIME_WAIT data ports; 100 ports/site was
+# sufficient for the original ten-file E2E scenario, not this concurrent load.
+site_pasv() { echo "$((pasv_base + 3000 * ($1 - 1)))-$((pasv_base + 3000 * $1 - 1))"; }
+choose_ports() {
+  port_base=$((2120 + 100 * trial))
+  pasv_base=$((17000 + 12000 * (trial - 1)))
+  for n in 1 2 3 4; do
+    ports_free "$(site_port "$n")-$(site_port "$n")" &&
+      ports_free "$(site_pasv "$n")" || { fail 'benchmark port block is occupied'; return 1; }
+  done
+}
+
 for variant in baseline branch; do
   src="/work/$variant"
   build="/work/build-$variant"

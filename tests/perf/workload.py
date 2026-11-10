@@ -51,6 +51,21 @@ class Server(socketserver.ThreadingTCPServer):
     daemon_threads = True
 
 
+class RetryingFTPS(ftplib.FTP_TLS):
+    pasv_retries = 0
+
+    def makepasv(self):
+        # PASV has not sent STOR yet, so retrying a 425 cannot duplicate a partial file.
+        for attempt in range(8):
+            try:
+                return super().makepasv()
+            except ftplib.error_temp as error:
+                if not str(error).startswith("425") or attempt == 7:
+                    raise
+                self.pasv_retries += 1
+                time.sleep(0.1)
+
+
 class Relay(socketserver.BaseRequestHandler):
     """Opaque TCP forwarding preserves AUTH TLS and data-channel session reuse."""
     def handle(self):
@@ -161,6 +176,7 @@ class Workload:
         self.announce_lock = threading.Lock()
         self.announced = {}
         self.events = []
+        self.pasv_retries = []
         self.servers = []
         self.releases = json.loads((args.payload / "manifest.json").read_text())
 
@@ -188,7 +204,7 @@ class Workload:
             if sub:
                 (folder / sub).mkdir(exist_ok=True)
                 (folder / sub).chmod(0o777)
-        with ftplib.FTP_TLS(context=ssl._create_unverified_context(), timeout=15) as ftp:
+        with RetryingFTPS(context=ssl._create_unverified_context(), timeout=15) as ftp:
             ftp.connect("127.0.0.1", self.ports[0])
             ftp.login("glftpd", "glftpd")
             ftp.prot_p()
@@ -209,6 +225,7 @@ class Workload:
                 time.sleep(0.10)
                 with (self.args.payload / name / filename).open("rb") as stream:
                     ftp.storbinary("STOR " + Path(filename).name, stream)
+            self.pasv_retries.append(ftp.pasv_retries)
 
     def interrupt_site(self, t0):
         if self.stop.wait(max(0, t0 + 7 - time.monotonic())):
@@ -296,6 +313,7 @@ class Workload:
                   "files_full": sum(key[0] != 1 for key in finishes),
                   "bytes_expected": RELEASES * VOLUMES * SIZE * 3,
                   "max_sample_gap_ms": max(sample_gaps),
+                  "uploader_pasv_retries": sum(self.pasv_retries),
                   "error": error, "hash_errors": errors, "events": self.events,
                   "directories": [
                       {"site": site, "release": name, "first_seen_s": stamp,

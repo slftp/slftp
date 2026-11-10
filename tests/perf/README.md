@@ -19,6 +19,9 @@ The performance comparison itself currently measures the **FPC/Linux** binaries.
 - Four real glftpd sites, TLS on control and data connections and SSL FXP.
   The fixture allows 100 concurrent site logins (50 for the test user), so its
   packaged 15-user site limit does not reject the progressive upload producers.
+- Each trial uses a fresh block of 3,000 passive ports per site, avoiding
+  TIME_WAIT leftovers from earlier trials. The uploader retries only temporary
+  PASV 425 responses, before sending STOR; retry counts are kept in each result.
 - Twelve releases with 32 deterministic 512-KiB volumes each. Half use CD1.
 - Releases are announced one second apart through a local IRC protocol fixture
   and slFtp's actual precatcher. Files arrive progressively over FTPS.
