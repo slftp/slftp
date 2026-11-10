@@ -119,7 +119,15 @@ PY
   touch "$trial_out/go"
   rc=0
   wait "$load_pid" || rc=$?
-  pane > "$trial_out/console.txt"
+  if [ "$rc" -ne 0 ]; then
+    console '!ircstatus'
+    console '!catchlist'
+    console '!kblist RACE'
+    console '!catchtest PERF #race perfbot NEW RACE Perf.Load.Volume00.2026.1080p.WEB.h264-E2EGRP'
+    pane | tee "$trial_out/console.txt"
+  else
+    pane > "$trial_out/console.txt"
+  fi
   cp "$run_dir/slftp.log" "$trial_out/slftp.log"
   # Stop outside the timed interval, retaining the known shutdown notes in run.log.
   slftp_stop || exit 1
@@ -127,7 +135,8 @@ PY
   if [ "$rc" -ne 0 ]; then
     cat "$trial_out/workload.log"
     echo "ERROR: trial $trial ($variant) failed"
-    # Keep running the other trials to retain both sides of a failed comparison.
+    # An invalid baseline cannot support a speed comparison; retain diagnostics and fail fast.
+    break
   fi
 done
 python3 "$root/tests/perf/report.py" "$out" "$baseline_sha" "$branch_sha"
