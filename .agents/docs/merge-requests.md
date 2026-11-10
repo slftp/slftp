@@ -16,7 +16,7 @@ git -c credential.helper= -c 'credential.helper=!glab auth git-credential' \
   push https://gitlab.com/slftp/slftp.git <branch>
 git fetch origin <branch>
 git branch -u origin/<branch>
-glab mr create --source-branch <branch> --target-branch dev \
+glab mr create --source-branch <branch> --target-branch dev --remove-source-branch \
   --title "..." --description "..."
 ```
 
@@ -69,7 +69,8 @@ Create the MR with whatever HTTP client and JSON encoder you have:
 
 - `POST https://gitlab.com/api/v4/projects/slftp%2Fslftp/merge_requests`
 - header `Authorization: Bearer <token>`
-- JSON body with `source_branch`, `target_branch` (`dev`), `title` and `description`
+- JSON body with `source_branch`, `target_branch` (`dev`), `title`, `description` and
+  `remove_source_branch` (`true`)
 
 Never print the token or put it on a command line, where the process list shows it. Encode the JSON
 with a real encoder instead of escaping it by hand, and keep temporary files outside the repo. The branch
