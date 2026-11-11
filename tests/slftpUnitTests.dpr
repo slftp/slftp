@@ -85,6 +85,7 @@ uses
   kb.releaseinfo.NullDayTests,
   kb.releaseinfo.MVIDTests,
   taskhttpimdbTests,
+  tasktvinfolookupTests,
   sitesunitTests,
   precatcherTests,
   slcriticalsection2Tests,
