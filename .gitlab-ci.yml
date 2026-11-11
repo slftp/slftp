@@ -113,6 +113,7 @@ testlinux64:
 # Fixed dev/branch comparison on every pushed commit of the runtime-cache test branch.
 performance-race:
   stage: test
+  needs: []
   image: docker:27.5.1-cli
   services:
     - name: docker:27.5.1-dind

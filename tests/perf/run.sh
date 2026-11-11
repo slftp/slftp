@@ -1,6 +1,14 @@
 #!/bin/bash
 # Inside the disposable CI worker: same fixture, toolchain, observer and config for A/B/B/A.
 set -Eeo pipefail
+[ "${SLFTP_PERF_WORKER:-}" = 1 ] && [ -d /work/baseline ] && [ -d /work/branch ] || {
+  echo 'ERROR: use tests/perf/linux.sh or ci.sh; run.sh requires the disposable worker'
+  exit 1
+}
+for site in /sites/1 /sites/2 /sites/3 /sites/4; do
+  mountpoint -q "$site" || { echo "ERROR: $site is not a disposable volume mount"; exit 1; }
+done
+scenario=${PERF_SCENARIO:-timing}
 baseline_sha="$1"
 branch_sha="$2"
 root=/work/branch
@@ -8,15 +16,38 @@ out=/work/results
 mkdir -p "$out"
 exec > >(tee "$out/run.log") 2>&1
 trap 'echo "ERROR: benchmark driver line $LINENO: $BASH_COMMAND"' ERR
-bash -n "$root/tests/perf/run.sh" "$root/tests/perf/ci.sh" "$root/.agents/skills/glftpd-e2e/e2e.sh"
+finish() {
+  rc=$?
+  trap - EXIT
+  trap '' INT TERM
+  if [ -n "${load_pid:-}" ]; then
+    kill "$load_pid" 2>/dev/null || true
+    wait "$load_pid" 2>/dev/null || true
+  fi
+  if [ -n "${trial_out:-}" ] && [ ! -f "$trial_out/result.json" ]; then
+    python3 - "$trial_out/result.json" "$rc" <<'PY'
+import json, pathlib, sys
+pathlib.Path(sys.argv[1]).write_text(json.dumps({"error": "trial driver failed, exit " + sys.argv[2]}))
+PY
+  fi
+  if declare -F slftp_kill >/dev/null; then slftp_kill || true; fi
+  if declare -F stop_sites >/dev/null; then stop_sites || true; fi
+  python3 "$root/tests/perf/report.py" "$out" "$baseline_sha" "$branch_sha" || rc=1
+  exit "$rc"
+}
+trap finish EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+for script in "$root/tests/perf/run.sh" "$root/tests/perf/linux.sh" "$root/.agents/skills/glftpd-e2e/e2e.sh"; do
+  bash -n "$script"
+done
+sh -n "$root/tests/perf/ci.sh"
 python3 -m unittest discover -s "$root/tests/perf" -p 'test_*.py'
-python3 "$root/tests/perf/workload.py" --prepare /work/payload
+python3 "$root/tests/perf/workload.py" --prepare /work/payload --scenario "$scenario"
 cp /work/payload/manifest.json "$out/manifest.json"
 
 # Reuse the pinned glftpd image and console helpers of the E2E test.
 . "$root/.agents/skills/glftpd-e2e/e2e.sh"
-cleanup() { slftp_kill || true; stop_sites || true; }
-trap cleanup EXIT INT TERM
 slftp_check_env || exit 1
 prepare_image || exit 1
 
@@ -78,9 +109,9 @@ PY
   pane_pid=$(tmux display -p -t "$session" '#{pane_pid}')
   pid=$(pgrep -P "$pane_pid" -x slftp)
   [ -n "$pid" ] || { echo 'ERROR: slFtp PID not found'; exit 1; }
-  python3 "$root/tests/perf/workload.py" --payload /work/payload --out "$trial_out" \
+  timeout --signal=TERM --kill-after=5s 360s python3 "$root/tests/perf/workload.py" --payload /work/payload --out "$trial_out" \
     --ports "$(site_port 1),$(site_port 2),$(site_port 3),$(site_port 4)" \
-    --pid "$pid" --session "$session" > >(tee "$trial_out/workload.log") 2>&1 &
+    --pid "$pid" --session "$session" --scenario "$scenario" > >(tee "$trial_out/workload.log") 2>&1 &
   load_pid=$!
   for i in $(seq 1 100); do
     [ -f "$trial_out/ready" ] && break
@@ -112,6 +143,13 @@ PY
   touch "$trial_out/go"
   rc=0
   wait "$load_pid" || rc=$?
+  load_pid=''
+  if [ ! -f "$trial_out/result.json" ]; then
+    python3 - "$trial_out/result.json" "$rc" <<'PY'
+import json, pathlib, sys
+pathlib.Path(sys.argv[1]).write_text(json.dumps({"error": "workload exited without result, exit " + sys.argv[2]}))
+PY
+  fi
   if [ "$rc" -ne 0 ]; then
     console '!ircstatus'
     console '!catchlist'
@@ -128,8 +166,6 @@ PY
   if [ "$rc" -ne 0 ]; then
     cat "$trial_out/workload.log"
     echo "ERROR: trial $trial ($variant) failed"
-    # An invalid baseline cannot support a speed comparison; retain diagnostics and fail fast.
-    break
+    # Continue from fresh sites so a baseline defect cannot hide candidate behavior.
   fi
 done
-python3 "$root/tests/perf/report.py" "$out" "$baseline_sha" "$branch_sha"

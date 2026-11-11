@@ -22,9 +22,10 @@ RELEASES = 6
 VOLUMES = 6
 SIZE = 512 * 1024
 TIMEOUT = 150
+STABLE_SECONDS = 0.5
 
 
-def prepare(root):
+def prepare(root, scenario="timing"):
     rng = random.Random(845)
     releases = []
     for i in range(RELEASES):
@@ -35,7 +36,7 @@ def prepare(root):
         folder = root / name / sub
         folder.mkdir(parents=True, exist_ok=True)
         # Keep the nested MKDIR case separate from dev's progressive multi-volume CD1 defect.
-        for j in range(1 if sub else VOLUMES):
+        for j in range(1 if sub and scenario != "progressive-cd1" else VOLUMES):
             filename = f"{stem}.rar" if j == 0 else f"{stem}.r{j - 1:02d}"
             data = rng.randbytes(SIZE)
             (folder / filename).write_bytes(data)
@@ -130,23 +131,53 @@ def cpu_sample(pid):
             "rss_bytes": int(fields[21]) * os.sysconf("SC_PAGE_SIZE")}
 
 
-def publish_times(root, releases, now, starts, finishes, directories):
-    """Bounded 50-ms observations, same observer and workload for both binaries."""
+def file_state(path):
+    stat = path.stat()
+    return stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns
+
+
+def publish_times(root, releases, now, starts, finishes, directories, states):
+    """Track the currently observed file generation, including truncation/replacement."""
     for site in range(1, 5):
         for release in releases:
             folder = root / str(site) / "RACE" / release["name"]
             if folder.is_dir():
                 directories.setdefault((site, release["name"]), now)
             for filename in release["files"]:
-                path = folder / filename
-                try:
-                    size = path.stat().st_size
-                except FileNotFoundError:
-                    continue
                 key = (site, release["name"], filename)
+                try:
+                    current = file_state(folder / filename)
+                except FileNotFoundError:
+                    starts.pop(key, None)
+                    finishes.pop(key, None)
+                    states.pop(key, None)
+                    continue
+                previous = states.get(key)
+                if previous is not None and (
+                        current[0] != previous[0] or current[1] < previous[1] or
+                        (key in finishes and current != previous)):
+                    starts.pop(key, None)
+                    finishes.pop(key, None)
+                states[key] = current
                 starts.setdefault(key, now)
-                if size == SIZE:
+                if current[1] == SIZE:
                     finishes.setdefault(key, now)
+                else:
+                    finishes.pop(key, None)
+
+
+def background_call(function, *args):
+    """Daemon workers cannot keep this disposable workload process alive on timeout."""
+    future = concurrent.futures.Future()
+
+    def invoke():
+        try:
+            future.set_result(function(*args))
+        except BaseException as error:
+            future.set_exception(error)
+
+    threading.Thread(target=invoke, daemon=True).start()
+    return future
 
 
 def transfer_metrics(releases, announced, starts, finishes):
@@ -179,6 +210,7 @@ class Workload:
         self.announced = {}
         self.events = []
         self.pasv_retries = []
+        self.uploaded = {}
         self.servers = []
         self.releases = json.loads((args.payload / "manifest.json").read_text())
 
@@ -197,10 +229,11 @@ class Workload:
         (self.args.out / "ready").touch()
 
     def upload(self, release, index, t0):
-        time.sleep(max(0, t0 + index - time.monotonic()))
+        if self.stop.wait(max(0, t0 + index - time.monotonic())):
+            return
         name, sub = release["name"], release["sub"]
         stem = release["stem"]
-        # Half the destination directories already exist, including a nested case.
+        # Two destination directories already exist, including a nested case.
         if index % 3 == 0:
             folder = self.args.sites / "2" / "RACE" / name
             folder.mkdir(parents=True, exist_ok=True)
@@ -226,27 +259,29 @@ class Workload:
                 self.announced[name] = time.monotonic()
                 self.announce(name)
             for filename in release["files"]:
-                time.sleep(0.10)
+                if self.stop.wait(0.10):
+                    return
                 with (self.args.payload / name / filename).open("rb") as stream:
                     ftp.storbinary("STOR " + Path(filename).name, stream)
+            self.uploaded[name] = time.monotonic()
             self.pasv_retries.append(ftp.pasv_retries)
             with self.announce_lock:
                 self.irc.sendall(
                     f":perfbot!bot@localhost PRIVMSG #race :COMPLETE RACE {name}\r\n".encode())
 
-    def verify_recovery(self):
+    def verify_recovery(self, phase="preflight"):
         # Establish the same healthy starting state before timing. Resuming an
         # existing race across a disconnect is a separate correctness case.
         t0 = time.monotonic()
         pane_args = ["tmux", "capture-pane", "-p", "-J", "-S", "-3000", "-t", self.args.session]
-        before = subprocess.check_output(pane_args, text=True)
+        before = subprocess.check_output(pane_args, text=True, timeout=3)
 
         def wait_status(status, limit):
             message = f"SITE E2E4 IS {status}"
             previous = before.count(message)
             deadline = time.monotonic() + limit
             while time.monotonic() < deadline:
-                if subprocess.check_output(pane_args, text=True).count(message) > previous:
+                if subprocess.check_output(pane_args, text=True, timeout=3).count(message) > previous:
                     return
                 time.sleep(0.25)
             raise TimeoutError(f"E2E4 did not confirm {status} during recovery preflight")
@@ -254,32 +289,43 @@ class Workload:
         self.outage.set()
         try:
             subprocess.run(["tmux", "send-keys", "-t", self.args.session,
-                            "!setdown E2E4", "Enter"], check=True)
+                            "!setdown E2E4", "Enter"], check=True, timeout=3)
             wait_status("DOWN", 5)
-            self.events.append({"event": "site4_down", "phase": "preflight",
+            self.events.append({"event": "site4_down", "phase": phase,
                                 "time_s": time.monotonic() - t0})
             time.sleep(max(0, t0 + 6 - time.monotonic()))
         finally:
             self.outage.clear()
         subprocess.run(["tmux", "send-keys", "-t", self.args.session,
-                        "!bnctest E2E4", "Enter"], check=True)
+                        "!bnctest E2E4", "Enter"], check=True, timeout=3)
         wait_status("UP", 30)
-        self.events.append({"event": "site4_up", "phase": "preflight",
+        self.events.append({"event": "site4_up", "phase": phase,
                             "time_s": time.monotonic() - t0})
-        print("RECOVERY: E2E4 DOWN -> UP confirmed before timing", flush=True)
+        print(f"RECOVERY: E2E4 DOWN -> UP confirmed ({phase})", flush=True)
+
+    def active_recovery(self):
+        if not self.stop.wait(2):
+            self.verify_recovery("active")
 
     def announce(self, name):
         self.irc.sendall(
             f":perfbot!bot@localhost PRIVMSG #race :NEW RACE {name}\r\n".encode())
 
-    def verify(self):
+    def verify(self, states):
         errors = []
         for site in range(1, 5):
             for release in self.releases:
                 folder = self.args.sites / str(site) / "RACE" / release["name"]
                 for filename, digest in release["files"].items():
                     path = folder / filename
-                    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+                    key = (site, release["name"], filename)
+                    try:
+                        valid = (file_state(path) == states.get(key) and
+                                 hashlib.sha256(path.read_bytes()).hexdigest() == digest and
+                                 file_state(path) == states.get(key))
+                    except FileNotFoundError:
+                        valid = False
+                    if not valid:
                         errors.append(f"E2E{site}/{release['name']}/{filename}")
         return errors
 
@@ -295,7 +341,7 @@ class Workload:
         self.verify_recovery()
         initial = cpu_sample(self.args.pid)
         peak_rss = initial["rss_bytes"]
-        starts, finishes, directories = {}, {}, {}
+        starts, finishes, directories, states = {}, {}, {}, {}
         t0 = time.monotonic()
         started_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
         payload_count = sum(len(release["files"]) for release in self.releases)
@@ -304,31 +350,34 @@ class Workload:
         sample_gaps = []
         previous = t0
         next_note = t0
-        with concurrent.futures.ThreadPoolExecutor(max_workers=RELEASES) as pool:
-            futures = [pool.submit(self.upload, release, i, t0)
-                       for i, release in enumerate(self.releases)]
-            while time.monotonic() - t0 < TIMEOUT:
-                now = time.monotonic()
-                sample_gaps.append((now - previous) * 1000)
-                previous = now
-                publish_times(self.args.sites, self.releases, now, starts, finishes, directories)
-                peak_rss = max(peak_rss, cpu_sample(self.args.pid)["rss_bytes"])
-                if now >= next_note:
-                    counts = {site: sum(key[0] == site for key in finishes) for site in range(1, 5)}
-                    print(f"LOAD {now - t0:.1f}s full payload files by site: {counts}", flush=True)
-                    next_note = now + 10
-                for future in futures:
-                    if future.done() and future.exception():
-                        raise future.exception()
-                if len(finishes) == expected and all(f.done() for f in futures):
-                    break
-                time.sleep(0.05)
-            else:
-                error = f"timeout: {len(finishes)}/{expected} full-size payload files"
-            final = cpu_sample(self.args.pid)
-            elapsed = time.monotonic() - t0
-        self.stop.set()
-        errors = self.verify()  # Hashing is outside the measured interval.
+        futures = [background_call(self.upload, release, i, t0)
+                   for i, release in enumerate(self.releases)]
+        if self.args.scenario == "active-recovery":
+            futures.append(background_call(self.active_recovery))
+        while time.monotonic() - t0 < TIMEOUT:
+            now = time.monotonic()
+            sample_gaps.append((now - previous) * 1000)
+            previous = now
+            publish_times(self.args.sites, self.releases, now, starts, finishes, directories, states)
+            peak_rss = max(peak_rss, cpu_sample(self.args.pid)["rss_bytes"])
+            if now >= next_note:
+                counts = {site: sum(key[0] == site for key in finishes) for site in range(1, 5)}
+                print(f"LOAD {now - t0:.1f}s full payload files by site: {counts}", flush=True)
+                next_note = now + 10
+            for future in futures:
+                if future.done() and future.exception():
+                    raise future.exception()
+            if (len(finishes) == expected and all(f.done() for f in futures) and
+                    now - max(finishes.values()) >= STABLE_SECONDS):
+                break
+            time.sleep(0.05)
+        else:
+            error = f"timeout: {len(finishes)}/{expected} full-size payload files"
+            self.stop.set()
+        final = cpu_sample(self.args.pid)
+        elapsed = time.monotonic() - t0
+        # Keep the control proxy alive through verification. A changed file invalidates timing.
+        errors = self.verify(states) if not error else []
         if errors:
             print("VERIFY missing/corrupt examples: " + json.dumps(errors[:12]), flush=True)
             for site in range(1, 5):
@@ -339,13 +388,15 @@ class Workload:
                           (path.suffix == ".rar" or
                            (len(path.suffix) == 4 and path.suffix[1] == "r" and path.suffix[2:].isdigit()))]
                 print(f"VERIFY actual payload E2E{site}: " + json.dumps(actual), flush=True)
-        result = {"elapsed_s": elapsed, "cpu_s": final["cpu_s"] - initial["cpu_s"],
+        result = {"scenario": self.args.scenario, "elapsed_s": elapsed, "cpu_s": final["cpu_s"] - initial["cpu_s"],
                   "started_at_utc": started_at, "started_monotonic_s": t0,
                   "peak_rss_bytes": peak_rss, "files_expected": payload_count * 3,
                   "files_full": sum(key[0] != 1 for key in finishes),
                   "bytes_expected": payload_count * SIZE * 3,
                   "max_sample_gap_ms": max(sample_gaps),
                   "uploader_pasv_retries": sum(self.pasv_retries),
+                  "producer_elapsed_s": max(self.uploaded.values(), default=t0) - t0,
+                  "stability_window_s": STABLE_SECONDS,
                   "error": error, "hash_errors": errors, "events": self.events,
                   "directories": [
                       {"site": site, "release": name, "first_seen_s": stamp,
@@ -364,6 +415,8 @@ class Workload:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prepare", type=Path)
+    parser.add_argument("--scenario", choices=("timing", "progressive-cd1", "active-recovery"),
+                        default="timing")
     parser.add_argument("--payload", type=Path)
     parser.add_argument("--out", type=Path)
     parser.add_argument("--sites", type=Path, default=Path("/sites"))
@@ -372,7 +425,7 @@ def main():
     parser.add_argument("--session")
     args = parser.parse_args()
     if args.prepare:
-        prepare(args.prepare)
+        prepare(args.prepare, args.scenario)
         return 0
     app = Workload(args)
     try:

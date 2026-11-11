@@ -102,5 +102,9 @@ On pushes to `codex/runtime-config-cache`, the `performance-race` CI job compare
 `dev` pinned at job start. It runs real TLS-FXP races between four glftpd sites with deterministic,
 progressively arriving files in dev/branch/branch/dev order. Both binaries are FPC/Linux builds;
 the normal FPC and Delphi build/test jobs remain separate. The job artifacts contain the measured
-CPU, filesystem arrival timings, correctness checks and comparison. See
+CPU, filesystem arrival timings, correctness checks and comparison. The same comparison runs
+on native Linux through `bash tests/perf/linux.sh <baseline-ref> <candidate-ref>`, using a
+separate disposable Docker daemon. Never run `tests/perf/run.sh` directly on a host.
+Functional trial failures preserve later trials; setup failures leave skipped results.
+See
 [`tests/perf/README.md`](../../tests/perf/README.md) for workload and measurement limits.

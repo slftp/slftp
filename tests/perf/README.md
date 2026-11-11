@@ -44,13 +44,16 @@ The performance comparison itself currently measures the **FPC/Linux** binaries.
   runtime files and caches. Both binaries use the same configuration from the
   pushed commit, including its normal connection/I/O timeout values.
 
-Each trial has a 150-second workload deadline, excluding preparation and shutdown.
+Each trial has a 150-second observation deadline, excluding preparation and shutdown.
+Upload workers are daemon threads, so blocked uploads cannot extend process shutdown.
+An outer 360-second process timeout also bounds setup and unexpected blocking I/O.
 The job has a 30-minute limit to also bound first-time image downloads and builds.
 No local Windows/WSL installation is needed for the automatic comparison.
 
 ## Results
 
-The initial multi-volume CD1 scenario is retained as a separate reproduction in
+The multi-volume CD1 scenario is executable with scenario `progressive-cd1`. Its original
+reproduction is in
 [job 17915499576](https://gitlab.com/slftp/slftp/-/jobs/17915499576). On `dev`
 `0de97be2`, each of the three targets received only the first volume of each
 progressively uploaded CD1 release; all root volumes arrived. `TDirList.Complete`
@@ -60,35 +63,99 @@ the one-volume CD1 case still exercises real nested directory creation and listi
 
 An active control outage also left already announced releases incomplete on E2E4
 in [job 17915686029](https://gitlab.com/slftp/slftp/-/jobs/17915686029). The other
-two targets completed all their files. That case is kept as a separate reproduction
-so recovery of existing races does not invalidate every healthy-path timing run.
+two targets completed all their files. The executable `active-recovery` scenario repeats this class of failure by dropping the
+control link during active work, without re-announcing releases. Both reproduction
+scenarios use the same A/B/B/A runner and correctness checks, separately from `timing`.
 
 Open the performance-race job. Its log prints the comparison; download its
 perf-results artifacts for:
 
-- summary.md: medians and relative differences.
+- summary.md: medians, min/max ranges, relative differences and per-site latency.
 - comparison.json: exact SHAs, all trials and individual file timelines.
 - junit.xml: correctness outcomes visible in GitLab's test results.
 - Per-trial result.json, workload.log, console.txt and slftp.log; build logs and
   run.log for preparation, execution and shutdown diagnostics.
 
-Measured values: elapsed time, payload files/s and MiB/s, slFtp CPU milliseconds per
+Measured values: elapsed time, producer duration, drain time after the producer,
+payload files/s and MiB/s, slFtp CPU milliseconds per
 payload file, peak resident memory, p95 source-ready to destination-appearance delay
 and p95 payload completion time (all expected bytes, not the STATS announcement).
+The timing interval ends only after all producers finished and all expected full-size
+files remained unchanged for at least 500 ms. CPU uses the same interval, including
+this stability window. Observed deletion, truncation or replacement resets the affected
+file timestamps; verification rejects files that changed after measurement. Changes
+entirely between samples can still be missed. This is not confirmation of slFtp task
+teardown, FTP acknowledgement processing or the STATS event.
 The filesystem observer targets 50-ms sampling;
 each result includes the actual maximum sampling gap. CPU sampling reads only the
 slFtp process. Hash checks happen after the measured interval.
 
 Incorrect/missing payloads, timeouts or an unavailable environment fail the job
-and invalidate the speed comparison. Performance deltas alone do not fail it.
+and invalidate the speed comparison. Functional trial failures still allow the other
+variant to run with fresh sites. Setup/build failures stop the run and leave unrun
+trials marked skipped in JUnit; the overall comparison still fails. Malformed results
+are reported as failures without suppressing the summary or JUnit report.
+Performance deltas alone do not fail it.
 The unit tests of the report calculation run in the worker before the load.
 
-The producer's fixed arrival schedule can limit throughput; this is a scheduling/
-CPU comparison, not a maximum network bandwidth benchmark. Shared CI hardware is
+The producer's pacing can limit throughput; this is a scheduling/
+CPU comparison, not a maximum network bandwidth benchmark. Actual source availability
+depends on upload completion and host load; compare producer duration and source timestamps
+as well as throughput. Shared CI hardware is
 noisy, so repeat before treating small changes as regressions. This fixture covers
 glftpd, not DrFTPD slave/PRET behavior, external metadata services or long-term leaks.
 Internal task creation/assignment, queue wakes/sorts, locks and blocked reasons
 need a separate instrumented run; the external delays do not claim to measure them.
+
+## Run on Linux
+
+Use a Linux x86-64 machine with Git, Bash and rootful Docker Engine. The account must
+be able to run Docker and start a privileged Docker-in-Docker container. Use a dedicated
+test machine/VM. The worker never receives the host Docker socket, and no daemon TCP
+port is published. All site volumes and fixed container names belong to the nested
+daemon, which is removed at the end.
+
+From a checkout containing these scripts:
+
+```sh
+git fetch origin
+bash tests/perf/linux.sh origin/dev HEAD
+```
+
+Only committed snapshots are tested. The baseline defaults to the local `origin/dev`
+ref and the candidate to `HEAD`; fetching is explicit. For reproducible follow-ups,
+pass the two commit hashes recorded by the previous run instead of moving refs.
+An optional third argument names a new result directory. Existing directories are
+rejected. The default is `perf-results-<timestamp>` in the current directory.
+
+Separate correctness reproductions:
+
+```sh
+bash tests/perf/linux.sh origin/dev HEAD ./perf-cd1 progressive-cd1
+bash tests/perf/linux.sh origin/dev HEAD ./perf-recovery active-recovery
+```
+
+Results, including failed trials, are exported before cleanup. Inspect `summary.md`,
+`comparison.json`, `junit.xml`, `driver.log` and each trial's logs. Exit code 0 means
+all trials were valid; a performance improvement is not required. A nonzero exit
+means the comparison cannot be used as a speed claim. Repeat complete runs to assess
+noise; two samples per variant remain insufficient for small differences.
+
+Do not invoke `run.sh` directly on a host. It requires the worker marker and mounted
+disposable site volumes. `ci.sh` is the GitLab/Alpine entry point; `linux.sh` prepares
+the equivalent isolated environment without GitLab credentials.
+
+The report/observer tests require Python 3.9 or newer:
+
+```sh
+python3 -m unittest discover -s tests/perf -p 'test_*.py'
+```
+
+A dedicated Linux GitLab Runner can execute the same job after each push: use the
+Docker executor with privileged Docker-in-Docker support, assign a unique runner tag,
+and set that tag on `performance-race`. The job has `needs: []` because it builds both
+snapshots itself. For a manual reproduction pipeline set `PERF_SCENARIO` to
+`progressive-cd1` or `active-recovery`; the default is `timing`.
 
 ## Implementation
 

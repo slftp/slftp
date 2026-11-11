@@ -16,11 +16,14 @@ docker build --build-arg CI_IMAGE="$SLFTP_CI_IMAGE" -t slftp-perf-worker -f test
 for n in 1 2 3 4; do docker volume create "perf-site-$n" > /dev/null; done
 docker create --name slftp-perf-worker --network host \
   -e DOCKER_HOST=tcp://127.0.0.1:2375 -e DOCKER_TLS_CERTDIR= \
+  -e SLFTP_PERF_WORKER=1 -e PERF_SCENARIO="${PERF_SCENARIO:-timing}" \
   -v perf-site-1:/sites/1 -v perf-site-2:/sites/2 \
   -v perf-site-3:/sites/3 -v perf-site-4:/sites/4 \
   slftp-perf-worker sleep infinity > /dev/null
 cleanup() { docker rm -f slftp-perf-worker > /dev/null 2>&1 || true; }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 docker start slftp-perf-worker > /dev/null
 docker cp "$scratch/baseline.tar" slftp-perf-worker:/work/baseline.tar
 docker cp "$scratch/branch.tar" slftp-perf-worker:/work/branch.tar
