@@ -13,6 +13,14 @@ matching `SKILL.md` completely.
 | [glftpd-e2e](glftpd-e2e/SKILL.md) | on Linux, or on Windows in WSL: run slFtp end to end against glftpd sites with pzs-ng, e.g. an FXP race |
 | [run-slftp](run-slftp/SKILL.md) | start slFtp, type commands into its console, read the screen and stop it, to try a change in the real program |
 
+## Running the PowerShell scripts
+
+On Windows the skills start their scripts with `powershell -NoProfile -ExecutionPolicy Bypass -File
+<script> ...`, so that they run whatever the execution policy is. Some agent tools refuse commands that
+lower the execution policy. Then run the script in the current shell with the same arguments:
+`& .\<script> ...`. That works only if `Get-ExecutionPolicy` reports `Bypass`, `Unrestricted` or
+`RemoteSigned`; otherwise ask the user to run the original command or to allow it.
+
 ## Keeping skills correct
 
 If a skill is wrong or outdated (renamed files, changed commands, missing steps), fix it as part of your
