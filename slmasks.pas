@@ -3,7 +3,7 @@ unit slmasks;
 interface
 
 uses
-  SyncObjs, DelphiMasks, RegExpr;
+  SyncObjs, RegExpr, mormot.core.base, mormot.core.search;
 
 type
   {
@@ -12,11 +12,12 @@ type
   TslMask = class
   private
     FLock: TCriticalSection; //< lock to avoid concurrent access
-    FMask: String; //< actual mask used for @link(dm) or @link(rm)
-    dm: TMask; //< simple mask
+    FMask: String; //< actual mask used for @link(FMaskMatch) or @link(rm)
+    FGlobMask: RawUtf8; //< UTF-8 storage referenced by @link(FMaskMatch)
+    FMaskMatch: TMatch; //< compiled glob mask
     rm: TRegExpr; //< regex mask
   public
-    { Create an object which uses TMask or TRegExpr internally for matching. Regex is identified by use of '/<regex>/' with optional 'i' for case-insensitivity at the end.
+    { Create an object which uses mORMot TMatch or TRegExpr internally for matching. Regex is identified by use of '/<regex>/' with optional 'i' for case-insensitivity at the end.
       @param(aMask String which is used to create the appropriate mask/regex) }
     constructor Create(const aMask: String);
     { Free the object and all it's internal data }
@@ -32,7 +33,7 @@ type
 implementation
 
 uses
-  SysUtils, debugunit;
+  SysUtils, debugunit, mormot.core.unicode;
 
 const
   ssection = 'slmasks';
@@ -44,6 +45,7 @@ var
   fLen: Integer;
 begin
   FMask := aMask;
+  FLock := TCriticalSection.Create;
   fLen := Length(aMask);
 
   if fLen = 0 then
@@ -63,25 +65,18 @@ begin
     rm.Expression := Copy(aMask, 2, fLen-3);
   end
   else
-    dm := TMask.Create(aMask);
-
-  FLock := TCriticalSection.Create;
+  begin
+    FGlobMask := StringToUtf8(aMask);
+    FMaskMatch.Prepare(FGlobMask, True, True);
+  end;
 end;
 
 destructor TslMask.Destroy;
 begin
-  if Assigned(dm) then
-  begin
-    FreeAndNil(dm);
-  end;
-
   if Assigned(rm) then
-  begin
     FreeAndNil(rm);
-  end;
 
   FLock.Free;
-
   inherited;
 end;
 
@@ -91,17 +86,17 @@ begin
 
   FLock.Enter;
   try
-    if Assigned(dm) then
-      Result := dm.Matches(aInput)
-    else if Assigned(rm) then
+    if Assigned(rm) then
     begin
       try
-        Result := rm.Exec(aInput)
+        Result := rm.Exec(aInput);
       except
         on e: Exception do
           Debug(dpError, ssection, 'RegExpr Exception in TslMask.Matches: %s %s', [mask, e.Message]);
       end;
-    end;
+    end
+    else if FGlobMask <> '' then
+      Result := FMaskMatch.MatchString(aInput);
   finally
     FLock.Leave;
   end;
