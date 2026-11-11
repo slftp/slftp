@@ -9,8 +9,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev m
 COPY --chown=ircd:ircd unrealircd/ /build/
 USER ircd
 # Config asks questions, the empty answers take the defaults. The bundled libraries keep the final
-# image small, and Config generates the TLS certificate. UnrealIRCd refuses to run as root.
-RUN cd /build && yes '' | ./Config -nointro >/dev/null && make -j"$(nproc)" >/dev/null && make install >/dev/null
+# image small, and Config generates the TLS certificate. UnrealIRCd refuses to run as root. The output of
+# make shows that the long compile advances.
+RUN cd /build && yes '' | ./Config -nointro >/dev/null && make -j"$(nproc)" && make install >/dev/null
 
 FROM ubuntu:24.04
 LABEL slftp-unrealircd=1

@@ -47,7 +47,8 @@ check_env() {
 
 # Downloads the sources (verified by checksum) and builds the image unless it exists for the current
 # inputs, then removes the images of older inputs and the build stages. The sources are only extracted
-# here; their code runs inside the build.
+# here; their code runs inside the build. Not quiet, so that the first build, about 3 minutes, shows that
+# it advances.
 build() {
   local tgz="$work/dl/${ircd_url##*/}" context="$work/image"
   check_env || return
@@ -62,7 +63,7 @@ build() {
   fi
   rm -rf "$context" && mkdir -p "$context/unrealircd" || return
   tar -xzf "$tgz" -C "$context/unrealircd" --strip-components=1 && cp "$skill_dir"/server/* "$context/" || return
-  docker build -q --force-rm -t "$image_tag" "$context" || fail 'image build failed' || return
+  docker build --force-rm -t "$image_tag" "$context" || fail 'image build failed' || return
   rm -rf "$context"
   stop_server # a stopped container, e.g. of a failed start, would keep its image
   docker images "$image" --format '{{.Repository}}:{{.Tag}}' | grep -vxF "$image_tag" |
@@ -78,10 +79,11 @@ stop_server() { docker rm -f "$container" >/dev/null 2>&1; return 0; }
 port_in_use() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
 
 # start_server: a fresh server on the host network, so that the ports are on 127.0.0.1. The wait below
-# can't tell it from another program on these ports, which would make the server exit.
+# can't tell it from another program on these ports, which would make the server exit. A missing image is
+# built by the command build, which holds the build lock, unlike the function.
 start_server() {
   local t=0 port
-  build || return
+  docker image inspect "$image_tag" >/dev/null 2>&1 || bash "$0" build || return
   stop_server
   for port in 6667 6697; do
     if port_in_use "$port"; then fail "port $port is in use by another program"; return; fi
