@@ -22,6 +22,14 @@ const
 
 type
 
+  TSSLReadStats = record
+    ReadCalls: Int64;
+    ReadinessChecks: Int64;
+    PendingHits: Int64;
+    PendingBytes: Int64;
+    BytesRead: Int64;
+  end;
+
   TslSocks5 = class
     enabled: Boolean;
     username: {$IFDEF UNICODE}RawByteString{$ELSE}AnsiString{$ENDIF};
@@ -36,6 +44,7 @@ type
   private
     fss: TStringStream;
     fSSL: PSSL;
+    FSSLReadStats: TSSLReadStats;
     fSSLCTX: PSSL_CTX;
     fBindIp: String;
     fBindPort: Integer;
@@ -59,6 +68,7 @@ type
 
     socks5: TslSocks5;
 
+    function TakeSSLReadStats: TSSLReadStats;
     function IsWriteAble(timeout: Integer): Boolean;
     function IsReadAble(timeout: Integer): Boolean;
     function connected: Boolean;
@@ -86,8 +96,12 @@ type
     function Listen(backlog: Integer): Boolean;
 
     function TurnToSSL(timeout: Integer = slDefaultTimeout): Boolean; overload;
-    function TurnToSSL(sslctx: PSSL_CTX; timeout: Integer = slDefaultTimeout): Boolean; overload;
+    function TurnToSSL(sslctx: PSSL_CTX; timeout: Integer = slDefaultTimeout; session: PSSL_SESSION = nil): Boolean; overload;
+    function TurnToSSLWithSession(timeout: Integer; session: PSSL_SESSION): Boolean;
     function AcceptSSL(sslctx: PSSL_CTX; timeout: Integer = slDefaultTimeout): Boolean;
+    { Returns the session of the current SSL connection with incremented reference
+      count. The caller owns the reference and must release it via SslSessionFree. }
+    function ExtractSSLSession: PSSL_SESSION;
   published
     property BindPort: Integer read fBindPort write fBindPort;
     property OnWaitingforSocket: TWaitingForSocketEvent read fOnWaitingforSocket write fOnWaitingforSocket;
@@ -577,10 +591,17 @@ end;
 
 
 
+function TslTCPSocket.ExtractSSLSession: PSSL_SESSION;
+begin
+  Result := nil;
+  if fSSL <> nil then
+    Result := SslGetSession(fSSL);
+end;
+
 function TslTCPSocket.TurnToSSL(timeout: Integer = slDefaultTimeout): Boolean;
 begin
   try
-    Result:= TurnToSSL(fsslctx, timeout);
+    Result:= TurnToSSL(fsslctx, timeout, nil);
   except
     on e: Exception do
     begin
@@ -590,15 +611,32 @@ begin
   end;
 end;
 
-function TslTCPSocket.TurnToSSL(sslctx: PSSL_CTX; timeout: Integer = slDefaultTimeout): Boolean;
+function TslTCPSocket.TurnToSSLWithSession(timeout: Integer; session: PSSL_SESSION): Boolean;
+begin
+  try
+    Result:= TurnToSSL(fsslctx, timeout, session);
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, 'sltcp', Format('[EXCEPTION] TslTCPSocket.TurnToSSLWithSession: %s', [e.Message]));
+      Result:= False;
+    end;
+  end;
+end;
+
+function TslTCPSocket.TurnToSSL(sslctx: PSSL_CTX; timeout: Integer = slDefaultTimeout; session: PSSL_SESSION = nil): Boolean;
 var er: String;
-    sslerr, err, i: Integer;
+    sslerr, err: Integer;
     shouldquit: Boolean;
     fErrorMessage: RawUtf8;
+    startTime, elapsed: Int64;
+    selectTimeout: Integer;
+    selectError: String;
 begin
   shouldquit:= False;
   Result:= False;
-  sslerr := 0; // Initialize to prevent uninitialized variable warning
+  sslerr := 0;
+  startTime := GetTickCount64;
   try
     setlength(er, 512);
 
@@ -636,11 +674,14 @@ begin
       exit;
     end;
 
-    // try for 10 seconds
-    i:= 0;
+    // Try to resume a previously saved SSL session for faster reconnects
+    // (does not take ownership, the caller keeps its session reference)
+    SslSetSession(fSSL, session);
+
     while(true)do
     begin
-      if i* 100 > timeout then
+      elapsed := GetTickCount64 - startTime;
+      if elapsed > timeout then
       begin
         er:= GetLastSSLError(fSSL, sslerr);
         error:= 'timeout, ssl failed '+ er;
@@ -669,8 +710,42 @@ begin
           exit;
         end;
 
-        Sleep(100);
-        inc(i);
+        // Wait for socket event instead of blind Sleep(100).
+        // slSelect blocks in the kernel and returns immediately when data arrives.
+        selectTimeout := timeout - Integer(elapsed);
+        if selectTimeout <= 0 then selectTimeout := 1;
+        if selectTimeout > 100 then selectTimeout := 100; // cap to check shouldquit regularly
+
+        if sslerr = SSL_ERROR_WANT_WRITE then
+        begin
+          if not slSelect(slSocket, selectTimeout, False, True, selectError) then
+          begin
+            if selectError <> 'timeout' then
+            begin
+              er:= GetLastSSLError(fSSL, sslerr);
+              error:= 'ssl failed, select error: '+selectError+' / '+er;
+              DisconnectSSL;
+              slSetBlocking(slSocket,er);
+              exit;
+            end;
+            // timeout: loop will check elapsed time on next iteration
+          end;
+        end
+        else // SSL_ERROR_WANT_READ or SSL_ERROR_WANT_X509_LOOKUP
+        begin
+          if not slSelect(slSocket, selectTimeout, True, False, selectError) then
+          begin
+            if selectError <> 'timeout' then
+            begin
+              er:= GetLastSSLError(fSSL, sslerr);
+              error:= 'ssl failed, select error: '+selectError+' / '+er;
+              DisconnectSSL;
+              slSetBlocking(slSocket,er);
+              exit;
+            end;
+            // timeout: loop will check elapsed time on next iteration
+          end;
+        end;
       end
       else
       begin
@@ -699,13 +774,17 @@ end;
 
 function TslTCPSocket.AcceptSSL(sslctx: PSSL_CTX; timeout: Integer = slDefaultTimeout): Boolean;
 var er: String;
-    sslerr, err, i: Integer;
+    sslerr, err: Integer;
     shouldquit: Boolean;
     fErrorMessage: RawUtf8;
+    startTime, elapsed: Int64;
+    selectTimeout: Integer;
+    selectError: String;
 begin
   shouldquit:= False;
   Result:= False;
-  sslerr := 0; // Initialize to prevent uninitialized variable warning
+  sslerr := 0;
+  startTime := GetTickCount64;
   try
     setlength(er, 512);
 
@@ -742,11 +821,10 @@ begin
       exit;
     end;
 
-    // try for 10 seconds
-    i:= 0;
     while(true)do
     begin
-      if i* 100 > timeout then
+      elapsed := GetTickCount64 - startTime;
+      if elapsed > timeout then
       begin
         er:= GetLastSSLError(fSSL, sslerr);
         error:= 'timeout, ssl failed '+ er;
@@ -775,8 +853,39 @@ begin
           exit;
         end;
 
-        Sleep(100);
-        inc(i);
+        // Wait for socket event instead of blind Sleep(100)
+        selectTimeout := timeout - Integer(elapsed);
+        if selectTimeout <= 0 then selectTimeout := 1;
+        if selectTimeout > 100 then selectTimeout := 100;
+
+        if sslerr = SSL_ERROR_WANT_WRITE then
+        begin
+          if not slSelect(slSocket, selectTimeout, False, True, selectError) then
+          begin
+            if selectError <> 'timeout' then
+            begin
+              er:= GetLastSSLError(fSSL, sslerr);
+              error:= 'ssl failed, select error: '+selectError+' / '+er;
+              DisconnectSSL;
+              slSetBlocking(slSocket,er);
+              exit;
+            end;
+          end;
+        end
+        else // SSL_ERROR_WANT_READ or SSL_ERROR_WANT_X509_LOOKUP
+        begin
+          if not slSelect(slSocket, selectTimeout, True, False, selectError) then
+          begin
+            if selectError <> 'timeout' then
+            begin
+              er:= GetLastSSLError(fSSL, sslerr);
+              error:= 'ssl failed, select error: '+selectError+' / '+er;
+              DisconnectSSL;
+              slSetBlocking(slSocket,er);
+              exit;
+            end;
+          end;
+        end;
       end
       else
       begin
@@ -1016,7 +1125,8 @@ end;
 
 function TslTCPSocket.Read(s: TStream; timeout: Integer = slDefaultTimeout; maxolvasas: Integer = 0; untilDisconnects: Boolean = False): Boolean;
 var buffer: array[1..slBufferSize] of AnsiChar;
-    aktolvasas, osszesolvasva, olvasva: Integer;
+    aktolvasas, osszesolvasva, olvasva, sslPending: Integer;
+    sslPendingRead: Boolean;
 begin
   Result:= False;
   try
@@ -1037,8 +1147,27 @@ begin
     error:= '';
     osszesolvasva:= 0;
   //debug(dpSpam, 'isreadable elott');
-    while (IsReadAble(timeout)) do
+    while True do
     begin
+      sslPendingRead := False;
+      if fSSL <> nil then
+      begin
+        sslPending := SSL_pending(fSSL);
+        if sslPending > 0 then
+        begin
+          Inc(FSSLReadStats.PendingHits);
+          sslPendingRead := True;
+        end
+        else
+        begin
+          Inc(FSSLReadStats.ReadinessChecks);
+          if not IsReadAble(timeout) then
+            Break;
+        end;
+      end
+      else if not IsReadAble(timeout) then
+        Break;
+
       aktolvasas:= slBufferSize;
       if ((maxolvasas > 0) and (osszesolvasva + aktolvasas > maxolvasas)) then
         aktolvasas:= maxolvasas - osszesolvasva;
@@ -1046,7 +1175,16 @@ begin
   //debug(dpSpam, 'slrecv elott');
 
       if fSSL <> nil then
-        olvasva:= slRecv(fSSL, buffer, aktolvasas, error)
+      begin
+        Inc(FSSLReadStats.ReadCalls);
+        olvasva:= slRecv(fSSL, buffer, aktolvasas, error);
+        if olvasva > 0 then
+        begin
+          Inc(FSSLReadStats.BytesRead, olvasva);
+          if sslPendingRead then
+            Inc(FSSLReadStats.PendingBytes, olvasva);
+        end;
+      end
       else
         olvasva:= slRecv(slSocket, buffer, aktolvasas, error);
 
@@ -1085,6 +1223,12 @@ begin
       Result:= False;
     end;
   end;
+end;
+
+function TslTCPSocket.TakeSSLReadStats: TSSLReadStats;
+begin
+  Result := FSSLReadStats;
+  FillChar(FSSLReadStats, SizeOf(FSSLReadStats), 0);
 end;
 
 function TslTCPSocket.IsReadAble(timeout: Integer): Boolean;
