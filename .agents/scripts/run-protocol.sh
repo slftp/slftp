@@ -1,8 +1,9 @@
 #!/bin/bash
 # Lock, log and exit code files of the long runs, and the options wsl-run.ps1 next to this file polls
-# them with. Sourced by fpc-wsl.sh next to this file and .agents/skills/glftpd-e2e/e2e.sh. Set
-# log_file, exitcode_file and summary_pattern first, and for a run with --id <id> also run_id=<id>
-# and exitcode_file=<exitcode_file>.<id>, so the caller never reads the result of another run.
+# them with. Sourced by fpc-wsl.sh next to this file, .agents/skills/glftpd-e2e/e2e.sh and
+# .agents/skills/unrealircd/ircd.sh. Set log_file, exitcode_file and summary_pattern first, and for a
+# run with --id <id> also run_id=<id> and exitcode_file=<exitcode_file>.<id>, so the caller never reads
+# the result of another run.
 #
 #   <script> --clear [<id>]   remove the exit code file of the last run (or of run <id>)
 #   <script> --status [<id>]  print the exit code of the last run (or of run <id>), nothing while it
