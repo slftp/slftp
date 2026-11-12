@@ -3,7 +3,7 @@ unit sitesunit;
 interface
 
 uses
-  Classes, encinifile, Contnrs, sltcp, slssl, mormot.lib.openssl11, SyncObjs, Regexpr, typinfo,
+  Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
   taskrules, taskrace, queueunit, Generics.Collections, pazo, slcriticalsection2,
   variantcache, routeconfig, StrUtils;
@@ -225,8 +225,6 @@ type
     fNoannounce: boolean;
     flegacydirlist: boolean;
     fSlotsAssignmentLock: TSlCriticalSection2;
-    fSSLSession: PSSL_SESSION;
-    fSSLSessionLock: TSlCriticalSection2;
     fFailedNfoCounter: integer;
     fConnect_timeout: integer;
     fIdleInterval: integer;
@@ -542,15 +540,6 @@ type
     procedure SetDelayUploadMax(const aSection: String; const Value: integer);
     { Send the current tasks to the queue console window. }
     procedure QueueSendCurrentTasksToConsole;
-
-    { Returns the saved SSL session with incremented reference count, so it stays
-      valid even if another slot thread replaces it concurrently.
-      The caller owns the returned reference and must release it via SslSessionFree.
-      @returns(owned session reference, nil if none saved or unsupported) }
-    function AcquireSSLSession: PSSL_SESSION;
-    { Replaces the saved SSL session, releasing the previous one.
-      Takes ownership of the given reference. }
-    procedure SetSSLSession(session: PSSL_SESSION);
 
     { Lock this site for any operation that will assign / unassign tasks to the slots.
       @param(aLockName This should be a unique name of the code section which calls this procedure for debugging and performance measusing purposes.) }
@@ -2101,7 +2090,6 @@ var
   currentBnc, tmpBnc, tmpHost: String;
   tmpPort: Integer;
   fDoCheckSiteSoftware: boolean;
-  fSession: PSSL_SESSION;
 
   procedure tryToGetSiteSoftwareAndVersionFromLastResponse();
     var fSiteSoftware: TSiteSw;
@@ -2149,14 +2137,8 @@ begin
   if sslm in [sslImplicitSSL] then
   begin
     SetSSLContext();
-    fSession := site.AcquireSSLSession;
-    try
-      if not TurnToSSLWithSession(site.io_timeout * 1000, fSession) then
-        exit;
-    finally
-      SslSessionFree(fSession);
-    end;
-    site.SetSSLSession(ExtractSSLSession);
+    if not TurnToSSL(site.io_timeout * 1000) then
+      exit;
   end;
 
   fDoCheckSiteSoftware := (site.sw = sswUnknown) or (not site.IsUp);
@@ -2191,14 +2173,8 @@ begin
     if lastResponseCode <> 234 then
       exit;
 
-    fSession := site.AcquireSSLSession;
-    try
-      if not TurnToSSLWithSession(site.io_timeout * 1000, fSession) then
-        exit;
-    finally
-      SslSessionFree(fSession);
-    end;
-    site.SetSSLSession(ExtractSSLSession);
+    if not TurnToSSL(site.io_timeout * 1000) then
+      exit;
 
     //After completing the negotiation of a secure connection with the server, the client must issue the PBSZ command.
     //Pure-FTPd requires this. Other FTPDs work well without it.
@@ -2993,8 +2969,6 @@ var
   idTCP: TslTCPSocket;
   host: String;
   port: Integer;
-  fSession: PSSL_SESSION;
-  sslReadStats: TSSLReadStats;
 begin
   Result := -1;
   idTCP := nil;
@@ -3078,31 +3052,23 @@ begin
         exit;
       end;
 
-      fSession := site.AcquireSSLSession;
-      try
-        if not idTCP.TurnToSSLWithSession(site.io_timeout * 1000, fSession) then
-        begin
-          irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: SSL negotiation with site %s while getting %s: %s', [site.name, filename, idTCP.error]);
+      if not idTCP.TurnToSSL(site.io_timeout * 1000) then
+      begin
+        irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: SSL negotiation with site %s while getting %s: %s', [site.name, filename, idTCP.error]);
 
-          site.fFailedNfoCounter := site.fFailedNfoCounter + 1;
-          if site.fFailedNfoCounter >= CONST_NFO_FAILED_THRESHOLD then
-          begin
-            site.UseForNFOdownload := ufnAutoDisabled;
-            irc_addadmin(Format('Disable NFO/SFV download for <b>%s</b> after %d consecutive failures.', [site.Name, site.fFailedNfoCounter]));
-          end;
-
-          DestroySocket(False);
-          Result := -1;
-          exit;
-        end
-        else
+        site.fFailedNfoCounter := site.fFailedNfoCounter + 1;
+        if site.fFailedNfoCounter >= CONST_NFO_FAILED_THRESHOLD then
         begin
-          site.fFailedNfoCounter := 0; // reset the failed counter if this has worked
-          site.SetSSLSession(idTCP.ExtractSSLSession);
+          site.UseForNFOdownload := ufnAutoDisabled;
+          irc_addadmin(Format('Disable NFO/SFV download for <b>%s</b> after %d consecutive failures.', [site.Name, site.fFailedNfoCounter]));
         end;
-      finally
-        SslSessionFree(fSession);
-      end;
+
+        DestroySocket(False);
+        Result := -1;
+        exit;
+      end
+      else
+        site.fFailedNfoCounter := 0; // reset the failed counter if this has worked
 
       if not Read('RETR') then
       begin
@@ -3128,14 +3094,7 @@ begin
       Result := 1;
     finally
       if idTCP <> nil then
-      begin
-        sslReadStats := idTCP.TakeSSLReadStats;
-        if todotask is TPazoPlainTask then
-          TPazoPlainTask(todotask).mainpazo.AddSSLReadStats(
-            sslReadStats.ReadCalls, sslReadStats.ReadinessChecks, sslReadStats.PendingHits,
-            sslReadStats.PendingBytes, sslReadStats.BytesRead);
         idTCP.Free;
-      end;
 
       // release reserved download slot
       self.DownloadingFrom := False;
@@ -3233,7 +3192,6 @@ begin
   self.Name := Name;
   features := [];
   fSlotsAssignmentLock := TSlCriticalSection2.Create('SLFTP_SlotsAssignmentMutex_' + Name, True);
-  fSSLSessionLock := TSlCriticalSection2.Create('SSLSession_' + Name);
   fQueue := TQueueThread.Create(Name);
   self.fSpeedFromCS := TSlCriticalSection2.Create('SpeedFromCS_' + Name);
   self.fSpeedFromCache := nil;
@@ -3422,48 +3380,12 @@ begin
     fSlot.Free;
   slots.Free;
   fSlotsAssignmentLock.Free;
-  fSSLSessionLock.Free;
-  if fSSLSession <> nil then
-  begin
-    SslSessionFree(fSSLSession);
-    fSSLSession := nil;
-  end;
   fSpeedFromCS.Free;
   FreeAndNil(fSpeedFromCache);
   fFreeSlotsCS.Free;
   FSettingsCacheDict.Free;
   Debug(dpSpam, section, 'Site %s destroy end', [Name]);
   inherited;
-end;
-
-function TSite.AcquireSSLSession: PSSL_SESSION;
-begin
-  fSSLSessionLock.Enter('AcquireSSLSession');
-  try
-    Result := fSSLSession;
-    // hand out an own reference, so a concurrent SetSSLSession on another slot
-    // thread cannot free the session while the caller is using it
-    if (Result <> nil) and (not SslSessionUpRef(Result)) then
-      Result := nil;
-  finally
-    fSSLSessionLock.Leave;
-  end;
-end;
-
-procedure TSite.SetSSLSession(session: PSSL_SESSION);
-begin
-  fSSLSessionLock.Enter('SetSSLSession');
-  try
-    if fSSLSession <> nil then
-    begin
-      SslSessionFree(fSSLSession);
-      fSSLSession := nil;
-    end;
-    if session <> nil then
-      fSSLSession := session;
-  finally
-    fSSLSessionLock.Leave;
-  end;
 end;
 
 procedure SlotsFire;
