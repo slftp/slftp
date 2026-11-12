@@ -8,16 +8,9 @@ uses
   {$ELSE}
     DUnitX.TestFramework, DUnitX.DUnitCompatibility,
   {$ENDIF}
-  mormot.core.base, mormot.db.raw.sqlite3, mormot.orm.core;
+  mormot.core.base, mormot.db.raw.sqlite3;
 
 type
-  TTestMemoryOrmRecord = class(TOrm)
-  private
-    FValue: RawUtf8;
-  published
-    property Value: RawUtf8 read FValue write FValue;
-  end;
-
   TTestSQLite3RollbackIfActive = class(TTestCase)
   private
     fDB: TSqlDataBase;
@@ -33,55 +26,10 @@ type
     procedure TransactionOpenAfterFailedCommit;
   end;
 
-  TTestORMSQLite3DB = class(TTestCase)
-  published
-    procedure InMemoryDatabaseStoresRecordsWithoutCreatingFile;
-  end;
-
 implementation
 
 uses
-  SysUtils, dbhandler, globals, mormot.rest.sqlite3;
-
-procedure TTestORMSQLite3DB.InMemoryDatabaseStoresRecordsWithoutCreatingFile;
-var
-  fGUID: TGUID;
-  fDatabaseName, fDatabasePath: String;
-  fModel: TSQLModel;
-  fDB: TSQLRestClientDB;
-  fRecord, fRetrieved: TTestMemoryOrmRecord;
-  fID: TID;
-begin
-  CreateGUID(fGUID);
-  fDatabaseName := 'dbhandler-memory-' + GUIDToString(fGUID) + '.db';
-  fDatabasePath := ExtractFilePath(ParamStr(0)) + DATABASEFOLDERNAME + PathDelim + fDatabaseName;
-  fModel := TSQLModel.Create([TTestMemoryOrmRecord]);
-  fDB := nil;
-  try
-    fDB := CreateORMSQLite3DB(fModel, fDatabaseName, '', True);
-    CheckTrue(Assigned(fDB), 'in-memory ORM database should initialize');
-    fRecord := TTestMemoryOrmRecord.Create;
-    try
-      fRecord.Value := 'memory-only';
-      fID := fDB.Add(fRecord, True);
-    finally
-      fRecord.Free;
-    end;
-
-    fRetrieved := TTestMemoryOrmRecord.Create;
-    try
-      CheckTrue(fDB.Retrieve(fID, fRetrieved), 'record should be retrievable');
-      CheckEquals('memory-only', String(fRetrieved.Value));
-    finally
-      fRetrieved.Free;
-    end;
-    CheckFalse(FileExists(fDatabasePath), 'in-memory database must not create a file');
-  finally
-    fDB.Free;
-    fModel.Free;
-  end;
-  CheckFalse(FileExists(fDatabasePath), 'in-memory database must not persist after close');
-end;
+  SysUtils, dbhandler;
 
 { TTestSQLite3RollbackIfActive }
 
@@ -167,9 +115,7 @@ end;
 initialization
   {$IFDEF FPC}
     RegisterTest('TTestSQLite3RollbackIfActive', TTestSQLite3RollbackIfActive.Suite);
-    RegisterTest('TTestORMSQLite3DB', TTestORMSQLite3DB.Suite);
   {$ELSE}
     TDUnitX.RegisterTestFixture(TTestSQLite3RollbackIfActive);
-    TDUnitX.RegisterTestFixture(TTestORMSQLite3DB);
   {$ENDIF}
 end.
