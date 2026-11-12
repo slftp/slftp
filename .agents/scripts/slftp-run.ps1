@@ -279,7 +279,7 @@ function Invoke-Start {
     Get-Screen | ForEach-Object { Write-Line $_ }
     return 1
   }
-  # the last line of the startup (Main_Start): the prompt shows before it, and commands typed earlier
+  # the last line of the startup (Main_Run): the prompt shows before it, and commands typed earlier
   # race with it, e.g. an !ircnetadd before 'Start IRC' connects to the network twice
   $started = Wait-Screen 'Start Queue' 1 30
   # a start error, e.g. a missing library, shows up in a Message window over the Admin window

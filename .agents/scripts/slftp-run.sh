@@ -144,7 +144,7 @@ slftp_start() {
   tmux new-session -d -s "$session" -x 250 -y 100 \
     "cd '$run_dir' && LD_LIBRARY_PATH=. ./slftp; echo SLFTP-EXITED rc=\$?; sleep 3600" || return
   wait_console 'Command:' 1 30 || { pane; return 1; }
-  # the last line of the startup (Main_Start): the prompt shows before it, and commands typed earlier
+  # the last line of the startup (Main_Run): the prompt shows before it, and commands typed earlier
   # race with it, e.g. an !ircnetadd before 'Start IRC' connects to the network twice
   wait_console 'Start Queue' 1 30
   started=$?
