@@ -68,6 +68,8 @@ These instructions are maintained by the agents that use them. As part of every 
 - **Fix** wrong or outdated information immediately — in docs and in skills — instead of working around it.
 - **Skills:** never add one on your own. Suggest it only if it is really worth it, list its advantages and
   disadvantages, and add it only after the user confirms. See [.agents/skills/](.agents/skills/README.md).
+- **Pinned versions:** before a task uses a skill that pins third-party software, check for newer
+  releases (at most every 30 days) and offer the update: [pinned third-party software](.agents/skills/README.md#pinned-third-party-software).
 
 Keep this file an overview and index: rules as one-line headlines, details only in `.agents/docs/` (new
 files get a row in the index), never in both.
