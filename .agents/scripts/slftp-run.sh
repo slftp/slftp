@@ -6,8 +6,8 @@
 #   slftp-run.sh prepare [<build dir>]  fresh runtime directory ~/slftp-run/run from <build dir>
 #                          (default ~/slftp-run/build, e.g. from fpc-wsl.sh --export), the libsqlite3
 #                          of the system and masterpass.txt
-#   slftp-run.sh start     starts slFtp there in the tmux session slftp-run, waits for its prompt and
-#                          prints the version line
+#   slftp-run.sh start     starts slFtp there in the tmux session slftp-run, waits until its startup
+#                          has finished and prints the version line
 #   slftp-run.sh send <line>  types the line and Enter into the console
 #   slftp-run.sh screen    prints the console screen
 #   slftp-run.sh wait <text> [<count>] [<seconds>]  waits until <count> lines (default 1) contain the
@@ -129,8 +129,9 @@ wait_console() {
   return 0
 }
 
-# slftp_start: starts slFtp in run_dir, waits for its prompt and prints the version line
+# slftp_start: starts slFtp in run_dir, waits until its startup has finished and prints the version line
 slftp_start() {
+  local started
   if [ -n "$slftp_windows" ]; then
     coproc _slftp_ps { _ps_run serve; }
     # coproc file descriptors are not available in subshells, as in pane | grep
@@ -143,10 +144,18 @@ slftp_start() {
   tmux new-session -d -s "$session" -x 250 -y 100 \
     "cd '$run_dir' && LD_LIBRARY_PATH=. ./slftp; echo SLFTP-EXITED rc=\$?; sleep 3600" || return
   wait_console 'Command:' 1 30 || { pane; return 1; }
-  sleep 3 # until the queue has started
+  # the last line of the startup (Main_Start): the prompt shows before it, and commands typed earlier
+  # race with it, e.g. an !ircnetadd before 'Start IRC' connects to the network twice
+  wait_console 'Start Queue' 1 30
+  started=$?
   # a start error, e.g. a missing library, shows up in a Message window over the Admin window
   if pane | grep -F ' Message ' >/dev/null; then
     echo 'ERROR: slFtp shows a message, the screen:'
+    pane
+    return 1
+  fi
+  if [ $started -ne 0 ]; then
+    echo 'ERROR: slFtp did not finish its startup, the screen:'
     pane
     return 1
   fi

@@ -34,7 +34,7 @@ run the Delphi build.
    | Command | Does |
    |---------|------|
    | `prepare` | fresh runtime directory with the build, `config/*`, OpenSSL, SQLite and `masterpass.txt` (password `slftp-run`); no sites yet |
-   | `start` | starts slFtp there, waits for its prompt and prints the version line |
+   | `start` | starts slFtp there, waits until its startup has finished and prints the version line |
    | `send '<line>'` | types the line and Enter into the Admin window |
    | `screen` | prints the screen |
    | `wait '<text>' [<count>] [<seconds>]` | waits until `<count>` lines (default 1) show the text, at most `<seconds>` (default 30); on Windows `-Count` and `-Seconds` |
