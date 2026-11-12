@@ -30,6 +30,10 @@ type
     // TOPIC
     procedure TestParsingTopic1;
     procedure TestParsingTopic2;
+    // ZNC
+    procedure TestZncWelcomeWithoutUpstream;
+    procedure TestServerWelcomeIsNoZncWelcome;
+    procedure TestZncOtherNumericIsNoZncWelcome;
   end;
 
 implementation
@@ -185,6 +189,24 @@ begin
 
   CheckEquals(fExpectChan, fChan);
   CheckEquals(fExpectTopic, fTopic);
+end;
+
+
+// ZNC
+procedure TTestIrcParsingUnit.TestZncWelcomeWithoutUpstream;
+begin
+  CheckTrue(isZncWelcomeWithoutUpstream(':irc.znc.in 001 slnick :Welcome to ZNC'));
+end;
+
+procedure TTestIrcParsingUnit.TestServerWelcomeIsNoZncWelcome;
+begin
+  CheckFalse(isZncWelcomeWithoutUpstream(':irc.example.net 001 slnick :Welcome to the Example IRC Network'));
+end;
+
+procedure TTestIrcParsingUnit.TestZncOtherNumericIsNoZncWelcome;
+begin
+  CheckFalse(isZncWelcomeWithoutUpstream(':irc.znc.in 464 slnick :Password required'));
+  CheckFalse(isZncWelcomeWithoutUpstream(':someone!ident@host PRIVMSG slnick ::irc.znc.in 001 x'));
 end;
 
 

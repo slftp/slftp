@@ -33,6 +33,7 @@ type
 
     irc_last_read: TDateTime;
     registered: Boolean;
+    FWaitingForZncUpstream: Boolean; //< @true if ZNC told us it has no connection to the IRC server yet
     irc_last_written: tdatetime;
     lastservername: String;
     FCurrentIrcNick: String;
@@ -1273,6 +1274,14 @@ begin
     exit;
   end;
 
+  if not registered and isZncWelcomeWithoutUpstream(s) then
+  begin
+    // ZNC forwards the server's welcome and MOTD once it reaches the server, so keep the connection
+    FWaitingForZncUpstream := True;
+    status := 'waiting for ZNC to reach the IRC server...';
+    Debug(dpMessage, section, '%s: ZNC has no connection to the IRC server, waiting for it', [netname]);
+  end;
+
   if 1 = Pos('PING ', s) then
     IrcPing(Copy(s, 6, 1000))
   else {// MODES=} if ((registered = False) and ((0 <> Pos(' 266 ', s)) or (0 <> Pos(' 376 ', s)) or (0 <> Pos(' 422 ', s)))) then
@@ -1611,11 +1620,19 @@ var
 begin
   Result := False;
   registered := False;
+  FWaitingForZncUpstream := False;
   status := 'registering...';
 
   elotte := Now();
-  while (SecondsBetween(Now, elotte) < register_timeout) do
+  // no timeout while waiting for ZNC: ZNC pings us and drops the connection itself if we don't answer
+  while (FWaitingForZncUpstream or (SecondsBetween(Now, elotte) < register_timeout)) do
   begin
+    if (shouldquit or shouldrestart) then
+    begin
+      error := netname + ': IRC registration aborted';
+      exit;
+    end;
+
     while (ReadLn(s, osszes, 1000)) do
     begin
       if not IrcProcessLine(s) then
