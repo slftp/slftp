@@ -40,6 +40,26 @@ were actually run there (`metadata` in the frontmatter, see "Format"): `verified
   not, fix them first. Commit that skill update on its own, as it is unrelated to the task.
 - Never set a side to `verified` that you did not run.
 
+## Pinned third-party software
+
+Some skills download third-party software at a fixed version (e.g. glftpd, pzs-ng, UnrealIRCd, SQLite):
+the values below the comment `pinned third-party software` in their scripts, and the `FROM` images of
+their Dockerfiles. Pins keep runs reproducible, but they go stale.
+
+- **Before you start a task with such a skill** (or as soon as you know the task needs one), check each
+  of its pins that wasn't checked in the last 30 days whether a newer stable release exists: for a
+  commit pin, a newer commit on the default branch; for a `FROM` image, a newer tag of the same kind
+  (e.g. the next Ubuntu LTS). If you can't check, e.g. without internet access, skip it. Never update a
+  pin on your own: if there is a newer version, tell the user what is pinned and what is current and
+  offer the update before you work on the task, so that the task can run with the new version.
+- **Last checks:** kept outside the repository, per user, in `%LOCALAPPDATA%\slftp-agents\pins-checked`
+  on Windows and `~/.cache/slftp-agents/pins-checked` on Linux and in WSL, one line per pin:
+  `<YYYY-MM-DD> <pin>`, where `<pin>` is the pinned value (URL, commit or image, e.g. `ubuntu:24.04`).
+  After a check, write today's date to the pin's line, whether there was a newer version or not; a
+  missing file or line means not checked yet. A changed pin gets a new line, so it is checked again.
+- **Updating a pin:** ask the user which branch it goes to. Change the URL and its checksum or commit
+  together, run the skill once and set its verification status (see above).
+
 ## Proposing a new skill
 
 Never add a skill on your own. Suggest one to the user only if it is really worth it:

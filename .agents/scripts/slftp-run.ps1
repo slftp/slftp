@@ -50,7 +50,7 @@ $repo = (Resolve-Path "$PSScriptRoot\..\..").Path
 if (-not $Exe) { $Exe = "$repo\slftp.exe" } # $PSScriptRoot is empty in param() defaults
 $downloads = "$env:LOCALAPPDATA\slftp-run\dl"
 $opensslUrl = 'https://gitlab.com/slftp/binaries/-/raw/main/openssl-3.5_x64.zip'
-# pinned; change on purpose and run the skill once to check
+# pinned third-party software; change on purpose and run the skill once to check
 $sqliteUrl = 'https://www.sqlite.org/2026/sqlite-dll-win-x64-3540100.zip'
 $sqliteSha256 = 'f436f53ad8f965af43f3817b42c99c0689e6787f6b7ace208fe38dab7ffc4971'
 $pidFile = Join-Path $Dir 'slftp-run.pid'
