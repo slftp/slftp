@@ -14,7 +14,7 @@ function EncryptUDP(const s: String): String;
 implementation
 
 uses
-  SysUtils, configunit, debugunit, Math, mystrings, slblowfishcipher, blowfishdiag;
+  SysUtils, delphiblowfish, configunit, debugunit, Math, mystrings;
 
 const
   section = 'crypto';
@@ -23,7 +23,7 @@ const
   MAX_UDP_PACKET = 16384;
 
 var
-  glBlowfishKey: TBytes;
+  KeyData: TBlowfishData;
 
 procedure MyCryptoInit;
 begin
@@ -31,24 +31,21 @@ begin
 end;
 
 procedure MycryptoStart(pp: TslMD5Data);
+const
+  IV: array[0..7] of Byte = (0,0,0,0,0,0,0,0);
 begin
-  SetLength(glBlowfishKey, SizeOf(pp));
-  Move(pp, glBlowfishKey[0], SizeOf(pp));
+  BlowfishInit(KeyData, @pp, SizeOf(pp), @IV);
 end;
 
 procedure MycryptoStop;
 begin
-  if Length(glBlowfishKey) > 0 then
-    FillChar(glBlowfishKey[0], Length(glBlowfishKey), 0);
-  SetLength(glBlowfishKey, 0);
+  BlowfishBurn(KeyData);
 end;
 
 function DecryptUDP(const s: String): String;
 var
   p: Byte;
   l: Integer;
-  fCipher: TslBlowfishCipher;
-  fIV: array[0..7] of Byte;
 begin
   Result := '';
 
@@ -56,16 +53,8 @@ begin
   if l > MAX_UDP_PACKET then
     exit;
 
-  RecordBlowfishDiagnosticUse(bdmUdpCfbDecrypt, Length(glBlowfishKey), l);
-
-  FillChar(fIV, SizeOf(fIV), 0);
-  fCipher := TslBlowfishCipher.Create(glBlowfishKey, fIV, sbmCFB, False);
-  try
-    fCipher.Update(PByte(@s[1]), PByte(@s[1]), l);
-    fCipher.Final;
-  finally
-    fCipher.Free;
-  end;
+  BlowfishReset(KeyData);
+  BlowfishDecryptCFB(KeyData, @s[1], @s[1], l);
 
   p := Ord(s[1]);
   if (p >= UDP_MIN_PADDING) and (p <= UDP_MAX_PADDING) then
@@ -76,8 +65,6 @@ function EncryptUDP(const s: String): String;
 var
   p: Byte;
   block: array[0..MAX_UDP_PACKET-1] of AnsiChar;
-  fCipher: TslBlowfishCipher;
-  fIV: array[0..7] of Byte;
 begin
   Result := '';
 
@@ -85,18 +72,11 @@ begin
     exit;
 
   p := Byte(RandomRange(UDP_MIN_PADDING, UDP_MAX_PADDING));
-  RecordBlowfishDiagnosticUse(bdmUdpCfbEncrypt, Length(glBlowfishKey), p + 1 + Length(s));
   block[0] := AnsiChar(p);
   Move(s[1], block[p], length(s));
 
-  FillChar(fIV, SizeOf(fIV), 0);
-  fCipher := TslBlowfishCipher.Create(glBlowfishKey, fIV, sbmCFB, True);
-  try
-    fCipher.Update(PByte(@block[0]), PByte(@block[0]), p + 1 + Length(s));
-    fCipher.Final;
-  finally
-    fCipher.Free;
-  end;
+  BlowfishReset(KeyData);
+  BlowfishEncryptCFB(KeyData, @block, @block, p+1+length(s));
   SetLength(Result, p + Length(s) + 1);
   Move(block[0], Result[1], p + 1 + Length(s));
 end;

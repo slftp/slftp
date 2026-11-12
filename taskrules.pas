@@ -15,7 +15,7 @@ type
 implementation
 
 uses
-  sitesunit, SysUtils, DateUtils, mystrings, DebugUnit, Diff, rulehash, encinifile, configunit, queueunit, irc, mrdohutils, news;
+  sitesunit, SysUtils, DateUtils, mystrings, DebugUnit, Diff, HashUnit, encinifile, configunit, queueunit, irc, mrdohutils, news;
 
 const
   section = 'taskrules';
@@ -144,12 +144,12 @@ ujra:
           for i := 0 to f.Count - 1 do
           begin
             old_rules.Add(f[i]);
-            hash_old_rules.Add(Pointer(NativeUInt(HashRuleLine(f[i], True, True))));
+            hash_old_rules.Add(HashLine(f[i], True, True));
           end;
 
           for i := 0 to new_rules.Count - 1 do
           begin
-            hash_new_rules.Add(Pointer(NativeUInt(HashRuleLine(new_rules[i], True, True))));
+            hash_new_rules.Add(HashLine(new_rules[i], True, True));
           end;
 
           Diff := TDiff.Create;
@@ -278,3 +278,4 @@ begin
 end;
 
 end.
+

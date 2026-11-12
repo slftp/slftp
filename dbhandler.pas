@@ -16,9 +16,8 @@ function CreateSQLite3DbConn(const aDatabaseName: String; const aPassword: Strin
   @param(aORMSQLModel SQL ORM model for database (object must remain for complete runtime))
   @param(aDatabaseName name of the database file on local storage, must include filename extension)
   @param(aPassword password which is used for encryption/decryption of the database (FOR FUTURE USE! [TODO])
-  @param(aIsInMemory if true, store the database only in memory)
   @returns(Initialized TSQLRestClientDB instance, returns exception and nil on failure) }
-function CreateORMSQLite3DB(const aORMSQLModel: TSQLModel; const aDatabaseName: String; const aPassword: String; const aIsInMemory: Boolean = False): TSQLRestClientDB;
+function CreateORMSQLite3DB(const aORMSQLModel: TSQLModel; const aDatabaseName: String; const aPassword: String): TSQLRestClientDB;
 
 { Rolls back the transaction of a SQLite3 database if one is open. Unlike TSqlDataBase.RollBack it asks SQLite
   whether a transaction is open: the flag of TSqlDataBase is wrong after a failed COMMIT (the transaction stays open)
@@ -76,28 +75,19 @@ begin
   end;
 end;
 
-function CreateORMSQLite3DB(const aORMSQLModel: TSQLModel; const aDatabaseName: String; const aPassword: String; const aIsInMemory: Boolean = False): TSQLRestClientDB;
+function CreateORMSQLite3DB(const aORMSQLModel: TSQLModel; const aDatabaseName: String; const aPassword: String): TSQLRestClientDB;
 begin
   Result := nil;
 
-  if not aIsInMemory then
-    _CreateDatabaseFolder;
+  _CreateDatabaseFolder;
 
   try
-    if aIsInMemory then
-      Result := TSQLRestClientDB.Create(aORMSQLModel, nil, SQLITE_MEMORY_DATABASE_NAME, TSQLRestServerDB, False, StringToUTF8(aPassword))
-    else
-      Result := TSQLRestClientDB.Create(aORMSQLModel, nil, _GetDatabasePath + aDatabaseName, TSQLRestServerDB, False, StringToUTF8(aPassword));
+    Result := TSQLRestClientDB.Create(aORMSQLModel, nil, _GetDatabasePath + aDatabaseName, TSQLRestServerDB, False, StringToUTF8(aPassword));
     // locks the database file for exclusive use during the whole session, read/write will be much faster
     Result.DB.LockingMode := lmExclusive;
-    if aIsInMemory then
-      Result.DB.Synchronous := smOff
-    else
-    begin
-      // enable Write-Ahead Logging mode which is slightly faster
-      Result.DB.WALMode := True;
-      Result.DB.Synchronous := smNormal;
-    end;
+    // enable Write-Ahead Logging mode a which is slightly faster
+    Result.DB.WALMode := True;
+    Result.DB.Synchronous := smNormal;
 
     // create missing sql tables
     Result.Server.CreateMissingTables;

@@ -173,14 +173,7 @@ type
     lastannounceirc: String; //< last announce string for [STATS] after race
     lastannounceroutes: String; //< last announce string from @link(TPazo.RoutesText)
     FExcludeFromIncfiller: boolean; //< @true if the incomplete filler should ignore this TPazo (e.g. already handled once), @false otherwise.
-    FUniqueFileListOfRelease_cs: TSlCriticalSection2;
-    FSSLReadStatsCS: TCriticalSection;
-    FSSLReadCalls: Int64;
-    FSSLReadinessChecks: Int64;
-    FSSLPendingHits: Int64;
-    FSSLPendingBytes: Int64;
-    FSSLBytesRead: Int64;
-    FSSLReadStatsAnnounced: Boolean; //< Critical section for Add calls to @link(FUniqueFileListOfRelease)
+    FUniqueFileListOfRelease_cs: TSlCriticalSection2; //< Critical section for Add calls to @link(FUniqueFileListOfRelease)
     FUniqueFileListOfRelease: TDictionary<String, Int64>; //< Dictionary with files (including subdirs) and corresponding filesize (biggest value seen on any site) for this release, Key="dir + '/' + filename" and Value=filesize
     FPazoSFV: TPazoSFV;
 
@@ -241,8 +234,6 @@ type
       @param(console @true if output is for console, @false for IRC)
       @returns(Formatted string with site completion times) }
     function SiteCompleteTimesStats(const console: boolean): String;
-    procedure AddSSLReadStats(const aReadCalls, aReadinessChecks, aPendingHits, aPendingBytes, aBytesRead: Int64);
-    function SSLReadStats: String;
     constructor Create(const rls: TRelease; const pazo_id: integer);
     destructor Destroy; override;
     function FindSite(const sitename: String): TPazoSite;
@@ -879,8 +870,6 @@ begin
   ready := False;
   lastTouch := Now();
   FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_' + rls.Name + '_' + IntToStr(pazo_id));
-  FSSLReadStatsCS := TCriticalSection.Create;
-  FSSLReadStatsAnnounced := False;
   FUniqueFileListOfRelease := TDictionary<String, Int64>.Create;
 
   self.stated := False;
@@ -904,7 +893,6 @@ begin
   mkdirtasks.Free;
   FUniqueFileListOfRelease.Free;
   FUniqueFileListOfRelease_cs.Free;
-  FSSLReadStatsCS.Free;
   FreeAndNil(rls);
   if FPazoSFV <> nil then FPazoSFV.Free;
 
@@ -931,35 +919,6 @@ begin
       Debug(dpError, section, Format('[EXCEPTION] TPazo.FindSite: %s', [e.Message]));
       Result := nil;
     end;
-  end;
-end;
-
-procedure TPazo.AddSSLReadStats(const aReadCalls, aReadinessChecks, aPendingHits, aPendingBytes, aBytesRead: Int64);
-begin
-  if aReadCalls = 0 then
-    Exit;
-
-  FSSLReadStatsCS.Enter;
-  try
-    Inc(FSSLReadCalls, aReadCalls);
-    Inc(FSSLReadinessChecks, aReadinessChecks);
-    Inc(FSSLPendingHits, aPendingHits);
-    Inc(FSSLPendingBytes, aPendingBytes);
-    Inc(FSSLBytesRead, aBytesRead);
-  finally
-    FSSLReadStatsCS.Leave;
-  end;
-end;
-
-function TPazo.SSLReadStats: String;
-begin
-  FSSLReadStatsCS.Enter;
-  try
-    Result := Format('read_calls=%s bytes=%s readiness_checks=%s pending_hits=%s pending_bytes=%s',
-      [IntToStr(FSSLReadCalls), IntToStr(FSSLBytesRead), IntToStr(FSSLReadinessChecks),
-       IntToStr(FSSLPendingHits), IntToStr(FSSLPendingBytes)]);
-  finally
-    FSSLReadStatsCS.Leave;
   end;
 end;
 
@@ -999,8 +958,6 @@ begin
           irc_AddstatsB(Stats(False, True));
           lastannounceirc := s;
 
-
-
           if glShowCompleteTimeStats then
           begin
             s := SiteCompleteTimesStats(False);
@@ -1010,12 +967,6 @@ begin
               irc_addstats(s);
             end;
           end;
-        end;
-        if not FSSLReadStatsAnnounced then
-        begin
-          irc_addstats(Format('<c10>[<b>TLS DATA READ</b>]</c> %s %s: %s',
-            [rls.section, rls.rlsname, SSLReadStats]));
-          FSSLReadStatsAnnounced := True;
         end;
       end
       else

@@ -3,25 +3,21 @@ unit ircblowfish.ECB;
 interface
 
 uses
-  SysUtils, ircchansettings;
+  ircchansettings, delphiblowfish;
 
 type
-  {$IFDEF FPC}
-    TBlowfishKeyBytes = array of Byte;
-  {$ELSE}
-    TBlowfishKeyBytes = TBytes;
-  {$ENDIF}
-
   { @abstract(ECB de/encryption for IRC Channel) }
   TIrcBlowkeyECB = class(TIrcChannelSettings)
   private
-    FKeyBytes: TBlowfishKeyBytes; //< Blowfish key bytes for @link(blowkey)
+    FKeyData: TBlowfishData; //< generated blowfish data for @link(blowkey)
     FBlowkey: String; //< blowkey for channel
   public
     { Creates a new IrcBlowkey entry }
     constructor Create(const aNetname, aChannel, aChanRoles, aBlowkey: String; aChankey: String = ''; aInviteOnly: Boolean = False);
-    { Sets the key used for IRC Blowfish ECB encryption.
-      @param(aBlowkey channel Blowfish key) }
+    { Burns the IrcBlowkey @link(FKeyData) data }
+    destructor Destroy; override;
+    { Generates TBlowfishData for given irc blowkey
+      @param(aBlowkey generates @link(FKeyData) data for @link(aBlowkey)) }
     procedure UpdateKey(const aBlowkey: String); override;
     { Encrypts decrypted input text, adds the '+OK ' to returned result
       @param(dText decrypted message)
@@ -38,7 +34,7 @@ type
 implementation
 
 uses
-  debugunit, slblowfishcipher, blowfishdiag;
+  SysUtils, debugunit;
 
 const
   B64: RawByteString = './0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -188,12 +184,19 @@ begin
   UpdateKey(aBlowkey);
 end;
 
+destructor TIrcBlowkeyECB.Destroy;
+begin
+  BlowfishBurn(FKeyData);
+  inherited;
+end;
+
 procedure TIrcBlowkeyECB.UpdateKey(const aBlowkey: String);
+const
+  IV: array[0..7] of byte = ($11, $22, $33, $44, $55, $66, $77, $88);
 var
+  fKey: TBytes;
   {$IFNDEF UNICODE}
     fStrHelper: String;
-  {$ELSE}
-    fKeyBytesHelper: TBytes;
   {$ENDIF}
 begin
   FBlowkey := aBlowkey;
@@ -201,18 +204,18 @@ begin
   if Blowkey <> '' then
   begin
     {$IFDEF UNICODE}
-      fKeyBytesHelper := TEncoding.UTF8.GetBytes(set_key(Blowkey));
-      FKeyBytes := fKeyBytesHelper;
+      fKey := TEncoding.UTF8.GetBytes(set_key(Blowkey));
     {$ELSE}
       fStrHelper := set_key(Blowkey);
-      SetLength(FKeyBytes, Length(fStrHelper));
-      move(fStrHelper[1], FKeyBytes[0], Length(fStrHelper));
+      SetLength(fKey, Length(fStrHelper));
+      move(fStrHelper[1], fKey[0], Length(fStrHelper));
     {$ENDIF}
+    SetLength(fKey, Length(fKey));
+    BlowfishInit(FKeyData, PAnsiChar(fKey), Length(fKey), @IV);
   end
   else
   begin
     Debug(dpError, section, Format('Empty ECB blowkey for %s-%s does not make sense!', [Netname, Channel]));
-    SetLength(FKeyBytes, 0);
     exit;
   end;
 end;
@@ -220,9 +223,7 @@ end;
 function TIrcBlowkeyECB.EncryptMessage(const dText: String): String;
 var
   fStrHelper, fResultHelper: RawByteString;
-  fLength, fSplitLength: Integer;
-  fCipher: TslBlowfishCipher;
-  fIV: TBlowfishKeyBytes;
+  i, fLength, fSplitLength: Integer;
 begin
   {$IFDEF UNICODE}
     fStrHelper := UTF8Encode(dText);
@@ -234,24 +235,14 @@ begin
   // Each message is split into blocks of 8 bytes, encrypted individually.
   // A block shorter than 8 bytes is padded with zeroes.
   fLength := Length(fStrHelper);
-  RecordBlowfishDiagnosticUse(bdmIrcEcbEncrypt, Length(FKeyBytes), fLength);
   fSplitLength := (fLength + 7) div 8;
   SetLength(fStrHelper, fSplitLength * 8);
   if fSplitLength * 8 > fLength then
     FillChar(fStrHelper[fLength + 1], fSplitLength * 8 - fLength, 0);
 
-  // Encrypt all ECB blocks through one OpenSSL context.
-  if fSplitLength > 0 then
-  begin
-    fCipher := TslBlowfishCipher.Create(FKeyBytes, fIV, sbmECB, True);
-    try
-      fCipher.Update(PByte(PAnsiChar(fStrHelper)), PByte(PAnsiChar(fStrHelper)),
-        Length(fStrHelper));
-      fCipher.Final;
-    finally
-      fCipher.Free;
-    end;
-  end;
+  // encrypt the blocks in place and encode them all at once: no allocations per block
+  for i := 1 to fSplitLength do
+    BlowfishEncryptECB(FKeyData, @fStrHelper[1 + (i - 1) * 8], @fStrHelper[1 + (i - 1) * 8]);
   fResultHelper := bytetoB64(fStrHelper);
 
   {$IFDEF UNICODE}
@@ -266,10 +257,8 @@ end;
 
 function TIrcBlowkeyECB.DecryptMessage(const eText: String): String;
 var
-  fStrHelper, dText: RawByteString;
-  fSplitLength, fPriorNullByte: Integer;
-  fCipher: TslBlowfishCipher;
-  fIV: TBytes;
+  fStrHelper, temp, dText: RawByteString;
+  i, fSplitLength, fPriorNullByte: Integer;
 begin
   Result := eText;
   if Blowkey = '' then
@@ -277,24 +266,18 @@ begin
 
   dText := '';
   fSplitLength := Length(eText) div 12;
-  RecordBlowfishDiagnosticUse(bdmIrcEcbDecrypt, Length(FKeyBytes), fSplitLength * 8);
 
-  if fSplitLength > 0 then
+  for i := 1 to fSplitLength do
   begin
     {$IFDEF UNICODE}
-      fStrHelper := UTF8Encode(Copy(eText, 1, fSplitLength * 12));
+      fStrHelper := UTF8Encode(Copy(eText, 1 + (i - 1) * 12, 12));
     {$ELSE}
-      fStrHelper := Copy(eText, 1, fSplitLength * 12);
+      fStrHelper := Copy(eText, 1 + (i - 1) * 12, 12);
     {$ENDIF}
-    dText := B64tobyte(fStrHelper);
-    SetLength(dText, fSplitLength * 8);
-    fCipher := TslBlowfishCipher.Create(FKeyBytes, fIV, sbmECB, False);
-    try
-      fCipher.Update(PByte(PAnsiChar(dText)), PByte(PAnsiChar(dText)), Length(dText));
-      fCipher.Final;
-    finally
-      fCipher.Free;
-    end;
+    temp := B64tobyte(fStrHelper);
+    SetLength(temp, 8);
+    BlowfishDecryptECB(FKeyData, PAnsiChar(temp), PAnsiChar(temp));
+    dText := dText + temp;
   end;
 
   // remove (possible) null terminator(s) at end of string
