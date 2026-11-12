@@ -45,11 +45,11 @@ encryption**, in both ECB and CBC mode (`ircblowfish.ECB.pas`, `ircblowfish.CBC.
 client-side convention (shared by mIRC scripts, irssi plugins, etc.), not an ircd feature — any ircd
 works as long as it relays the encrypted `PRIVMSG`/`NOTICE` payload unchanged.
 
-Operators often connect through a **[ZNC](https://znc.in/)** bouncer. ZNC sends lines it generates itself
-from the hard-coded server name `irc.znc.in`. While it has no connection to the IRC server, a login only
-gets ZNC's own `001` and no end of registration (`266`/`376`/`422`); once ZNC reaches the server, it
-forwards the server's welcome and MOTD to the attached clients. That's why `TMyIrcThread.IrcRegister`
-ignores `register_timeout` after `isZncWelcomeWithoutUpstream` matched and keeps waiting on the connection.
+Operators often connect through a **[ZNC](https://znc.in/)** bouncer. While ZNC has no connection to the
+IRC server, a login only gets ZNC's own `001` (server name `irc.znc.in`) and no end of registration
+(`266`/`376`/`422`); ZNC forwards the server's welcome and MOTD once it reaches the server, so
+`TMyIrcThread.IrcRegister` keeps waiting. ZNC answers a client's `PING` itself, also without a server
+connection.
 
 ## Libraries
 
