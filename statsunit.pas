@@ -70,6 +70,9 @@ procedure statsUninit;
   @returns(@true if @link(ORMStatsDB) is not nil, @false otherwise.) }
 function IsStatsDatabaseActive: Boolean;
 
+{ Checks whether stats are stored only in memory and will not survive a restart }
+function IsStatsDatabaseInMemory: Boolean;
+
 { Queue the raced file and appropriate infos to be added into database
   @param(aSrcSite source sitename)
   @param(aDstSite destination sitename)
@@ -116,6 +119,7 @@ var
   glWriteStatsThreadShouldStop: boolean = False; //< True if the thread which writes stats should terminate
   glDeleteAfterDays: integer;
   glMinFileSize: Int64;
+  glStatsInMemory: Boolean = False;
 
 function _GetMinFilesize: Int64; inline;
 begin
@@ -133,10 +137,11 @@ begin
   fDBName := Trim(config.ReadString(section, 'database', 'stats.db'));
   glDeleteAfterDays := config.ReadInteger(Section, 'delete_after_days', 0);
   glMinFileSize := config.ReadInteger(section, 'min_filesize', 100000);
+  glStatsInMemory := config.ReadBool(section, 'in_memory', False);
 
   ORMStatsModel := TSQLModel.Create([TSQLStatsRecord, TSQLSitesRecord, TSQLSectionRecord, TSQLFileInfoRecord]);
   try
-    ORMStatsDB := CreateORMSQLite3DB(ORMStatsModel, fDBName, '');
+    ORMStatsDB := CreateORMSQLite3DB(ORMStatsModel, fDBName, '', glStatsInMemory);
     glStatRaceQueue := TQueue<TStatRaceRecord>.Create;
     glStatRaceLock := TSlCriticalSection2.Create('glStatRaceLock');
     TWriteStatsToDBThread.Create;
@@ -159,8 +164,9 @@ begin
     while glTWriteStatsThreadRunning do
       Sleep(100);
 
-    // Checkpoint WAL to merge changes back into main database and truncate WAL file
-    ORMStatsDB.DB.Execute('PRAGMA wal_checkpoint(TRUNCATE)');
+    if not glStatsInMemory then
+      // Checkpoint WAL to merge changes back into main database and truncate WAL file
+      ORMStatsDB.DB.Execute('PRAGMA wal_checkpoint(TRUNCATE)');
     FreeAndNil(ORMStatsDB);
   end;
   if Assigned(ORMStatsModel) then
@@ -178,6 +184,11 @@ begin
     Result := False
   else
     Result := True;
+end;
+
+function IsStatsDatabaseInMemory: Boolean;
+begin
+  Result := IsStatsDatabaseActive and glStatsInMemory;
 end;
 
 procedure writeStatsToDB(const aStatRaceRecord: TStatRaceRecord);
@@ -634,6 +645,12 @@ end;
 
 procedure doStatsBackup(const aPath, aFileName: String);
 begin
+  if IsStatsDatabaseInMemory then
+  begin
+    Debug(dpSpam, section, '[doStatsBackup] stats database is in memory.');
+    Exit;
+  end;
+
   if not IsStatsDatabaseActive then
   begin
     Debug(dpSpam, section, '[doStatsBackup] stats disabled.');
