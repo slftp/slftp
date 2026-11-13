@@ -46,6 +46,10 @@ through WSL. To run slFtp itself, see the skill [run-slftp](../skills/run-slftp/
   `slftp_64_debug`, `clean`, `test`, `test_32`, `test_64` (default `slftp_64`)
 - Needs `dcc32.exe`/`dcc64.exe` on `PATH`. Unit search paths are read from `slftp.dproj` by
   `extractUnitSearchPaths.ps1`.
+  - With several Delphi versions installed, `make.bat` uses the **last** compiler that `where dcc64.exe`
+    lists, while calling `dcc64.exe` directly uses the first. An edition without command-line compiling
+    fails with "This version of the product does not support command line compiling": then call the
+    compiler of a version that has it by its full path, or reorder `PATH` if `make.bat` picks the wrong one.
 - The test targets download OpenSSL and compile `tests/slftpUnitTests.dpr` (DUnitX).
   - The test binary needs the config files in `tests\`. CI moves `config\*` there; locally **copy** them.
     Without them the runner prints a file check and waits for `<Enter>`.

@@ -34,7 +34,7 @@ run the Delphi build.
    | Command | Does |
    |---------|------|
    | `prepare` | fresh runtime directory with the build, `config/*`, OpenSSL, SQLite and `masterpass.txt` (password `slftp-run`); no sites yet |
-   | `start` | starts slFtp there, waits for its prompt and prints the version line |
+   | `start` | starts slFtp there, waits until its startup has finished and prints the version line |
    | `send '<line>'` | types the line and Enter into the Admin window |
    | `screen` | prints the screen |
    | `wait '<text>' [<count>] [<seconds>]` | waits until `<count>` lines (default 1) show the text, at most `<seconds>` (default 30); on Windows `-Count` and `-Seconds` |
@@ -60,6 +60,10 @@ run the Delphi build.
   clears the screen on exit, so read what you need before `stop`.
 - A start error, e.g. a missing library, shows up in a Message window: `start` fails and prints the
   screen. `send` would answer it (Enter clicks Ok), and slFtp then exits; end it with `kill`.
+- On Windows, about one start in ten went wrong, cause unknown: `start` said `cannot attach to the
+  console` although slFtp ran, or the first `send` reported success but never showed up, so that later
+  commands failed, e.g. with `Cant find network TEST` after a lost `!ircnetadd`. `kill`, then `prepare`
+  and `start` again.
 - On Windows every command takes a few seconds (two PowerShell starts). Scripts that need many fast
   reads source `slftp-run.sh` in WSL with `slftp_windows=1`, as `e2e.sh` does, which keeps one
   PowerShell process for the whole run.

@@ -38,7 +38,8 @@ rather than sniffing banners or error strings ad hoc elsewhere.
 slFtp is a generic IRC client/bot ([`irc.pas`](../../irc.pas), [`irc.parse.pas`](../../irc.parse.pas)) and
 does not depend on a specific IRC daemon — scene IRC networks commonly run
 **[UnrealIRCd](https://www.unrealircd.org/)** or **[InspIRCd](https://www.inspircd.org/)**, but slFtp
-only needs standard IRC protocol plus some IRCv3 bits (see the IRCv3 reference in `parseIrcJOIN`).
+only needs standard IRC protocol plus some IRCv3 bits (see the IRCv3 reference in `parseIrcJOIN`). The
+skill [unrealircd](../skills/unrealircd/SKILL.md) starts a local server for tests.
 
 One de facto scene standard slFtp *does* implement is **FiSH/Mircryption-compatible blowfish channel
 encryption**, in both ECB and CBC mode (`ircblowfish.ECB.pas`, `ircblowfish.CBC.pas`). This is a

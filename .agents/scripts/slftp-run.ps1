@@ -7,8 +7,8 @@
     prepare  fresh runtime directory -Dir: slftp.exe (-Exe), config\*, the OpenSSL DLLs,
              sqlite3-64.dll and masterpass.txt. OpenSSL comes from the same URL as in make.bat, SQLite from sqlite.org
              (pinned below); both are cached in %LOCALAPPDATA%\slftp-run\dl.
-    start    starts slftp.exe in -Dir in a console window of its own, hidden unless -Visible, waits for
-             its prompt and prints the version line
+    start    starts slftp.exe in -Dir in a console window of its own, hidden unless -Visible, waits until
+             its startup has finished and prints the version line
     send     types -Text and Enter into the console
     screen   prints the console screen
     wait     waits until -Count lines of the screen contain -Text (a fixed string) within -Seconds
@@ -50,7 +50,7 @@ $repo = (Resolve-Path "$PSScriptRoot\..\..").Path
 if (-not $Exe) { $Exe = "$repo\slftp.exe" } # $PSScriptRoot is empty in param() defaults
 $downloads = "$env:LOCALAPPDATA\slftp-run\dl"
 $opensslUrl = 'https://gitlab.com/slftp/binaries/-/raw/main/openssl-3.5_x64.zip'
-# pinned; change on purpose and run the skill once to check
+# pinned third-party software; change on purpose and run the skill once to check
 $sqliteUrl = 'https://www.sqlite.org/2026/sqlite-dll-win-x64-3540100.zip'
 $sqliteSha256 = 'f436f53ad8f965af43f3817b42c99c0689e6787f6b7ace208fe38dab7ffc4971'
 $pidFile = Join-Path $Dir 'slftp-run.pid'
@@ -279,10 +279,17 @@ function Invoke-Start {
     Get-Screen | ForEach-Object { Write-Line $_ }
     return 1
   }
-  Start-Sleep -Seconds 3 # until the queue has started
+  # the last line of the startup (Main_Run): the prompt shows before it, and commands typed earlier
+  # race with it, e.g. an !ircnetadd before 'Start IRC' connects to the network twice
+  $started = Wait-Screen 'Start Queue' 1 30
   # a start error, e.g. a missing library, shows up in a Message window over the Admin window
   if (@(Get-Screen | Where-Object { $_.Contains(' Message ') }).Count -gt 0) {
     Write-Line 'ERROR: slFtp shows a message, the screen:'
+    Get-Screen | ForEach-Object { Write-Line $_ }
+    return 1
+  }
+  if (-not $started) {
+    Write-Line 'ERROR: slFtp did not finish its startup, the screen:'
     Get-Screen | ForEach-Object { Write-Line $_ }
     return 1
   }
