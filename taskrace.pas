@@ -445,9 +445,6 @@ begin
     if d <> nil then
       d.FullPath := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
 
-    if (dir = '') and (d <> nil) and ps1.ConsumeWakeSourcesAfterDirlist then
-      mainpazo.WakeSourcesForDestination(ps1);
-
     // Search for sub directories
     fSubDirlistTasks := TList<TPazoDirlistTask>.Create;
     if ((d <> nil) and (d.entries <> nil) and (d.entries.Count > 0)) then

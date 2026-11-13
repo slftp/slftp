@@ -41,9 +41,6 @@ function FindPazoByKey(const aKey: String): TPazo;
       @param(aPazo The TPazo object to be added) }
 procedure AddPazoToKB(const aKey: String; const aPazo: TPazo);
 
-{ Requeues a Pazo dirlist for a site that has become available. }
-procedure KBSiteBecameAvailable(const aSiteName: String);
-
 function FindSectionHandler(const section: String): TCRelease;
 
 { Returns the number of items in the KB
@@ -114,39 +111,6 @@ function GetKBCount: integer;
 begin
   // access to Count is thread safe, so no lock required
   Result := kb_list.Count;
-end;
-
-procedure KBSiteBecameAvailable(const aSiteName: String);
-var
-  i: Integer;
-  p: TPazo;
-  ps: TPazoSite;
-  s: TSite;
-begin
-  s := FindSiteByName('', aSiteName);
-  if (s = nil) or not s.IsUp or s.PermDown or (kb_lock = nil) or (kb_list = nil) then
-    Exit;
-
-  kb_lock.Enter('KBSiteBecameAvailable');
-  try
-    for i := 0 to kb_list.Count - 1 do
-    begin
-      p := TPazo(kb_list.Objects[i]);
-      if p.stopped or p.ready or p.readyerror then
-        Continue;
-
-      ps := p.FindSite(aSiteName);
-      if (ps = nil) or ps.error or ps.dirlistgaveup then
-        Continue;
-      if not (ps.status in [rssShouldPre, rssRealPre, rssNotAllowedButItsThere, rssAllowed, rssComplete]) then
-        Continue;
-
-      ps.MarkWakeSourcesAfterDirlist;
-      AddTask(TPazoDirlistTask.Create('', '', ps.Name, p, '', ps.StatusRealPreOrShouldPre), True);
-    end;
-  finally
-    kb_lock.Leave;
-  end;
 end;
 
 function FindSectionHandler(const section: String): TCRelease;
