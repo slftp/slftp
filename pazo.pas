@@ -54,7 +54,6 @@ type
     FDestinations: TList<TDestinationRank>; //< destination sites and ranks
     FActiveTransfers: TDictionary<string, string>; //< stores which files have an active tranfer to this destination site. Key: filepath, Value: source site
     FActiveTransfersCS: TCriticalSection;
-    FWakeSourcesAfterDirlist: Boolean;
     function Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>): boolean;
     function GetDirlistGaveUp: boolean;
     procedure SetDirlistGaveUp(const aGaveUp: boolean);
@@ -107,8 +106,6 @@ type
     function RoutesText: String;
     function DirlistGaveUpAndSentNoFiles: Boolean;
     procedure DelaySetup;
-    procedure MarkWakeSourcesAfterDirlist;
-    function ConsumeWakeSourcesAfterDirlist: Boolean;
 
     { Stop dirlisting and racing on this site as there was a catastrophic failure
       @param(aMessage specific error message with detailed information) }
@@ -221,7 +218,6 @@ type
     { Searches for @link(sitename) via @link(TPazo.FindSite) and calls TPazoSite.MarkSiteAsFailed if site was found
       @param(sitename Sitename which sould be set down) }
     procedure SiteDown(const sitename: String);
-    procedure WakeSourcesForDestination(const aDestination: TPazoSite);
     procedure Clear;
     function StatusText: String;
     function Age: integer;
@@ -480,8 +476,9 @@ begin
       s := FindSiteByName('', dst.Name);
       if (s.max_up = 0) then Continue;
 
-        // Do not infer a missing destination directory while the site is offline.
-        if not s.IsUp or s.PermDown then Continue;
+        //if the destination is going sstTempDown during the race we would spam race tasks
+        //avoid this and also check other down states just to be sure
+        if s.WorkingStatus in [sstDown, sstTempDown, sstMarkedAsDownByUser] then continue;
 
         // drop sending to this destination if too much crc events
         if (dst.badcrcevents > glMaxBadcrcEvents) then Continue;
@@ -689,36 +686,6 @@ begin
     Result.DelaySetup;
   PazoSitesList.Add(Result);
   CheckSiteSlots(sitename);
-end;
-
-procedure TPazo.WakeSourcesForDestination(const aDestination: TPazoSite);
-var
-  fSource: TPazoSite;
-  fDestination: TDestinationRank;
-  fSite: TSite;
-begin
-  if (aDestination = nil) or stopped or ready or readyerror then
-    Exit;
-
-  for fSource in PazoSitesList do
-  begin
-    if (fSource = aDestination) or fSource.error or fSource.dirlistgaveup then
-      Continue;
-    if not (fSource.status in [rssShouldPre, rssRealPre, rssNotAllowedButItsThere, rssAllowed, rssComplete]) then
-      Continue;
-
-    fSite := FindSiteByName('', fSource.Name);
-    if (fSite = nil) or not SiteCanJoinPazo(fSite.WorkingStatus, fSite.PermDown) then
-      Continue;
-
-    for fDestination in fSource.Destinations do
-      if fDestination.PazoSite = aDestination then
-      begin
-        AddTask(TPazoDirlistTask.Create('', '', fSource.Name, self, '', fSource.StatusRealPreOrShouldPre), True);
-        fSite.QueueFire;
-        Break;
-      end;
-  end;
 end;
 
 function TPazo.Age: integer;
@@ -1222,7 +1189,9 @@ begin
   begin
     try
       s := TSite(sitesunit.sites[i]);
-      if not SiteCanJoinPazo(s.WorkingStatus, s.PermDown) then
+      if not (s.WorkingStatus in [sstUnknown, sstUp]) then
+        Continue;
+      if s.PermDown then
         Continue;
       if aIsSpreadJob then
       begin
@@ -1264,8 +1233,7 @@ begin
       end;
 
       PazoSitesList.Add(ps);
-      if s.WorkingStatus <> sstTempDown then
-        CheckSiteSlots(s);
+      CheckSiteSlots(s);
     except
       on e: Exception do
       begin
@@ -2094,27 +2062,6 @@ begin
   delay_upload := fSite.delayupload[pazo.rls.section];
 
   Debug(dpSpam, section, 'DelaySetup %s: %d s for delayleech, %d s for delayupload', [Name, delay_leech, delay_upload]);
-end;
-
-procedure TPazoSite.MarkWakeSourcesAfterDirlist;
-begin
-  destinations_cs.Enter;
-  try
-    FWakeSourcesAfterDirlist := True;
-  finally
-    destinations_cs.Leave;
-  end;
-end;
-
-function TPazoSite.ConsumeWakeSourcesAfterDirlist: Boolean;
-begin
-  destinations_cs.Enter;
-  try
-    Result := FWakeSourcesAfterDirlist;
-    FWakeSourcesAfterDirlist := False;
-  finally
-    destinations_cs.Leave;
-  end;
 end;
 
 function TPazoSite.GetActiveTransferCount;
