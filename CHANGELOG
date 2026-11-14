@@ -59,8 +59,6 @@
     {+} Add enable_boxofficemojo_lookup option in [dbaddimdb] to fetch screen counts from Box Office Mojo (adds ~5-6s to IMDB lookup)
 
 --=============================( SLFTP v1.5.11 )==================================-
-    {^} Improve TLS handshake waiting and add per-site TLS diagnostics via !tlsstats SITE
-    {-} Disable shared TLS session reuse for comparison; retain event-based waits and pending-data reads
     {#} Fix error when trying to install openssl 1.1.1w via the libinstaller
     {#} Fix build on BSD
     {#} Fix corrupted sites.dat and rtpl/SITE.setting files when the process gets killed or crashes
@@ -80,6 +78,8 @@
     {^} Rewrite rules unit for faster race start
     {^} Rewrite of in-memory pre DB which now uses in-memory SQLite. Enable by using mode=0 in [dbaddpre] section of slftp.ini
     {^} Added support for OpenSSL 3
+    {^} Improve TLS handshake waiting and add per-site TLS diagnostics via !tlsstats SITE
+    {-} Disable shared TLS session reuse for comparison; retain event-based waits and pending-data reads
     {^} Improve parallelization of the queue which results in higher task throughput especially when you have many routes. If
         the CPU load gets too high, increate the value of newdir_dirlist_readd as it's not closer to actually reaching this value
         of dirlist interval
