@@ -502,7 +502,7 @@ implementation
 
 uses slconsole, SysUtils, DateUtils, Math
 {$IFDEF MSWINDOWS}
-  , Vcl.Clipbrd
+  , Clipbrd
 {$ENDIF}
   , debugunit, mystrings, mainthread, configunit, kb, irc, rulesunit,
   speedstatsunit, ranksunit, notify, mormot.core.os;
