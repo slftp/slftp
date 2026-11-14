@@ -20,7 +20,7 @@ implementation
 
 uses
   SysUtils, SyncObjs, irc, StrUtils, kb, debugunit, dateutils, queueunit, tags, console, dbaddimdb,
-  configunit, tasksunit, dirlist, mystrings, sitesunit, dbaddnfo, dbaddurl, kb.releaseinfo;
+  configunit, tasksunit, dirlist, mystrings, sitesunit, dbaddnfo, dbaddurl, kb.releaseinfo, sltlsstats;
 
 const
   section = 'tasksitenfo';
@@ -203,6 +203,7 @@ begin
           r := TPazoSiteNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
           r.startat := IncSecond(Now, GlTaskSiteNfoReaddInterval);
           AddTask(r);
+          s.site.TLSStats.AddRetry(tskNFO, False);
         except
           on e: Exception do
           begin
@@ -249,6 +250,7 @@ begin
 
           r.startat := IncSecond(Now, GlTaskSiteNfoReaddInterval);
           AddTask(r);
+          s.site.TLSStats.AddRetry(tskNFO, i <> 0);
         except
           on e: Exception do
           begin

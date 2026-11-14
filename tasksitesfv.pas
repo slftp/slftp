@@ -23,7 +23,7 @@ type
 implementation
 
 uses
-  SysUtils, SyncObjs, StrUtils, debugunit, dateutils, dirlist, sitesunit, irc, mystrings;
+  SysUtils, SyncObjs, StrUtils, debugunit, dateutils, dirlist, sitesunit, irc, mystrings, sltlsstats;
 
 const
   section = 'sfv';
@@ -48,6 +48,7 @@ procedure TPazoSiteSfvTask.CreateReattemptTask(const aIncrementAttempts: boolean
 var
   fSfvTask: TPazoSiteSfvTask;
   fAttempts: Integer;
+  fSite: TSite;
 begin
   fAttempts := self.FAttempt;
   if aIncrementAttempts then
@@ -71,6 +72,9 @@ begin
   fSfvTask.startat := IncMilliSecond(Now, 50);
   fSfvTask.FInitialTaskCreationTime := self.FInitialTaskCreationTime;
   AddTask(fSfvTask);
+  fSite := FindSiteByName(netname, site1);
+  if fSite <> nil then
+    fSite.TLSStats.AddRetry(tskSFV, aIncrementAttempts);
 end;
 
 function TPazoSiteSfvTask.Execute(slot: Pointer): boolean;

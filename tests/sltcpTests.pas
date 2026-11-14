@@ -16,18 +16,22 @@ type
     FServer, FClient, FPeer: TslTCPSocket;
     { Writes aData from the peer and reads it with the client until all of it arrived }
     function SendAndRead(const aData: String): String;
+    procedure CancelHandshake(aSocket: TslTCPSocket; var aShouldQuit: Boolean);
   protected
     procedure SetUp; override;
     procedure TearDown; override;
   published
     procedure TestReadReturnsOnlyCurrentData;
     procedure TestReadAfterBigRead;
+    procedure TestTLSHandshakeTimeoutIsMeasured;
+    procedure TestTLSHandshakeCancellationIsMeasured;
+    procedure TestTLSHandshakeErrorIsMeasured;
   end;
 
 implementation
 
 uses
-  SysUtils, slstack;
+  SysUtils, slstack, sltlsstats, mormot.lib.openssl11;
 
 { TTestSlTCP }
 
@@ -88,6 +92,59 @@ procedure TTestSlTCP.TestReadAfterBigRead;
 begin
   CheckEquals(StringOfChar('x', slBufferSize), SendAndRead(StringOfChar('x', slBufferSize)));
   CheckEquals('226 Done', SendAndRead('226 Done'));
+end;
+
+procedure TTestSlTCP.CancelHandshake(aSocket: TslTCPSocket; var aShouldQuit: Boolean);
+begin
+  aShouldQuit := True;
+end;
+
+procedure TTestSlTCP.TestTLSHandshakeTimeoutIsMeasured;
+var
+  fContext: PSSL_CTX;
+begin
+  fContext := SSL_CTX_new(TLS_client_method());
+  CheckTrue(fContext <> nil);
+  try
+    // The accepted peer stays silent, so SSL_connect must wait and time out.
+    CheckFalse(FClient.TurnToSSL(fContext, 30));
+    CheckEquals(Ord(thoTimeout), Ord(FClient.LastTLSHandshake.Outcome));
+    CheckTrue(FClient.LastTLSHandshake.ElapsedMs >= 30);
+  finally
+    SSL_CTX_free(fContext);
+  end;
+end;
+
+procedure TTestSlTCP.TestTLSHandshakeCancellationIsMeasured;
+var
+  fContext: PSSL_CTX;
+begin
+  fContext := SSL_CTX_new(TLS_client_method());
+  CheckTrue(fContext <> nil);
+  try
+    FClient.OnWaitingforSocket := CancelHandshake;
+    CheckFalse(FClient.TurnToSSL(fContext, 5000));
+    CheckEquals(Ord(thoCancelled), Ord(FClient.LastTLSHandshake.Outcome));
+    CheckEquals('shouldquit', FClient.error);
+  finally
+    SSL_CTX_free(fContext);
+  end;
+end;
+
+procedure TTestSlTCP.TestTLSHandshakeErrorIsMeasured;
+var
+  fContext: PSSL_CTX;
+begin
+  fContext := SSL_CTX_new(TLS_client_method());
+  CheckTrue(fContext <> nil);
+  try
+    CheckTrue(FPeer.Write('HTTP/1.1 400 Bad Request' + #13#10#13#10));
+    CheckFalse(FClient.TurnToSSL(fContext, 5000));
+    CheckEquals(Ord(thoError), Ord(FClient.LastTLSHandshake.Outcome));
+    CheckTrue(FClient.LastTLSHandshake.ElapsedMs >= 0);
+  finally
+    SSL_CTX_free(fContext);
+  end;
 end;
 
 initialization

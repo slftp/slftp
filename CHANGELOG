@@ -59,6 +59,8 @@
     {+} Add enable_boxofficemojo_lookup option in [dbaddimdb] to fetch screen counts from Box Office Mojo (adds ~5-6s to IMDB lookup)
 
 --=============================( SLFTP v1.5.11 )==================================-
+    {^} Improve TLS handshake waiting and add per-site TLS diagnostics via !tlsstats SITE
+    {-} Disable shared TLS session reuse for comparison; retain event-based waits and pending-data reads
     {#} Fix error when trying to install openssl 1.1.1w via the libinstaller
     {#} Fix build on BSD
     {#} Fix corrupted sites.dat and rtpl/SITE.setting files when the process gets killed or crashes

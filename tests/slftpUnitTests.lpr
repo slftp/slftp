@@ -54,6 +54,7 @@ uses
   taskhttpimdbTests,
   slsslTests,
   sltcpTests,
+  sltlsstatsTests,
   sitesunitTests,
   precatcherTests,
   slcriticalsection2Tests,

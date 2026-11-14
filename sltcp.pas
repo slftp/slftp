@@ -9,7 +9,7 @@ uses
       baseunix,
     {$ENDIF}
   {$ENDIF}
-  mslproxys, slstack, debugunit, slssl, mormot.lib.openssl11, mormot.core.os;
+  mslproxys, slstack, debugunit, slssl, mormot.lib.openssl11, mormot.core.os, sltlsstats;
 
 const
   slDefaultTimeout = 10000; // default timeout is 10 seconds
@@ -45,6 +45,7 @@ type
     fss: TStringStream;
     fSSL: PSSL;
     FSSLReadStats: TSSLReadStats;
+    FLastTLSHandshake: TTLSHandshakeSample;
     fSSLCTX: PSSL_CTX;
     fBindIp: String;
     fBindPort: Integer;
@@ -69,6 +70,8 @@ type
     socks5: TslSocks5;
 
     function TakeSSLReadStats: TSSLReadStats;
+    { Result of the last completed handshake call; read only by the owning socket thread. }
+    property LastTLSHandshake: TTLSHandshakeSample read FLastTLSHandshake;
     function IsWriteAble(timeout: Integer): Boolean;
     function IsReadAble(timeout: Integer): Boolean;
     function connected: Boolean;
@@ -96,12 +99,8 @@ type
     function Listen(backlog: Integer): Boolean;
 
     function TurnToSSL(timeout: Integer = slDefaultTimeout): Boolean; overload;
-    function TurnToSSL(sslctx: PSSL_CTX; timeout: Integer = slDefaultTimeout; session: PSSL_SESSION = nil): Boolean; overload;
-    function TurnToSSLWithSession(timeout: Integer; session: PSSL_SESSION): Boolean;
+    function TurnToSSL(sslctx: PSSL_CTX; timeout: Integer = slDefaultTimeout): Boolean; overload;
     function AcceptSSL(sslctx: PSSL_CTX; timeout: Integer = slDefaultTimeout): Boolean;
-    { Returns the session of the current SSL connection with incremented reference
-      count. The caller owns the reference and must release it via SslSessionFree. }
-    function ExtractSSLSession: PSSL_SESSION;
   published
     property BindPort: Integer read fBindPort write fBindPort;
     property OnWaitingforSocket: TWaitingForSocketEvent read fOnWaitingforSocket write fOnWaitingforSocket;
@@ -591,17 +590,10 @@ end;
 
 
 
-function TslTCPSocket.ExtractSSLSession: PSSL_SESSION;
-begin
-  Result := nil;
-  if fSSL <> nil then
-    Result := SslGetSession(fSSL);
-end;
-
 function TslTCPSocket.TurnToSSL(timeout: Integer = slDefaultTimeout): Boolean;
 begin
   try
-    Result:= TurnToSSL(fsslctx, timeout, nil);
+    Result:= TurnToSSL(fsslctx, timeout);
   except
     on e: Exception do
     begin
@@ -611,20 +603,7 @@ begin
   end;
 end;
 
-function TslTCPSocket.TurnToSSLWithSession(timeout: Integer; session: PSSL_SESSION): Boolean;
-begin
-  try
-    Result:= TurnToSSL(fsslctx, timeout, session);
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, 'sltcp', Format('[EXCEPTION] TslTCPSocket.TurnToSSLWithSession: %s', [e.Message]));
-      Result:= False;
-    end;
-  end;
-end;
-
-function TslTCPSocket.TurnToSSL(sslctx: PSSL_CTX; timeout: Integer = slDefaultTimeout; session: PSSL_SESSION = nil): Boolean;
+function TslTCPSocket.TurnToSSL(sslctx: PSSL_CTX; timeout: Integer = slDefaultTimeout): Boolean;
 var er: String;
     sslerr, err: Integer;
     shouldquit: Boolean;
@@ -637,6 +616,9 @@ begin
   Result:= False;
   sslerr := 0;
   startTime := GetTickCount64;
+  FLastTLSHandshake.Outcome := thoError;
+  FLastTLSHandshake.ElapsedMs := 0;
+  try
   try
     setlength(er, 512);
 
@@ -674,15 +656,12 @@ begin
       exit;
     end;
 
-    // Try to resume a previously saved SSL session for faster reconnects
-    // (does not take ownership, the caller keeps its session reference)
-    SslSetSession(fSSL, session);
-
     while(true)do
     begin
       elapsed := GetTickCount64 - startTime;
       if elapsed > timeout then
       begin
+        FLastTLSHandshake.Outcome := thoTimeout;
         er:= GetLastSSLError(fSSL, sslerr);
         error:= 'timeout, ssl failed '+ er;
         DisconnectSSL;
@@ -704,6 +683,7 @@ begin
 
         if shouldquit then
         begin
+          FLastTLSHandshake.Outcome := thoCancelled;
           DisconnectSSL;
           slSetBlocking(slSocket,er);
           error:= 'shouldquit';
@@ -770,6 +750,11 @@ begin
       Result:= False;
     end;
   end;
+  finally
+    FLastTLSHandshake.ElapsedMs := Int64(GetTickCount64) - startTime;
+    if Result then
+      FLastTLSHandshake.Outcome := thoSuccess;
+  end;
 end;
 
 function TslTCPSocket.AcceptSSL(sslctx: PSSL_CTX; timeout: Integer = slDefaultTimeout): Boolean;
@@ -785,6 +770,9 @@ begin
   Result:= False;
   sslerr := 0;
   startTime := GetTickCount64;
+  FLastTLSHandshake.Outcome := thoError;
+  FLastTLSHandshake.ElapsedMs := 0;
+  try
   try
     setlength(er, 512);
 
@@ -826,6 +814,7 @@ begin
       elapsed := GetTickCount64 - startTime;
       if elapsed > timeout then
       begin
+        FLastTLSHandshake.Outcome := thoTimeout;
         er:= GetLastSSLError(fSSL, sslerr);
         error:= 'timeout, ssl failed '+ er;
         DisconnectSSL;
@@ -847,6 +836,7 @@ begin
 
         if shouldquit then
         begin
+          FLastTLSHandshake.Outcome := thoCancelled;
           DisconnectSSL;
           slSetBlocking(slSocket,er);
           error:= 'shouldquit';
@@ -909,6 +899,11 @@ begin
       error:= 'exception';
       Result:= False;
     end;
+  end;
+  finally
+    FLastTLSHandshake.ElapsedMs := Int64(GetTickCount64) - startTime;
+    if Result then
+      FLastTLSHandshake.Outcome := thoSuccess;
   end;
 end;
 

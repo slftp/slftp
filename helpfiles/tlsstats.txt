@@ -1,0 +1,30 @@
+Show cumulative TLS and metadata-download diagnostics for one site.
+Usage: <cmd> SITENAME
+
+<cmd> CSP
+
+Counters are kept in memory from site creation until removal or process exit.
+Reading them does not reset them. window_ms is the age of the counters, not
+the duration of the last release. Take two snapshots to compare a time window.
+Rows: login (TLS negotiation only), sfv, nfo and other metadata downloads.
+
+hs: completed handshake calls, including failures
+ok/err/timeout/cancelled: mutually exclusive handshake outcomes; their sum is hs
+hs_ms/hs_max_ms: sum/maximum wall time of handshake calls, including failure cleanup
+dl/dl_ok/dl_err: admitted Leechfile calls and their outcomes
+dl_ms/dl_max_ms: sum/maximum whole Leechfile time (includes TLS and FTP commands)
+retry_err: enqueued SFV/NFO retries after a failed download
+retry_wait: enqueued retries because metadata is not ready or capacity is unavailable
+
+Durations use a monotonic clock. Concurrent operations overlap: sums are not
+process runtime, and dl_ms must not be added to hs_ms. Totals include failed calls.
+Downloads rejected before reserving a slot are not counted as dl.
+Retries that have not started yet are counted; retries exhausted without a new
+task are not. These totals do not describe direct server-to-server FXP traffic.
+
+session_reuse=disabled identifies this comparison build: no cached sessions are
+offered. It is not a measured reuse rate. No additional OpenSSL library is loaded.
+Handshake event waiting and SSL_pending reads remain enabled.
+
+Output is on demand only, to the requesting IRC channel or console. Existing
+TLS DATA READ messages still report per-release metadata reads separately.

@@ -15,6 +15,10 @@
 - `precatcher.pas` — IRC announce catching; `rulesunit.pas` + `rules/ruleconditions.*.pas` — rule engine
 - `sltcp.pas`, `slssl.pas`, `mslproxys.pas` — own socket layer on top of mORMot2 OpenSSL bindings,
   incl. SOCKS5
+- `sltlsstats.pas` — per-site in-memory TLS diagnostics, read via `!tlsstats SITE`.
+  Handshake samples come from `TslTCPSocket`; `TSiteSlot` records login and metadata-download totals.
+  SFV/NFO tasks count enqueued retries. Network I/O and IRC formatting stay outside the stats lock.
+  The TLS comparison build does not cache or offer sessions; event waits and pending-data reads remain.
 - `debugunit.pas` — logging via `Debug(dpError | dpMessage | dpSpam, section, msg)`; each unit declares
   its own `const section = '...'`
 - `configunit.pas`, `encinifile.pas` — ini-based config (`config/slftp.ini`); runtime files are created

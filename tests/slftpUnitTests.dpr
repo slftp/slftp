@@ -64,6 +64,7 @@ uses
   slftpUnitTestsSetup,
   slsslTests,
   sltcpTests,
+  sltlsstatsTests,
   mystringsTests,
   mystringsTests.Base64,
   httpTests,
