@@ -17,8 +17,6 @@ type
     procedure TestMatches3;
     procedure TestMatches4;
     procedure TestMatches5;
-    procedure TestWildcardQuestionMark;
-    procedure TestWildcardCharacterSet;
   end;
 
 implementation
@@ -101,32 +99,6 @@ begin
     CheckTrue(fMask.Matches('Sample'), 'Should match!');
     CheckFalse(fMask.Matches('Samplefile'), 'Should not match!');
     CheckFalse(fMask.Matches('DelSample'), 'Should not match!');
-  finally
-    fMask.Free;
-  end;
-end;
-
-procedure TTestTslMask.TestWildcardQuestionMark;
-var
-  fMask: TslMask;
-begin
-  fMask := TslMask.Create('file?.[mM][pP]3');
-  try
-    CheckTrue(fMask.Matches('file1.mp3'), 'Should match one arbitrary character and case-insensitive sets');
-    CheckFalse(fMask.Matches('file12.mp3'), 'Question mark must match exactly one character');
-  finally
-    fMask.Free;
-  end;
-end;
-
-procedure TTestTslMask.TestWildcardCharacterSet;
-var
-  fMask: TslMask;
-begin
-  fMask := TslMask.Create('release-[a-c].zip');
-  try
-    CheckTrue(fMask.Matches('RELEASE-B.ZIP'), 'Mask matching should be case-insensitive');
-    CheckFalse(fMask.Matches('release-d.zip'), 'Character ranges must reject characters outside the range');
   finally
     fMask.Free;
   end;

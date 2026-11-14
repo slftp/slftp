@@ -36,7 +36,7 @@ type
 implementation
 
 uses
-  debugunit, mormot.lib.openssl11, mormot.core.os, {$IFDEF UNICODE}NetEncoding,{$ENDIF} mystrings, blowfishdiag;
+  debugunit, mormot.lib.openssl11, mormot.core.os, {$IFDEF UNICODE}NetEncoding,{$ENDIF} mystrings;
 
 const
   section = 'ircblowfish.CBC';
@@ -152,7 +152,6 @@ begin
     SetLength(dTextHelper, fDTextLength);
     move(dText[1], dTextHelper[0], fDTextLength);
   {$ENDIF}
-  RecordBlowfishDiagnosticUse(bdmIrcCbcEncrypt, BlowkeyLength, Length(dTextHelper));
 
   FillChar(fRealIV[0], Length(fRealIV), 0);
 
@@ -286,7 +285,6 @@ begin
       SetLength(B64Text, LengthB64Text - LengthB64TextMod);
       LengthB64Text := Length(B64Text);
     end;
-    RecordBlowfishDiagnosticUse(bdmIrcCbcDecrypt, BlowkeyLength, LengthB64Text);
 
     {* decrypt... *}
     fSuccess := BlowfishCipherWalk(fCTX, @B64Text[0], LengthB64Text, DecryptedText);

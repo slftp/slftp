@@ -3,12 +3,33 @@ unit slblowfish;
 interface
 
 uses
+  delphiblowfish,
 {$IFDEF FPC}
   zstream,
 {$ELSE}
   ZLib,
 {$ENDIF}
  Classes;
+
+type
+  TslBlowfishBlock= array[0..7] of byte;
+
+  { TslBlowfish }
+
+  TslBlowfish = class
+  private
+    KeyData: TBlowfishData;
+  public
+    constructor Create(const key: array of byte); overload;
+    constructor Create(const key, iv: array of byte); overload;
+
+    procedure Reset;
+
+    procedure EncryptECB(InData, OutData: Pointer);
+    procedure EncryptCBC(InData, OutData: Pointer);
+    procedure DecryptECB(InData, OutData: Pointer);
+    procedure DecryptCBC(InData, OutData: Pointer);
+  end;
 
 procedure EncryptStreamToStream(input, ostream: TStream; const Key: array of byte; compressstream: Boolean = False);
 procedure EncryptStreamToFile(input: TStream; output: String; const Key: array of byte; compressstream: Boolean = False);
@@ -19,23 +40,21 @@ procedure DecryptFileToFile(input: String; output: String; const Key: array of b
 
 implementation
 
-uses SysUtils, slblowfishcipher, blowfishdiag{$IFDEF MSWINDOWS},Windows {$ENDIF};
+uses SysUtils{$IFDEF MSWINDOWS},Windows {$ENDIF};
 
 const
   defaultIV: array[0..7] of byte= ($11, $22, $33, $44, $55, $66, $77, $88);
   BUFSIZE = 16384; // ez 8 tobbszorose kell hogy legyen
 
-type
-  TslBlowfish = class
-  private
-    FCipher: TslBlowfishCipher;
-  public
-    constructor Create(const key, iv: array of byte; aEncrypt: Boolean);
-    destructor Destroy; override;
-    procedure EncryptCBC(InData, OutData: Pointer);
-    procedure DecryptCBC(InData, OutData: Pointer);
-    procedure Final;
-  end;
+{$IFDEF FPC}
+procedure XorBlock(I1, I2, O1: PByteArray; len: Integer);
+var
+  i: integer;
+begin
+  for i:= 0 to Len-1 do
+    O1^[i]:= I1^[i] xor I2^[i];
+end;
+{$ENDIF}
 
 procedure EncryptStreamToStream(input, ostream: TStream; const Key: array of byte; compressstream: Boolean = False);
 var read, aktread: Integer;
@@ -47,7 +66,7 @@ var read, aktread: Integer;
 
     b: TslBlowfish;
 begin
-  b:= TslBlowfish.Create(key, defaultIV, True);
+  b:= TslBlowfish.Create(key);
 
   input.Position:= 0;
   istream:= TMemoryStream.Create;
@@ -61,7 +80,6 @@ begin
     istream.CopyFrom(input, input.Size);
 
   try
-    RecordBlowfishDiagnosticUse(bdmFileCbcEncrypt, Length(Key), istream.Size);
     // eltaroljuk a meretet eloszor
     size:= istream.Size;
     b.EncryptCBC(@size,@buf);
@@ -85,7 +103,6 @@ begin
 
       inc(read, aktread);
     end;
-    b.Final;
   finally
     istream.Free;
 
@@ -130,12 +147,11 @@ var read, aktread: Integer;
     size: Int64;
     b: TslBlowfish;
 begin
-  b:= TslBlowfish.Create(Key, defaultIV, False);
+  b:= TslBlowfish.Create(Key);
 
   ostream:= TMemoryStream.Create;
 
   try
-    RecordBlowfishDiagnosticUse(bdmFileCbcDecrypt, Length(Key), istream.Size);
     // kiolvassuk a meretet eloszor
     // eltaroljuk a meretet eloszor
     istream.Read(size, 8);
@@ -157,7 +173,6 @@ begin
         ostream.Write(buf, aktread);
 
     end;
-    b.Final;
 
     ostream.Position:= 0;
     if decompressstream then
@@ -215,31 +230,39 @@ end;
 
 { TslBlowfish }
 
-constructor TslBlowfish.Create(const key, iv: array of byte; aEncrypt: Boolean);
+constructor TslBlowfish.Create(const key, iv: array of byte);
 begin
-  inherited Create;
-  FCipher := TslBlowfishCipher.Create(key, iv, sbmCBC, aEncrypt);
+  BlowfishInit(KeyData, @Key,Length(Key),@IV);
 end;
 
-destructor TslBlowfish.Destroy;
+procedure TslBlowfish.Reset;
 begin
-  FCipher.Free;
-  inherited Destroy;
+  BlowfishBurn(KeyData);
 end;
 
-procedure TslBlowfish.Final;
+constructor TslBlowfish.Create(const key: array of byte);
 begin
-  FCipher.Final;
+  Create(key, defaultIV);
 end;
 
 procedure TslBlowfish.DecryptCBC(InData, OutData: pointer);
 begin
-  FCipher.Update(InData, OutData, 8);
+  BlowfishDecryptCBC(KeyData, InData, OutData);
+end;
+
+procedure TslBlowfish.DecryptECB(InData, OutData: pointer);
+begin
+  BlowfishDecryptECB(KeyData, InData, OutData);
 end;
 
 procedure TslBlowfish.EncryptCBC(InData, OutData: pointer);
 begin
-  FCipher.Update(InData, OutData, 8);
+  BlowfishEncryptCBC(KeyData, InData, OutData);
+end;
+
+procedure TslBlowfish.EncryptECB(InData, OutData: pointer);
+begin
+  BlowfishEncryptECB(KeyData, InData, OutData);
 end;
 
 
