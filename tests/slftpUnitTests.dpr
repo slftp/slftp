@@ -86,6 +86,7 @@ uses
   kb.releaseinfo.MVIDTests,
   taskhttpimdbTests,
   sitesunitTests,
+  queueunitTests,
   precatcherTests,
   slcriticalsection2Tests,
   dbhandlerTests,
