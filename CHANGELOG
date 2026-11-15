@@ -64,6 +64,8 @@
     {#} Fix corrupted sites.dat, rtpl/SITE.setting and other data files (e.g. slftp.news, slftp.ranks,
         slftp.speedstats) when the process gets killed or crashes
     {#} Fix REQUEST precatcher event firing when it should not
+    {#} Fix IRC connections through ZNC being dropped while slftp is busy reading a backlog; a keepalive PING is now
+        sent at least every minute
     {#} Fix news dupecheck re-adding duplicates younger than 7 days as unread, e.g. TVMaze messages
     {+} Enable SFV check to avoid sending wrong files. Set sections in SFVRelease in [taskrace] of slftp.ini
     {+} Enable locks with timeout in slftp.ini section 'debug' setting 'event_based_locking'. This is to debug deadlocks and

@@ -55,6 +55,7 @@ uses
   slsslTests,
   sltcpTests,
   sitesunitTests,
+  queueunitTests,
   precatcherTests,
   slcriticalsection2Tests,
   dbhandlerTests,

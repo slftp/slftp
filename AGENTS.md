@@ -52,7 +52,7 @@ Read the doc that matches your task before changing code.
 | [.agents/docs/wsl-fpc-setup.md](.agents/docs/wsl-fpc-setup.md) | setting up WSL so that a Windows machine can build with FPC   |
 | [.agents/docs/conventions.md](.agents/docs/conventions.md)   | writing code, docs, commit messages or CHANGELOG entries         |
 | [.agents/docs/databases.md](.agents/docs/databases.md)       | touching SQLite/MySQL code (mORMot2 parameter binding pitfall)   |
-| [.agents/docs/merge-requests.md](.agents/docs/merge-requests.md) | opening a merge request: `glab`, or REST API/push options without it |
+| [.agents/docs/merge-requests.md](.agents/docs/merge-requests.md) | pushing a branch or opening a merge request: `glab`, or REST API/push options without it |
 | [.agents/skills/](.agents/skills/README.md)                  | optional shortcuts for the most common tasks — check the index   |
 | [.agents/scripts/](.agents/scripts/)                         | changing a script that several skills share; each documents itself in its header |
 | [docs/](docs/)                                             | user/operator docs: runtime files, precatcher, chains, indexer, tvinfo, FAQ |
@@ -68,6 +68,8 @@ These instructions are maintained by the agents that use them. As part of every 
 - **Fix** wrong or outdated information immediately — in docs and in skills — instead of working around it.
 - **Skills:** never add one on your own. Suggest it only if it is really worth it, list its advantages and
   disadvantages, and add it only after the user confirms. See [.agents/skills/](.agents/skills/README.md).
+- **Pinned versions:** before a task uses a skill that pins third-party software, check for newer
+  releases (at most every 30 days) and offer the update: [pinned third-party software](.agents/skills/README.md#pinned-third-party-software).
 
 Keep this file an overview and index: rules as one-line headlines, details only in `.agents/docs/` (new
 files get a row in the index), never in both.

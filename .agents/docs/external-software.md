@@ -38,12 +38,20 @@ rather than sniffing banners or error strings ad hoc elsewhere.
 slFtp is a generic IRC client/bot ([`irc.pas`](../../irc.pas), [`irc.parse.pas`](../../irc.parse.pas)) and
 does not depend on a specific IRC daemon — scene IRC networks commonly run
 **[UnrealIRCd](https://www.unrealircd.org/)** or **[InspIRCd](https://www.inspircd.org/)**, but slFtp
-only needs standard IRC protocol plus some IRCv3 bits (see the IRCv3 reference in `parseIrcJOIN`).
+only needs standard IRC protocol plus some IRCv3 bits (see the IRCv3 reference in `parseIrcJOIN`). The
+skill [unrealircd](../skills/unrealircd/SKILL.md) starts a local server for tests.
 
 One de facto scene standard slFtp *does* implement is **FiSH/Mircryption-compatible blowfish channel
 encryption**, in both ECB and CBC mode (`ircblowfish.ECB.pas`, `ircblowfish.CBC.pas`). This is a
 client-side convention (shared by mIRC scripts, irssi plugins, etc.), not an ircd feature — any ircd
 works as long as it relays the encrypted `PRIVMSG`/`NOTICE` payload unchanged.
+
+Operators often connect through a **[ZNC](https://znc.in/)** bouncer. ZNC drops a client from which it
+has received nothing for the user's `NoTrafficTimeout` (default 180 s); its own sending doesn't count.
+Normally a client answers ZNC's `PING` (sent after half that time) or sends its own keepalive, so this
+only happens when an IRC thread falls far behind with reading: then ZNC's `PING` waits in the backlog.
+That's why the read loop of `TMyIrcThread.IrcProcess` must not run until the data runs out: it is left
+after a time limit, so that `TMyIrcThread.SendKeepAlivePing` and the other checks below it still run.
 
 ## Libraries
 

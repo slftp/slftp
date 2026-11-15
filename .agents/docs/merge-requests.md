@@ -1,4 +1,4 @@
-# Opening merge requests
+# Pushing and opening merge requests
 
 This project is hosted on **GitLab** (`gitlab.com/slftp/slftp`), not GitHub — `gh` does not work here.
 Use GitLab's CLI, **[`glab`](https://gitlab.com/gitlab-org/cli)**, instead.
@@ -12,14 +12,29 @@ Use GitLab's CLI, **[`glab`](https://gitlab.com/gitlab-org/cli)**, instead.
 ## Creating an MR
 
 ```
-git push -u origin <branch>
-glab mr create --source-branch <branch> --target-branch dev \
+git -c credential.helper= -c 'credential.helper=!glab auth git-credential' \
+  push https://gitlab.com/slftp/slftp.git <branch>
+git fetch origin <branch>
+git branch -u origin/<branch>
+glab mr create --source-branch <branch> --target-branch dev --remove-source-branch \
   --title "..." --description "..."
 ```
 
 `glab mr create` without `--title`/`--description` opens an interactive prompt; pass both flags to run
 non-interactively. Target `dev`, not the repo's default branch display — see `AGENTS.md` ("Integration
 branch: `dev`").
+
+### Pushing with `glab`'s token
+
+Push with `glab`'s token as above, also when updating an MR: it needs no interaction. A plain
+`git push origin` goes through the configured credential helper, and Git Credential Manager on Windows
+opens a browser login the user has to accept, or fails in an agent's shell with "terminal prompts
+disabled" or "Cannot prompt because user interactivity has been disabled". Push that way only if `glab`
+isn't authenticated.
+
+Leave the user name out of the URL: `glab` supplies its own and rejects any other, e.g. the one in
+`origin`'s URL. A push to a URL doesn't update `origin/<branch>`, hence the `git fetch`;
+`git branch -u` is only needed for a new branch.
 
 ## Without `glab`
 
@@ -54,7 +69,8 @@ Create the MR with whatever HTTP client and JSON encoder you have:
 
 - `POST https://gitlab.com/api/v4/projects/slftp%2Fslftp/merge_requests`
 - header `Authorization: Bearer <token>`
-- JSON body with `source_branch`, `target_branch` (`dev`), `title` and `description`
+- JSON body with `source_branch`, `target_branch` (`dev`), `title`, `description` and
+  `remove_source_branch` (`true`)
 
 Never print the token or put it on a command line, where the process list shows it. Encode the JSON
 with a real encoder instead of escaping it by hand, and keep temporary files outside the repo. The branch

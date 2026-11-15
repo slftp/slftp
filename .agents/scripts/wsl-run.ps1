@@ -1,7 +1,8 @@
 <#
 .SYNOPSIS
   Runs a long script in WSL for the Windows entries of the skills: dot-sourced by
-  .agents/skills/test-both-compilers/fpc-wsl.ps1 and .agents/skills/glftpd-e2e/e2e.ps1.
+  .agents/skills/test-both-compilers/fpc-wsl.ps1, .agents/skills/glftpd-e2e/e2e.ps1 and
+  .agents/skills/unrealircd/ircd.ps1.
 .DESCRIPTION
   Initialize-Wsl  selects the WSL distribution and checks that it works, exit code 2 if not
   Invoke-Wsl      runs a command in it
