@@ -86,12 +86,14 @@ uses
   kb.releaseinfo.MVIDTests,
   taskhttpimdbTests,
   sitesunitTests,
+  queueunitTests,
   precatcherTests,
   slcriticalsection2Tests,
   dbhandlerTests,
   indexerTests,
   variantCacheTests,
-  sltimerTests;
+  sltimerTests,
+  newsTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}

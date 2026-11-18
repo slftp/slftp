@@ -34,7 +34,8 @@ type
     irc_last_read: TDateTime;
     registered: Boolean;
     FWaitingForZncUpstream: Boolean; //< @true if ZNC told us it has no connection to the IRC server yet
-    irc_last_written: tdatetime;
+    irc_last_written: tdatetime; //< time when @link(IrcSendPrivMessage) sent the last message, only used to pace the echo messages; unlike @link(FLastWriteTime), other writes don't update it
+    FLastWriteTime: TDateTime; //< time when the last line has been sent to the server, see @link(SendKeepAlivePing)
     lastservername: String;
     FCurrentIrcNick: String;
     flood: integer;
@@ -62,6 +63,10 @@ type
     function IrcProcessLine(s: String): Boolean;
     function IrcProcess: Boolean;
     function IrcPing(cumo: String): Boolean;
+    { Sends a PING to the server if nothing has been sent to it for 60 seconds. Bouncers like ZNC drop a client
+      they haven't received anything from for a while, even if the client is still busy reading a backlog.
+      The PING carries the token of the last server PING, or a fixed token if none has been processed yet. }
+    procedure SendKeepAlivePing;
     procedure IrcPrivMsg(const s: String);
     function ShouldJoinGame: Boolean;
     procedure ClearSiteInvited;
@@ -656,6 +661,7 @@ begin
   FSocketWriteLock.Enter('IrcWrite');
   try
     irc_last_read := Now();
+    FLastWriteTime := Now();
     try
       Result := WriteLn(Copy(s, 1, MaxInt));
     except on E: Exception do
@@ -736,6 +742,18 @@ function TMyIrcThread.IrcPing(cumo: String): Boolean;
 begin
   Result := IrcWrite('PONG ' + cumo);
   lastservername := cumo;
+end;
+
+procedure TMyIrcThread.SendKeepAlivePing;
+begin
+  if SecondsBetween(Now, FLastWriteTime) <= 60 then
+    exit;
+
+  // don't wait for the first server PING: a thread that is behind right after connecting might not reach it in time
+  if lastservername <> '' then
+    IrcWrite('PING ' + lastservername)
+  else
+    IrcWrite('PING :slftp');
 end;
 
 function CommandAuthorized(const netname, channel, cmd: String): Boolean;
@@ -1549,6 +1567,7 @@ var
   s, osszes: String;
   fEchoQueueList: TList<TIrcEchoItem>;
   fEchoItem: TIrcEchoItem;
+  fReadStart: TDateTime;
 begin
   Result := False;
   while ((not shouldrestart) and (not shouldquit)) do
@@ -1557,12 +1576,17 @@ begin
       ShouldJoinGame();
 
     try
+      fReadStart := Now;
       while ReadLn(s, osszes, 100) do
       begin
         if (s = '') then
           Break;
         if not IrcProcessLine(s) then
           break;
+        // while lines arrive faster than they are processed, ReadLn never runs out of data: leave the loop
+        // regularly so that the checks below still run, at least as often as an echo message may be sent
+        if MilliSecondsBetween(Now, fReadStart) > flood then
+          Break;
       end;
     except
       on e: Exception do
@@ -1597,8 +1621,7 @@ begin
       end;
     end;
 
-    if ((SecondsBetween(Now, irc_last_read) > 60) and (lastservername <> '')) then
-      ircwrite('PING ' + lastservername);
+    SendKeepAlivePing;
 
     if SecondsBetween(Now, irc_last_read) > irc_timeout then
     begin
