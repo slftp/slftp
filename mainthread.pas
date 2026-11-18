@@ -64,6 +64,7 @@ uses
 
 const
   section = 'mainthread';
+  cNewsSaveInterval = 60; //< seconds between two saves of changed news entries
 
 var
   queue_fire: integer;
@@ -430,6 +431,19 @@ begin
       begin
         Debug(dpError, section, '[EXCEPTION] Main_Iter(BackupBackup): %s', [e.Message]);
         backup_last_backup := Now;
+      end;
+    end;
+  end;
+
+  // news save scheduler
+  if (SecondsBetween(Now, news_last_save) >= cNewsSaveInterval) then
+  begin
+    try
+      NewsSave;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, '[EXCEPTION] Main_Iter(NewsSave): %s', [e.Message]);
       end;
     end;
   end;

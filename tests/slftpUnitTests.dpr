@@ -92,7 +92,8 @@ uses
   dbhandlerTests,
   indexerTests,
   variantCacheTests,
-  sltimerTests;
+  sltimerTests,
+  newsTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
