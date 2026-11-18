@@ -47,6 +47,11 @@ uses
     @param(aTopic Channel topic)
     @returns(parsed Channel and Topic) }  
   procedure parseIrcTOPIC(const aIrcdLine: String; out aChan, aTopic: String);
+  { Checks if the line is the welcome which the ZNC bouncer sends itself because it has no connection to
+    the IRC server. Once ZNC reaches the server, it forwards the server's own welcome and MOTD.
+    @param(aIrcdLine the line sent by the IRCd)
+    @returns(@true if it's ZNC's own 001 welcome, @false otherwise) }
+  function isZncWelcomeWithoutUpstream(const aIrcdLine: String): Boolean;
 
 implementation
 
@@ -106,5 +111,14 @@ begin
   aChan := SubString(aIrcdLine, ' ', 3);
 end;
 
+
+function isZncWelcomeWithoutUpstream(const aIrcdLine: String): Boolean;
+const
+  // ZNC sends lines it generates itself with this hard-coded server name
+  cZncWelcome = ':irc.znc.in 001 ';
+begin
+  // :irc.znc.in 001 slnick :Welcome to ZNC
+  Result := Copy(aIrcdLine, 1, Length(cZncWelcome)) = cZncWelcome;
+end;
 
 end.
