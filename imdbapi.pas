@@ -40,7 +40,8 @@ begin
 
   if HttpPostJsonUrl(fUrl, fBody, fResponse, fErrMsg, 2,
     'Origin: https://www.imdb.com'#13#10 +
-    'Referer: https://www.imdb.com/') then
+    'Referer: https://www.imdb.com/'#13#10 +
+    'x-imdb-client-name: imdb-web-next') then
   begin
     fRoot := _JsonFast(fResponse);
     if not VarIsNull(fRoot) then
