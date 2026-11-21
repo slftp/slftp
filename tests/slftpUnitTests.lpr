@@ -55,6 +55,7 @@ uses
   slsslTests,
   sltcpTests,
   sitesunitTests,
+  queueunitTests,
   precatcherTests,
   slcriticalsection2Tests,
   dbhandlerTests,
@@ -66,7 +67,8 @@ uses
   ruleconditions.tvTests,
   pazoTests,
   mycryptoTests,
-  mormot.db.sql.sqlite3;
+  mormot.db.sql.sqlite3,
+  newsTests;
 
 {* returns the value of the --junit=<filename> command line option
    @returns(the file name, or empty string if the option is not present) *}

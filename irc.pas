@@ -41,7 +41,9 @@ type
 
     irc_last_read: TDateTime;
     registered: Boolean;
-    irc_last_written: tdatetime;
+    FWaitingForZncUpstream: Boolean; //< @true if ZNC told us it has no connection to the IRC server yet
+    irc_last_written: tdatetime; //< time when @link(IrcSendPrivMessage) sent the last message, only used to pace the echo messages; unlike @link(FLastWriteTime), other writes don't update it
+    FLastWriteTime: TDateTime; //< time when the last line has been sent to the server, see @link(SendKeepAlivePing)
     lastservername: String;
     FCurrentIrcNick: String;
     flood: integer;
@@ -71,6 +73,10 @@ type
     function IrcProcessLine(s: String): Boolean;
     function IrcProcess: Boolean;
     function IrcPing(cumo: String): Boolean;
+    { Sends a PING to the server if nothing has been sent to it for 60 seconds. Bouncers like ZNC drop a client
+      they haven't received anything from for a while, even if the client is still busy reading a backlog.
+      The PING carries the token of the last server PING, or a fixed token if none has been processed yet. }
+    procedure SendKeepAlivePing;
     procedure IrcPrivMsg(const s: String);
     function ShouldJoinGame: Boolean;
     procedure ClearSiteInvited;
@@ -676,6 +682,7 @@ begin
   FSocketWriteLock.Enter('IrcWrite');
   try
     irc_last_read := Now();
+    FLastWriteTime := Now();
     try
       Result := WriteLn(Copy(s, 1, MaxInt));
     except on E: Exception do
@@ -756,6 +763,18 @@ function TMyIrcThread.IrcPing(cumo: String): Boolean;
 begin
   Result := IrcWrite('PONG ' + cumo);
   lastservername := cumo;
+end;
+
+procedure TMyIrcThread.SendKeepAlivePing;
+begin
+  if SecondsBetween(Now, FLastWriteTime) <= 60 then
+    exit;
+
+  // don't wait for the first server PING: a thread that is behind right after connecting might not reach it in time
+  if lastservername <> '' then
+    IrcWrite('PING ' + lastservername)
+  else
+    IrcWrite('PING :slftp');
 end;
 
 function CommandAuthorized(const netname, channel, cmd: String): Boolean;
@@ -1294,6 +1313,14 @@ begin
     exit;
   end;
 
+  if not registered and isZncWelcomeWithoutUpstream(s) then
+  begin
+    // ZNC forwards the server's welcome and MOTD once it reaches the server, so keep the connection
+    FWaitingForZncUpstream := True;
+    status := 'waiting for ZNC to reach the IRC server...';
+    Debug(dpMessage, section, '%s: ZNC has no connection to the IRC server, waiting for it', [netname]);
+  end;
+
   if 1 = Pos('PING ', s) then
     IrcPing(Copy(s, 6, 1000))
   else {// MODES=} if ((registered = False) and ((0 <> Pos(' 266 ', s)) or (0 <> Pos(' 376 ', s)) or (0 <> Pos(' 422 ', s)))) then
@@ -1567,6 +1594,7 @@ var
   s, osszes: String;
   fEchoQueueList: TList<TIrcEchoItem>;
   fEchoItem: TIrcEchoItem;
+  fReadStart: TDateTime;
 begin
   Result := False;
   while ((not shouldrestart) and (not shouldquit)) do
@@ -1581,12 +1609,17 @@ begin
       ShouldJoinGame();
 
     try
+      fReadStart := Now;
       while ReadLn(s, osszes, 100) do
       begin
         if (s = '') then
           Break;
         if not IrcProcessLine(s) then
           break;
+        // while lines arrive faster than they are processed, ReadLn never runs out of data: leave the loop
+        // regularly so that the checks below still run, at least as often as an echo message may be sent
+        if MilliSecondsBetween(Now, fReadStart) > flood then
+          Break;
       end;
     except
       on e: Exception do
@@ -1621,8 +1654,7 @@ begin
       end;
     end;
 
-    if ((SecondsBetween(Now, irc_last_read) > 60) and (lastservername <> '')) then
-      ircwrite('PING ' + lastservername);
+    SendKeepAlivePing;
 
     if SecondsBetween(Now, irc_last_read) > irc_timeout then
     begin
@@ -1641,18 +1673,50 @@ var
   userid, pass: String;
   i: Integer;
   perform: String;
+  fPingSent: Boolean; //< @true if we sent ZNC a PING and haven't received a line since
 begin
   Result := False;
   registered := False;
+  FWaitingForZncUpstream := False;
+  fPingSent := False;
   status := 'registering...';
 
+  // Wait until the IRC server ends the registration (266/376/422, see IrcProcessLine), at most register_timeout
+  // seconds from elotte.
+  //
+  // Waiting for ZNC: if ZNC has no connection to the IRC server, it only sends its own 001 and the registration
+  // ends when ZNC reaches the server, which can take hours. Reconnecting doesn't help, so we keep the
+  // connection as long as ZNC still answers: every line from ZNC moves elotte to now and so restarts the
+  // timeout. ZNC sends a line on its own only about every 30 s, which can be longer than register_timeout, so
+  // after half of register_timeout without a line we send a PING. ZNC answers it itself, also without a
+  // connection to the IRC server, and the answer restarts the timeout again.
+  //
+  // If the connection broke without being closed (network outage, hung ZNC), the PING gets no answer and the
+  // timeout ends the wait, so that we reconnect. Writing the PING usually still succeeds in that case (the
+  // data only goes into the send buffer of the OS), which is why we wait for the answer instead of checking
+  // whether the write failed.
   elotte := Now();
   while (SecondsBetween(Now, elotte) < register_timeout) do
   begin
+    // checked here as well, because waiting for ZNC can take much longer than register_timeout
+    if (shouldquit or shouldrestart) then
+    begin
+      error := netname + ': IRC registration aborted';
+      exit;
+    end;
+
     while (ReadLn(s, osszes, 1000)) do
     begin
       if not IrcProcessLine(s) then
         exit;
+
+      // ZNC is still there (this can be the answer to our PING, a PING from ZNC or a status message):
+      // restart the timeout, and allow a new PING once ZNC is quiet again
+      if FWaitingForZncUpstream then
+      begin
+        elotte := Now();
+        fPingSent := False;
+      end;
     end;
 
     if ((error <> '') and (error <> 'timeout')) then
@@ -1660,8 +1724,18 @@ begin
 
     if registered then
       Break;
+
+    // ZNC was quiet for half of register_timeout: ask it for an answer. Only one PING per quiet period; the
+    // other half of register_timeout is the time ZNC has to answer before the loop ends.
+    if (FWaitingForZncUpstream and (not fPingSent) and (SecondsBetween(Now, elotte) > register_timeout div 2)) then
+    begin
+      if not IrcWrite('PING :' + netname) then
+        exit;
+      fPingSent := True;
+    end;
   end;
 
+  // also reached if ZNC didn't answer our PING in time
   if not registered then
   begin
     error := netname + ': IRC Not registered within io timeout';

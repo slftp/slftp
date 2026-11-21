@@ -86,8 +86,12 @@
     {#} Fix section insertion order tracking to preserve RulesSave sequence
     {#} Fix error when trying to install openssl 1.1.1w via the libinstaller
     {#} Fix build on BSD
-    {#} Fix corrupted sites.dat and rtpl/SITE.setting files when the process gets killed or crashes
+    {#} Fix corrupted sites.dat, rtpl/SITE.setting and other data files (e.g. slftp.news, slftp.ranks,
+        slftp.speedstats) when the process gets killed or crashes
     {#} Fix REQUEST precatcher event firing when it should not
+    {#} Fix IRC connections through ZNC being dropped while slftp is busy reading a backlog; a keepalive PING is now
+        sent at least every minute
+    {#} Fix news dupecheck re-adding duplicates younger than 7 days as unread, e.g. TVMaze messages
     {+} Enable SFV check to avoid sending wrong files. Set sections in SFVRelease in [taskrace] of slftp.ini
     {+} Enable locks with timeout in slftp.ini section 'debug' setting 'event_based_locking'. This is to debug deadlocks and
         will raise an exception with some info about which thread and code is blocking a lock.
@@ -115,6 +119,9 @@
         on the sites.
     {^} Reduce CPU load and lock contention with many sites: faster IRC Blowfish ECB encryption, socket read
         buffers are reused, IRC echo messages are sent without blocking other threads, FPC builds use FPCMM_BOOST
+    {^} Keep news entries in memory and save slftp.news every minute instead of on every change; adding news (e.g.
+        forwarded private messages) no longer blocks IRC threads. An unreadable slftp.news is renamed to
+        slftp.news.corrupt_<timestamp> and slftp starts without news entries
     {-} The routelock command has been removed. Use routeset with option -l instead.
         Existing route locks will be migrated, if you revert to an older version, you will need to set those routes again.
 

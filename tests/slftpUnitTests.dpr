@@ -86,6 +86,7 @@ uses
   kb.releaseinfo.MVIDTests,
   taskhttpimdbTests,
   sitesunitTests,
+  queueunitTests,
   precatcherTests,
   slcriticalsection2Tests,
   dbhandlerTests,
@@ -93,7 +94,8 @@ uses
   variantCacheTests,
   sltimerTests,
   ruleconditions.tvTests,
-  pazoTests;
+  pazoTests,
+  newsTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}

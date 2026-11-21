@@ -27,6 +27,7 @@ type
     main_lock: TSlCriticalSection2;
     fQueueStat: TQueueStat;
     fWatchdog: TObject;
+    { Stops the thread, waits until it has finished and frees the queue. }
     destructor Destroy; override;
     procedure Execute; override;
     procedure TryToAssignSlots(t: TTask);
@@ -581,7 +582,6 @@ begin
     queue_last_run := Now;
     queueclean_last_run := Now;
     queue_last_stat_update := Now;
-    FreeOnTerminate := True;
     fQueueStat := TQueueStat.Create();
     StatsList.Add(fQueueStat);
     Queues.Add(self);
@@ -609,12 +609,17 @@ destructor TQueueThread.Destroy;
 begin
   if Queues <> nil then
     Queues.Extract(self);
+  // the owning TSite frees the queue: on shutdown, pazos are freed while the thread has already stopped
+  // and still need main_lock, so the thread must not free itself
+  Terminate;
+  if queueevent <> nil then
+    queueevent.SetEvent;
+  inherited; // waits for the thread
   WatchdogReleaseParticipant(fWatchdog);
   main_lock.Free;
   tasks.Free;
   waiting_tasks.Free;
   queueevent.Free;
-  inherited;
 end;
 
 procedure TQueueThread.TryToAssignRaceSlots(t: TPazoRaceTask);
